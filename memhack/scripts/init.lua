@@ -19,7 +19,7 @@ end
 function extension:init(options)
 	local path = self.resourcePath
 
-	require(path.."scripts/memhack")
+	require(path.."memhack")
 	require(path.."functions/pawn")
 	require(path.."functions/pilot")
 
