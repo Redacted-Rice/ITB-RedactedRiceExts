@@ -1,25 +1,16 @@
-SkillStruct = {
-}
 
-TwoSkillsStruct = {
+local PilotStruct = memhack.structManager.define("Pilot", {
 	-- todo find real values
-	skill1 = {0x0, SkillStruct},
-	skill2 = {0x20, SkillStruct},
-}
-PilotStruct = {
-	-- todo find real values
-	id = {0x0, "string", 16},
-	name = {0x10, "string", 16},
-	level = {0x20, "int"},
-	skills = {0x30, "pointer", TwoSkillsStruct},
-	xp = {0x40, "int"},
-}
+	id = { offset = 0x0, type = "string", maxLength = 16},
+	name = { offset = 0x10, type = "string", maxLength = 16},
+	level = { offset = 0x20, type = "int"},
+	--skills = { offset = 0x30, type = "pointer", pointedType = TwoSkillsStruct},
+	xp = { offset = 0x40, type = "int"},
+})
 
 function onPawnClassInitialized(BoardPawn, pawn)
-	
-	PilotStruct.GetPilot = function(self)
-		-- todo
-	end
+	-- anything needed? Probably not - just exposing pilot struct and auto defined
+    -- fns should be enough
 end
 
 -- Maybe a better event to init on?
