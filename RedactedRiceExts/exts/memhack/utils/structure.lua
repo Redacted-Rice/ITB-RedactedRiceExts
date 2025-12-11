@@ -2,12 +2,31 @@
 	Structure System for ITB-MemHack
 
 	This module provides a way to define memory structures with typed fields.
-	Each field definition includes an offset, type, and optional length.
+	Each field definition includes an offset, type, and potentially additional
+	parameters based on the type.
 
 	Getters and setters are automatically generated for each field, calling
-	into the memhack DLL to read/write at the appropriate addresses.
+	into the memhack DLL to read/write at the appropriate addresses. These can
+	be disabled per field if desired.
 
-	Structures are automatically registered to memhack.structures[name] table.
+	Structures are automatically registered to memhack.structs[name] table.
+
+	Supported Types:
+	- int, bool, double, float, byte: Basic types, no additional params
+	- pointer: 32 bit pointer
+	  - optional: pointedType for automatic wrapping of the pointed type
+	- string: C style null terminated string
+	  - required: maxLength (including null terminator)
+	- bytearray: Array of bytes
+	  - required: length
+
+	Per-field optional parameters:
+	- getter/setterPrefix: prefix for getter/setter method (default: "get"/"set").
+	  Can be used to "hide" methods for values that should not be accessed in
+	  isolation. For example, use "getInternal"/"setInternal" to make it clear
+	  these should only be used internally and wrapped in other functions.
+	  Use case: pilot exp and level where you would want to increase the level
+	  if the exp crosses a threshold, or to limit it to 0-2.
 
 --]]
 
@@ -21,6 +40,16 @@ local _structures = {}
 
 -- Supported data types and their memory operations
 local TYPE_HANDLERS = {
+	byte = {
+		read = function(dll, address)
+			return dll.memory.readByte(address)
+		end,
+		write = function(dll, address, value)
+			dll.memory.writeByte(address, value)
+		end,
+		size = 1
+	},
+
 	int = {
 		read = function(dll, address)
 			return dll.memory.readInt(address)
@@ -63,18 +92,16 @@ local TYPE_HANDLERS = {
 
 	string = {
 		read = function(dll, address, maxLength)
-			local str = dll.memory.readString(address)
-			if maxLength and #str > maxLength then
-				return str:sub(1, maxLength)
+			if not maxLength then
+				error("string type requires a 'maxLength' field (including null terminator)")
 			end
-			return str
+			return dll.memory.readCString(address, maxLength)
 		end,
 		write = function(dll, address, value, maxLength)
-			local writeValue = value
-			if maxLength and #value > maxLength then
-				writeValue = value:sub(1, maxLength)
+			if not maxLength then
+				error("string type requires a 'maxLength' field (including null terminator)")
 			end
-			dll.memory.writeString(address, writeValue)
+			dll.memory.writeCString(address, value, maxLength)
 		end,
 		size = nil  -- Variable size
 	},
@@ -139,11 +166,18 @@ local function validateField(name, field)
 	if field.type == "bytearray" and not field.length then
 		error(string.format("Field '%s' with type 'bytearray' must have a 'length'", name))
 	end
+
+	if field.type == "string" and not field.maxLength then
+		error(string.format("Field '%s' with type 'string' must have a 'maxLength' (including null terminator)", name))
+	end
 end
 
 local function generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
+	-- Get prefix from field definition or use default
+	local getterPrefix = fieldDef.getterPrefix or "get"
+
 	-- Raw pointer getter (getXxxPtr)
-	local ptrGetterName = "get" .. capitalizedName .. "Ptr"
+	local ptrGetterName = getterPrefix .. capitalizedName .. "Ptr"
 	StructType[ptrGetterName] = function(self)
 		local address = self._address + fieldDef.offset
 		return handler.read(_dll, address)
@@ -151,7 +185,7 @@ local function generatePointerGetters(StructType, fieldName, fieldDef, handler, 
 
 	-- Typed wrapper getter (getXxx) if pointedType specified
 	if fieldDef.pointedType then
-		local wrapperGetterName = "get" .. capitalizedName
+		local wrapperGetterName = getterPrefix .. capitalizedName
 		StructType[wrapperGetterName] = function(self)
 			local address = self._address + fieldDef.offset
 			local ptrValue = handler.read(_dll, address)
@@ -177,7 +211,10 @@ local function generatePointerGetters(StructType, fieldName, fieldDef, handler, 
 end
 
 local function generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local ptrSetterName = "set" .. capitalizedName .. "Ptr"
+	-- Get prefix from field definition or use default
+	local setterPrefix = fieldDef.setterPrefix or "set"
+
+	local ptrSetterName = setterPrefix .. capitalizedName .. "Ptr"
 	StructType[ptrSetterName] = function(self, value)
 		local address = self._address + fieldDef.offset
 		handler.write(_dll, address, value)
@@ -185,7 +222,10 @@ local function generatePointerSetter(StructType, fieldName, fieldDef, handler, c
 end
 
 local function generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterName = "get" .. capitalizedName
+	-- Get prefix from field definition or use default
+	local getterPrefix = fieldDef.getterPrefix or "get"
+
+	local getterName = getterPrefix .. capitalizedName
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
 
@@ -200,7 +240,10 @@ local function generateStandardGetter(StructType, fieldName, fieldDef, handler, 
 end
 
 local function generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local setterName = "set" .. capitalizedName
+	-- Get prefix from field definition or use default
+	local setterPrefix = fieldDef.setterPrefix or "set"
+
+	local setterName = setterPrefix .. capitalizedName
 	StructType[setterName] = function(self, value)
 		local address = self._address + fieldDef.offset
 
@@ -216,27 +259,38 @@ end
 
 -- Build all structure methods from a layout
 local function buildStructureMethods(StructType, layout)
-	-- Clear existing generated methods
-	for fieldName, _ in pairs(layout) do
-        local capitalizedName = capitalize(fieldName)
-        StructType["get" .. capitalizedName] = nil
-        StructType["set" .. capitalizedName] = nil
-        StructType["get" .. capitalizedName .. "Ptr"] = nil
-        StructType["set" .. capitalizedName .. "Ptr"] = nil
+	-- Clear existing generated methods with any possible prefix
+	-- Since prefixes can be custom per field, we need to clear broadly
+	for fieldName, fieldDef in pairs(layout) do
+		local capitalizedName = capitalize(fieldName)
+		local getterPrefix = fieldDef.getterPrefix or "get"
+		local setterPrefix = fieldDef.setterPrefix or "set"
+
+		-- Clear with field-specific prefixes
+		StructType[getterPrefix .. capitalizedName] = nil
+		StructType[setterPrefix .. capitalizedName] = nil
+		StructType[getterPrefix .. capitalizedName .. "Ptr"] = nil
+		StructType[setterPrefix .. capitalizedName .. "Ptr"] = nil
+
+		-- Also clear default prefixes in case they changed
+		StructType["get" .. capitalizedName] = nil
+		StructType["get" .. capitalizedName .. "Ptr"] = nil
+		StructType["set" .. capitalizedName] = nil
+		StructType["set" .. capitalizedName .. "Ptr"] = nil
 	end
 
 	-- Generate getter and setter methods for each field
 	for fieldName, fieldDef in pairs(layout) do
-        local capitalizedName = capitalize(fieldName)
-        local handler = TYPE_HANDLERS[fieldDef.type]
+		local capitalizedName = capitalize(fieldName)
+		local handler = TYPE_HANDLERS[fieldDef.type]
 
-        if fieldDef.type == "pointer" then
-            generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
-            generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-        else
-            generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-            generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-        end
+		if fieldDef.type == "pointer" then
+			generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
+			generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+		else
+			generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+			generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+		end
 	end
 end
 

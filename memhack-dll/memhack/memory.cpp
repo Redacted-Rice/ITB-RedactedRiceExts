@@ -7,6 +7,16 @@ static bool READ_ONLY = false;
 static bool READ_WRITE = true;
 
 // Read functions - return the value at the given address
+int read_byte(lua_State* L) {
+	void* addr = (void*)luaL_checkinteger(L, 1);
+	if (!SafeMemory::is_access_allowed(addr, sizeof(unsigned char), READ_ONLY)) {
+		luaL_error(L, "read_byte failed: read from address 0x%p not allowed", addr);
+		return 0;
+	}
+	lua_pushinteger(L, *(unsigned char*)addr);
+	return 1;
+}
+
 int read_int(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(int), READ_ONLY)) {
@@ -47,11 +57,43 @@ int read_float(lua_State* L) {
 	return 1;
 }
 
-int read_string(lua_State* L) {
+int read_cstring(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
-	// TODO
-	std::string* str = (std::string*)addr;
-	lua_pushstring(L, str->c_str());
+	int max_length = luaL_checkinteger(L, 2);
+	
+	// Validate max_length (including null terminator)
+	if (max_length <= 0) {
+		luaL_error(L, "read_cstring failed: max_length must be positive");
+		return 0;
+	} else if (max_length > MAX_CSTRING_LENGTH) {
+		luaL_error(L, "read_cstring failed: max_length cannot exceed %d (including null terminator), got %d", MAX_CSTRING_LENGTH, max_length);
+		return 0;
+	// Validate we can read the max length. Unfortunately we don't know the length
+	// until we read the null term. We could check each byte as we go but for simplicity
+	// and speed just assume max length
+	} else if (!SafeMemory::is_access_allowed(addr, max_length, READ_ONLY)) {
+		luaL_error(L, "read_cstring failed: read from address 0x%p ([max] len %d) not allowed", addr, max_length);
+		return 0;
+	}
+	
+	std::string result;
+	// Pre-allocate reasonable size. Most strings should be short
+	result.reserve(128);
+	
+	// Read until we hit null terminator or max_length
+	unsigned char* bytes = (unsigned char*)addr;
+	for (int i = 0; i < max_length; i++) {
+		unsigned char byte = bytes[i];
+		
+		// If we hit null terminator, we're done
+		if (byte == 0) {
+			break;
+		}
+		result.push_back((char)byte);
+	}
+	
+	// note - std::string doesn't need us to add null term
+	lua_pushstring(L, result.c_str());
 	return 1;
 }
 
@@ -88,6 +130,22 @@ int read_byte_array(lua_State* L) {
 }
 
 // Write functions - write a value to the given address
+int write_byte(lua_State* L) {
+	void* addr = (void*)luaL_checkinteger(L, 1);
+	int value = luaL_checkinteger(L, 2);
+	
+	// Ensure the value is good and access is allowed
+	if (value < 0 || value > 255) {
+		luaL_error(L, "write_byte failed: passed value is not in range 0 - 255", value);
+	} else if (!SafeMemory::is_access_allowed(addr, sizeof(unsigned char), READ_WRITE)) {
+		luaL_error(L, "write_byte failed: write to address 0x%p not allowed", addr);
+		return -1;
+	}
+	
+	*(unsigned char*)addr = (unsigned char)value;
+	return 0;
+}
+
 int write_int(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(int), READ_WRITE)) {
@@ -132,12 +190,37 @@ int write_float(lua_State* L) {
 	return 0;
 }
 
-int write_string(lua_State* L) {
+int write_cstring(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	const char* value = luaL_checkstring(L, 2);
-	// TODO
-	std::string* str = (std::string*)addr;
-	*str = std::string(value);
+	int max_length = luaL_checkinteger(L, 3);
+	
+	// Validate max_length (including null terminator)
+	if (max_length <= 0) {
+		luaL_error(L, "write_cstring failed: max_length must be positive");
+		return -1;
+	} else if (max_length > MAX_CSTRING_LENGTH) {
+		luaL_error(L, "write_cstring failed: max_length cannot exceed %d (including null terminator), got %d", MAX_CSTRING_LENGTH, max_length);
+		return -1;
+	}
+	
+	// Get the actual length of the string (including null terminator) and ensure it's within the allowed value
+	size_t length = strlen(value) + 1;
+	if (length > (size_t)max_length) {
+		luaL_error(L, "write_cstring failed: string length %zu exceeds max_length %d", length, max_length);
+		return -1;
+	}
+	
+	// Validate memory access
+	if (!SafeMemory::is_access_allowed(addr, length, READ_WRITE)) {
+		luaL_error(L, "write_cstring failed: write to address 0x%p (len %zu) not allowed", addr, length);
+		return -1;
+	}
+	
+	// Copy the data over
+	unsigned char* bytes = (unsigned char*)addr;
+	memcpy(bytes, value, length);
+	
 	return 0;
 }
 
@@ -206,8 +289,12 @@ void add_memory_functions(lua_State* L) {
 	lua_pushcfunction(L, read_float);
 	lua_rawset(L, -3);
 
-	lua_pushstring(L, "readString");
-	lua_pushcfunction(L, read_string);
+	lua_pushstring(L, "readByte");
+	lua_pushcfunction(L, read_byte);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "readCString");
+	lua_pushcfunction(L, read_cstring);
 	lua_rawset(L, -3);
 
 	lua_pushstring(L, "readPointer");
@@ -235,8 +322,12 @@ void add_memory_functions(lua_State* L) {
 	lua_pushcfunction(L, write_float);
 	lua_rawset(L, -3);
 
-	lua_pushstring(L, "writeString");
-	lua_pushcfunction(L, write_string);
+	lua_pushstring(L, "writeByte");
+	lua_pushcfunction(L, write_byte);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "writeCString");
+	lua_pushcfunction(L, write_cstring);
 	lua_rawset(L, -3);
 
 	lua_pushstring(L, "writePointer");
