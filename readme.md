@@ -1,5 +1,5 @@
-# Mem Hack
-Memory Hacking Extension to allow direct memory access for Into the Breach by Redacted Rice
+# Mem Hack Extension
+RedactedRice's Mem Hack Extension that exposes additional functionality via direct memory access
 Created by Das Keifer
 
 Join the Redacted Rice discord for support, mods, discussion and other projects: https://discord.gg/CNjTVrpN4v
@@ -12,4 +12,12 @@ Email: RedactedRice@gmail.com
 # Releases
 Latest release: 0.1.0
 ## 0.1.0
-Released: XX/XX/2026 
+Released: XX/XX/XXXX 
+compatible with:
+* ItB AE 	1.2.93
+* ModLoader 	2.9.4
+* ModLoaderExt	1.23 
+* memedit	1.2.0
+
+### Notes
+In progress...
