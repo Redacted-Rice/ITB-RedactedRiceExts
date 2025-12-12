@@ -21,16 +21,20 @@
 	  - required: length
 
 	Per-field optional parameters:
-	- getter/setterPrefix: prefix for getter/setter method (default: "get"/"set").
+	- hideGetter/Setter: boolean value that prepends "_" to getter/setter method names (default: false).
 	  Can be used to "hide" methods for values that should not be accessed in
-	  isolation. For example, use "getInternal"/"setInternal" to make it clear
-	  these should only be used internally and wrapped in other functions.
+	  isolation. For example, use hideSetter = true to make it clear the setter
+	  should only be used internally and wrapped in other functions.
 	  Use case: pilot exp and level where you would want to increase the level
 	  if the exp crosses a threshold, or to limit it to 0-2.
 
 --]]
 
 local Structure = {}
+
+local GETTER_PREFIX = "Get"
+local SETTER_PREFIX = "Set"
+local HIDE_PREFIX = "_"
 
 -- memhack DLL reference
 local _dll = nil
@@ -173,17 +177,17 @@ local function validateField(name, field)
 end
 
 local function generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
-	-- Get prefix from field definition or use default
-	local getterPrefix = fieldDef.getterPrefix or "get"
+	-- Get the prefix
+	local getterPrefix = fieldDef.hideGetter and HIDE_PREFIX .. GETTER_PREFIX or GETTER_PREFIX
 
-	-- Raw pointer getter (getXxxPtr)
+	-- Raw pointer getter (GetXxxPtr)
 	local ptrGetterName = getterPrefix .. capitalizedName .. "Ptr"
 	StructType[ptrGetterName] = function(self)
 		local address = self._address + fieldDef.offset
 		return handler.read(_dll, address)
 	end
 
-	-- Typed wrapper getter (getXxx) if pointedType specified
+	-- Typed wrapper getter (GetXxx) if pointedType specified
 	if fieldDef.pointedType then
 		local wrapperGetterName = getterPrefix .. capitalizedName
 		StructType[wrapperGetterName] = function(self)
@@ -211,8 +215,8 @@ local function generatePointerGetters(StructType, fieldName, fieldDef, handler, 
 end
 
 local function generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	-- Get prefix from field definition or use default
-	local setterPrefix = fieldDef.setterPrefix or "set"
+	-- Get the prefix
+	local setterPrefix = fieldDef.hideSetter and HIDE_PREFIX .. SETTER_PREFIX or SETTER_PREFIX
 
 	local ptrSetterName = setterPrefix .. capitalizedName .. "Ptr"
 	StructType[ptrSetterName] = function(self, value)
@@ -222,8 +226,8 @@ local function generatePointerSetter(StructType, fieldName, fieldDef, handler, c
 end
 
 local function generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	-- Get prefix from field definition or use default
-	local getterPrefix = fieldDef.getterPrefix or "get"
+	-- Get the prefix
+	local getterPrefix = fieldDef.hideGetter and HIDE_PREFIX .. GETTER_PREFIX or GETTER_PREFIX
 
 	local getterName = getterPrefix .. capitalizedName
 	StructType[getterName] = function(self)
@@ -240,8 +244,8 @@ local function generateStandardGetter(StructType, fieldName, fieldDef, handler, 
 end
 
 local function generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	-- Get prefix from field definition or use default
-	local setterPrefix = fieldDef.setterPrefix or "set"
+	-- Get the prefix
+	local setterPrefix = fieldDef.hideSetter and HIDE_PREFIX .. SETTER_PREFIX or SETTER_PREFIX
 
 	local setterName = setterPrefix .. capitalizedName
 	StructType[setterName] = function(self, value)
@@ -260,23 +264,20 @@ end
 -- Build all structure methods from a layout
 local function buildStructureMethods(StructType, layout)
 	-- Clear existing generated methods with any possible prefix
-	-- Since prefixes can be custom per field, we need to clear broadly
 	for fieldName, fieldDef in pairs(layout) do
 		local capitalizedName = capitalize(fieldName)
-		local getterPrefix = fieldDef.getterPrefix or "get"
-		local setterPrefix = fieldDef.setterPrefix or "set"
 
-		-- Clear with field-specific prefixes
-		StructType[getterPrefix .. capitalizedName] = nil
-		StructType[setterPrefix .. capitalizedName] = nil
-		StructType[getterPrefix .. capitalizedName .. "Ptr"] = nil
-		StructType[setterPrefix .. capitalizedName .. "Ptr"] = nil
+		-- Clear exposed prefixes
+		StructType[GETTER_PREFIX .. capitalizedName] = nil
+		StructType[SETTER_PREFIX .. capitalizedName] = nil
+		StructType[GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
+		StructType[SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
 
-		-- Also clear default prefixes in case they changed
-		StructType["get" .. capitalizedName] = nil
-		StructType["get" .. capitalizedName .. "Ptr"] = nil
-		StructType["set" .. capitalizedName] = nil
-		StructType["set" .. capitalizedName .. "Ptr"] = nil
+		-- And "hidden" prefixes
+		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName] = nil
+		StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName] = nil
+		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
+		StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
 	end
 
 	-- Generate getter and setter methods for each field
