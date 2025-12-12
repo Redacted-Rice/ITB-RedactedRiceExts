@@ -6,15 +6,26 @@
 	parameters based on the type.
 
 	Getters and setters are automatically generated for each field, calling
-	into the memhack DLL to read/write at the appropriate addresses. These can
-	be disabled per field if desired.
+	into the memhack DLL to read/write at the appropriate addresses.
 
 	Structures are automatically registered to memhack.structs[name] table.
+
+	Generated Methods:
+	- Basic types (int, bool, double, float, byte, string, bytearray):
+	  - GetXxx() / SetXxx() - read/write the value
+	- pointer: 32 bit pointer
+	  - GetXxxPtr() / SetXxxPtr() - read/write the raw pointer value
+	  - GetXxxObj() - get wrapped object at pointed address (if pointedType specified)
+	- struct: Inline struct (not a pointer)
+	  - GetXxxObj() - get wrapped struct at this field's address
+	  - No setter - modify individual fields on the returned object instead
 
 	Supported Types:
 	- int, bool, double, float, byte: Basic types, no additional params
 	- pointer: 32 bit pointer
 	  - optional: pointedType for automatic wrapping of the pointed type
+	- struct: Inline struct (not a pointer)
+	  - required: structType
 	- string: C style null terminated string
 	  - required: maxLength (including null terminator)
 	- bytearray: Array of bytes
@@ -28,6 +39,7 @@
 	  Use case: pilot exp and level where you would want to increase the level
 	  if the exp crosses a threshold, or to limit it to 0-2.
 
+	See functions/pilot.lua for examples
 --]]
 
 local Structure = {}
@@ -131,6 +143,20 @@ local TYPE_HANDLERS = {
 			dll.memory.writeByteArray(address, value)
 		end,
 		size = nil  -- Variable size, specified in field definition
+	},
+
+	struct = {
+		read = function(dll, address, structType)
+			-- This function is not directly used; getters handle struct wrapping
+			if not structType then
+				error("struct type requires a 'structType' field")
+			end
+			return address  -- Return the address for wrapping
+		end,
+		write = function(dll, address, value, structType)
+			error("Cannot write entire struct directly. Modify individual fields instead.")
+		end,
+		size = nil  -- Size determined by the struct definition
 	}
 }
 
@@ -174,6 +200,10 @@ local function validateField(name, field)
 	if field.type == "string" and not field.maxLength then
 		error(string.format("Field '%s' with type 'string' must have a 'maxLength' (including null terminator)", name))
 	end
+
+	if field.type == "struct" and not field.structType then
+		error(string.format("Field '%s' with type 'struct' must have a 'structType'", name))
+	end
 end
 
 local function generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
@@ -187,9 +217,9 @@ local function generatePointerGetters(StructType, fieldName, fieldDef, handler, 
 		return handler.read(_dll, address)
 	end
 
-	-- Typed wrapper getter (GetXxx) if pointedType specified
+	-- Typed wrapper getter (GetXxxObj) if pointedType specified
 	if fieldDef.pointedType then
-		local wrapperGetterName = getterPrefix .. capitalizedName
+		local wrapperGetterName = getterPrefix .. capitalizedName .. "Obj"
 		StructType[wrapperGetterName] = function(self)
 			local address = self._address + fieldDef.offset
 			local ptrValue = handler.read(_dll, address)
@@ -261,6 +291,28 @@ local function generateStandardSetter(StructType, fieldName, fieldDef, handler, 
 	end
 end
 
+local function generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+	-- Get the prefix
+	local getterPrefix = fieldDef.hideGetter and HIDE_PREFIX .. GETTER_PREFIX or GETTER_PREFIX
+
+	local getterName = getterPrefix .. capitalizedName .. "Obj"
+	StructType[getterName] = function(self)
+		local address = self._address + fieldDef.offset
+
+		-- Resolve the struct type (string name to actual structure)
+		local structType = fieldDef.structType
+		if type(structType) == "string" then
+			structType = _structures[structType]
+			if not structType then
+				error(string.format("Unknown structure type: %s", fieldDef.structType))
+			end
+		end
+
+		-- Create and return wrapped structure at this address
+		return structType.new(address)
+	end
+end
+
 -- Build all structure methods from a layout
 local function buildStructureMethods(StructType, layout)
 	-- Clear existing generated methods with any possible prefix
@@ -272,12 +324,14 @@ local function buildStructureMethods(StructType, layout)
 		StructType[SETTER_PREFIX .. capitalizedName] = nil
 		StructType[GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
 		StructType[SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
+		StructType[GETTER_PREFIX .. capitalizedName .. "Obj"] = nil
 
 		-- And "hidden" prefixes
 		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName] = nil
 		StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName] = nil
 		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
 		StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
+		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName .. "Obj"] = nil
 	end
 
 	-- Generate getter and setter methods for each field
@@ -288,6 +342,9 @@ local function buildStructureMethods(StructType, layout)
 		if fieldDef.type == "pointer" then
 			generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
 			generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+		elseif fieldDef.type == "struct" then
+			generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+			-- No setter for struct fields - modify individual fields instead
 		else
 			generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
 			generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
@@ -373,10 +430,27 @@ local function addStaticMethods(StructType, name, layout)
 			if field.offset > maxOffset then
 				maxOffset = field.offset
 				local handler = TYPE_HANDLERS[field.type]
+
 				if handler.size then
 					maxSize = handler.size
 				elseif field.length then
 					maxSize = field.length
+				elseif field.type == "struct" and field.structType then
+					-- Get size from the nested struct
+					local structType = field.structType
+					if type(structType) == "string" then
+						structType = _structures[structType]
+					end
+					if structType and structType.StructSize then
+						local structSize = structType.StructSize()
+						if structSize then
+							maxSize = structSize
+						else
+							return nil  -- Cannot determine nested struct size
+						end
+					else
+						return nil  -- Struct type not found or has no size
+					end
 				else
 					return nil  -- Cannot determine size
 				end
