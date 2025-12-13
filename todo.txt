@@ -1,5 +1,7 @@
-Change to capitalize Get/Set defaults
-Change to use _ for hidden instead of custom prefix. Should sets be hidden by default unless exposed? Gets probably should be exposed so I'm leaning towards exposing sets as well
+Determine how to handle union
+Automatically replace dll in memhack when rebuild dll
+Add way to disable all setters/getters
+Rename skill txt to more generic text
 
 Add tests/test support (see memedit?)
 Add dynamic scanning capabilities for all accessible memory (see memedit scan/scanner)

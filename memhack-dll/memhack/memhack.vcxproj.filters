@@ -62,5 +62,8 @@
     <ClInclude Include="safememory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="itb_userdata.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

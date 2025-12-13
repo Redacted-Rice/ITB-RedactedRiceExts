@@ -2,6 +2,7 @@
 #define MEMORY_H
 
 #include "lua.hpp"
+#include "itb_userdata.h"
 
 /*
 	Simple memory read/write API
@@ -13,6 +14,7 @@
 const int MAX_CSTRING_LENGTH = 1024;
 
 int get_userdata_addr(lua_State* L);
+int alloc_cstring(lua_State* L);
 
 // Read functions - return the value at the given address
 int read_byte(lua_State* L);

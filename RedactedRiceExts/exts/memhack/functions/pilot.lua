@@ -1,19 +1,41 @@
+-- This is a union... how to handle in struct?
+-- Maybe just have overlap here and let modders add functions as needed
+-- Add a disable all setters option?
+local PilotLvlUpSkillTxtUnion = memhack.structManager.define("PilotLvlUpSkillTxtUnion", {
+	-- If present in global texts, the text idx to display. Otherwise displays directly.
+	-- Can only be used if size < 16. Otherwise it has to be stored with textIdPtr
+	textIdx = { offset = 0x0, type = "string", maxLength = 16, hideSetter = true},
+	-- Same idea as textIdx but a pointer to the value if its too large to fit locally
+	textIdxPtr = { offset = 0x0, type = "pointer", hideSetter = true},
+	-- Length of the textIdx/string pointed to by testIdxPtr. This is set the same regardless
+	-- of which is used
+	textIdxLen = { offset = 0x10, type = "int", hideSetter = true},
+	-- Which one is used. If x0F, it will be treated as textIdx in place. If 0x1F, it will
+	-- be treated as a pointer. Not sure if there are any other valid values
+	unionType = { offset = 0x14, type = "int", hideSetter = true},
+})
+
 local PilotLvlUpSkill = memhack.structManager.define("PilotLvlUpSkill", {
-	id = { offset = 0x0, type = "string", maxLength = 16},
-	-- String indexes into global string map. Seem to behave a bit oddly. If not
-	-- found they will display the index value. Some skills seem to have smaller
-	-- size limit? Maybe AE (16) vs OG (15)? Was testing with Move Bonus and Thick Skin
-	displayNameIdx = { offset = 0x18, type = "string", maxLength = 16}, -- string ref to string in global string map
-	fullNameIdx = { offset = 0x30, type = "string", maxLength = 16}, -- string ref to string in global string map
-	descriptionIdx = { offset = 0x48, type = "string", maxLength = 16}, -- string ref to string in global string map
+	-- This is the main value used to determine skill effect in game. Note that the + move, hp, & cores
+	-- skills use the bonus values below instead
+	id = { offset = 0x0, type = "struct", structType = "PilotLvlUpSkillTxtUnion" },
+	-- Displayed in the small box in UI
+	shortName = { offset = 0x18, type = "struct", structType = "PilotLvlUpSkillTxtUnion" },
+	-- Displayed when hovering over skill
+	fullName = { offset = 0x30, type = "struct", structType = "PilotLvlUpSkillTxtUnion" },
+	-- Displayed when hovering over skill
+	description = { offset = 0x48, type = "struct", structType = "PilotLvlUpSkillTxtUnion" },
 	coresBonus = { offset = 0x64, type = "int"},
 	healthBonus = { offset = 0x68, type = "int"},
 	moveBonus = { offset = 0x6C, type = "int"},
-	saveVal = { offset = 0x70, type = "int"}, -- must be between 0-13
+	-- Value used in save file. Does not directly change effect. ID does this
+	-- Valid values are between 0-13. Other values will be saved but are clamped
+	-- to this range before the onGameEntered event is fired
+	saveVal = { offset = 0x70, type = "int"},
 })
 
 -- Array of two PilotLvlUpSkill structs back to back
--- Note: PilotLvlUpSkill size is 0x74 bytes (is it 74 or 7C? I can't remember but think it might be the latter)
+-- PilotLvlUpSkill size is 0x74 bytes
 local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArray", {
 	skill1 = { offset = 0x00, type = "struct", structType = "PilotLvlUpSkill" },
 	skill2 = { offset = 0x74, type = "struct", structType = "PilotLvlUpSkill" },
@@ -53,6 +75,27 @@ function onPawnClassInitialized(BoardPawn, pawn)
 			self:_SetLevel(newLevel)
 			self:_SetLevelUpXp((newLevel + 1) * 25)
 		end
+	end
+	
+	PilotLvlUpSkillTxtUnion.textIds = {}
+
+	
+	PilotLvlUpSkillTxtUnion.Set = function(self, textIdx)
+		local txtLen = #textIdx
+		if txtLen < 16 then -- < 16 for room for null term
+			-- If its less than 16, we can store it locally
+			self:_SetTextIdx(textIdx)
+			self:_SetUnionType(0x0F)
+		else 
+			-- if we don't have a text idx already, create one
+			if PilotLvlUpSkillTxtUnion.textIds[textIdx] == nil then
+				PilotLvlUpSkillTxtUnion.textIds[textIdx] = memhack.dll.memory.allocCString(textIdx)
+			end
+			-- todo: fix awkward syntax
+			self:_SetTextIdxPtrPtr(memhack.dll.memory.getUserdataAddr(PilotLvlUpSkillTxtUnion.textIds[textIdx]))
+			self:_SetUnionType(0x1F)
+		end
+		self:_SetTextIdxLen(txtLen)
 	end
 end
 

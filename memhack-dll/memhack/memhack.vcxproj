@@ -172,6 +172,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="itb_userdata.h" />
     <ClInclude Include="memory.h" />
     <ClInclude Include="process.h" />
     <ClInclude Include="log.h" />

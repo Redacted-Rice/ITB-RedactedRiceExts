@@ -6,30 +6,32 @@
 static bool READ_ONLY = false;
 static bool READ_WRITE = true;
 
+// Misc memory functions
 int get_userdata_addr(lua_State* L) {
-	//luaL_checktype(L, index, LUA_TUSERDATA);
-	//userdata = (void***)lua_touserdata(L, index);
-
-	//if (userdata == NULL)
-	//	luaL_error(L, "invalid userdata");
-
-	//addr = (size_t)userdata[0][2];
-
-	//lua_obj obj(L, 1);
-	//lua_pushinteger(L, obj.getAddr());
-	//return 1;
-
-
 	luaL_checktype(L, 1, LUA_TUSERDATA);
 	void*** userdata = (void***)lua_touserdata(L, 1);
 
-	if (userdata == NULL)
+	if (userdata == NULL) {
 		luaL_error(L, "invalid userdata");
+	}
 
 	size_t addr = (size_t)userdata[0][2];
 	lua_pushinteger(L, addr);
 	return 1;
 }
+
+int alloc_cstring(lua_State* L) {
+	size_t len;
+	const char* src = luaL_checklstring(L, 1, &len);
+
+	char* raw = new char[len + 1];
+	std::memcpy(raw, src, len);
+	raw[len] = '\0';
+
+	auto* owner = new Owner<char[]>(raw);
+	return push_itb_userdata(L, owner, "UserdataMemhackCString");
+}
+
 
 // Read functions - return the value at the given address
 int read_byte(lua_State* L) {
@@ -299,6 +301,10 @@ void add_memory_functions(lua_State* L) {
 
 	lua_pushstring(L, "getUserdataAddr");
 	lua_pushcfunction(L, get_userdata_addr);
+	lua_rawset(L, -3); 
+
+	lua_pushstring(L, "allocCString");
+	lua_pushcfunction(L, alloc_cstring);
 	lua_rawset(L, -3);
 
 	// Read functions
