@@ -1,6 +1,24 @@
 Automatically replace dll in memhack when rebuild dll
 Add way to disable all setters/getters?
 Inconsistnet capitalization of generated struct fields. Also come up with convention for non getter/setter fields
+	get/set - memhack fns
+	_ - "hidden" fn/read only var. Only use fns if you know what youare doing. Var should only be read
+	Go back to camelCase (here and memhack.dll)
+	remove getBaseAddress/setBaseAddress
+	_size instead of structsize
+	_getFieldAddress
+Work on naming in general... Not particularly happy with things as is
+	pointers -> getXxxPtr, setXxxPtr, getXxx
+		setXxx, structs:set
+	structs -> getXxx
+		setXxx, structs:set
+	"primitives" -> getXxx, setXxx
+	ItBString
+		getXxxStr -> ItBString:set
+Auto generate to string fn & debug string
+	__tostring
+	toDebugString
+		--auto parse through and call get on each field and map to _layout
 
 Add tests/test support (see memedit?)
 Add dynamic scanning capabilities for all accessible memory (see memedit scan/scanner)

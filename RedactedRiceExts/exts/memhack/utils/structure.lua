@@ -440,6 +440,7 @@ local function addStaticMethods(StructType, name, layout)
 	end
 
 	-- Calculate structure size
+	-- TODO move to var
 	function StructType.StructSize()
 		local maxOffset = 0
 		local maxSize = 0
@@ -476,16 +477,6 @@ local function addStaticMethods(StructType, name, layout)
 		end
 
 		return maxOffset + maxSize
-	end
-
-	-- Get layout definition
-	function StructType.StructLayout()
-		return layout
-	end
-
-	-- Get structure name
-	function StructType.StructName()
-		return name
 	end
 end
 
@@ -575,6 +566,16 @@ function Structure.makeSetterWrapper(struct, fieldName)
 	local capitailized = Structure.capitalize(fieldName)
 	local funcName = "Set" .. capitailized
 	local getterName = "Get" .. capitailized
+
+	struct[funcName] = function(self, ...)
+		self[getterName](self):Set(...)
+	end
+end
+
+function Structure.makeStructSetterWrapper(struct, fieldName)
+	local capitailized = Structure.capitalize(fieldName)
+	local funcName = "Set" .. capitailized .. "Obj"
+	local getterName = "Get" .. capitailized .. "Obj"
 
 	struct[funcName] = function(self, ...)
 		self[getterName](self):Set(...)

@@ -18,7 +18,7 @@ local ItBString = memhack.structManager.define("ItBString", {
 ItBString.LOCAL =  0x0F
 ItBString.REMOTE = 0x1F
 
-
+-- TODO add to structManager instead?
 function ItBString._makeDirectGetterWrapper(struct, itbStrName)
 	local capitailized = memhack.structManager.capitalize(itbStrName)
 	local intGetterName = "Get" .. capitailized .. "Obj"

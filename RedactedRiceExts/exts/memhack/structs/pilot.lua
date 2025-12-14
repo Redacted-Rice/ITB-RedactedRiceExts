@@ -90,14 +90,14 @@ function createPilotLvlUpSkillFuncs()
 	
 	-- Convinience wrappers for level up skills array values
 	-- See PilotLvlUpSkill.Set for arg defs
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "Skill1")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "Skill2")
+	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkillsArray, "Skill1")
+	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkillsArray, "Skill2")
 	
 	-- Convinience wrappers for lvl up skills strings
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "Id")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "ShortName")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "FullName")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "Description")
+	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "Id")
+	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "ShortName")
+	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "FullName")
+	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "Description")
 	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "Id")
 	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "ShortName")
 	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "FullName")
