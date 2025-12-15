@@ -19,6 +19,6 @@ function memhack:init()
 	end)
 
 	-- Initialize structure system
-	self.structManager = require(path.."utils/structure")
+	self.structManager = require(path.."utils/structmanager")
 	self.structs = self.structManager.init(self.dll)
 end
