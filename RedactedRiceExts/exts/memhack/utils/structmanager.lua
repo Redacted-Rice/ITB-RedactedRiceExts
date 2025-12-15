@@ -77,6 +77,43 @@ function StructManager.capitalize(str)
 	return str:sub(1, 1):upper() .. str:sub(2)
 end
 
+-- Helper functions for creating method names
+-- These ensure consistent naming across the codebase
+
+-- Create a standard getter name: "getXxx" or "_getXxx"
+function StructManager.makeStdGetterName(fieldName, hideGetter)
+	local capitalized = StructManager.capitalize(fieldName)
+	local prefix = hideGetter and StructManager.HIDE_PREFIX .. StructManager.GETTER_PREFIX or StructManager.GETTER_PREFIX
+	return prefix .. capitalized
+end
+
+-- Create a standard setter name: "setXxx" or "_setXxx"
+function StructManager.makeStdSetterName(fieldName, hideSetter)
+	local capitalized = StructManager.capitalize(fieldName)
+	local prefix = hideSetter and StructManager.HIDE_PREFIX .. StructManager.SETTER_PREFIX or StructManager.SETTER_PREFIX
+	return prefix .. capitalized
+end
+
+-- Create a pointer getter name: "getXxxPtr" or "_getXxxPtr"
+function StructManager.makeStdPtrGetterName(fieldName, hideGetter)
+	return StructManager.makeStdGetterName(fieldName, hideGetter) .. "Ptr"
+end
+
+-- Create a pointer setter name: "setXxxPtr" or "_setXxxPtr"
+function StructManager.makeStdPtrSetterName(fieldName, hideSetter)
+	return StructManager.makeStdSetterName(fieldName, hideSetter) .. "Ptr"
+end
+
+-- Create the name for a setter for an object: "get"
+function StructManager.makeStdSelfGetterName()
+	return StructManager.GETTER_PREFIX
+end
+
+-- Create the name for a setter for an object: "set"
+function StructManager.makeStdSelfSetterName()
+	return StructManager.SETTER_PREFIX
+end
+
 -- Define a new structure type
 function StructManager.define(name, layout)
 	if not StructManager._dll then
@@ -133,19 +170,17 @@ function StructManager.array(structType, baseAddress, count, stride)
 	return arr
 end
 
--- Defines a <SETTER_PREFIX><FieldName> function that
--- wraps a <GETTER_PREFIX><FieldName>:<SETTER_PREFIX>(...) fn.
--- FieldName must be a struct type that defines
--- a set function
--- fieldName does not need to be captialized
+-- Defines a <STD_SETTER> function that
+-- wraps a <STD_GETTER>:<STD_SELF_SETTER>(...) fn.
+-- FieldName must be a struct type that defines a set function
+-- fieldName does not need to be capitalized
 function StructManager.makeSetterWrapper(struct, fieldName)
-	local capitailized = StructManager.capitalize(fieldName)
-	local funcName = StructManager.SETTER_PREFIX .. capitailized
-	local getterName = StructManager.GETTER_PREFIX .. capitailized
+	local funcName = StructManager.makeStdSetterName(fieldName)
+	local getterName = StructManager.makeStdGetterName(fieldName)
 
 	struct[funcName] = function(self, ...)
 	    local obj = self[getterName](self)
-		return obj[memhack.structManager.SETTER_PREFIX](obj, ...)
+		return obj[StructManager.makeStdSelfSetterName()](obj, ...)
 	end
 end
 

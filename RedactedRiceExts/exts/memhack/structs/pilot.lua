@@ -35,6 +35,8 @@ local Pilot = memhack.structManager.define("Pilot", {
 	lvlUpSkills = { offset = 0xD8, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
 })
 
+local selfSetter = memhack.structManager.makeStdSelfSetterName()
+
 function addPawnGetPilotFunc(BoardPawn, pawn)
 	-- Upper case to align with BoardPawn conventions
 	BoardPawn.GetPilot = function(self)
@@ -77,7 +79,7 @@ end
 function createPilotLvlUpSkillFuncs()
 	-- Convinience wrappers for level up skills
 	-- idx is either 1 or 2 for the respective skill
-	-- PilotLvlUpSkill.Set for other arg defs
+	-- PilotLvlUpSkill.set for other arg defs
 	Pilot.setLvlUpSkill = function(self, index, idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		if index == 1 then
 			self:getLvlUpSkills():setSkill1Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
@@ -87,50 +89,54 @@ function createPilotLvlUpSkillFuncs()
 			error(string.format("Unexpected index %d. Should be 1 or 2", index))
 		end
 	end
-	
+
 	-- Convinience wrappers for level up skills array values
-	-- See PilotLvlUpSkill.Set for arg defs
+	-- See PilotLvlUpSkill.set for arg defs
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill1")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill2")
-	
-	-- Convinience wrappers for lvl up skills strings
+
+	-- Convinience wrappers for lvl up skills ItBStrings
+	-- Setter wrappers: setXxxObj(...) calls getXxx():set(...)
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "id")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "shortName")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "fullName")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "description")
+	-- Getter wrappers: getXxxStr() calls getXxx():get()
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "id")
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "shortName")
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "fullName")
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "description")
-	
-	-- Takes either another PilotLvlUpSkill to (deep) copy or the values
+
+	-- Whole object setter for PilotLvlUpSkill
+	-- Takes either another PilotLvlUpSkill to (deep) copy or the individual values
 	-- to create the skill
 	-- bonuses is an optional table that can optionally define "cores", "health", and "move"
 	-- Any not included will default to 0
-	PilotLvlUpSkill[memhack.structManager.SETTER_PREFIX] = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
+
+	PilotLvlUpSkill[selfSetter] = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		local coresBonus = bonuses and bonuses.cores or 0
 		local healthBonus = bonuses and bonuses.health or 0
 		local moveBonus = bonuses and bonuses.move or 0
 		local id = idOrStruct
-		
+
 		if type(idOrStruct) == "table" and getmetatable(idOrStruct) == PilotLvlUpSkill then
 			id = idOrStruct:getIdStr()
 			shortName = idOrStruct:getShortNameStr()
 			fullName = idOrStruct:getFullNameStr()
 			description = idOrStruct:getDescriptionStr()
 			saveVal = idOrStruct:getSaveVal()
-			
+
 			coresBonus = idOrStruct:getCoresBonus()
 			healthBonus = idOrStruct:getHealthBonus()
 			moveBonus = idOrStruct:getMoveBonus()
 		end
-		
+
 		self:setId(id)
 		self:setShortName(shortName)
 		self:setFullName(fullName)
 		self:setDescription(description)
 		self:setSaveVal(saveVal)
-		
+
 		self:setCoresBonus(coresBonus)
 		self:setHealthBonus(healthBonus)
 		self:setMoveBonus(moveBonus)

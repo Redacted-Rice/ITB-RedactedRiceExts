@@ -39,39 +39,32 @@ local function resolvePointedType(pointedType, ptrValue, fieldDef)
 	return structType.new(ptrValue)
 end
 
--- Get prefix for getter/setter based on hide flag
-local function getPrefix(hide, basePrefix)
-	return hide and HIDE_PREFIX .. basePrefix or basePrefix
-end
-
 -- Helper: Clear method names for a field
-local function clearFieldMethods(StructType, capitalizedName)
+local function clearFieldMethods(StructType, fieldName)
 	-- Clear exposed prefixes
-	StructType[GETTER_PREFIX .. capitalizedName] = nil
-	StructType[SETTER_PREFIX .. capitalizedName] = nil
-	StructType[GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
-	StructType[SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
+	StructType[StructManager.makeStdGetterName(fieldName, false)] = nil
+	StructType[StructManager.makeStdSetterName(fieldName, false)] = nil
+	StructType[StructManager.makeStdPtrGetterName(fieldName, false)] = nil
+	StructType[StructManager.makeStdPtrSetterName(fieldName, false)] = nil
 
 	-- Clear hidden prefixes
-	StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName] = nil
-	StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName] = nil
-	StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
-	StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
+	StructType[StructManager.makeStdGetterName(fieldName, true)] = nil
+	StructType[StructManager.makeStdSetterName(fieldName, true)] = nil
+	StructType[StructManager.makeStdPtrGetterName(fieldName, true)] = nil
+	StructType[StructManager.makeStdPtrSetterName(fieldName, true)] = nil
 end
 
 function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterPrefix = getPrefix(fieldDef.hideGetter, GETTER_PREFIX)
-
-	-- Raw pointer getter (getXxxPtr)
-	local ptrGetterName = getterPrefix .. capitalizedName .. "Ptr"
+	-- Raw pointer getter (getXxxPtr or _getXxxPtr)
+	local ptrGetterName = StructManager.makeStdPtrGetterName(fieldName, fieldDef.hideGetter)
 	StructType[ptrGetterName] = function(self)
 		local address = self._address + fieldDef.offset
 		return handler.read(address)
 	end
 
-	-- Typed wrapper getter (getXxx) if pointedType specified
+	-- Typed wrapper getter (getXxx or _getXxx) if pointedType specified
 	if fieldDef.pointedType then
-		local wrapperGetterName = getterPrefix .. capitalizedName
+		local wrapperGetterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
 		StructType[wrapperGetterName] = function(self)
 			local address = self._address + fieldDef.offset
 			local ptrValue = handler.read(address)
@@ -87,9 +80,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 end
 
 function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local setterPrefix = getPrefix(fieldDef.hideSetter, SETTER_PREFIX)
-
-	local ptrSetterName = setterPrefix .. capitalizedName .. "Ptr"
+	local ptrSetterName = StructManager.makeStdPtrSetterName(fieldName, fieldDef.hideSetter)
 	StructType[ptrSetterName] = function(self, value)
 		local address = self._address + fieldDef.offset
 		handler.write(address, value)
@@ -97,8 +88,7 @@ function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef,
 end
 
 function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterPrefix = getPrefix(fieldDef.hideGetter, GETTER_PREFIX)
-	local getterName = getterPrefix .. capitalizedName
+	local getterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
@@ -114,8 +104,7 @@ function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef
 end
 
 function methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local setterPrefix = getPrefix(fieldDef.hideSetter, SETTER_PREFIX)
-	local setterName = setterPrefix .. capitalizedName
+	local setterName = StructManager.makeStdSetterName(fieldName, fieldDef.hideSetter)
 
 	StructType[setterName] = function(self, value)
 		local address = self._address + fieldDef.offset
@@ -143,8 +132,7 @@ local function resolveStructType(structType)
 end
 
 function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterPrefix = getPrefix(fieldDef.hideGetter, GETTER_PREFIX)
-	local getterName = getterPrefix .. capitalizedName
+	local getterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
@@ -157,8 +145,7 @@ end
 function methodGeneration.buildStructureMethods(StructType, layout)
 	-- Clear existing generated methods
 	for fieldName, fieldDef in pairs(layout) do
-		local capitalizedName = StructManager.capitalize(fieldName)
-		clearFieldMethods(StructType, capitalizedName)
+		clearFieldMethods(StructType, fieldName)
 	end
 
 	-- Generate getter and setter methods for each field

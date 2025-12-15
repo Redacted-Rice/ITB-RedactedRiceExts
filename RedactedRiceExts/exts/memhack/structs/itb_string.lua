@@ -19,23 +19,24 @@ local ItBString = memhack.structManager.define("ItBString", {
 ItBString.LOCAL =  0x0F
 ItBString.REMOTE = 0x1F
 
--- Requires function named <GETTER_PREFIX>
--- TODO: Expose and use method name creators
-memhack.structManager.makeItBStringGetterWrapper = function(struct, itbStrName)
-	local capitalized = memhack.structManager.capitalize(itbStrName)
-	local internalGetterName = memhack.structManager.GETTER_PREFIX .. capitalized
-	local getterWrapperName = memhack.structManager.GETTER_PREFIX .. capitalized .. "Str"
+local selfGetter = memhack.structManager.makeStdSelfGetterName()
+local selfSetter = memhack.structManager.makeStdSelfSetterName()
 
-	struct[getterWrapperName] = function(self)
-	    local obj = self[internalGetterName](self)
-		return obj[memhack.structManager.GETTER_PREFIX](obj)
+-- Requires function named <STD_SELF_GETTER>
+memhack.structManager.makeItBStringGetterWrapper = function(struct, itbStrName)
+	local internalGetter = memhack.structManager.makeStdGetterName(itbStrName)
+	local getterWrapper = internalGetter .. "Str"
+
+	struct[getterWrapper] = function(self)
+		local obj = self[internalGetter](self)
+		return obj[selfGetter](obj)
 	end
 end
 
 function onModsFirstLoaded()
 	ItBString.strings = {}
-	
-	ItBString[memhack.structManager.GETTER_PREFIX] = function(self)
+
+	ItBString[selfGetter] = function(self)
 		local uType = self:getUnionType()
 		if uType == ItBString.LOCAL then
 			return self:_getStrLocal()
@@ -45,22 +46,21 @@ function onModsFirstLoaded()
 		error(string.format("UnionType was unexepected value: %d", uType))
 		return nil
 	end
-	
-	-- todo make also allow taking ItBString Object
-	ItBString[memhack.structManager.SETTER_PREFIX] = function(self, strOrStruct)
+
+	ItBString[selfSetter] = function(self, strOrStruct)
 		local str = strOrStruct
 		if type(strOrStruct) == "table" and getmetatable(strOrStruct) == ItBString then
 			-- for simplicity and to prevent coupling, just get the current string
 			-- value and use that
 			str = strOrStruct:get()
 		end
-		
+
 		local length = #str
 		if length < 16 then -- < 16 for room for null term
 			-- If its less than 16, we can store it locally
 			self:_setStrLocal(str)
 			self:_setUnionType(ItBString.LOCAL)
-		else 
+		else
 			-- if we don't have a str idx already, create one
 			if ItBString.strings[str] == nil then
 				ItBString.strings[str] = memhack.dll.memory.allocCString(str)
@@ -70,10 +70,10 @@ function onModsFirstLoaded()
 		end
 		self:_setStrLen(length)
 	end
-	
+
 	-- Override tostring as pointer may not always be valid
 	ItBString.__tostring = function(self)
-		return self[memhack.structManager.GETTER_PREFIX](self)
+		return self[selfGetter](self)
 	end
 end
 

@@ -110,9 +110,8 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 
 		return maxOffset + maxSize
 	end
-	
+
 	-- Generate debug string by calling get on each field
-	-- TODO: extract and use function name builders
 	function StructType:_toDebugString()
 		local lines = {}
 		table.insert(lines, string.format("%s @ 0x%X", self._name, self._address))
@@ -125,7 +124,8 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 			if fieldDef.hideGetter then
 				val = "<no safe getter>"
 			else
-				local capitalizedName = StructManager.capitalize(fieldName)
+				local getterName = StructManager.makeStdGetterName(fieldName, false)
+				local ptrGetterName = StructManager.makeStdPtrGetterName(fieldName, false)
 
 				-- Try to call the appropriate getter based on field type
 				-- pcall is lua's try/catch equivalent - this protects against
@@ -135,16 +135,16 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 					if customToString then
 						val = customToString(self)
 					elseif valType == "pointer" then
-						val = self["get" .. capitalizedName .. "Ptr"](self)
+						val = self[ptrGetterName](self)
 						if fieldDef.pointedType then
-							local valObj = self["get" .. capitalizedName](self)
+							local valObj = self[getterName](self)
 							val = objGetter(self) .. "(" .. val .. ")"
 						end
 					else
-						val = self["get" .. capitalizedName](self)
+						val = self[getterName](self)
 					end
 				end)
-				
+
 				if not success or val == nil then
 					val = "<error reading>"
 				end
@@ -159,7 +159,7 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 		-- LOG doesn't like newlines...
 		return table.concat(lines, ", ")
 	end
-	
+
 	function StructType:__tostring()
 		return self:_toDebugString()
 	end
