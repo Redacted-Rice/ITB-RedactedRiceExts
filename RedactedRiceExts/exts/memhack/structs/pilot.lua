@@ -37,7 +37,7 @@ local Pilot = memhack.structManager.define("Pilot", {
 })
 
 function addPawnGetPilotFunc(BoardPawn, pawn)
-	BoardPawn.GetPilot = function(self)
+	BoardPawn.getPilot = function(self)
 		-- Pawn contains a double pointer at 0x980 and 0x984 to
 		-- the same memory offset by 12 bytes. Just use the second
 		-- because it points to the lower of the two addresses, presumably
@@ -55,21 +55,21 @@ function createPilotFuncs()
 	-- TODO: any other functions?
 	-- maybe one to change the pilot type?
 
-	Pilot.LevelUp = function(self)
-		local newLevel = self:GetLevel() + 1
+	Pilot.levelUp = function(self)
+		local newLevel = self:getLevel() + 1
 		if newLevel <= 2 then
-			self:_SetXp(0)
-			self:_SetLevel(newLevel)
-			self:_SetLevelUpXp((newLevel + 1) * 25)
+			self:_setXp(0)
+			self:_setLevel(newLevel)
+			self:_setLevelUpXp((newLevel + 1) * 25)
 		end
 	end
 
-	Pilot.LevelDown = function(self)
-		local newLevel = self:GetLevel() - 1
+	Pilot.levelDown = function(self)
+		local newLevel = self:getLevel() - 1
 		if newLevel >= 0 then
-			self:_SetXp(0)
-			self:_SetLevel(newLevel)
-			self:_SetLevelUpXp((newLevel + 1) * 25)
+			self:_setXp(0)
+			self:_setLevel(newLevel)
+			self:_setLevelUpXp((newLevel + 1) * 25)
 		end
 	end
 end
@@ -78,62 +78,62 @@ function createPilotLvlUpSkillFuncs()
 	-- Convinience wrappers for level up skills
 	-- idx is either 1 or 2 for the respective skill
 	-- PilotLvlUpSkill.Set for other arg defs
-	Pilot.SetLvlUpSkill = function(self, index, idOrStruct, shortName, fullName, description, saveVal, bonuses)
-		if idx == 1 then
-			self:GetLvlUpSkills():SetSkill1(idOrStruct, shortName, fullName, description, saveVal, bonuses)
-		elseif idx == 2 then
-			self:GetLvlUpSkills():SetSkill2(idOrStruct, shortName, fullName, description, saveVal, bonuses)
+	Pilot.setLvlUpSkill = function(self, index, idOrStruct, shortName, fullName, description, saveVal, bonuses)
+		if index == 1 then
+			self:getLvlUpSkills():setSkill1Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
+		elseif index == 2 then
+			self:getLvlUpSkills():setSkill2Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		else
-			error(string.format("Unexpected index %d. Should be 1 or 2", idx))
+			error(string.format("Unexpected index %d. Should be 1 or 2", index))
 		end
 	end
 	
 	-- Convinience wrappers for level up skills array values
 	-- See PilotLvlUpSkill.Set for arg defs
-	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkillsArray, "Skill1")
-	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkillsArray, "Skill2")
+	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill1")
+	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill2")
 	
 	-- Convinience wrappers for lvl up skills strings
-	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "Id")
-	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "ShortName")
-	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "FullName")
-	memhack.structManager.makeStructSetterWrapper(PilotLvlUpSkill, "Description")
-	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "Id")
-	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "ShortName")
-	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "FullName")
-	memhack.structs.ItBString._makeDirectGetterWrapper(PilotLvlUpSkill, "Description")
+	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "id")
+	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "shortName")
+	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "fullName")
+	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "description")
+	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "id")
+	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "shortName")
+	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "fullName")
+	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "description")
 	
 	-- Takes either another PilotLvlUpSkill to (deep) copy or the values
 	-- to create the skill
 	-- bonuses is an optional table that can optionally define "cores", "health", and "move"
 	-- Any not included will default to 0
-	PilotLvlUpSkill.Set = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
+	PilotLvlUpSkill.set = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		local coresBonus = bonuses and bonuses.cores or 0
 		local healthBonus = bonuses and bonuses.health or 0
 		local moveBonus = bonuses and bonuses.move or 0
 		local id = idOrStruct
 		
 		if type(idOrStruct) == "PilotLvlUpSkill" then
-			id = idOrStruct:GetId()
-			shortName = idOrStruct:GetShortName()
-			fullName = idOrStruct:GetFullName()
-			description = idOrStruct:GetDescription()
-			saveVal = idOrStruct:GetSaveVal()
+			id = idOrStruct:getIdObj()
+			shortName = idOrStruct:getShortNameObj()
+			fullName = idOrStruct:getFullNameObj()
+			description = idOrStruct:getDescriptionObj()
+			saveVal = idOrStruct:getSaveVal()
 			
-			coresBonus = idOrStruct:GetCoresBonus()
-			healthBonus = idOrStruct:GetHealthBonus()
-			moveBonus = idOrStruct:GetMoveBonus()
+			coresBonus = idOrStruct:getCoresBonus()
+			healthBonus = idOrStruct:getHealthBonus()
+			moveBonus = idOrStruct:getMoveBonus()
 		end
 		
-		self:SetId(id)
-		self:SetShortName(shortName)
-		self:SetFullName(fullName)
-		self:SetDescription(description)
-		self:SetSaveVal(saveVal)
+		self:setIdObj(id)
+		self:setShortNameObj(shortName)
+		self:setFullNameObj(fullName)
+		self:setDescriptionObj(description)
+		self:setSaveVal(saveVal)
 		
-		self:SetCoresBonus(coresBonus)
-		self:SetCoresBonus(healthBonus)
-		self:SetCoresBonus(moveBonus)
+		self:setCoresBonus(coresBonus)
+		self:setHealthBonus(healthBonus)
+		self:setMoveBonus(moveBonus)
 	end
 end
 

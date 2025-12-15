@@ -18,11 +18,10 @@ local ItBString = memhack.structManager.define("ItBString", {
 ItBString.LOCAL =  0x0F
 ItBString.REMOTE = 0x1F
 
--- TODO add to structManager instead?
-function ItBString._makeDirectGetterWrapper(struct, itbStrName)
-	local capitailized = memhack.structManager.capitalize(itbStrName)
-	local intGetterName = "Get" .. capitailized .. "Obj"
-	local getterWrapperName = "Get" .. capitailized .. "Str"
+function memhack.structManager.makeItBStringGetterWrapper(struct, itbStrName)
+	local capitalized = memhack.structManager.capitalize(itbStrName)
+	local intGetterName = "get" .. capitalized .. "Obj"
+	local getterWrapperName = "get" .. capitalized .. "Str"
 
 	struct[getterWrapperName] = function(self)
 		return self[intGetterName](self):Get()
@@ -33,11 +32,11 @@ function onModsFirstLoaded()
 	ItBString.strings = {}
 	
 	ItBString.Get = function(self)
-		local uType = self:GetUnionType()
+		local uType = self:getUnionType()
 		if uType == ItBString.LOCAL then
-			return self:GetStrLocal()
+			return self:getStrLocal()
 		elseif uType == ItBString.REMOTE then
-			return self:GetStrRemoteObj()
+			return self:getStrRemoteObj()
 		end
 		error(string.format("UnionType was unexepected value: %d", uType))
 		return nil
@@ -47,17 +46,17 @@ function onModsFirstLoaded()
 		local length = #str
 		if length < 16 then -- < 16 for room for null term
 			-- If its less than 16, we can store it locally
-			self:_SetStrLocal(str)
-			self:_SetUnionType(ItBString.LOCAL)
+			self:_setStrLocal(str)
+			self:_setUnionType(ItBString.LOCAL)
 		else 
 			-- if we don't have a str idx already, create one
 			if ItBString.strings[str] == nil then
 				ItBString.strings[str] = memhack.dll.memory.allocCString(str)
 			end
-			self:_SetStrRemotePtr(memhack.dll.memory.getUserdataAddr(ItBString.strings[str]))
-			self:_SetUnionType(ItBString.REMOTE)
+			self:_setStrRemotePtr(memhack.dll.memory.getUserdataAddr(ItBString.strings[str]))
+			self:_setUnionType(ItBString.REMOTE)
 		end
-		self:_SetStrLen(length)
+		self:_setStrLen(length)
 	end
 end
 

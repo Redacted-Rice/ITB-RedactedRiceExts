@@ -14,11 +14,15 @@
 	- Basic types (int, bool, double, float, byte, string, bytearray):
 	  - GetXxx() / SetXxx() - read/write the value
 	- pointer: 32 bit pointer
+	  - GetXxx() - get wrapped object at pointed address (if pointedType specified)
+		- If the pointed to structure defines a 'set', makeSetterWrapper can generate a
+		  convience wrapper for it
 	  - GetXxxPtr() / SetXxxPtr() - read/write the raw pointer value
-	  - GetXxxObj() - get wrapped object at pointed address (if pointedType specified)
 	- struct: Inline struct (not a pointer)
-	  - GetXxxObj() - get wrapped struct at this field's address
+	  - GetXxx() - get wrapped struct at this field's address
 	  - No setter - modify individual fields on the returned object instead
+		- If the substructure defines a 'set', makeSetterWrapper can generate a
+		  convience wrapper for it
 
 	Supported Types:
 	- int, bool, double, float, byte: Basic types, no additional params
@@ -44,8 +48,8 @@
 
 local Structure = {}
 
-local GETTER_PREFIX = "Get"
-local SETTER_PREFIX = "Set"
+local GETTER_PREFIX = "get"
+local SETTER_PREFIX = "set"
 local HIDE_PREFIX = "_"
 
 -- memhack DLL reference
@@ -210,16 +214,16 @@ local function generatePointerGetters(StructType, fieldName, fieldDef, handler, 
 	-- Get the prefix
 	local getterPrefix = fieldDef.hideGetter and HIDE_PREFIX .. GETTER_PREFIX or GETTER_PREFIX
 
-	-- Raw pointer getter (GetXxxPtr)
+	-- Raw pointer getter (getXxxPtr)
 	local ptrGetterName = getterPrefix .. capitalizedName .. "Ptr"
 	StructType[ptrGetterName] = function(self)
 		local address = self._address + fieldDef.offset
 		return handler.read(_dll, address)
 	end
 
-	-- Typed wrapper getter (GetXxxObj) if pointedType specified
+	-- Typed wrapper getter (getXxx) if pointedType specified
 	if fieldDef.pointedType then
-		local wrapperGetterName = getterPrefix .. capitalizedName .. "Obj"
+		local wrapperGetterName = getterPrefix .. capitalizedName
 		StructType[wrapperGetterName] = function(self)
 			local address = self._address + fieldDef.offset
 			local ptrValue = handler.read(_dll, address)
@@ -313,7 +317,7 @@ local function generateStructGetter(StructType, fieldName, fieldDef, handler, ca
 	-- Get the prefix
 	local getterPrefix = fieldDef.hideGetter and HIDE_PREFIX .. GETTER_PREFIX or GETTER_PREFIX
 
-	local getterName = getterPrefix .. capitalizedName .. "Obj"
+	local getterName = getterPrefix .. capitalizedName
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
 
@@ -342,14 +346,12 @@ local function buildStructureMethods(StructType, layout)
 		StructType[SETTER_PREFIX .. capitalizedName] = nil
 		StructType[GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
 		StructType[SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
-		StructType[GETTER_PREFIX .. capitalizedName .. "Obj"] = nil
 
 		-- And "hidden" prefixes
 		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName] = nil
 		StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName] = nil
 		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
 		StructType[HIDE_PREFIX .. SETTER_PREFIX .. capitalizedName .. "Ptr"] = nil
-		StructType[HIDE_PREFIX .. GETTER_PREFIX .. capitalizedName .. "Obj"] = nil
 	end
 
 	-- Generate getter and setter methods for each field
@@ -387,21 +389,17 @@ local function createStructureType(name, layout)
 	StructType.__index = StructType
 	StructType._layout = layout
 	StructType._name = name
+	
+	-- Set up __tostring metamethod
+	StructType.__tostring = function(instance)
+		return instance:_toDebugString()
+	end
+	
 	return StructType
 end
 
 -- Add instance methods to structure type
 local function addInstanceMethods(StructType, layout)
-	-- Get base address
-	function StructType:getBaseAddress()
-		return self._address
-	end
-
-	-- Set base address
-	function StructType:setBaseAddress(address)
-		self._address = address
-	end
-
 	-- Get field offset (relative)
 	function StructType:getFieldOffset(fieldName)
 		local field = layout[fieldName]
@@ -411,13 +409,65 @@ local function addInstanceMethods(StructType, layout)
 		return field.offset
 	end
 
-	-- Get field address (absolute)
-	function StructType:getFieldAddress(fieldName)
+	-- Get absolute field address
+	function StructType:_getFieldAddress(fieldName)
 		local field = layout[fieldName]
 		if not field then
 			error(string.format("Unknown field: %s", fieldName))
 		end
 		return self._address + field.offset
+	end
+
+	-- Generate debug string by calling get on each field
+	function StructType:_toDebugString()
+		local lines = {}
+		table.insert(lines, string.format("%s @ 0x%X:", StructType._name, self._address))
+		
+		-- Keep fields in same order as defined
+		local fieldNames = {}
+		for fieldName, _ in pairs(layout) do
+			table.insert(fieldNames, fieldName)
+		end
+		
+		for fieldName, fieldDef in ipairs(layout) do
+			if fieldDef.hideGetter then
+				table.insert(lines, "  (Skipping private getter)")
+			else
+				local capitalizedName = Structure.capitalize(fieldName)
+				
+				-- Try to call the appropriate getter based on field type
+				local val = nil
+				local valType = fieldDef.type
+				-- pcall is lua's try/catch equivalent - this protects against
+				-- errors in the getters
+				local success = pcall(function()
+					if valType == "pointer" then
+						local ptrGetter = StructType["get" .. pascalName .. "Ptr"]
+						if ptrGetter then
+							val = ptrGetter(self)
+							if fieldDef.pointedType then
+								local objGetter = StructType["get" .. pascalName]
+								if objGetter then
+									val = objGetter(self) .. "(" .. val .. ")"
+								end
+							end
+						end
+					else
+						local getter = StructType["get" .. pascalName]
+						if getter then
+							val = getter(self)
+						end
+					end
+				end)
+				
+				if success and val ~= nil then
+					table.insert(lines, string.format("  %s (%s): %s", fieldName, valType, val))
+				else
+					table.insert(lines, string.format("  %s: <error reading>", fieldName))
+				end
+			end
+		end
+		return table.concat(lines, "\n")
 	end
 end
 
@@ -439,9 +489,8 @@ local function addStaticMethods(StructType, name, layout)
 		return instance
 	end
 
-	-- Calculate structure size
-	-- TODO move to var
-	function StructType.StructSize()
+	-- Calculate structure size and store as _size field
+	local function calculateStructSize(layout)
 		local maxOffset = 0
 		local maxSize = 0
 
@@ -460,24 +509,25 @@ local function addStaticMethods(StructType, name, layout)
 					if type(structType) == "string" then
 						structType = _structures[structType]
 					end
-					if structType and structType.StructSize then
-						local structSize = structType.StructSize()
-						if structSize then
-							maxSize = structSize
-						else
-							return nil  -- Cannot determine nested struct size
-						end
+					if structType and structType._size then
+						local structSize = structType._size
+						maxSize = structSize
 					else
-						return nil  -- Struct type not found or has no size
+						error(string.format("Failed to calculate size for %s: Could not find size of nested structure %s", name, fieldName))
+						return nil
 					end
 				else
-					return nil  -- Cannot determine size
+					error(string.format("Failed to calculate size for %s: unexepected field type of '%s' for %s", name, structType, fieldName))
+					return nil
 				end
 			end
 		end
 
 		return maxOffset + maxSize
 	end
+	
+	-- Store as a field
+	StructType._size = calculateStructSize(layout)
 end
 
 -- Register structure to structs table
@@ -540,7 +590,7 @@ end
 function Structure.array(structType, baseAddress, count, stride)
 	local arr = {}
 
-	local structSize = stride or structType.StructSize()
+	local structSize = stride or structType._size
 	if not structSize then
 		error("Cannot create array: structure size unknown. Provide 'stride' parameter.")
 	end
@@ -557,25 +607,15 @@ function Structure.array(structType, baseAddress, count, stride)
 	return arr
 end
 
--- Defines a Set<FieldName> function that
--- wraps a Get<FieldName>:Set() fn.
+-- Defines a set<FieldName> function that
+-- wraps a get<FieldName>:Set() fn.
 -- FieldName must be a struct type that defines
 -- a Set function
--- fieldName does not need to be captialized
+-- fieldName does not need to be capitalized
 function Structure.makeSetterWrapper(struct, fieldName)
-	local capitailized = Structure.capitalize(fieldName)
-	local funcName = "Set" .. capitailized
-	local getterName = "Get" .. capitailized
-
-	struct[funcName] = function(self, ...)
-		self[getterName](self):Set(...)
-	end
-end
-
-function Structure.makeStructSetterWrapper(struct, fieldName)
-	local capitailized = Structure.capitalize(fieldName)
-	local funcName = "Set" .. capitailized .. "Obj"
-	local getterName = "Get" .. capitailized .. "Obj"
+	local capitalized = Structure.capitalize(fieldName)
+	local funcName = "set" .. capitalized
+	local getterName = "get" .. capitalized
 
 	struct[funcName] = function(self, ...)
 		self[getterName](self):Set(...)
