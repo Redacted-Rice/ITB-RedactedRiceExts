@@ -107,7 +107,7 @@ function createPilotLvlUpSkillFuncs()
 	-- to create the skill
 	-- bonuses is an optional table that can optionally define "cores", "health", and "move"
 	-- Any not included will default to 0
-	PilotLvlUpSkill.set = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
+	PilotLvlUpSkill[memhack.structManager.SETTER_PREFIX] = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		local coresBonus = bonuses and bonuses.cores or 0
 		local healthBonus = bonuses and bonuses.health or 0
 		local moveBonus = bonuses and bonuses.move or 0

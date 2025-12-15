@@ -47,7 +47,14 @@ function onModsFirstLoaded()
 	end
 	
 	-- todo make also allow taking ItBString Object
-	ItBString[memhack.structManager.SETTER_PREFIX] = function(self, str)
+	ItBString[memhack.structManager.SETTER_PREFIX] = function(self, strOrStruct)
+		local str = strOrStruct
+		if type(strOrStruct) == "table" and getmetatable(strOrStruct) == ItBString then
+			-- for simplicity and to prevent coupling, just get the current string
+			-- value and use that
+			str = strOrStruct:get()
+		end
+		
 		local length = #str
 		if length < 16 then -- < 16 for room for null term
 			-- If its less than 16, we can store it locally
