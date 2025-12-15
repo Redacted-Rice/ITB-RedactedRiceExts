@@ -7,6 +7,7 @@ local Debug = {}
 function Debug.init(dll)
 	Debug._dll = dll
 	return Debug
+end
 
 -- Convert a hex string to an integer
 -- Supports both "0x1A" and "1A" format
@@ -34,7 +35,6 @@ function Debug.bytesToHex(bytes, bytesPerGroup)
     local groups = {}
 	if not bytesPerGroup or bytesPerGroup == 0 then
 		-- No grouping, space between each byte
-		local hexStr = {}
 		for i, byte in ipairs(bytes) do
 			table.insert(groups, string.format("%02X", byte))
 		end
@@ -56,7 +56,7 @@ function Debug.bytesToHex(bytes, bytesPerGroup)
 			table.insert(groups, table.concat(currentGroup, ""))
 		end
 	end
-    return table.concat(hexStr, " ")
+    return table.concat(groups, " ")
 end
 
 -- Convert hex string to bytes
@@ -97,7 +97,7 @@ function Debug.logFromMemory(address, numBytes, bytesPerLine, bytesPerGroup)
 	end
 
 	-- Read the memory
-	local bytes = Debug._dll.memory.readBytes(address, numBytes)
+	local bytes = Debug._dll.memory.readByteArray(address, numBytes)
 	if not bytes then
 		LOG(string.format("Failed to read memory at address 0x%X", address))
 		return
