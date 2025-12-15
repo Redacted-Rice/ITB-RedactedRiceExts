@@ -60,7 +60,7 @@ local function clearFieldMethods(StructType, capitalizedName)
 end
 
 function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterPrefix = getPrefix(fieldDef.hideGetter)
+	local getterPrefix = getPrefix(fieldDef.hideGetter, GETTER_PREFIX)
 
 	-- Raw pointer getter (getXxxPtr)
 	local ptrGetterName = getterPrefix .. capitalizedName .. "Ptr"
@@ -87,7 +87,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 end
 
 function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local setterPrefix = getPrefix(fieldDef.hideSetter)
+	local setterPrefix = getPrefix(fieldDef.hideSetter, SETTER_PREFIX)
 
 	local ptrSetterName = setterPrefix .. capitalizedName .. "Ptr"
 	StructType[ptrSetterName] = function(self, value)
@@ -97,7 +97,7 @@ function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef,
 end
 
 function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterPrefix = getPrefix(fieldDef.hideGetter)
+	local getterPrefix = getPrefix(fieldDef.hideGetter, GETTER_PREFIX)
 	local getterName = getterPrefix .. capitalizedName
 
 	StructType[getterName] = function(self)
@@ -114,7 +114,7 @@ function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef
 end
 
 function methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local setterPrefix = getPrefix(fieldDef.hideSetter)
+	local setterPrefix = getPrefix(fieldDef.hideSetter, SETTER_PREFIX)
 	local setterName = setterPrefix .. capitalizedName
 
 	StructType[setterName] = function(self, value)
@@ -143,7 +143,7 @@ local function resolveStructType(structType)
 end
 
 function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterPrefix = getPrefix(fieldDef.hideGetter)
+	local getterPrefix = getPrefix(fieldDef.hideGetter, GETTER_PREFIX)
 	local getterName = getterPrefix .. capitalizedName
 
 	StructType[getterName] = function(self)

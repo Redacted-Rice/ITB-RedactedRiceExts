@@ -46,7 +46,7 @@ local function calculateFieldSize(field)
 		-- Get size from the nested struct
 		local structType = field.structType
 		if type(structType) == "string" then
-			structType = StructureManager._structures[structType]
+			structType = StructManager._structures[structType]
 		end
 		if structType and structType.StructSize then
 			local structSize = structType.StructSize()
@@ -112,48 +112,52 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 	end
 	
 	-- Generate debug string by calling get on each field
+	-- TODO: extract and use function name builders
 	function StructType:_toDebugString()
 		local lines = {}
-		table.insert(lines, string.format("%s @ 0x%X:", StructType._name, self._address))
+		table.insert(lines, string.format("%s @ 0x%X", self._name, self._address))
 
-		for fieldName, fieldDef in ipairs(layout) do
+		-- TODO: Can I make this same order as defined?
+		-- If not, maybe alphabetical?
+		for fieldName, fieldDef in pairs(self._layout) do
+			local val = nil
+			local valType = fieldDef.type
 			if fieldDef.hideGetter then
-				table.insert(lines, "  (Skipping private getter)")
+				val = "<no safe getter>"
 			else
-				local capitalizedName = Structure.capitalize(fieldName)
+				local capitalizedName = StructManager.capitalize(fieldName)
 
 				-- Try to call the appropriate getter based on field type
-				local val = nil
-				local valType = fieldDef.type
 				-- pcall is lua's try/catch equivalent - this protects against
 				-- errors in the getters
 				local success = pcall(function()
-					if valType == "pointer" then
-						local ptrGetter = StructType["get" .. pascalName .. "Ptr"]
-						if ptrGetter then
-							val = ptrGetter(self)
-							if fieldDef.pointedType then
-								local objGetter = StructType["get" .. pascalName]
-								if objGetter then
-									val = objGetter(self) .. "(" .. val .. ")"
-								end
-							end
+					local customToString = self["toString"]
+					if customToString then
+						val = customToString(self)
+					elseif valType == "pointer" then
+						val = self["get" .. capitalizedName .. "Ptr"](self)
+						if fieldDef.pointedType then
+							local valObj = self["get" .. capitalizedName](self)
+							val = objGetter(self) .. "(" .. val .. ")"
 						end
 					else
-						local getter = StructType["get" .. pascalName]
-						if getter then
-							val = getter(self)
-						end
+						val = self["get" .. capitalizedName](self)
 					end
 				end)
-				if success and val ~= nil then
-					table.insert(lines, string.format("  %s (%s): %s", fieldName, valType, val))
-				else
-					table.insert(lines, string.format("  %s: <error reading>", fieldName))
+				
+				if not success or val == nil then
+					val = "<error reading>"
 				end
 			end
+			if valType == "struct" then
+				valType = valType .. " - " .. fieldDef.structType
+			elseif valType == "pointer" and fieldDef.pointedType ~= nil then
+				valType = valType .. " - " .. fieldDef.pointedType
+			end
+			table.insert(lines, string.format("%s(%s): {%s}", fieldName, valType, tostring(val)))
 		end
-		return table.concat(lines, "\n")
+		-- LOG doesn't like newlines...
+		return table.concat(lines, ", ")
 	end
 	
 	function StructType:__tostring()
@@ -163,7 +167,7 @@ end
 
 -- Register structure to structs table
 function structureCreation.registerStructure(name, StructType)
-	StructureManager._structures[name] = StructType
+	StructManager._structures[name] = StructType
 end
 
 return structureCreation

@@ -1,12 +1,13 @@
--- This is a union... how to handle in struct?
--- Maybe just have overlap here and let modders add functions as needed
--- Add a disable all setters option?
+-- This is a union. We hide alot of default getters/setters to
+-- ensure safe accessing and setting of values
 local ItBString = memhack.structManager.define("ItBString", {
 	-- If present in global text table, the text idx to display. Otherwise displays directly.
 	-- Can only be used if size < 16. Otherwise it has to be stored with strPtr
-	strLocal = { offset = 0x0, type = "string", maxLength = 16, hideSetter = true },
+	-- May not always be valid - calling getters may be unsafe
+	strLocal = { offset = 0x0, type = "string", maxLength = 16, hideSetter = true, hideGetter = true },
 	-- Same idea as strLocal but a pointer to the value if its too large to fit locally
-	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, pointedType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
+	-- May not always be valid - calling getters may be unsafe
+	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true, pointedType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
 	-- Length of the strLocal/string pointed to by strRemote. This is set the same regardless
 	-- of which is used
 	strLen = { offset = 0x10, type = "int", hideSetter = true },
@@ -18,31 +19,35 @@ local ItBString = memhack.structManager.define("ItBString", {
 ItBString.LOCAL =  0x0F
 ItBString.REMOTE = 0x1F
 
-function memhack.structManager.makeItBStringGetterWrapper(struct, itbStrName)
+-- Requires function named <GETTER_PREFIX>
+-- TODO: Expose and use method name creators
+memhack.structManager.makeItBStringGetterWrapper = function(struct, itbStrName)
 	local capitalized = memhack.structManager.capitalize(itbStrName)
-	local intGetterName = "get" .. capitalized .. "Obj"
-	local getterWrapperName = "get" .. capitalized .. "Str"
+	local internalGetterName = memhack.structManager.GETTER_PREFIX .. capitalized
+	local getterWrapperName = memhack.structManager.GETTER_PREFIX .. capitalized .. "Str"
 
 	struct[getterWrapperName] = function(self)
-		return self[intGetterName](self):Get()
+	    local obj = self[internalGetterName](self)
+		return obj[memhack.structManager.GETTER_PREFIX](obj)
 	end
 end
 
 function onModsFirstLoaded()
 	ItBString.strings = {}
 	
-	ItBString.Get = function(self)
+	ItBString[memhack.structManager.GETTER_PREFIX] = function(self)
 		local uType = self:getUnionType()
 		if uType == ItBString.LOCAL then
-			return self:getStrLocal()
+			return self:_getStrLocal()
 		elseif uType == ItBString.REMOTE then
-			return self:getStrRemoteObj()
+			return self:_getStrRemote()
 		end
 		error(string.format("UnionType was unexepected value: %d", uType))
 		return nil
 	end
 	
-	ItBString.Set = function(self, str)
+	-- todo make also allow taking ItBString Object
+	ItBString[memhack.structManager.SETTER_PREFIX] = function(self, str)
 		local length = #str
 		if length < 16 then -- < 16 for room for null term
 			-- If its less than 16, we can store it locally
@@ -57,6 +62,11 @@ function onModsFirstLoaded()
 			self:_setUnionType(ItBString.REMOTE)
 		end
 		self:_setStrLen(length)
+	end
+	
+	-- Override tostring as pointer may not always be valid
+	ItBString.__tostring = function(self)
+		return self[memhack.structManager.GETTER_PREFIX](self)
 	end
 end
 

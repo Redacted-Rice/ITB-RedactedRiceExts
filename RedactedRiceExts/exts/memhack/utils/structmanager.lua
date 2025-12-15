@@ -56,11 +56,11 @@ StructManager._structures = nil
 -- Load subcomponents
 local path = GetParentPath(...)
 
-StructManager.TYPE_HANDLERS = require(path.."utils/structmanager/type_handlers")
+StructManager.TYPE_HANDLERS = require(path.."structmanager/type_handlers")
 
-StructManager._validation = require(path.."utils/structmanager/validation")
-StructManager._methodGeneration = require(path.."utils/structmanager/method_generation")
-StructManager._structureCreation = require(path.."utils/structmanager/structure_creation")
+StructManager._validation = require(path.."structmanager/validation")
+StructManager._methodGeneration = require(path.."structmanager/method_generation")
+StructManager._structureCreation = require(path.."structmanager/structure_creation")
 
 -- Initialize the structure system with a DLL instance and structs table
 -- dll: The memhack DLL instance
@@ -134,17 +134,18 @@ function StructManager.array(structType, baseAddress, count, stride)
 end
 
 -- Defines a <SETTER_PREFIX><FieldName> function that
--- wraps a <GETTER_PREFIX><FieldName>:set() fn.
+-- wraps a <GETTER_PREFIX><FieldName>:<SETTER_PREFIX>(...) fn.
 -- FieldName must be a struct type that defines
 -- a set function
 -- fieldName does not need to be captialized
 function StructManager.makeSetterWrapper(struct, fieldName)
 	local capitailized = StructManager.capitalize(fieldName)
-	local funcName = SETTER_PREFIX .. capitailized
-	local getterName = GETTER_PREFIX .. capitailized
+	local funcName = StructManager.SETTER_PREFIX .. capitailized
+	local getterName = StructManager.GETTER_PREFIX .. capitailized
 
 	struct[funcName] = function(self, ...)
-		self[getterName](self):set(...)
+	    local obj = self[getterName](self)
+		return obj[memhack.structManager.SETTER_PREFIX](obj, ...)
 	end
 end
 

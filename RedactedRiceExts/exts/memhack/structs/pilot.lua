@@ -25,19 +25,19 @@ local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArra
 })
 
 local Pilot = memhack.structManager.define("Pilot", {
-	-- Any other interesting values to pull out? (other than skills)
-	-- Maybe pilot skill?
-	-- TODO: Are name and id ItBStrings as well?
-	name = { offset = 0x20, type = "string", maxLength = 15}, -- including null term. 15 instead of 16 for some reason
+	-- Any other interesting values to pull out?
+	name = { offset = 0x20, type = "struct", structType = "ItBString" },
 	xp = { offset = 0x3C, type = "int", hideSetter = true},
 	levelUpXp = { offset = 0x40, type = "int", hideSetter = true},
 	level = { offset = 0x68, type = "int", hideSetter = true},
-	id = { offset = 0x84, type = "string", maxLength = 15}, -- guess
+	skill = { offset = 0x6C, type = "struct", structType = "ItBString" },
+	id = { offset = 0x84, type = "struct", structType = "ItBString" },
 	lvlUpSkills = { offset = 0xD8, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
 })
 
 function addPawnGetPilotFunc(BoardPawn, pawn)
-	BoardPawn.getPilot = function(self)
+	-- Upper case to align with BoardPawn conventions
+	BoardPawn.GetPilot = function(self)
 		-- Pawn contains a double pointer at 0x980 and 0x984 to
 		-- the same memory offset by 12 bytes. Just use the second
 		-- because it points to the lower of the two addresses, presumably
@@ -113,11 +113,11 @@ function createPilotLvlUpSkillFuncs()
 		local moveBonus = bonuses and bonuses.move or 0
 		local id = idOrStruct
 		
-		if type(idOrStruct) == "PilotLvlUpSkill" then
-			id = idOrStruct:getIdObj()
-			shortName = idOrStruct:getShortNameObj()
-			fullName = idOrStruct:getFullNameObj()
-			description = idOrStruct:getDescriptionObj()
+		if type(idOrStruct) == "table" and getmetatable(idOrStruct) == PilotLvlUpSkill then
+			id = idOrStruct:getIdStr()
+			shortName = idOrStruct:getShortNameStr()
+			fullName = idOrStruct:getFullNameStr()
+			description = idOrStruct:getDescriptionStr()
 			saveVal = idOrStruct:getSaveVal()
 			
 			coresBonus = idOrStruct:getCoresBonus()
@@ -125,10 +125,10 @@ function createPilotLvlUpSkillFuncs()
 			moveBonus = idOrStruct:getMoveBonus()
 		end
 		
-		self:setIdObj(id)
-		self:setShortNameObj(shortName)
-		self:setFullNameObj(fullName)
-		self:setDescriptionObj(description)
+		self:setId(id)
+		self:setShortName(shortName)
+		self:setFullName(fullName)
+		self:setDescription(description)
 		self:setSaveVal(saveVal)
 		
 		self:setCoresBonus(coresBonus)
