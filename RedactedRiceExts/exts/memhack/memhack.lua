@@ -3,8 +3,6 @@ memhack = {}
 local path = GetParentPath(...)
 
 function memhack:init()
-	self.hex = require(path.."utils/hex")
-
 	try(function()
 		package.loadlib(path.."memhack.dll", "luaopen_memhack")(options)
 		self.dll = memhackdll
@@ -17,6 +15,9 @@ function memhack:init()
 				tostring(err)
 		))
 	end)
+
+	-- Initialize utility modules
+	self.debug = require(path.."utils/debug").init(self.dll)
 
 	-- Initialize structure system
 	self.structManager = require(path.."utils/structmanager")
