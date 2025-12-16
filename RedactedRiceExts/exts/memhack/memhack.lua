@@ -22,8 +22,4 @@ function memhack:init()
 	-- Initialize structure system
 	self.structManager = require(path.."utils/structmanager")
 	self.structs = self.structManager.init(self.dll)
-
-	-- Initialize scanner framework
-	self.Scanner = require(path.."utils/scanner")
-	self.Scanner.init(self.dll)
 end

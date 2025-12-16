@@ -1,6 +1,5 @@
 Automatically replace dll in memhack when rebuild dll
 consider dll subtables - reorganize or flatten?
-Continue to test/debug scanner
 
 Add scan for hanger
 Add tests/test support (see memedit?)
