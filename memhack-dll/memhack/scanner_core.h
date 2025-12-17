@@ -25,7 +25,9 @@ enum class DataType {
 	INT,
 	FLOAT,
 	DOUBLE,
-	BOOL
+	BOOL,
+	STRING, // Fixed length string. Does not check null term. If needed use byte array for now at least
+	BYTE_ARRAY
 };
 
 // Single scan result
@@ -59,13 +61,19 @@ public:
 	Scanner(DataType dataType, size_t maxResults, size_t alignment);
 	~Scanner();
 
-	// Perform first scan
-	void firstScan(ScanType scanType, const void* targetValue);
+	// Perform first scan of all heap memory
+	// For sequence types, targetValue should be string or byte array data
+	// For regular types, targetValue should be pointer to Value
+	// valueSize is only used for sequence types
+	void firstScan(ScanType scanType, const void* targetValue, size_t valueSize = 0);
 
-	// Perform rescan on existing results
-	void rescan(ScanType scanType, const void* targetValue);
+	// Perform rescan filtering existing results
+	// For sequence types, targetValue should be string or byte array data
+	// For regular types, targetValue should be pointer to Value
+	// valueSize is only used for sequence types
+	void rescan(ScanType scanType, const void* targetValue, size_t valueSize = 0);
 
-	// Reset scanner
+	// Reset scanner results to allow a new first scan
 	void reset();
 
 	// Getters
@@ -75,12 +83,13 @@ public:
 	bool isFirstScan() const { return firstScanDone == false; }
 	DataType getDataType() const { return dataType; }
 	size_t getInvalidAddressCount() const { return invalidAddressCount; }
+	ScanType getLastScanType() const { return lastScanType; }
 
 	// Error handling
 	const std::vector<std::string>& getErrors() const { return errors; }
 	bool hasError() const { return !errors.empty(); }
 	void clearErrors() { errors.clear(); }
-	
+
 	// Report invalid address statistics if any
 	void reportInvalidAddressStats();
 
@@ -92,6 +101,15 @@ private:
 	bool firstScanDone;
 	bool maxResultsReached;
 
+	// Sequence storage for sequence types (String and byte array)
+	// This is separated from basic types because they are variable length and require
+	// more storage and we handle the compare byte by byte as an optimization
+	std::vector<uint8_t> searchSequence;
+
+	// Track the last scan type used for determining if we need to
+	// read values for sequence types when creating results
+	ScanType lastScanType;
+
 	// Error tracking (mutable so const methods can log errors)
 	mutable std::vector<std::string> errors;
 	// Track statistics for reporting (mutable so const methods can update)
@@ -100,13 +118,26 @@ private:
 	// Helper to add error message
 	void addError(const char* format, ...) const;
 
-	// Compare values based on data type
-	bool compareEqual(const void* a, const void* b) const;
-	bool compareGreater(const void* a, const void* b) const;
-	bool compareLess(const void* a, const void* b) const;
+	// Compare values for basic types (int, float, etc)
+	bool compareBasic(const void* a, const void* b) const;
+	bool compareBasicGreater(const void* a, const void* b) const;
+	bool compareBasicLess(const void* a, const void* b) const;
+
+	// Compare sequence at memory address with stored searchSequence
+	bool compareSequence(uintptr_t address) const;
 
 	// Check if value matches scan criteria
 	bool checkMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const;
+
+	// Internal helpers for checkMatch
+	bool checkSequenceMatch(const ScanResult& result, ScanType scanType) const;
+	bool checkBasicMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const;
+
+	// Common setup used by both firstScan and rescan
+	bool setupScanCommon(ScanType scanType, const void* targetValue, size_t valueSize);
+
+	// Set search sequence
+	void setSearchSequence(const void* data, size_t size);
 
 	// Scan single memory region
 	void scanRegion(void* base, size_t size, ScanType scanType, const void* targetValue);
@@ -121,8 +152,18 @@ private:
 	bool readValueWithVerification(uintptr_t address, const std::vector<SafeMemory::Region>& regions, ScanResult& result) const;
 
 
-	// Get data type size
+	// Get data type size (for sequence types, returns sequence size)
 	size_t getDataTypeSize() const;
+
+	// Check if data type is a sequence type (STRING or BYTE_ARRAY)
+	bool isSequenceType() const;
+
+	// Read sequence bytes from memory (for NOT scans or debugging)
+	bool readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const;
+
+	// Get the search sequence (for returning in EXACT scan results)
+	const std::vector<uint8_t>& getSearchSequence() const { return searchSequence; }
+	size_t getSequenceSize() const { return searchSequence.size(); }
 };
 
 #endif

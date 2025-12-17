@@ -5,9 +5,9 @@
 #include "scanner_core.h"
 #include "log.h"
 #include <cctype>
-#include <cstring>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 // Macro to get scanner from userdata with error checking
 // Defines 'scanner' variable and returns 0 from function if null
@@ -25,6 +25,23 @@ bool parseScanType(const char* str, ScanType& outType);
 bool parseDataType(const char* str, DataType& outType);
 
 void logScannerErrors(lua_State* L, Scanner* scanner, const char* operation);
+
+// Helper to parse target value for basic types (INT, FLOAT, etc)
+bool parseBasicValue(lua_State* L, int valueIndex, DataType dataType, ScanResult& outResult);
+
+// Helper to parse target value for sequence types (STRING, BYTE_ARRAY)
+bool parseSequenceValue(lua_State* L, int valueIndex, DataType dataType,
+                        const void*& outData, size_t& outSize, std::vector<uint8_t>& bytesBuffer);
+
+// Helper to push a basic type value to Lua stack
+void pushBasicValueToLua(lua_State* L, const ScanResult& result, DataType dataType);
+
+// Helper to push a sequence type value to Lua stack
+void pushSequenceValueToLua(lua_State* L, Scanner* scanner, const ScanResult& result,
+                            DataType dataType, bool readValues);
+
+// Push byte sequence to Lua as string or table depending on dataType
+void pushBytesToLua(lua_State* L, const std::vector<uint8_t>& bytes, DataType dataType);
 
 // Lua wrappers for Scanner
 int scanner_create(lua_State* L);

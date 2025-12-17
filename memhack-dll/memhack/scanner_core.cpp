@@ -10,17 +10,24 @@ const double DOUBLE_EPSILON = 0.00000001;
 
 Scanner::Scanner(DataType dataType, size_t maxResults, size_t alignment) :
 	dataType(dataType), maxResults(maxResults), alignment(alignment), firstScanDone(false),
-	maxResultsReached(false), invalidAddressCount(0)
+	maxResultsReached(false), invalidAddressCount(0), lastScanType(ScanType::EXACT)
 {
-	// Use data type size if alignment is 0
-	if (alignment == 0) {
-		this->alignment = getDataTypeSize();
-	}
-
 	// Always allow at least one result. 0 may cause oddities
 	if (maxResults == 0) {
 		addError("maxResults cannot be 0, defaulting to 1");
 		this->maxResults = 1;
+	}
+
+	// Default alignment to data type size if not specified
+	// For sequence types, alignment defaults to 4 (32 bit aligned)
+	// This is needed because getDataTypeSize will return the sequence size
+	// but sequences can be aligned fairly arbitrarily for performance
+	if (alignment == 0) {
+		if (isSequenceType()) {
+			this->alignment = 4;
+		} else {
+			this->alignment = getDataTypeSize();
+		}
 	}
 
 	// Pre-allocate a reasonable amount
@@ -38,6 +45,10 @@ void Scanner::addError(const char* format, ...) const {
 	errors.push_back(buffer);
 }
 
+bool Scanner::isSequenceType() const {
+	return dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY;
+}
+
 size_t Scanner::getDataTypeSize() const {
 	switch (dataType) {
 		case DataType::BYTE: return 1;
@@ -45,11 +56,61 @@ size_t Scanner::getDataTypeSize() const {
 		case DataType::FLOAT: return 4;
 		case DataType::DOUBLE: return 8;
 		case DataType::BOOL: return 1;
+		case DataType::STRING:
+		case DataType::BYTE_ARRAY: {
+			size_t size = searchSequence.size();
+			return size > 0 ? size : 1;
+		}
 		default: return 1;
 	}
 }
 
-bool Scanner::compareEqual(const void* a, const void* b) const {
+// Internal function to set search sequence for sequence types. For basic types, we do not
+// need this separate because we handle the value storage and reading differently
+void Scanner::setSearchSequence(const void* data, size_t size) {
+	if (size == 0) {
+		addError("Search sequence cannot be empty");
+		return;
+	}
+
+	// Put in byte array to prepare for per byte comparison
+	searchSequence.clear();
+	searchSequence.reserve(size);
+	const uint8_t* bytes = (const uint8_t*)data;
+	for (size_t i = 0; i < size; i++) {
+		searchSequence.push_back(bytes[i]);
+	}
+}
+
+// Reads raw bytes from memory for getting NOT match sequence results
+// This does not use safe read versions because those require rechecking memory
+// each time and we should have already validated the memory by this point and will
+// handle the unlikely edge case where the address changes and cannot be accessed anymore
+bool Scanner::readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const {
+	size_t size = searchSequence.size();
+	if (size == 0) {
+		return false;
+	}
+
+	outBytes.clear();
+	outBytes.reserve(size);
+
+	// Try catch in case memory is no longer accessible
+	__try {
+		const uint8_t* memBytes = (const uint8_t*)address;
+		for (size_t i = 0; i < size; i++) {
+			outBytes.push_back(memBytes[i]);
+		}
+		return true;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		// Memory access violation during result value read
+		addError("Failed to read sequence value at address 0x%p for results: memory access violation", (void*)address);
+		return false;
+	}
+}
+
+bool Scanner::compareBasic(const void* a, const void* b) const {
 	switch (dataType) {
 		case DataType::BYTE:
 			return *(uint8_t*)a == *(uint8_t*)b;
@@ -66,7 +127,29 @@ bool Scanner::compareEqual(const void* a, const void* b) const {
 	}
 }
 
-bool Scanner::compareGreater(const void* a, const void* b) const {
+bool Scanner::compareSequence(uintptr_t address) const {
+	if (searchSequence.empty()) {
+		return false;
+	}
+
+	// Compare bytes at memory address with stored searchSequence
+	// Early exit on first mismatch for performance
+	size_t size = searchSequence.size();
+	__try {
+		const uint8_t* memBytes = (const uint8_t*)address;
+		for (size_t i = 0; i < size; i++) {
+			if (memBytes[i] != searchSequence[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		addError("Failed to read sequence bytes at address 0x%p: memory access violation", (void*)address);
+		return false;
+	}
+}
+bool Scanner::compareBasicGreater(const void* a, const void* b) const {
 	switch (dataType) {
 		case DataType::BYTE:
 			return *(uint8_t*)a > *(uint8_t*)b;
@@ -83,7 +166,7 @@ bool Scanner::compareGreater(const void* a, const void* b) const {
 	}
 }
 
-bool Scanner::compareLess(const void* a, const void* b) const {
+bool Scanner::compareBasicLess(const void* a, const void* b) const {
 	switch (dataType) {
 		case DataType::BYTE:
 			return *(uint8_t*)a < *(uint8_t*)b;
@@ -100,36 +183,65 @@ bool Scanner::compareLess(const void* a, const void* b) const {
 	}
 }
 
-bool Scanner::checkMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const {
+bool Scanner::checkSequenceMatch(const ScanResult& result, ScanType scanType) const {
+	switch (scanType) {
+		case ScanType::EXACT:
+			return compareSequence(result.address);
+
+		case ScanType::NOT:
+			return !compareSequence(result.address);
+
+		case ScanType::CHANGED:
+		case ScanType::UNCHANGED:
+		case ScanType::INCREASED:
+		case ScanType::DECREASED:
+			addError("Only EXACT and NOT scans supported for STRING/BYTE_ARRAY");
+			return false;
+
+		default:
+			addError("Invalid scan type in checkSequenceMatch: %d", (int)scanType);
+			return false;
+	}
+}
+
+bool Scanner::checkBasicMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const {
 	const void* currentValue = &result.value;
 	const void* oldValue = &result.oldValue;
 
 	switch (scanType) {
 		case ScanType::EXACT:
-			return compareEqual(currentValue, targetValue);
+			return compareBasic(currentValue, targetValue);
 
 		case ScanType::NOT:
-			return !compareEqual(currentValue, targetValue);
+			return !compareBasic(currentValue, targetValue);
 
 		case ScanType::INCREASED:
 			if (!result.hasOldValue) return false;
-			return compareGreater(currentValue, oldValue);
+			return compareBasicGreater(currentValue, oldValue);
 
 		case ScanType::DECREASED:
 			if (!result.hasOldValue) return false;
-			return compareLess(currentValue, oldValue);
+			return compareBasicLess(currentValue, oldValue);
 
 		case ScanType::CHANGED:
 			if (!result.hasOldValue) return false;
-			return !compareEqual(currentValue, oldValue);
+			return !compareBasic(currentValue, oldValue);
 
 		case ScanType::UNCHANGED:
 			if (!result.hasOldValue) return false;
-			return compareEqual(currentValue, oldValue);
+			return compareBasic(currentValue, oldValue);
 
 		default:
-			addError("Invalid scan type in checkMatch: %d", (int)scanType);
+			addError("Invalid scan type in checkBasicMatch: %d", (int)scanType);
 			return false;
+	}
+}
+
+bool Scanner::checkMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const {
+	if (isSequenceType()) {
+		return checkSequenceMatch(result, scanType);
+	} else {
+		return checkBasicMatch(result, scanType, targetValue);
 	}
 }
 
@@ -164,6 +276,12 @@ bool Scanner::readValueInRegion(uintptr_t address, uintptr_t regionEnd, ScanResu
 			case DataType::BOOL:
 				result.value.boolValue = *(bool*)addr;
 				break;
+			case DataType::STRING:
+			case DataType::BYTE_ARRAY:
+				// For sequence types, we don't read now and store for comparing
+				// later but instead just read and compare as we go as an optimization
+				// End bound already checked so nothing more to do here
+				break;
 			default:
 				return false;
 		}
@@ -196,6 +314,8 @@ const SafeMemory::Region* Scanner::findRegionContainingAddress(uintptr_t address
 }
 
 bool Scanner::readValueWithVerification(uintptr_t address, const std::vector<SafeMemory::Region>& regions, ScanResult& result) const {
+	// TODO: Remove re-validation and rely on try catch for memory access changing
+
 	// Verify address is in a valid region
 	const SafeMemory::Region* region = findRegionContainingAddress(address, regions);
 	if (region == nullptr) {
@@ -209,6 +329,7 @@ bool Scanner::readValueWithVerification(uintptr_t address, const std::vector<Saf
 	return readValueInRegion(address, regionEnd, result);
 }
 
+// Scan a single region for a match used for initial scan only
 void Scanner::scanRegion(void* base, size_t size, ScanType scanType, const void* targetValue) {
 	if (size == 0 || alignment == 0) {
 		return; // Nothing to scan
@@ -260,15 +381,44 @@ void Scanner::scanRegion(void* base, size_t size, ScanType scanType, const void*
 	}
 }
 
-void Scanner::firstScan(ScanType scanType, const void* targetValue) {
+// Common setup shared by firstScan and rescan
+// Returns false if setup failed (error already added)
+bool Scanner::setupScanCommon(ScanType scanType, const void* targetValue, size_t valueSize) {
+	clearErrors();
+	invalidAddressCount = 0;
+	lastScanType = scanType;
+
+	// For sequence types, set the search sequence from targetValue
+	if (isSequenceType()) {
+		if (targetValue != nullptr && valueSize > 0) {
+			setSearchSequence(targetValue, valueSize);
+		} else {
+			addError("Sequence types require non-null targetValue with size > 0");
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void Scanner::firstScan(ScanType scanType, const void* targetValue, size_t valueSize) {
 	if (firstScanDone) {
-		addError("First scan already performed - use reset() first");
+		addError("First scan already performed - use reset() first or create new scanner");
 		return;
 	}
 
-	clearErrors();
-	results.clear();
-	maxResultsReached = false;
+	// These types require a previous scan
+	if (scanType == ScanType::INCREASED || scanType == ScanType::DECREASED ||
+		scanType == ScanType::CHANGED || scanType == ScanType::UNCHANGED) {
+		addError("First scan cannot use INCREASED/DECREASED/CHANGED/UNCHANGED - these require a previous scan. Use EXACT or NOT for first scan.");
+		return;
+	}
+
+	// Common setup and validation
+	if (!setupScanCommon(scanType, targetValue, valueSize)) {
+		// Error already added
+		return;
+	}
 
 	// Get heap regions
 	const std::vector<SafeMemory::Region>& regions = SafeMemory::get_heap_regions(false);
@@ -277,7 +427,9 @@ void Scanner::firstScan(ScanType scanType, const void* targetValue) {
 		return;
 	}
 
-	// Scan each region
+	// Clear results to be sure of clean state and scan each region
+	results.clear();
+	maxResultsReached = false;
 	for (const auto& region : regions) {
 		scanRegion(region.base, region.size, scanType, targetValue);
 
@@ -289,47 +441,60 @@ void Scanner::firstScan(ScanType scanType, const void* targetValue) {
 	}
 
 	firstScanDone = true;
-
-	// Report statistics
 	reportInvalidAddressStats();
 }
 
-void Scanner::rescan(ScanType scanType, const void* targetValue) {
+void Scanner::rescan(ScanType scanType, const void* targetValue, size_t valueSize) {
 	if (!firstScanDone) {
 		addError("Must perform first scan before rescanning");
 		return;
 	}
 
-	clearErrors();
-	std::vector<ScanResult> newResults;
-	newResults.reserve(results.size());
-	invalidAddressCount = 0;
-
-	// Re-get heap regions to verify addresses are still valid
-	const std::vector<SafeMemory::Region>& regions = SafeMemory::get_heap_regions(false);
-	if (regions.empty()) {
-		addError("No readable heap regions found during rescan");
+	if (results.empty()) {
+		addError("No previous results to rescan");
 		return;
 	}
 
-	for (auto& oldResult : results) {
-		ScanResult newResult;
+	// Common setup and validation
+	if (!setupScanCommon(scanType, targetValue, valueSize)) {
+		// Error already added
+		return;
+	}
+
+	// Re-get heap regions to verify addresses are still valid
+	// TODO: as mentioned elsewhere, remove re-validation as optimization
+	const std::vector<SafeMemory::Region>& regions = SafeMemory::get_heap_regions(false);
+	if (regions.empty()) {
+		addError("No readable heap regions found");
+		return;
+	}
+
+	// Filter existing results in place to avoid reallocations
+	size_t writeIndex = 0;
+	for (size_t readIndex = 0; readIndex < results.size(); readIndex++) {
+		ScanResult& result = results[readIndex];
+
+		// Store old value before reading new value
+		Value oldValue = result.value;
 
 		// Read value, verifying address+size is within current heap regions
-		if (readValueWithVerification(oldResult.address, regions, newResult)) {
+		if (readValueWithVerification(result.address, regions, result)) {
 			// Copy old value for comparison
-			newResult.oldValue = oldResult.value;
-			newResult.hasOldValue = true;
+			result.oldValue = oldValue;
+			result.hasOldValue = true;
 
-			if (checkMatch(newResult, scanType, targetValue)) {
-				newResults.push_back(newResult);
+			if (checkMatch(result, scanType, targetValue)) {
+				// Keep this result - copy to write position if different
+				if (writeIndex != readIndex) {
+					results[writeIndex] = result;
+				}
+				writeIndex++;
 			}
 		}
 	}
 
-	results = std::move(newResults);
-
-	// Report statistics
+	// Remove unused results at end
+	results.resize(writeIndex);
 	reportInvalidAddressStats();
 }
 
@@ -348,5 +513,6 @@ void Scanner::reset() {
 	firstScanDone = false;
 	maxResultsReached = false;
 	invalidAddressCount = 0;
+	searchSequence.clear();
 	clearErrors();
 }

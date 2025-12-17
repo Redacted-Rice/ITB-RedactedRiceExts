@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "scanner_lua.h"
-#include "log.h"
 
 std::string toLower(const char* str) {
 	std::string result(str);
@@ -54,6 +53,12 @@ bool parseDataType(const char* str, DataType& outType) {
 	} else if (lower == "bool") {
 		outType = DataType::BOOL;
 		return true;
+	} else if (lower == "string") {
+		outType = DataType::STRING;
+		return true;
+	} else if (lower == "byte_array" || lower == "bytearray") {
+		outType = DataType::BYTE_ARRAY;
+		return true;
 	}
 
 	return false;
@@ -67,6 +72,144 @@ void logScannerErrors(lua_State* L, Scanner* scanner, const char* operation) {
 			sprintf_s(logMsg, sizeof(logMsg), "Scanner: ERROR during %s - %s", operation, error.c_str());
 			log(L, logMsg);
 		}
+	}
+}
+
+// Parse basic type value (INT, FLOAT, BOOL, etc) from Lua
+// Returns true on success, false on error (error already pushed to Lua)
+bool parseBasicValue(lua_State* L, int valueIndex, DataType dataType, ScanResult& outResult) {
+	if (lua_isnumber(L, valueIndex)) {
+		double value = lua_tonumber(L, valueIndex);
+		outResult.value.intValue = (int32_t)value;
+		outResult.value.floatValue = (float)value;
+		outResult.value.doubleValue = value;
+		outResult.value.byteValue = (uint8_t)value;
+		return true;
+	} else if (lua_isboolean(L, valueIndex)) {
+		outResult.value.boolValue = lua_toboolean(L, valueIndex);
+		return true;
+	} else {
+		luaL_error(L, "Target value must be a number or boolean");
+		return false;
+	}
+}
+
+// Parse sequence value (STRING or BYTE_ARRAY) from Lua
+// Returns true on success, false on error (error already pushed to Lua)
+bool parseSequenceValue(lua_State* L, int valueIndex, DataType dataType,
+                        const void*& outData, size_t& outSize, std::vector<uint8_t>& bytesBuffer) {
+	if (dataType == DataType::STRING) {
+		if (!lua_isstring(L, valueIndex)) {
+			luaL_error(L, "Target value must be a string for STRING scanner");
+			return false;
+		}
+
+		const char* str = lua_tolstring(L, valueIndex, &outSize);
+		outData = str;
+		return true;
+
+	} else if (dataType == DataType::BYTE_ARRAY) {
+		if (!lua_istable(L, valueIndex)) {
+			luaL_error(L, "Target value must be a table of bytes for BYTE_ARRAY scanner");
+			return false;
+		}
+
+		// Read bytes from table
+		bytesBuffer.clear();
+		size_t tableLen = lua_rawlen(L, valueIndex);
+
+		for (size_t i = 1; i <= tableLen; i++) {
+			lua_rawgeti(L, valueIndex, (lua_Integer)i);
+			if (!lua_isnumber(L, -1)) {
+				luaL_error(L, "BYTE_ARRAY table must contain only numbers");
+				return false;
+			}
+			int byte = lua_tointeger(L, -1);
+			if (byte < 0 || byte > 255) {
+				luaL_error(L, "BYTE_ARRAY values must be 0-255, got: %d", byte);
+				return false;
+			}
+			bytesBuffer.push_back((uint8_t)byte);
+			lua_pop(L, 1);
+		}
+
+		if (bytesBuffer.empty()) {
+			luaL_error(L, "BYTE_ARRAY sequence cannot be empty");
+			return false;
+		}
+
+		outData = bytesBuffer.data();
+		outSize = bytesBuffer.size();
+		return true;
+	}
+
+	return false;
+}
+
+// Push a basic type value to Lua stack
+void pushBasicValueToLua(lua_State* L, const ScanResult& result, DataType dataType) {
+	switch (dataType) {
+		case DataType::BYTE:
+			lua_pushinteger(L, result.value.byteValue);
+			break;
+		case DataType::INT:
+			lua_pushinteger(L, result.value.intValue);
+			break;
+		case DataType::FLOAT:
+			lua_pushnumber(L, result.value.floatValue);
+			break;
+		case DataType::DOUBLE:
+			lua_pushnumber(L, result.value.doubleValue);
+			break;
+		case DataType::BOOL:
+			lua_pushboolean(L, result.value.boolValue);
+			break;
+		default:
+			lua_pushnil(L);
+			break;
+	}
+}
+
+// Push byte sequence to Lua as string or table depending on dataType
+void pushBytesToLua(lua_State* L, const std::vector<uint8_t>& bytes, DataType dataType) {
+	if (dataType == DataType::STRING) {
+		// Return as string
+		lua_pushlstring(L, (const char*)bytes.data(), bytes.size());
+	} else {
+		// Return as table of bytes
+		lua_newtable(L);
+		for (size_t j = 0; j < bytes.size(); j++) {
+			lua_pushinteger(L, j + 1);  // Lua 1-indexed
+			lua_pushinteger(L, bytes[j]);
+			lua_rawset(L, -3);
+		}
+	}
+}
+
+// Push a sequence type value to Lua stack
+void pushSequenceValueToLua(lua_State* L, Scanner* scanner, const ScanResult& result,
+                            DataType dataType, bool readValues) {
+	if (!readValues) {
+		lua_pushnil(L);
+		return;
+	}
+
+	// if readValues is set we read actual bytes or return search sequence
+	ScanType lastScanType = scanner->getLastScanType();
+
+	if (lastScanType == ScanType::NOT) {
+		// NOT scan - read actual bytes to see what was found
+		std::vector<uint8_t> bytes;
+		if (scanner->readSequenceBytes(result.address, bytes)) {
+			pushBytesToLua(L, bytes, dataType);
+		} else {
+			// Failed to read - return nil
+			lua_pushnil(L);
+		}
+	} else {
+		// EXACT scan - return the search sequence
+		const std::vector<uint8_t>& searchSeq = scanner->getSearchSequence();
+		pushBytesToLua(L, searchSeq, dataType);
 	}
 }
 
@@ -97,7 +240,7 @@ int scanner_create(lua_State* L) {
 	// Parse data type (case-insensitive)
 	DataType dataType;
 	if (!parseDataType(dataTypeStr, dataType)) {
-		luaL_error(L, "Invalid data type: %s (valid: BYTE, INT, FLOAT, DOUBLE, BOOL)", dataTypeStr);
+		luaL_error(L, "Invalid data type: %s (valid: BYTE, INT, FLOAT, DOUBLE, BOOL, STRING, BYTE_ARRAY)", dataTypeStr);
 		return 0;
 	}
 
@@ -142,22 +285,30 @@ int scanner_first_scan(lua_State* L) {
 		return 0;
 	}
 
-	ScanResult targetResult;
-	if (lua_isnumber(L, 3)) {
-		double value = lua_tonumber(L, 3);
-		targetResult.value.intValue = (int32_t)value;
-		targetResult.value.floatValue = (float)value;
-		targetResult.value.doubleValue = value;
-		targetResult.value.byteValue = (uint8_t)value;
-	} else if (lua_isboolean(L, 3)) {
-		targetResult.value.boolValue = lua_toboolean(L, 3);
-	} else {
-		luaL_error(L, "Target value must be a number or boolean");
-		return 0;
-	}
+	DataType dataType = scanner->getDataType();
 
-	// Perform scan
-	scanner->firstScan(scanType, &targetResult.value);
+	// Parse and execute scan based on data type
+	if (dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY) {
+		// Sequence types
+		const void* data;
+		size_t size;
+		std::vector<uint8_t> bytesBuffer;
+
+		if (!parseSequenceValue(L, 3, dataType, data, size, bytesBuffer)) {
+			return 0; // Error already pushed
+		}
+
+		scanner->firstScan(scanType, data, size);
+	} else {
+		// Basic types
+		ScanResult targetResult;
+
+		if (!parseBasicValue(L, 3, dataType, targetResult)) {
+			return 0; // Error already pushed
+		}
+
+		scanner->firstScan(scanType, &targetResult.value);
+	}
 
 	// Log any errors
 	logScannerErrors(L, scanner, "first scan");
@@ -194,22 +345,30 @@ int scanner_rescan(lua_State* L) {
 		return 0;
 	}
 
-	ScanResult targetResult;
-	if (lua_isnumber(L, 3)) {
-		double value = lua_tonumber(L, 3);
-		targetResult.value.intValue = (int32_t)value;
-		targetResult.value.floatValue = (float)value;
-		targetResult.value.doubleValue = value;
-		targetResult.value.byteValue = (uint8_t)value;
-	} else if (lua_isboolean(L, 3)) {
-		targetResult.value.boolValue = lua_toboolean(L, 3);
-	} else {
-		luaL_error(L, "Target value must be a number or boolean");
-		return 0;
-	}
+	DataType dataType = scanner->getDataType();
 
-	// Perform rescan
-	scanner->rescan(scanType, &targetResult.value);
+	// Parse and execute scan based on data type (same logic as firstScan)
+	if (dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY) {
+		// Sequence types
+		const void* data;
+		size_t size;
+		std::vector<uint8_t> bytesBuffer;
+
+		if (!parseSequenceValue(L, 3, dataType, data, size, bytesBuffer)) {
+			return 0; // Error already pushed
+		}
+
+		scanner->rescan(scanType, data, size);
+	} else {
+		// Basic types
+		ScanResult targetResult;
+
+		if (!parseBasicValue(L, 3, dataType, targetResult)) {
+			return 0; // Error already pushed
+		}
+
+		scanner->rescan(scanType, &targetResult.value);
+	}
 
 	// Log any errors
 	logScannerErrors(L, scanner, "rescan");
@@ -228,12 +387,12 @@ int scanner_get_results(lua_State* L) {
 	// Creates Scanner*
 	GET_SCANNER(L, 1);
 
-	// Read optional offset and limit from table or individual args
+	// Read optional offset, limit, and readValues from table or individual args
 	int offset = 0;
 	int limit = 100;
+	bool readValues = false;
 
 	if (lua_istable(L, 2)) {
-		// Table format: scanner:getResults({ offset = 10, limit = 50 })
 		lua_pushstring(L, "offset");
 		lua_gettable(L, 2);
 		if (lua_isnumber(L, -1)) {
@@ -247,10 +406,13 @@ int scanner_get_results(lua_State* L) {
 			limit = lua_tointeger(L, -1);
 		}
 		lua_pop(L, 1);
-	} else {
-		// Individual args format: scanner:getResults(offset, limit)
-		offset = luaL_optinteger(L, 2, 0);
-		limit = luaL_optinteger(L, 3, 100);
+
+		lua_pushstring(L, "readValues");
+		lua_gettable(L, 2);
+		if (lua_isboolean(L, -1)) {
+			readValues = lua_toboolean(L, -1);
+		}
+		lua_pop(L, 1);
 	}
 
 	const std::vector<ScanResult>& results = scanner->getResults();
@@ -268,6 +430,7 @@ int scanner_get_results(lua_State* L) {
 
 	DataType dataType = scanner->getDataType();
 
+	// Build results array
 	for (int i = startIdx; i < endIdx; i++) {
 		const ScanResult& result = results[i];
 
@@ -275,27 +438,17 @@ int scanner_get_results(lua_State* L) {
 		lua_pushinteger(L, i - startIdx + 1);
 		lua_newtable(L);
 
+		// Add address field
 		lua_pushstring(L, "address");
 		lua_pushinteger(L, result.address);
 		lua_rawset(L, -3);
 
+		// Add value field
 		lua_pushstring(L, "value");
-		switch (dataType) {
-			case DataType::BYTE:
-				lua_pushinteger(L, result.value.byteValue);
-				break;
-			case DataType::INT:
-				lua_pushinteger(L, result.value.intValue);
-				break;
-			case DataType::FLOAT:
-				lua_pushnumber(L, result.value.floatValue);
-				break;
-			case DataType::DOUBLE:
-				lua_pushnumber(L, result.value.doubleValue);
-				break;
-			case DataType::BOOL:
-				lua_pushboolean(L, result.value.boolValue);
-				break;
+		if (dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY) {
+			pushSequenceValueToLua(L, scanner, result, dataType, readValues);
+		} else {
+			pushBasicValueToLua(L, result, dataType);
 		}
 		lua_rawset(L, -3);
 
@@ -410,5 +563,7 @@ void add_scanner_functions(lua_State* L) {
 	lua_pushstring(L, "FLOAT"); lua_pushstring(L, "float"); lua_rawset(L, -3);
 	lua_pushstring(L, "DOUBLE"); lua_pushstring(L, "double"); lua_rawset(L, -3);
 	lua_pushstring(L, "BOOL"); lua_pushstring(L, "bool"); lua_rawset(L, -3);
+	lua_pushstring(L, "STRING"); lua_pushstring(L, "string"); lua_rawset(L, -3);
+	lua_pushstring(L, "BYTE_ARRAY"); lua_pushstring(L, "byte_array"); lua_rawset(L, -3);
 	lua_rawset(L, -3);
 }
