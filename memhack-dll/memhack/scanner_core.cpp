@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "scanner_core.h"
 #include "safememory.h"
+
 #include <cmath>
 #include <algorithm>
 
@@ -31,7 +32,7 @@ Scanner::Scanner(DataType dataType, size_t maxResults, size_t alignment) :
 	}
 
 	// Pre-allocate a reasonable amount
-	results.reserve(std::min(this->maxResults, size_t(10000)));
+	results.reserve(std::min<size_t>(this->maxResults, 10000));
 }
 
 Scanner::~Scanner() {}
@@ -298,10 +299,10 @@ bool Scanner::readValueInRegion(uintptr_t address, uintptr_t regionEnd, ScanResu
 const SafeMemory::Region* Scanner::findRegionContainingAddress(uintptr_t address, const std::vector<SafeMemory::Region>& regions) const {
 	// Find region that contains address + size (entire value must fit)
 	size_t size = getDataTypeSize();
-	uintptr_t endAddress = address + size;
 
 	for (const auto& region : regions) {
-		uintptr_t regionBase = (uintptr_t)region.base;
+		uintptr_t regionBase = region.base;
+		uintptr_t regionEnd = region.base + region.size;
 
 		// Check if entire address is within this region (size/end address will be checked later when reading)
 		if (address >= regionBase && address <= regionEnd) {
@@ -330,12 +331,12 @@ bool Scanner::readValueWithVerification(uintptr_t address, const std::vector<Saf
 }
 
 // Scan a single region for a match used for initial scan only
-void Scanner::scanRegion(void* base, size_t size, ScanType scanType, const void* targetValue) {
+void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue) {
 	if (size == 0 || alignment == 0) {
 		return; // Nothing to scan
 	}
 
-	uintptr_t addr = (uintptr_t)base;
+	uintptr_t addr = base;
 
 	// Check for overflow when calculating end address
 	uintptr_t endAddr;
@@ -475,7 +476,7 @@ void Scanner::rescan(ScanType scanType, const void* targetValue, size_t valueSiz
 		ScanResult& result = results[readIndex];
 
 		// Store old value before reading new value
-		Value oldValue = result.value;
+		ScanValue oldValue = result.value;
 
 		// Read value, verifying address+size is within current heap regions
 		if (readValueWithVerification(result.address, regions, result)) {

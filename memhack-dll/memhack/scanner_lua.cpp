@@ -115,8 +115,8 @@ bool parseSequenceValue(lua_State* L, int valueIndex, DataType dataType,
 		}
 
 		// Read bytes from table
-		bytesBuffer.clear();
-		size_t tableLen = lua_rawlen(L, valueIndex);
+		bytesBuffer.clear(); 
+		size_t tableLen = lua_objlen(L, valueIndex);
 
 		for (size_t i = 1; i <= tableLen; i++) {
 			lua_rawgeti(L, valueIndex, (lua_Integer)i);
@@ -426,7 +426,7 @@ int scanner_get_results(lua_State* L) {
 	lua_newtable(L);
 
 	int startIdx = offset;
-	int endIdx = std::min(offset + limit, totalCount);
+	int endIdx = std::min<int>(offset + limit, totalCount);
 
 	DataType dataType = scanner->getDataType();
 

@@ -30,23 +30,19 @@ enum class DataType {
 	BYTE_ARRAY
 };
 
+union ScanValue {
+	uint8_t byteValue;
+	int32_t intValue;
+	float floatValue;
+	double doubleValue;
+	bool boolValue;
+};
+
 // Single scan result
 struct ScanResult {
 	uintptr_t address;
-	union {
-		uint8_t byteValue;
-		int32_t intValue;
-		float floatValue;
-		double doubleValue;
-		bool boolValue;
-	} value;
-	union {
-		uint8_t byteValue;
-		int32_t intValue;
-		float floatValue;
-		double doubleValue;
-		bool boolValue;
-	} oldValue;
+	ScanValue value;
+	ScanValue oldValue;
 	bool hasOldValue;
 
 	ScanResult() : address(0), hasOldValue(false) {
@@ -76,22 +72,28 @@ public:
 	// Reset scanner results to allow a new first scan
 	void reset();
 
+	// Read sequence bytes from memory (for NOT scans or debugging)
+	bool readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const;
+
 	// Getters
+	bool isFirstScan() const { return firstScanDone == false; }
+	DataType getDataType() const { return dataType; }
+	size_t getDataTypeSize() const;
+	ScanType getLastScanType() const { return lastScanType; }
+	const std::vector<uint8_t>& getSearchSequence() const { return searchSequence; }
+	size_t getSequenceSize() const { return searchSequence.size(); }
+	bool isSequenceType() const;
+
+	// Results
 	const std::vector<ScanResult>& getResults() const { return results; }
 	size_t getResultCount() const { return results.size(); }
 	bool isMaxResultsReached() const { return maxResultsReached; }
-	bool isFirstScan() const { return firstScanDone == false; }
-	DataType getDataType() const { return dataType; }
-	size_t getInvalidAddressCount() const { return invalidAddressCount; }
-	ScanType getLastScanType() const { return lastScanType; }
 
 	// Error handling
-	const std::vector<std::string>& getErrors() const { return errors; }
-	bool hasError() const { return !errors.empty(); }
 	void clearErrors() { errors.clear(); }
-
-	// Report invalid address statistics if any
-	void reportInvalidAddressStats();
+	const std::vector<std::string>& getErrors() const { return errors; }
+	size_t getInvalidAddressCount() const { return invalidAddressCount; }
+	bool hasError() const { return !errors.empty(); }
 
 private:
 	DataType dataType;
@@ -140,7 +142,7 @@ private:
 	void setSearchSequence(const void* data, size_t size);
 
 	// Scan single memory region
-	void scanRegion(void* base, size_t size, ScanType scanType, const void* targetValue);
+	void scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue);
 
 	// Find region containing address (returns nullptr if not found)
 	const SafeMemory::Region* findRegionContainingAddress(uintptr_t address, const std::vector<SafeMemory::Region>& regions) const;
@@ -151,19 +153,8 @@ private:
 	// Read value at address, verifying against current heap regions
 	bool readValueWithVerification(uintptr_t address, const std::vector<SafeMemory::Region>& regions, ScanResult& result) const;
 
-
-	// Get data type size (for sequence types, returns sequence size)
-	size_t getDataTypeSize() const;
-
-	// Check if data type is a sequence type (STRING or BYTE_ARRAY)
-	bool isSequenceType() const;
-
-	// Read sequence bytes from memory (for NOT scans or debugging)
-	bool readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const;
-
-	// Get the search sequence (for returning in EXACT scan results)
-	const std::vector<uint8_t>& getSearchSequence() const { return searchSequence; }
-	size_t getSequenceSize() const { return searchSequence.size(); }
+	// Helper to report invalid address statistics if any
+	void reportInvalidAddressStats();
 };
 
 #endif
