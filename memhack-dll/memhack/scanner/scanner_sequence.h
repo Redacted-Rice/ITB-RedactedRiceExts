@@ -1,7 +1,7 @@
 #ifndef SCANNER_SEQUENCE_H
 #define SCANNER_SEQUENCE_H
 
-#include "scanner/scanner_base.h"
+#include "scanner_base.h"
 #include <windows.h>
 
 // Scanner implementation for sequence types (STRING, BYTE_ARRAY)

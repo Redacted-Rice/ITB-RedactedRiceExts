@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include <Windows.h>
 
 // Forward declare for SafeMemory::Region
 namespace SafeMemory {
@@ -170,7 +171,7 @@ protected:
 
 	// Rescan only the matched entry
 	// Has a default implemnetation that can be overridden by derived classes
-	virtual void rescanImpl(ScanType scanType, const void* targetValue, size_t valueSize) override;
+	virtual void rescanImpl(ScanType scanType, const void* targetValue, size_t valueSize);
 
 	void processResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resultIdx,
 	                             ScanType scanType, const void* targetValue,

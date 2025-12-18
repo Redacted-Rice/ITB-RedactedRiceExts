@@ -1,7 +1,7 @@
-#include "../stdafx.h"
-#include "scanner/scanner_base.h"
-#include "scanner/scanner_sequence.h"
-#include "scanner/scanner_basic.h"
+#include "stdafx.h"
+#include "scanner_base.h"
+#include "scanner_sequence.h"
+#include "scanner_basic.h"
 #include "../safememory.h"
 
 #include <algorithm>

@@ -1,7 +1,7 @@
 #ifndef SCANNER_BASIC_H
 #define SCANNER_BASIC_H
 
-#include "scanner/scanner_base.h"
+#include "scanner_base.h"
 #include <windows.h>
 
 // Scanner implementation for basic types (INT, FLOAT, DOUBLE, BYTE, BOOL)
@@ -36,10 +36,6 @@ private:
 
 	// Check if value matches scan criteria
 	bool checkMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const;
-
-	// Common setup used by both firstScan and rescan
-	bool setupScanCommon(ScanType scanType, const void* targetValue, size_t valueSize);
-
 
 	// Read value from buffer at offset
 	bool readValueFromBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,

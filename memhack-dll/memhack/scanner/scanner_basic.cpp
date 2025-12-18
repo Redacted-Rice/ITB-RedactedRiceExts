@@ -1,5 +1,5 @@
-#include "../stdafx.h"
-#include "scanner/scanner_basic.h"
+#include "stdafx.h"
+#include "scanner_basic.h"
 #include "../safememory.h"
 
 #include <cmath>

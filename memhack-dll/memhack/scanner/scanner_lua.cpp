@@ -1,6 +1,6 @@
-#include "../stdafx.h"
-#include "scanner/scanner_lua.h"
-#include "scanner/scanner_base.h"
+#include "stdafx.h"
+#include "scanner_lua.h"
+#include "scanner_base.h"
 
 std::string toLower(const char* str) {
 	std::string result(str);
