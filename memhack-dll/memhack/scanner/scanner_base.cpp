@@ -184,6 +184,7 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 	// We overlap chunks by (dataSize - 1) bytes to ensure that any value starting
 	// near the end of our arbitrary chunks will be fully contained in the next one
 	while (currentBase < regionEnd && results.size() < maxResults) {
+		
 		// Determine chunk size ensuring we don't read past the end of the region
 		size_t chunkSize = std::min<size_t>(SCAN_BUFFER_SIZE, regionEnd - currentBase);
 
@@ -204,7 +205,13 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 		}
 
 		// Move to next chunk with overlap to catch values straddling chunk boundaries
-		currentBase += chunkSize - (dataSize - 1);
+		currentBase += chunkSize;
+		if (dataSize > 1 && currentBase < regionEnd) {
+			// Subtract overlap only if we haven't reached the end
+			// This prevents infinite loop at region boundaries
+			size_t overlap = std::min<size_t>(dataSize - 1, chunkSize);
+			currentBase -= overlap;
+		}
 	}
 }
 
