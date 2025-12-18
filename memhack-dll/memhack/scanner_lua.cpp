@@ -220,6 +220,7 @@ int scanner_create(lua_State* L) {
 	// Parse options table if present
 	int maxResults = 100000;
 	int alignment = 0;
+	bool checkTiming = false;
 
 	if (lua_istable(L, 2)) {
 		lua_pushstring(L, "maxResults");
@@ -233,6 +234,13 @@ int scanner_create(lua_State* L) {
 		lua_gettable(L, 2);
 		if (lua_isnumber(L, -1)) {
 			alignment = lua_tointeger(L, -1);
+		}
+		lua_pop(L, 1);
+
+		lua_pushstring(L, "checkTiming");
+		lua_gettable(L, 2);
+		if (lua_isboolean(L, -1)) {
+			checkTiming = lua_toboolean(L, -1);
 		}
 		lua_pop(L, 1);
 	}
@@ -260,6 +268,9 @@ int scanner_create(lua_State* L) {
 	Scanner** scannerPtr = (Scanner**)lua_newuserdata(L, sizeof(Scanner*));
 	// Scanner already has teardown/dealloc logic in __gc
 	*scannerPtr = new Scanner(dataType, maxResults, alignment);
+
+	// Set timing option
+	(*scannerPtr)->setCheckTiming(checkTiming);
 
 	// Set metatable for garbage collection
 	luaL_getmetatable(L, "Scanner");

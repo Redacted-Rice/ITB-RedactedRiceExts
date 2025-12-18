@@ -114,6 +114,11 @@ public:
 	size_t getInvalidAddressCount() const { return invalidAddressCount; }
 	bool hasError() const { return !errors.empty(); }
 
+	// Timing
+	bool checkTiming;
+	void setCheckTiming(bool enabled) { checkTiming = enabled; }
+	bool getCheckTiming() const { return checkTiming; }
+
 private:
 	DataType dataType;
 	size_t maxResults;

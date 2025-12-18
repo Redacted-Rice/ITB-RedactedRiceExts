@@ -9,7 +9,7 @@
 
 Scanner::Scanner(DataType dataType, size_t maxResults, size_t alignment) :
 	dataType(dataType), maxResults(maxResults), alignment(alignment), firstScanDone(false),
-	maxResultsReached(false), invalidAddressCount(0), lastScanType(ScanType::EXACT)
+	maxResultsReached(false), invalidAddressCount(0), lastScanType(ScanType::EXACT), checkTiming(false)
 {
 	// Always allow at least one result. 0 may cause oddities
 	if (maxResults == 0) {
@@ -488,6 +488,12 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 
 // Main entry point for performing a new scan
 void Scanner::firstScan(ScanType scanType, const void* targetValue, size_t valueSize) {
+	// Start timing if enabled
+	ULONGLONG startTime = 0;
+	if (checkTiming) {
+		startTime = GetTickCount64();
+	}
+
 	if (firstScanDone) {
 		addError("First scan already performed - use reset() first or create new scanner");
 		return;
@@ -538,6 +544,13 @@ void Scanner::firstScan(ScanType scanType, const void* targetValue, size_t value
 
 	firstScanDone = true;
 	reportInvalidAddressStats();
+
+	// Report timing if enabled
+	if (checkTiming) {
+		ULONGLONG endTime = GetTickCount64();
+		ULONGLONG elapsed = endTime - startTime;
+		addError("firstScan timing: %llu ms (%zu results found)", elapsed, results.size());
+	}
 }
 
 // Process a single isolated result with direct memory read for rescan
@@ -671,6 +684,12 @@ void Scanner::rescanResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resul
 
 // Rescan existing results with new criteria (main orchestrator)
 void Scanner::rescan(ScanType scanType, const void* targetValue, size_t valueSize) {
+	// Start timing if enabled
+	ULONGLONG startTime = 0;
+	if (checkTiming) {
+		startTime = GetTickCount64();
+	}
+
 	if (!firstScanDone) {
 		addError("Must perform first scan before rescanning");
 		return;
@@ -732,6 +751,13 @@ void Scanner::rescan(ScanType scanType, const void* targetValue, size_t valueSiz
 	// Replace results with filtered results
 	results = std::move(newResults);
 	reportInvalidAddressStats();
+
+	// Report timing if enabled
+	if (checkTiming) {
+		ULONGLONG endTime = GetTickCount64();
+		ULONGLONG elapsed = endTime - startTime;
+		addError("rescan timing: %llu ms (%zu results remaining)", elapsed, results.size());
+	}
 }
 
 void Scanner::reset() {
