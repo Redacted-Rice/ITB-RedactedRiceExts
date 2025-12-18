@@ -5,7 +5,7 @@
 #include "lua.hpp"
 #include "memory.h"
 #include "process.h"
-#include "scanner_lua.h"
+#include "scanner/scanner_lua.h"
 
 #define DLLEXPORT __declspec(dllexport)
 

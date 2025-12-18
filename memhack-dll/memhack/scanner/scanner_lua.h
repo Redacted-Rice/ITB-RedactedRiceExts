@@ -2,8 +2,8 @@
 #define SCANNER_LUA_H
 
 #include "lua.hpp"
-#include "scanner_core.h"
-#include "log.h"
+#include "scanner/scanner_base.h"
+#include "../log.h"
 #include <cctype>
 #include <cstdio>
 #include <string>

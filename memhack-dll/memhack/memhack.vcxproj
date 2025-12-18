@@ -29,28 +29,28 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
@@ -164,8 +164,10 @@
     <ClCompile Include="log.cpp" />
     <ClCompile Include="lua_helpers.cpp" />
     <ClCompile Include="safememory.cpp" />
-    <ClCompile Include="scanner_core.cpp" />
-    <ClCompile Include="scanner_lua.cpp" />
+    <ClCompile Include="scanner\scanner_base.cpp" />
+    <ClCompile Include="scanner\scanner_basic.cpp" />
+    <ClCompile Include="scanner\scanner_sequence.cpp" />
+    <ClCompile Include="scanner\scanner_lua.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -180,8 +182,11 @@
     <ClInclude Include="log.h" />
     <ClInclude Include="lua_helpers.h" />
     <ClInclude Include="safememory.h" />
-    <ClInclude Include="scanner_core.h" />
-    <ClInclude Include="scanner_lua.h" />
+    <ClInclude Include="scanner\scanner_base.h" />
+    <ClInclude Include="scanner\scanner_basic.h" />
+    <ClInclude Include="scanner\scanner.h" />
+    <ClInclude Include="scanner\scanner_sequence.h" />
+    <ClInclude Include="scanner\scanner_lua.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>

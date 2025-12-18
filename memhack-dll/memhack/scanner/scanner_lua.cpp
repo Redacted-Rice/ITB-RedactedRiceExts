@@ -1,5 +1,6 @@
-#include "stdafx.h"
-#include "scanner_lua.h"
+#include "../stdafx.h"
+#include "scanner/scanner_lua.h"
+#include "scanner/scanner_base.h"
 
 std::string toLower(const char* str) {
 	std::string result(str);
@@ -264,10 +265,10 @@ int scanner_create(lua_State* L) {
 		return 0;
 	}
 
-	// Create scanner
+	// Create scanner using factory (automatically selects SequenceScanner or BasicScanner)
 	Scanner** scannerPtr = (Scanner**)lua_newuserdata(L, sizeof(Scanner*));
 	// Scanner already has teardown/dealloc logic in __gc
-	*scannerPtr = new Scanner(dataType, maxResults, alignment);
+	*scannerPtr = Scanner::create(dataType, maxResults, alignment);
 
 	// Set timing option
 	(*scannerPtr)->setCheckTiming(checkTiming);
