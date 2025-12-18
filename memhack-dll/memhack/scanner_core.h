@@ -9,6 +9,25 @@ namespace SafeMemory {
 	struct Region;
 }
 
+// Buffer size for scanning - use 64KB chunks for good cache performance
+const size_t SCAN_BUFFER_SIZE = 65536;
+
+// Rescan batching threshold - batch results within 4KB of each other
+const size_t CHUNK_THRESHOLD = 4096;
+
+// Maximum size for sequence searches (strings/byte arrays)
+// This prevents excessive memory allocation and overlap calculations
+// MUST be less than SCAN_BUFFER_SIZE for overlap logic to work correctly
+const size_t MAX_SEQUENCE_SIZE = 4096;
+
+// Compile-time assertion to ensure buffer is larger than max sequence
+static_assert(SCAN_BUFFER_SIZE > MAX_SEQUENCE_SIZE,
+              "SCAN_BUFFER_SIZE must be greater than MAX_SEQUENCE_SIZE for overlap to work");
+
+// Float comparison epsilons
+const float FLOAT_EPSILON = 0.0001f;
+const double DOUBLE_EPSILON = 0.00000001;
+
 // Scan types
 enum class ScanType {
 	EXACT,
@@ -117,8 +136,8 @@ private:
 	// Track statistics for reporting (mutable so const methods can update)
 	mutable size_t invalidAddressCount;
 
-	// Helper to add error message
-	void addError(const char* format, ...) const;
+	// Set search sequence
+	void setSearchSequence(const void* data, size_t size);
 
 	// Compare values for basic types (int, float, etc)
 	bool compareBasic(const void* a, const void* b) const;
@@ -128,33 +147,62 @@ private:
 	// Compare sequence at memory address with stored searchSequence
 	bool compareSequence(uintptr_t address) const;
 
-	// Check if value matches scan criteria
-	bool checkMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const;
-
 	// Internal helpers for checkMatch
 	bool checkSequenceMatch(const ScanResult& result, ScanType scanType) const;
 	bool checkBasicMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const;
 
+	// Check if value matches scan criteria
+	bool checkMatch(const ScanResult& result, ScanType scanType, const void* targetValue) const;
+
 	// Common setup used by both firstScan and rescan
 	bool setupScanCommon(ScanType scanType, const void* targetValue, size_t valueSize);
 
-	// Set search sequence
-	void setSearchSequence(const void* data, size_t size);
-
-	// Scan single memory region
+	// Initial scan helpers
 	void scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue);
+	void scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
+	                       ScanType scanType, const void* targetValue);
 
-	// Find region containing address (returns nullptr if not found)
-	const SafeMemory::Region* findRegionContainingAddress(uintptr_t address, const std::vector<SafeMemory::Region>& regions) const;
+	// Rescan helpers
+	void rescanResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resultIdx,
+	                           ScanType scanType, const void* targetValue,
+	                           std::vector<ScanResult>& newResults, std::vector<uint8_t>& buffer);
+	void rescanResultBatch(const std::vector<ScanResult>& oldResults, size_t batchStart, size_t batchEnd,
+	                       uintptr_t chunkStart, size_t chunkSize, const uint8_t* buffer,
+	                       ScanType scanType, const void* targetValue, std::vector<ScanResult>& newResults);
+	void rescanResultDirect(const ScanResult& oldResult, uintptr_t regionEnd,
+	                        ScanType scanType, const void* targetValue, std::vector<ScanResult>& newResults);
 
-	// Read value at address, checking bounds against region being scanned
-	bool readValueInRegion(uintptr_t address, uintptr_t regionEnd, ScanResult& result) const;
+	// Read value from buffer at offset
+	bool readValueFromBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,
+	                         ScanResult& result, uintptr_t actualAddress) const;
 
-	// Read value at address, verifying against current heap regions
-	bool readValueWithVerification(uintptr_t address, const std::vector<SafeMemory::Region>& regions, ScanResult& result) const;
+	// Read basic type value directly from memory for rescans
+	bool readBasicValueDirect(uintptr_t address, uintptr_t regionEnd, ScanResult& result) const;
+
+	// Validate sequence directly from memory  for rescans
+	// Does the full read & validation including
+	bool validateSequenceDirect(uintptr_t address, uintptr_t regionEnd, ScanType scanType) const;
+
+	// Safely copy memory with try/catch
+	static bool safeCopyMemory(void* dest, const void* src, size_t size);
+
+	// Reads value from buffer and checks if it matches (does NOT add to results)
+	// Returns true if valid match, with result populated in outResult
+	bool validateValueInBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,
+	                           uintptr_t actualAddress, ScanType scanType, const void* targetValue,
+	                           ScanResult& outResult) const;
+
+	// Reads value directly from memory and checks if it matches (does NOT add to results)
+	// Returns true if valid match, with result populated in outResult
+	bool validateValueDirect(uintptr_t address, uintptr_t regionEnd, ScanType scanType,
+	                         const void* targetValue, ScanResult& outResult) const;
+
 
 	// Helper to report invalid address statistics if any
 	void reportInvalidAddressStats();
+
+	// Helper to add error message
+	void addError(const char* format, ...) const;
 };
 
 #endif
