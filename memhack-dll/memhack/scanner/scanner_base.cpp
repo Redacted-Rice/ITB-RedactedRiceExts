@@ -2,6 +2,7 @@
 #include "scanner_base.h"
 #include "scanner_sequence.h"
 #include "scanner_basic.h"
+#include "scanner_basic_avx2.h"
 #include "../safememory.h"
 
 #include <algorithm>
@@ -31,7 +32,12 @@ Scanner* Scanner::create(DataType dataType, size_t maxResults, size_t alignment)
 	if (isSequence) {
 		return new SequenceScanner(dataType, maxResults, alignment);
 	} else {
-		return new BasicScanner(dataType, maxResults, alignment);
+		// Check if AVX2 is available for basic types
+		if (BasicScannerAVX2::isAVX2Supported()) {
+			return new BasicScannerAVX2(dataType, maxResults, alignment);
+		} else {
+			return new BasicScanner(dataType, maxResults, alignment);
+		}
 	}
 }
 
@@ -184,7 +190,7 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 	// We overlap chunks by (dataSize - 1) bytes to ensure that any value starting
 	// near the end of our arbitrary chunks will be fully contained in the next one
 	while (currentBase < regionEnd && results.size() < maxResults) {
-		
+
 		// Determine chunk size ensuring we don't read past the end of the region
 		size_t chunkSize = std::min<size_t>(SCAN_BUFFER_SIZE, regionEnd - currentBase);
 

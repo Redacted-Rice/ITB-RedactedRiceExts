@@ -36,7 +36,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
@@ -166,6 +166,7 @@
     <ClCompile Include="safememory.cpp" />
     <ClCompile Include="scanner\scanner_base.cpp" />
     <ClCompile Include="scanner\scanner_basic.cpp" />
+    <ClCompile Include="scanner\scanner_basic_avx2.cpp" />
     <ClCompile Include="scanner\scanner_sequence.cpp" />
     <ClCompile Include="scanner\scanner_lua.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -184,6 +185,7 @@
     <ClInclude Include="safememory.h" />
     <ClInclude Include="scanner\scanner_base.h" />
     <ClInclude Include="scanner\scanner_basic.h" />
+    <ClInclude Include="scanner\scanner_basic_avx2.h" />
     <ClInclude Include="scanner\scanner.h" />
     <ClInclude Include="scanner\scanner_sequence.h" />
     <ClInclude Include="scanner\scanner_lua.h" />

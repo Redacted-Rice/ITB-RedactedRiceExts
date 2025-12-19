@@ -28,7 +28,7 @@ protected:
 	virtual size_t getDataTypeSize() const override;
 	virtual bool isSequenceType() const override { return false; }
 
-private:
+protected:
 	// Compare values (int, float, etc)
 	bool compare(const void* a, const void* b) const;
 	bool compareGreater(const void* a, const void* b) const;
