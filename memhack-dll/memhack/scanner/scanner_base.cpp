@@ -200,7 +200,8 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 		return; // Nothing to scan
 	}
 
-	size_t dataSize = getDataTypeSize();
+	// Cache data type size - it won't change for the scan
+	const size_t dataSize = getDataTypeSize();
 	uintptr_t regionEnd = base + size;
 
 	uintptr_t currentBase = base;
@@ -208,6 +209,7 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 	// Scan region in buffered chunks with overlap to catch values at boundaries
 	// We overlap chunks by (dataSize - 1) bytes to ensure that any value starting
 	// near the end of our arbitrary chunks will be fully contained in the next one
+
 	while (currentBase < regionEnd && results.size() < maxResults) {
 
 		// Determine chunk size ensuring we don't read past the end of the region
@@ -291,7 +293,8 @@ void Scanner::processResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resu
                                       ScanType scanType, const void* targetValue,
                                       std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults,
                                       std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer) {
-	size_t dataSize = getDataTypeSize();
+	// Cache data type size
+	const size_t dataSize = getDataTypeSize();
 
 	uintptr_t regionBase = (uintptr_t)mbi.BaseAddress;
 	uintptr_t regionEnd = regionBase + (uintptr_t)mbi.RegionSize;
@@ -359,7 +362,8 @@ void Scanner::rescanResultBatch(const std::vector<ScanResult, ScannerAllocator<S
                                  uintptr_t chunkStart, size_t chunkSize, const uint8_t* buffer,
                                  ScanType scanType, const void* targetValue,
                                  std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults) {
-	size_t dataSize = getDataTypeSize();
+	// Cache data type size
+	const size_t dataSize = getDataTypeSize();
 
 	// Process all results from buffer
 	for (size_t j = batchStart; j < batchEnd; j++) {
@@ -429,7 +433,7 @@ void Scanner::addError(const char* format, ...) const {
 	va_start(args, format);
 	vsnprintf_s(buffer, sizeof(buffer), _TRUNCATE, format, args);
 	va_end(args);
-	errors.push_back(buffer);
+	errors.emplace_back(buffer);
 }
 
 void Scanner::reportInvalidAddressStats() {

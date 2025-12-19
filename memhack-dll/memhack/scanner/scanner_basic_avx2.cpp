@@ -66,13 +66,16 @@ void BasicScannerAVX2::scanRemainder(const uint8_t* buffer, size_t chunkSize, ui
 	const size_t dataSize = getDataTypeSize();
 	size_t offset = startOffset;
 
-	while (offset + dataSize <= chunkSize && results.size() < maxResults) {
+	// Track result count locally to avoid repeated .size() calls
+	size_t resultCount = results.size();
+	while (offset + dataSize <= chunkSize && resultCount < maxResults) {
 		uintptr_t actualAddress = chunkBase + offset;
 
 		if (actualAddress % alignment == 0) {
 			if (!validateAndAddResult(buffer, chunkSize, offset, chunkBase, scanType, targetValue)) {
 				return;  // Max results reached
 			}
+			resultCount++;
 		}
 
 		offset += alignment;
@@ -85,7 +88,7 @@ void BasicScannerAVX2::scanRemainder(const uint8_t* buffer, size_t chunkSize, ui
 int BasicScannerAVX2::getComparisonMask(const uint8_t* buffer, ScanType scanType, const void* targetValue) {
 	int mask = 0;
 	bool invertMask = (scanType == ScanType::NOT);
-	
+
 	switch (dataType) {
 		case DataType::INT: {
 			int32_t target = *(const int32_t*)targetValue;
@@ -139,22 +142,23 @@ int BasicScannerAVX2::getComparisonMask(const uint8_t* buffer, ScanType scanType
 		default:
 			break;
 	}
-	
+
 	return mask;
 }
 
 // Process mask and add matching results
 // Returns false if max results reached, true to continue scanning
+// Updates resultCount as results are added
 bool BasicScannerAVX2::processMask(int mask, const uint8_t* buffer, size_t chunkSize, size_t baseOffset,
-                                    uintptr_t chunkBase, ScanType scanType, const void* targetValue) {
+                                    uintptr_t chunkBase, ScanType scanType, const void* targetValue, size_t& resultCount) {
 	if (mask == 0) {
 		return true;  // No matches, continue
 	}
-	
+
 	const size_t dataSize = getDataTypeSize();
 	const size_t avx2_stride = 32;
 	size_t valuesPerChunk = avx2_stride / dataSize;
-	
+
 	for (size_t i = 0; i < valuesPerChunk; i++) {
 		size_t pos = baseOffset + i * dataSize;
 		if (pos + dataSize <= chunkSize) {
@@ -163,10 +167,11 @@ bool BasicScannerAVX2::processMask(int mask, const uint8_t* buffer, size_t chunk
 				if (!validateAndAddResult(buffer, chunkSize, pos, chunkBase, scanType, targetValue, true)) {
 					return false;  // Max results reached, stop scanning
 				}
+				resultCount++;  // Track locally to avoid .size() call
 			}
 		}
 	}
-	
+
 	return true;  // Continue scanning
 }
 
@@ -214,15 +219,17 @@ void BasicScannerAVX2::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize
 	size_t offset = findAlignedOffset(chunkBase);
 
 	// Process with AVX2 - get mask and process matches
-	while (offset + avx2_stride <= chunkSize && results.size() < maxResults) {
+	// Track result count locally to avoid repeated .size() calls
+	size_t resultCount = results.size();
+	while (offset + avx2_stride <= chunkSize && resultCount < maxResults) {
 		// Get comparison mask for this chunk
 		int mask = getComparisonMask(buffer + offset, scanType, targetValue);
-		
-		// Process mask and add results
-		if (!processMask(mask, buffer, chunkSize, offset, chunkBase, scanType, targetValue)) {
+
+		// Process mask and add results (resultCount updated by reference)
+		if (!processMask(mask, buffer, chunkSize, offset, chunkBase, scanType, targetValue, resultCount)) {
 			return;  // Max results reached
 		}
-		
+
 		offset += avx2_stride;
 	}
 

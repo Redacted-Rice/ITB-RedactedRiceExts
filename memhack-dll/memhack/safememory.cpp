@@ -5,12 +5,17 @@
 
 namespace SafeMemory {
     bool is_mbi_safe(MEMORY_BASIC_INFORMATION& mbi, bool write) {
-        bool committed = (mbi.State == MEM_COMMIT);
-        bool priv = (mbi.Type == MEM_PRIVATE);
-        bool access = (write && mbi.Protect & PAGE_READWRITE) ||
-            (!write && mbi.Protect & (PAGE_READWRITE | PAGE_READONLY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE));
-        bool notGuarded = !(mbi.Protect & PAGE_GUARD);
-        return committed && priv && access && notGuarded;
+        // Early exit on most common failure cases
+        if (mbi.State != MEM_COMMIT) return false;
+        if (mbi.Type != MEM_PRIVATE) return false;
+        if (mbi.Protect & PAGE_GUARD) return false;
+
+        // Check access permissions (write or read-only)
+        if (write) {
+            return (mbi.Protect & PAGE_READWRITE) != 0;
+        } else {
+            return (mbi.Protect & (PAGE_READWRITE | PAGE_READONLY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE)) != 0;
+        }
     }
 
     bool is_access_allowed(void* addr, size_t size, bool write) {
@@ -32,7 +37,7 @@ namespace SafeMemory {
 
     std::vector<Region> get_heap_regions(bool write) {
         std::vector<Region> out;
-        SYSTEM_INFO si; 
+        SYSTEM_INFO si;
         GetSystemInfo(&si);
 
         // For 32-bit Into the Breach: user space typically up to ~0x7FFE0000

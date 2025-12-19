@@ -106,8 +106,7 @@ bool BasicScanner::checkMatch(const ScanResult& result, ScanType scanType, const
 bool BasicScanner::readValueFromBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,
                                         ScanResult& result, uintptr_t actualAddress) const {
 	// Validate we have enough bytes in buffer
-	size_t size = getDataTypeSize();
-	if (offset + size > bufferSize) {
+	if (offset + getDataTypeSize() > bufferSize) {
 		return false;
 	}
 
@@ -141,8 +140,7 @@ bool BasicScanner::readValueFromBuffer(const uint8_t* buffer, size_t bufferSize,
 // Sequences are handled separately by validateSequenceDirect
 bool BasicScanner::readValueDirect(uintptr_t address, uintptr_t regionEnd, ScanResult& result) const {
 	// Validate end is in valid range
-	size_t dataSize = getDataTypeSize();
-	if (address + dataSize > regionEnd) {
+	if (address + getDataTypeSize() > regionEnd) {
 		return false;
 	}
 
@@ -207,7 +205,8 @@ bool BasicScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd,
 // Scan a single chunk of memory buffer for first scan
 void BasicScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
                                       ScanType scanType, const void* targetValue) {
-	size_t dataSize = getDataTypeSize();
+	// Cache data type size
+	const size_t dataSize = getDataTypeSize();
 
 	// Find aligned global starting offset within this chunk
 	uintptr_t firstAlignedAddr = chunkBase;
@@ -217,7 +216,9 @@ void BasicScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, ui
 	size_t offset = (size_t)(firstAlignedAddr - chunkBase);
 
 	// Scan through buffer at alignment intervals
-	while (offset + dataSize <= chunkSize && results.size() < maxResults) {
+	// Track result count locally to avoid repeated .size() calls
+	size_t resultCount = results.size();
+	while (offset + dataSize <= chunkSize && resultCount < maxResults) {
 		uintptr_t actualAddress = chunkBase + offset;
 
 		// Validate value from buffer
@@ -225,8 +226,9 @@ void BasicScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, ui
 		if (validateValueInBuffer(buffer, chunkSize, offset, actualAddress, scanType, targetValue, result)) {
 			// Match found - add to results
 			results.push_back(result);
+			resultCount++;
 
-			if (results.size() >= maxResults) {
+			if (resultCount >= maxResults) {
 				maxResultsReached = true;
 				return;
 			}

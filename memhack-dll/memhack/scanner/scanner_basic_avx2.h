@@ -38,9 +38,9 @@ private:
 	int getComparisonMask(const uint8_t* buffer, ScanType scanType, const void* targetValue);
 	
 	// Helper to process mask and add matching results
-	// Returns false if max results reached
+	// Returns false if max results reached, updates resultCount as results are added
 	bool processMask(int mask, const uint8_t* buffer, size_t chunkSize, size_t baseOffset,
-	                 uintptr_t chunkBase, ScanType scanType, const void* targetValue);
+	                 uintptr_t chunkBase, ScanType scanType, const void* targetValue, size_t& resultCount);
 	
 	// Helper to extract match from mask based on data type
 	bool isMatchInMask(int mask, size_t valueIndex, DataType type) const;
