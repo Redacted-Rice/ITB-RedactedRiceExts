@@ -176,7 +176,7 @@ bool SequenceScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd
 
 // Removed - base class handles rescanResultDirect, processResultsInRegion, rescanResultBatch, and rescanImpl now
 
-bool SequenceScanner::readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const {
+bool SequenceScanner::readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const {
 	size_t size = searchSequence.size();
 	if (size == 0) {
 		return false;

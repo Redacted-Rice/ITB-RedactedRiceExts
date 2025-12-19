@@ -3,6 +3,7 @@
 
 #include "lua.hpp"
 #include "scanner_base.h"
+#include "scanner_heap.h"
 #include "../log.h"
 #include <cctype>
 #include <cstdio>
@@ -31,7 +32,7 @@ bool parseBasicValue(lua_State* L, int valueIndex, DataType dataType, ScanResult
 
 // Helper to parse target value for sequence types (STRING, BYTE_ARRAY)
 bool parseSequenceValue(lua_State* L, int valueIndex, DataType dataType,
-                        const void*& outData, size_t& outSize, std::vector<uint8_t>& bytesBuffer);
+                        const void*& outData, size_t& outSize, std::vector<uint8_t, ScannerAllocator<uint8_t>>& bytesBuffer);
 
 // Helper to push a basic type value to Lua stack
 void pushBasicValueToLua(lua_State* L, const ScanResult& result, DataType dataType);
@@ -41,7 +42,7 @@ void pushSequenceValueToLua(lua_State* L, Scanner* scanner, const ScanResult& re
                             DataType dataType, bool readValues);
 
 // Push byte sequence to Lua as string or table depending on dataType
-void pushBytesToLua(lua_State* L, const std::vector<uint8_t>& bytes, DataType dataType);
+void pushBytesToLua(lua_State* L, const std::vector<uint8_t, ScannerAllocator<uint8_t>>& bytes, DataType dataType);
 
 // Lua wrappers for Scanner
 int scanner_create(lua_State* L);

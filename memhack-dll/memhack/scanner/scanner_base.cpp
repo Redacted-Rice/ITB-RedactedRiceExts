@@ -9,6 +9,17 @@
 #include <windows.h>
 #include <sysinfoapi.h>
 
+
+void* Scanner::operator new(size_t size) {
+	return ScannerHeap::allocate(size);
+}
+
+void Scanner::operator delete(void* ptr) noexcept {
+	if (ptr) {
+		ScannerHeap::deallocate(ptr, 0);
+	}
+}
+
 // Base constructor - common initialization for all scanners
 Scanner::Scanner(DataType dataType, size_t maxResults, size_t alignment) :
 	dataType(dataType), maxResults(maxResults), alignment(alignment), firstScanDone(false),
@@ -151,14 +162,24 @@ void Scanner::firstScanImpl(ScanType scanType, const void* targetValue, size_t v
 	uintptr_t addr = (uintptr_t)si.lpMinimumApplicationAddress;
 	uintptr_t end = (uintptr_t)si.lpMaximumApplicationAddress;
 
+	// Allocate scan buffer once and reuse it
+	std::vector<uint8_t, ScannerAllocator<uint8_t>> buffer(SCAN_BUFFER_SIZE);
+
 	// Go through each region and scan it if its safe for reading
 	while (addr < end && !maxResultsReached) {
 		MEMORY_BASIC_INFORMATION mbi{};
 		SIZE_T r = VirtualQuery((LPCVOID)addr, &mbi, sizeof(mbi));
 		if (r != sizeof(mbi)) break;
 
+		// Skip scanner heap to avoid detecting scanner's own memory
+		// Use AllocationBase directly since we already have it from VirtualQuery
+		if (ScannerHeap::isInScannerHeap(mbi.AllocationBase)) {
+			addr = (uintptr_t)mbi.BaseAddress + (uintptr_t)mbi.RegionSize;
+			continue;
+		}
+
 		if (SafeMemory::is_mbi_safe(mbi, false)) {
-			scanRegion((uintptr_t)mbi.BaseAddress, (size_t)mbi.RegionSize, scanType, targetValue);
+			scanRegion((uintptr_t)mbi.BaseAddress, (size_t)mbi.RegionSize, scanType, targetValue, buffer);
 			if (maxResultsReached) {
 				addError("Maximum results (%zu) reached, stopping scan early", maxResults);
 				break;
@@ -173,16 +194,14 @@ void Scanner::firstScanImpl(ScanType scanType, const void* targetValue, size_t v
 }
 
 // Scan a single region in buffered chunks for first scan
-void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue) {
+void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue,
+                          std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer) {
 	if (size == 0 || alignment == 0) {
 		return; // Nothing to scan
 	}
 
 	size_t dataSize = getDataTypeSize();
 	uintptr_t regionEnd = base + size;
-
-	// Allocate scan buffer
-	std::vector<uint8_t> buffer(SCAN_BUFFER_SIZE);
 
 	uintptr_t currentBase = base;
 
@@ -223,11 +242,12 @@ void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const v
 
 // Default rescan implementation - handles common JIT region processing loop
 void Scanner::rescanImpl(ScanType scanType, const void* targetValue, size_t valueSize) {
-	// Allocate buffer for chunk-based reading
+	// Allocate buffer for chunk-based reading using scanner heap
 	// We use CHUNK_THRESHOLD for rescans since we only batch results within that distance
-	std::vector<uint8_t> buffer(CHUNK_THRESHOLD);
+	// ALlocated it once and reuse it
+	std::vector<uint8_t, ScannerAllocator<uint8_t>> buffer(CHUNK_THRESHOLD);
 
-	std::vector<ScanResult> newResults;
+	std::vector<ScanResult, ScannerAllocator<ScanResult>> newResults;
 	newResults.reserve(results.size());
 
 	// Walk through results dynamically, querying regions JIT (like initial scan)
@@ -243,6 +263,9 @@ void Scanner::rescanImpl(ScanType scanType, const void* targetValue, size_t valu
 			resultIdx++;
 			continue;
 		}
+
+		// We don't need to check the scanners heap again as this are matches and
+		// the scanner heap was excluded from the initial scan
 
 		// Check if region is safe for reading
 		if (!SafeMemory::is_mbi_safe(mbi, false)) {
@@ -266,7 +289,8 @@ void Scanner::rescanImpl(ScanType scanType, const void* targetValue, size_t valu
 // Process results in a single memory region for rescan
 void Scanner::processResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resultIdx,
                                       ScanType scanType, const void* targetValue,
-                                      std::vector<ScanResult>& newResults, std::vector<uint8_t>& buffer) {
+                                      std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults,
+                                      std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer) {
 	size_t dataSize = getDataTypeSize();
 
 	uintptr_t regionBase = (uintptr_t)mbi.BaseAddress;
@@ -330,9 +354,11 @@ void Scanner::processResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resu
 }
 
 // Process a batch of results from a chunk buffer for rescan
-void Scanner::rescanResultBatch(const std::vector<ScanResult>& oldResults, size_t batchStart, size_t batchEnd,
+void Scanner::rescanResultBatch(const std::vector<ScanResult, ScannerAllocator<ScanResult>>& oldResults,
+                                 size_t batchStart, size_t batchEnd,
                                  uintptr_t chunkStart, size_t chunkSize, const uint8_t* buffer,
-                                 ScanType scanType, const void* targetValue, std::vector<ScanResult>& newResults) {
+                                 ScanType scanType, const void* targetValue,
+                                 std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults) {
 	size_t dataSize = getDataTypeSize();
 
 	// Process all results from buffer
@@ -369,7 +395,7 @@ void Scanner::rescanResultBatch(const std::vector<ScanResult>& oldResults, size_
 // Process a single isolated result with direct memory read
 void Scanner::rescanResultDirect(const ScanResult& oldResult, uintptr_t regionEnd,
                                   ScanType scanType, const void* targetValue,
-                                  std::vector<ScanResult>& newResults) {
+                                  std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults) {
 	// Store old value for comparison (needed for CHANGED/UNCHANGED/etc scans)
 	ScanValue oldValue = oldResult.value;
 

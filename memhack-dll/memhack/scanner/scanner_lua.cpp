@@ -67,7 +67,7 @@ bool parseDataType(const char* str, DataType& outType) {
 
 void logScannerErrors(lua_State* L, Scanner* scanner, const char* operation) {
 	if (scanner->hasError()) {
-		const std::vector<std::string>& errors = scanner->getErrors();
+		const std::vector<std::string, ScannerAllocator<std::string>>& errors = scanner->getErrors();
 		for (const auto& error : errors) {
 			char logMsg[512];
 			sprintf_s(logMsg, sizeof(logMsg), "Scanner: ERROR during %s - %s", operation, error.c_str());
@@ -98,7 +98,7 @@ bool parseBasicValue(lua_State* L, int valueIndex, DataType dataType, ScanResult
 // Parse sequence value (STRING or BYTE_ARRAY) from Lua
 // Returns true on success, false on error (error already pushed to Lua)
 bool parseSequenceValue(lua_State* L, int valueIndex, DataType dataType,
-                        const void*& outData, size_t& outSize, std::vector<uint8_t>& bytesBuffer) {
+                        const void*& outData, size_t& outSize, std::vector<uint8_t, ScannerAllocator<uint8_t>>& bytesBuffer) {
 	if (dataType == DataType::STRING) {
 		if (!lua_isstring(L, valueIndex)) {
 			luaL_error(L, "Target value must be a string for STRING scanner");
@@ -172,7 +172,7 @@ void pushBasicValueToLua(lua_State* L, const ScanResult& result, DataType dataTy
 }
 
 // Push byte sequence to Lua as string or table depending on dataType
-void pushBytesToLua(lua_State* L, const std::vector<uint8_t>& bytes, DataType dataType) {
+void pushBytesToLua(lua_State* L, const std::vector<uint8_t, ScannerAllocator<uint8_t>>& bytes, DataType dataType) {
 	if (dataType == DataType::STRING) {
 		// Return as string
 		lua_pushlstring(L, (const char*)bytes.data(), bytes.size());
@@ -200,7 +200,7 @@ void pushSequenceValueToLua(lua_State* L, Scanner* scanner, const ScanResult& re
 
 	if (lastScanType == ScanType::NOT) {
 		// NOT scan - read actual bytes to see what was found
-		std::vector<uint8_t> bytes;
+		std::vector<uint8_t, ScannerAllocator<uint8_t>> bytes;
 		if (scanner->readSequenceBytes(result.address, bytes)) {
 			pushBytesToLua(L, bytes, dataType);
 		} else {
@@ -209,7 +209,7 @@ void pushSequenceValueToLua(lua_State* L, Scanner* scanner, const ScanResult& re
 		}
 	} else {
 		// EXACT scan - return the search sequence
-		const std::vector<uint8_t>& searchSeq = scanner->getSearchSequence();
+		const std::vector<uint8_t, ScannerAllocator<uint8_t>>& searchSeq = scanner->getSearchSequence();
 		pushBytesToLua(L, searchSeq, dataType);
 	}
 }
@@ -304,7 +304,7 @@ int scanner_first_scan(lua_State* L) {
 		// Sequence types
 		const void* data;
 		size_t size;
-		std::vector<uint8_t> bytesBuffer;
+		std::vector<uint8_t, ScannerAllocator<uint8_t>> bytesBuffer;
 
 		if (!parseSequenceValue(L, 3, dataType, data, size, bytesBuffer)) {
 			return 0; // Error already pushed
@@ -364,7 +364,7 @@ int scanner_rescan(lua_State* L) {
 		// Sequence types
 		const void* data;
 		size_t size;
-		std::vector<uint8_t> bytesBuffer;
+		std::vector<uint8_t, ScannerAllocator<uint8_t>> bytesBuffer;
 
 		if (!parseSequenceValue(L, 3, dataType, data, size, bytesBuffer)) {
 			return 0; // Error already pushed
@@ -427,7 +427,7 @@ int scanner_get_results(lua_State* L) {
 		lua_pop(L, 1);
 	}
 
-	const std::vector<ScanResult>& results = scanner->getResults();
+	const std::vector<ScanResult, ScannerAllocator<ScanResult>>& results = scanner->getResults();
 	int totalCount = (int)results.size();
 
 	// Create results table

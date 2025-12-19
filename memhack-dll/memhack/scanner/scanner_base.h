@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <Windows.h>
+#include "scanner_heap.h"
 
 // Forward declare for SafeMemory::Region
 namespace SafeMemory {
@@ -81,6 +82,11 @@ class Scanner {
 public:
 	virtual ~Scanner() {}
 
+	// Override new/delete to allocate from scanner heap
+	// This ensures the Scanner and data can be excluded from scans
+	static void* operator new(size_t size);
+	static void operator delete(void* ptr) noexcept;
+
 	// Factory method to create appropriate scanner based on data type
 	static Scanner* create(DataType dataType, size_t maxResults, size_t alignment);
 
@@ -90,7 +96,7 @@ public:
 	virtual void reset();
 
 	// Virtual method with default implementation (only needed for sequence types)
-	virtual bool readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const {
+	virtual bool readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const {
 		return false; // Default: not supported
 	}
 
@@ -104,20 +110,20 @@ public:
 	virtual ScanType getLastScanType() const { return lastScanType; }
 
 	// Only valid if isSequenceType() == true
-	virtual const std::vector<uint8_t>& getSearchSequence() const {
-		static std::vector<uint8_t> empty;
+	virtual const std::vector<uint8_t, ScannerAllocator<uint8_t>>& getSearchSequence() const {
+		static std::vector<uint8_t, ScannerAllocator<uint8_t>> empty;
 		return empty;
 	}
 	virtual size_t getSequenceSize() const { return 0; }
 
 	// Results
-	virtual const std::vector<ScanResult>& getResults() const { return results; }
+	virtual const std::vector<ScanResult, ScannerAllocator<ScanResult>>& getResults() const { return results; }
 	virtual size_t getResultCount() const { return results.size(); }
 	virtual bool isMaxResultsReached() const { return maxResultsReached; }
 
 	// Error handling
 	virtual void clearErrors() { errors.clear(); }
-	virtual const std::vector<std::string>& getErrors() const { return errors; }
+	virtual const std::vector<std::string, ScannerAllocator<std::string>>& getErrors() const { return errors; }
 	virtual size_t getInvalidAddressCount() const { return invalidAddressCount; }
 	virtual bool hasError() const { return !errors.empty(); }
 
@@ -130,14 +136,14 @@ protected:
 	DataType dataType;
 	size_t maxResults;
 	size_t alignment;
-	std::vector<ScanResult> results;
+	std::vector<ScanResult, ScannerAllocator<ScanResult>> results;
 	bool firstScanDone;
 	bool maxResultsReached;
 	bool checkTiming;
 	ScanType lastScanType;
 
 	// Error tracking (mutable so const methods can log errors)
-	mutable std::vector<std::string> errors;
+	mutable std::vector<std::string, ScannerAllocator<std::string>> errors;
 	mutable size_t invalidAddressCount;
 
 	// Protected constructor for derived classes
@@ -161,7 +167,8 @@ protected:
 	virtual void firstScanImpl(ScanType scanType, const void* targetValue, size_t valueSize);
 
 	// Scan a single region - base class provides default buffered implementation
-	virtual void scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue);
+	virtual void scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue,
+	                        std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer);
 
 	// Derived classes must implement chunk scanning
 	virtual void scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
@@ -175,16 +182,16 @@ protected:
 
 	void processResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resultIdx,
 	                             ScanType scanType, const void* targetValue,
-	                             std::vector<ScanResult>& newResults,
-	                             std::vector<uint8_t>& buffer);
-	void rescanResultBatch(const std::vector<ScanResult>& oldResults, size_t batchStart, size_t batchEnd,
+	                             std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults,
+	                             std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer);
+	void rescanResultBatch(const std::vector<ScanResult, ScannerAllocator<ScanResult>>& oldResults, size_t batchStart, size_t batchEnd,
 	                       uintptr_t chunkStart, size_t chunkSize, const uint8_t* buffer,
-	                       ScanType scanType, const void* targetValue, std::vector<ScanResult>& newResults);
+	                       ScanType scanType, const void* targetValue, std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults);
 
 	// Direct result processing - base class handles common logic
 	void rescanResultDirect(const ScanResult& oldResult, uintptr_t regionEnd,
 	                        ScanType scanType, const void* targetValue,
-	                        std::vector<ScanResult>& newResults);
+	                        std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults);
 
 	// Derived classes implement these validation methods
 	// Validate value directly from memory with try/catch protection

@@ -12,7 +12,7 @@ public:
 	virtual ~SequenceScanner();
 
 	// Sequence specific overrides
-	virtual bool readSequenceBytes(uintptr_t address, std::vector<uint8_t>& outBytes) const override;
+	virtual bool readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const override;
 
 protected:
 	// Setup hook - store/update search sequence
@@ -36,12 +36,12 @@ protected:
 	// Getters
 	virtual size_t getDataTypeSize() const override;
 	virtual bool isSequenceType() const override { return true; }
-	virtual const std::vector<uint8_t>& getSearchSequence() const override { return searchSequence; }
+	virtual const std::vector<uint8_t, ScannerAllocator<uint8_t>>& getSearchSequence() const override { return searchSequence; }
 	virtual size_t getSequenceSize() const override { return searchSequence.size(); }
 
 private:
 	// Sequence storage
-	std::vector<uint8_t> searchSequence;
+	std::vector<uint8_t, ScannerAllocator<uint8_t>> searchSequence;
 
 	// Sequence specific helpers
 	void setSearchSequence(const void* data, size_t size);
