@@ -14,3 +14,11 @@ base obj (lua)
 Add scan for hanger
 Add tests/test support (see memedit?)
 Add base game offset example (score)
+
+
+
+---------- PLUS Ex ---------
+
+Rename to PLUS Ex
+Exlude current skills from randomizer
+Add other specific, pilot (ID) based exclusions (Ideally generic impl not specific to pilot)
