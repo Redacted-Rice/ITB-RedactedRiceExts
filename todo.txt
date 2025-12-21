@@ -9,7 +9,15 @@ base obj (lua)
 	debug - helpful for troubleshooting
 		todo add a log each k & v fn as well?
 	struct - struct related helpers/functions for accessing/modifying memory
-	
+
 
 Add scan for hanger
 Add tests/test support (see memedit?)
+
+
+
+---------- PLUS Ex ---------
+
+Rename to PLUS Ex
+Exlude current skills from randomizer
+Add other specific, pilot (ID) based exclusions (Ideally generic impl not specific to pilot)
