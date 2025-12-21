@@ -8,8 +8,9 @@ local PilotLvlUpSkill = memhack.structManager.define("PilotLvlUpSkill", {
 	fullName = { offset = 0x30, type = "struct", structType = "ItBString" },
 	-- Displayed when hovering over skill
 	description = { offset = 0x48, type = "struct", structType = "ItBString" },
+	healthBonus = { offset = 0x60, type = "int"},
 	coresBonus = { offset = 0x64, type = "int"},
-	healthBonus = { offset = 0x68, type = "int"},
+	gridBonus = { offset = 0x68, type = "int"},
 	moveBonus = { offset = 0x6C, type = "int"},
 	-- Value used in save file. Does not directly change effect. ID does this
 	-- Valid values are between 0-13. Other values will be saved but are clamped
@@ -82,26 +83,32 @@ function createPilotLvlUpSkillFuncs()
 	-- PilotLvlUpSkill.set for other arg defs
 	Pilot.setLvlUpSkill = function(self, index, idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		if index == 1 then
-			self:getLvlUpSkills():setSkill1Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
+			self:getLvlUpSkills():setSkill1(idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		elseif index == 2 then
-			self:getLvlUpSkills():setSkill2Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
+			self:getLvlUpSkills():setSkill2(idOrStruct, shortName, fullName, description, saveVal, bonuses)
 		else
 			error(string.format("Unexpected index %d. Should be 1 or 2", index))
 		end
 	end
 
+	-- Convinience wrappers for pilot ItBStrings
+	memhack.structManager.makeSetterWrapper(Pilot, "name")
+	memhack.structManager.makeSetterWrapper(Pilot, "skill")
+	memhack.structManager.makeSetterWrapper(Pilot, "id")
+	memhack.structManager.makeItBStringGetterWrapper(Pilot, "name")
+	memhack.structManager.makeItBStringGetterWrapper(Pilot, "skill")
+	memhack.structManager.makeItBStringGetterWrapper(Pilot, "id")
+	
 	-- Convinience wrappers for level up skills array values
 	-- See PilotLvlUpSkill.set for arg defs
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill1")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill2")
 
 	-- Convinience wrappers for lvl up skills ItBStrings
-	-- Setter wrappers: setXxxObj(...) calls getXxx():set(...)
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "id")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "shortName")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "fullName")
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "description")
-	-- Getter wrappers: getXxxStr() calls getXxx():get()
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "id")
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "shortName")
 	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "fullName")
@@ -110,14 +117,16 @@ function createPilotLvlUpSkillFuncs()
 	-- Whole object setter for PilotLvlUpSkill
 	-- Takes either another PilotLvlUpSkill to (deep) copy or the individual values
 	-- to create the skill
-	-- bonuses is an optional table that can optionally define "cores", "health", and "move"
+	-- bonuses is an optional table that can optionally define "health", "cores", "grid", and "move"
 	-- Any not included will default to 0
 
 	PilotLvlUpSkill[selfSetter] = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
-		local coresBonus = bonuses and bonuses.cores or 0
 		local healthBonus = bonuses and bonuses.health or 0
+		local coresBonus = bonuses and bonuses.cores or 0
+		local gridBonus = bonuses and bonuses.grid or 0
 		local moveBonus = bonuses and bonuses.move or 0
 		local id = idOrStruct
+		--LOG("bonuses = " .. healthBonus .. " ".. coresBonus .. " ".. gridBonus .. " ".. moveBonus)
 
 		if type(idOrStruct) == "table" and getmetatable(idOrStruct) == PilotLvlUpSkill then
 			id = idOrStruct:getIdStr()
@@ -126,8 +135,9 @@ function createPilotLvlUpSkillFuncs()
 			description = idOrStruct:getDescriptionStr()
 			saveVal = idOrStruct:getSaveVal()
 
-			coresBonus = idOrStruct:getCoresBonus()
 			healthBonus = idOrStruct:getHealthBonus()
+			coresBonus = idOrStruct:getCoresBonus()
+			gridBonus = idOrStruct:getGridBonus()
 			moveBonus = idOrStruct:getMoveBonus()
 		end
 
@@ -137,8 +147,9 @@ function createPilotLvlUpSkillFuncs()
 		self:setDescription(description)
 		self:setSaveVal(saveVal)
 
-		self:setCoresBonus(coresBonus)
 		self:setHealthBonus(healthBonus)
+		self:setCoresBonus(coresBonus)
+		self:setGridBonus(gridBonus)
 		self:setMoveBonus(moveBonus)
 	end
 end

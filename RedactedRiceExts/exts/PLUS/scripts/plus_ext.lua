@@ -1,15 +1,15 @@
 plus_ext = {
 	PLUS_DEBUG = true, -- eventually default to false
 	VANILLA_SKILLS = {
-		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc" },
-		{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc" },
-		{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc" },
-		{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc" },
+		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2} },
+		{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1} },
+		{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3} },
+		{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1} },
 		{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc" },
 		{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc" },
 		{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc" },
 		{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc" },
-		{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc" },
+		{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1} },
 		{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc" },
 		{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc" },
 		{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc" },
@@ -52,7 +52,7 @@ end
 
 function plus_ext:registerVanilla()
 	for _, skill in ipairs(self.VANILLA_SKILLS) do
-		self:registerSkill("vanilla", skill.id, skill.shortName, skill.fullName, skill.description)
+		self:registerSkill("vanilla", skill)
 	end
 end
 
@@ -94,9 +94,19 @@ function plus_ext:logAndShowErrorPopup(message)
 	self:showErrorPopup(message)
 end
 
-function plus_ext:registerSkill(category, id, shortName, fullName, description)
+function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses)
+		
 	if self._registeredSkills[category] == nil then
 		self._registeredSkills[category] = {}
+	end
+	
+	local id = idOrTable
+	if type(idOrTable) == "table" then
+		id = idOrTable.id
+		shortName = idOrTable.shortName
+		fullName = idOrTable.fullName
+		description = idOrTable.description
+		bonuses = idOrTable.bonuses
 	end
 
 	-- Check if ID is already registered globally
@@ -106,7 +116,7 @@ function plus_ext:registerSkill(category, id, shortName, fullName, description)
 	end
 
 	-- Register the skill
-	self._registeredSkills[category][id] = {shortName = shortName, fullName = fullName, description = description}
+	self._registeredSkills[category][id] = {shortName = shortName, fullName = fullName, description = description, bonuses = bonuses or {}}
 	self._registeredSkillsIds[id] = category
 end
 
@@ -147,7 +157,7 @@ function plus_ext:getRandomSkillId()
 			math.random()
 		end
 		self._localRandomCount = savedCount
-		self.PLUS_DEBUG and LOG("PLUS Ext: Initialized RNG with seed " .. seed .. " and fast-forwarded " .. savedCount .. " times")
+		if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized RNG with seed " .. seed .. " and fast-forwarded " .. savedCount .. " times") end
 	end
 
 	-- Generate the next random index in the range of available skills
@@ -163,7 +173,7 @@ end
 -- Main function to apply level up skill to a pilot
 -- Takes a memhack pilot struct, pilot index, and skill index
 -- Checks GAME memory and either loads the skill or creates and adds one
-function plus_ext:applySkillToPilot(pilot, pilotIndex, skillIndex)
+function plus_ext:applySkillToPilot(pilot, skillIndex)
 	if pilot == nil then
 		LOG("PLUS Ext error: Pilot is nil")
 		return
@@ -179,7 +189,8 @@ function plus_ext:applySkillToPilot(pilot, pilotIndex, skillIndex)
 	local pilotId = pilot:getIdStr()
 
 	-- Check if we already have a stored skill for this pilot
-	local storedSkillId = GAME.plus_ext.pilotSkills[pilotId]
+	local storedSkills = GAME.plus_ext.pilotSkills[pilotId]
+	local storedSkillId = storedSkills and storedSkills[skillIndex]
 	local skill = storedSkillId and self._enabledSkills[storedSkillId]
 
 	-- If no stored skill or stored skill is no longer enabled, get a new random one
@@ -194,17 +205,20 @@ function plus_ext:applySkillToPilot(pilot, pilotIndex, skillIndex)
 		end
 
 		-- Store and use the new random skill
-		GAME.plus_ext.pilotSkills[pilotId] = randomSkillId
+		if storedSkills == nil then
+			GAME.plus_ext.pilotSkills[pilotId] = {}
+		end
+		GAME.plus_ext.pilotSkills[pilotId][skillIndex] = randomSkillId
 		skill = self._enabledSkills[randomSkillId]
 		storedSkillId = randomSkillId
 
-		self.PLUS_DEBUG and LOG("PLUS Ext: Assigning random skill " .. randomSkillId .. " to pilot " .. pilotId .. " (index " .. pilotIndex .. ")")
+		if self.PLUS_DEBUG then LOG("PLUS Ext: Assigning random skill " .. randomSkillId .. " to pilot " .. pilotId) end
 	else
-		self.PLUS_DEBUG and LOG("PLUS Ext: Applying stored skill " .. storedSkillId .. " to pilot " .. pilotId .. " (index " .. pilotIndex .. ")")
+		if self.PLUS_DEBUG then LOG("PLUS Ext: Applying stored skill " .. storedSkillId .. " to pilot " .. pilotId) end
 	end
 
 	-- Apply the skill (0 = saveVal which is not needed since we use custom saving)
-	pilot:setLvlUpSkill(skillIndex, storedSkillId, skill.shortName, skill.fullName, skill.description, 0)
+	pilot:setLvlUpSkill(skillIndex, storedSkillId, skill.shortName, skill.fullName, skill.description, 0, skill.bonuses)
 end
 
 -- Helper function to get all pilots in the current squad
@@ -214,7 +228,7 @@ function plus_ext:getAllPilots()
 	-- Iterate through the 3 squad positions (0, 1, 2)
 	for i = 0, 2 do
 		local pawnId = i  -- Pawn IDs correspond to squad positions
-		local pawn = Board:GetPawn(pawnId)
+		local pawn = Game:GetPawn(pawnId)
 
 		if pawn ~= nil then
 			local pilot = pawn:GetPilot()
@@ -230,7 +244,7 @@ end
 -- Apply skills to all pilots in the squad
 function plus_ext:applySkillsToAllPilots()
 	if #self._enabledSkillsIds == 0 then
-		self.PLUS_DEBUG and LOG("PLUS Ext: No enabled skills, skipping pilot skill assignment")
+		if self.PLUS_DEBUG then LOG("PLUS Ext: No enabled skills, skipping pilot skill assignment") end
 		return
 	end
 
@@ -238,42 +252,30 @@ function plus_ext:applySkillsToAllPilots()
 
 	for _, pilotData in ipairs(pilots) do
 		-- Apply skills to both skill slots (1 and 2)
-		self:applySkillToPilot(pilotData.pilot, pilotData.index, 1)
-		self:applySkillToPilot(pilotData.pilot, pilotData.index, 2)
+		self:applySkillToPilot(pilotData.pilot, 1)
+		self:applySkillToPilot(pilotData.pilot, 2)
 	end
 
-	self.PLUS_DEBUG and LOG("PLUS Ext: Applied skills to " .. #pilots .. " pilot(s)")
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Applied skills to " .. #pilots .. " pilot(s)") end
 end
 
 -- Event handler for when the game is entered (loaded or new game)
 function plus_ext:onGameEntered()
 	self:initGameStorage()
-	self.PLUS_DEBUG and LOG("PLUS Ext: Game entered, storage initialized")
-end
-
--- Event handler for mission start
-function plus_ext:onMissionStart()
-	-- Apply skills to all pilots at mission start
-	-- TODO: Not sure this is needed
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Game entered, storage initialized") end
 	self:applySkillsToAllPilots()
 end
 
 function plus_ext:init()
 	self:registerVanilla()
+	
+	-- TODO: Temp. Long term control via options or other configs?
+	self:enableCategory("vanilla")
 
 	-- Subscribe to game events
-	modApi.events.onGameLoaded:subscribe(function()
+	modApi.events.onGameEntered:subscribe(function()
 		plus_ext:onGameEntered()
 	end)
 
-	modApi.events.onGameStarted:subscribe(function()
-		plus_ext:onGameEntered()
-	end)
-
-	-- Mission start hook
-	modApi.events.onMissionStart:subscribe(function()
-		plus_ext:onMissionStart()
-	end)
-
-	self.PLUS_DEBUG and LOG("PLUS Ext: Initialized and subscribed to game events")
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
 end
