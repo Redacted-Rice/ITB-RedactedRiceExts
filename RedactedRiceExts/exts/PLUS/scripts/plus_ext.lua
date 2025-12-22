@@ -16,10 +16,23 @@ plus_ext = {
 		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc" },
 		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc" },
 	},
-	_registeredSkills = {},
-	_registeredSkillsIds = {},
-	_enabledSkills = {},
-	_enabledSkillsIds = {},
+	VANILLA_PILOT_SKILL_EXCLUSIONS = {
+		{pilotId = "Pilot_Zoltan", skillIds = {"Health", "Skilled"}},
+		-- Add more exclusions here
+	},
+
+	EXAMPLE_INCLUSION_SKILLS = {
+		{id = "SuperGrid", shortName = "+6 Grid", fullName = "+6 Grid", description= "Increase grid defense by 6", bonuses = {grid = 6}, skillType = "inclusion" },
+	},
+	EXAMPLE_INCLUSIONS = {
+		{pilotId = "Pilot_Example", skillIds = {"SuperGrid"}},
+	},
+	_registeredSkills = {},  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType}
+	_registeredSkillsIds = {},  -- skillId -> category
+	_enabledSkills = {},  -- skillId -> {shortName, fullName, description, bonuses, skillType}
+	_enabledSkillsIds = {},  -- Array of all enabled skill IDs
+	_pilotSkillExclusions = {},  -- pilotId -> excluded skill ids (set-like table)
+	_pilotSkillInclusions = {},  -- pilotId -> included skill ids (set-like table)
 	_localRandomCount = nil  -- Track local random count for this session
 }
 
@@ -50,11 +63,68 @@ function plus_ext:initGameStorage()
 	self._localRandomCount = nil
 end
 
+-- Registers all vanilla skills and their pilot exclusions
 function plus_ext:registerVanilla()
+	-- Register all vanilla skills
 	for _, skill in ipairs(self.VANILLA_SKILLS) do
 		self:registerSkill("vanilla", skill)
 	end
+
+	-- Register all vanilla pilot skill exclusions
+	for _, entry in ipairs(self.VANILLA_PILOT_SKILL_EXCLUSIONS) do
+		self:registerPilotSkillExclusions(entry.pilotId, entry.skillIds)
+	end
 end
+
+-- Registers all example inclusion skills and their pilot inclusions
+function plus_ext:registerExample()
+	-- Register all example skills
+	for _, skill in ipairs(self.EXAMPLE_INCLUSION_SKILLS) do
+		self:registerSkill("example", skill)
+	end
+
+	-- Register all example pilot skill inclusions
+	for _, entry in ipairs(self.EXAMPLE_INCLUSIONS) do
+		self:registerPilotSkillInclusions(entry.pilotId, entry.skillIds)
+	end
+end
+
+-- Helper function to register pilot-skill relationships (exclusions or inclusions)
+-- targetTable: either _pilotSkillExclusions or _pilotSkillInclusions
+-- relationshipType: "exclusion" or "inclusion" (for debug logging)
+local function registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, relationshipType)
+	local pilotIdLower = string.lower(pilotId)
+
+	if targetTable[pilotIdLower] == nil then
+		targetTable[pilotIdLower] = {}
+	end
+
+	for _, skillId in ipairs(skillIds) do
+		local skillIdLower = string.lower(skillId)
+		-- store with skillId as key so it acts like a set
+		targetTable[pilotIdLower][skillIdLower] = true
+
+		if self.PLUS_DEBUG then
+			local action = relationshipType == "exclusion" and "cannot have" or "can have"
+			LOG("PLUS Ext: Registered " .. relationshipType .. " - Pilot " .. pilotId .. " " .. action .. " skill " .. skillId)
+		end
+	end
+end
+
+-- Registers pilot skill exclusions
+-- Takes pilot id and list of skill ids to exclude
+function plus_ext:registerPilotSkillExclusions(pilotId, skillIds)
+	registerPilotSkillRelationship(self, self._pilotSkillExclusions, pilotId, skillIds, "exclusion")
+end
+
+-- Registers pilot skill inclusions
+-- Takes pilot id and list of skill ids to include
+-- This is only needed for specific inclusion skills. Any default
+-- enabled, non-excluded skill will be available as well as any added here
+function plus_ext:registerPilotSkillInclusions(pilotId, skillIds)
+	registerPilotSkillRelationship(self, self._pilotSkillInclusions, pilotId, skillIds, "inclusion")
+end
+
 
 -- Shows an error popup to the user
 function plus_ext:showErrorPopup(message)
@@ -94,7 +164,7 @@ function plus_ext:logAndShowErrorPopup(message)
 	self:showErrorPopup(message)
 end
 
-function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses)
+function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType)
 
 	if self._registeredSkills[category] == nil then
 		self._registeredSkills[category] = {}
@@ -107,6 +177,7 @@ function plus_ext:registerSkill(category, idOrTable, shortName, fullName, descri
 		fullName = idOrTable.fullName
 		description = idOrTable.description
 		bonuses = idOrTable.bonuses
+		skillType = idOrTable.skillType
 	end
 
 	-- Check if ID is already registered globally
@@ -115,8 +186,11 @@ function plus_ext:registerSkill(category, idOrTable, shortName, fullName, descri
 		return
 	end
 
-	-- Register the skill
-	self._registeredSkills[category][id] = {shortName = shortName, fullName = fullName, description = description, bonuses = bonuses or {}}
+	-- Register the skill with its type included in the skill data
+	self._registeredSkills[category][id] = { shortName = shortName, fullName = fullName, description = description,
+			bonuses = bonuses or {},
+			skillType = skillType or "default",
+	}
 	self._registeredSkillsIds[id] = category
 end
 
@@ -130,9 +204,14 @@ function plus_ext:enableCategory(category)
 		if self._enabledSkills[id] ~= nil then
 			LOG("PLUS Ext warning: Skill " .. id .. " already enabled, skipping")
 		else
-			-- Add the skill with its id
+			-- Add the skill to enabled list. We don't care at this point if its inclusion type or not
 			self._enabledSkills[id] = skill
 			table.insert(self._enabledSkillsIds, id)
+
+			if self.PLUS_DEBUG then
+				local skillType = skill.skillType or "default"
+				LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ")")
+			end
 		end
 	end
 end
@@ -252,6 +331,34 @@ function plus_ext:constraintNoDuplicates(selectedSkills, candidateSkillId)
 	return true
 end
 
+-- Creates constraint fn that ensures the skill can be assigned to the given pilot
+-- using registered exclusions and inclusions for the pilot
+-- Returns a constraint function for a specific pilot
+function plus_ext:constraintPilotSkillAssignment(pilotId)
+	-- Normalize to lowercase
+	local pilotIdLower = string.lower(pilotId)
+
+	return function(selectedSkills, candidateSkillId)
+		local skillIdLower = string.lower(candidateSkillId)
+
+		-- Get the skill object to check its type
+		local skill = self._enabledSkills[candidateSkillId]
+		if skill == nil then
+			LOG("PLUS Ext warning: Skill " .. candidateSkillId .. " not found in enabled skills")
+			return false
+		end
+
+		-- For inclusion skills check if pilot is in inclusion list
+		-- For default skills check if pilot is NOT in exclusion list (must be absent)
+		local isInclusionSkill = skill.skillType == "inclusion"
+		local pilotList = isInclusionSkill and self._pilotSkillInclusions[pilotIdLower] or self._pilotSkillExclusions[pilotIdLower]
+		local skillInList = pilotList and pilotList[skillIdLower]
+
+		-- Return true if (inclusion skill AND in list) OR (default skill AND not in list)
+		return isInclusionSkill == (skillInList == true)
+	end
+end
+
 -- Main function to apply level up skills to a pilot (handles both skill slots)
 -- Takes a memhack pilot struct and applies both skill slots (1 and 2)
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
@@ -272,7 +379,8 @@ function plus_ext:applySkillsToPilot(pilot)
 	if storedSkills == nil then
 		-- Define constraints for skill selection
 		local constraints = {
-			function(selected, candidate) return self:constraintNoDuplicates(selected, candidate) end
+			function(selected, candidate) return self:constraintNoDuplicates(selected, candidate) end,
+			self:constraintPilotSkillAssignment(pilotId)
 		}
 
 		-- Select 2 random skills that satisfy constraints
@@ -347,10 +455,16 @@ function plus_ext:onGameEntered()
 end
 
 function plus_ext:init()
+	-- Register vanilla skills and exclusions
 	self:registerVanilla()
+
+	-- Register example inclusion skills and inclusions
+	-- TODO: May remove eventually or rename to testing?
+	self:registerExample()
 
 	-- TODO: Temp. Long term control via options or other configs?
 	self:enableCategory("vanilla")
+	self:enableCategory("example")
 
 	-- Subscribe to game events
 	modApi.events.onGameEntered:subscribe(function()
