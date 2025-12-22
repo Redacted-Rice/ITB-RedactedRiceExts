@@ -33,6 +33,7 @@ plus_ext = {
 	_enabledSkillsIds = {},  -- Array of all enabled skill IDs
 	_pilotSkillExclusions = {},  -- pilotId -> excluded skill ids (set-like table)
 	_pilotSkillInclusions = {},  -- pilotId -> included skill ids (set-like table)
+	_constraintFunctions = {},  -- Array of function(pilot, selectedSkills, candidateSkillId) -> boolean
 	_localRandomCount = nil  -- Track local random count for this session
 }
 
@@ -89,7 +90,22 @@ function plus_ext:registerExample()
 	end
 end
 
--- Helper function to register pilot-skill relationships (exclusions or inclusions)
+
+-- Registers a constraint function for skill assignment
+-- These functions take pilot, selectedSkills, and candidateSkillId and return true if the candidateskill can be assigned to the pilot
+--   pilot - The memhack pilot struct
+--   selectedSkills - Array like table of skill IDs that have already been selected for this pilot
+--   candidateSkillId - The skill ID being considered for assignment
+-- The default pilot inclusion/exclusion and duplicate prevention use this same function. These can be
+-- used as examples for using constraint functions
+function plus_ext:registerConstraintFunction(constraintFn)
+	table.insert(self._constraintFunctions, constraintFn)
+	if self.PLUS_DEBUG then
+		LOG("PLUS Ext: Registered constraint function")
+	end
+end
+
+-- Helper function to register pilot-skill relationships
 -- targetTable: either _pilotSkillExclusions or _pilotSkillInclusions
 -- relationshipType: "exclusion" or "inclusion" (for debug logging)
 local function registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, relationshipType)
@@ -124,7 +140,6 @@ end
 function plus_ext:registerPilotSkillInclusions(pilotId, skillIds)
 	registerPilotSkillRelationship(self, self._pilotSkillInclusions, pilotId, skillIds, "inclusion")
 end
-
 
 -- Shows an error popup to the user
 function plus_ext:showErrorPopup(message)
@@ -250,15 +265,11 @@ function plus_ext:getRandomSkillId(skillsList)
 	return skillsList[index]
 end
 
--- Selects random level up skills based on count and constraints
+-- Selects random level up skills based on count and configured constraints
 -- Returns a array like table of skill IDs that satisfy the constraints
--- Constraints is an optional table of functions that take (selectedSkills, candidateSkillId) and return true if valid
---     This does not naturally enforce only one of each skill. This must be done through constraints if desired
 -- I pass count even though its currently only expected to be 2 just because I feel
 -- like it could be interesting and possible to have pilots with more than two skills
--- Similar story for making preventing duplicates a constraint. Some vanilla skills and
--- custom skills could certainly allow duplicates
-function plus_ext:selectRandomSkills(count, constraints)
+function plus_ext:selectRandomSkills(pilot, count)
 	if #self._enabledSkillsIds == 0 then
 		LOG("PLUS Ext error: No enabled skills available")
 		return nil
@@ -269,7 +280,6 @@ function plus_ext:selectRandomSkills(count, constraints)
 		return nil
 	end
 
-	constraints = constraints or {}
 	local selectedSkills = {}
 
 	-- Create a copy of all available skill IDs as an array. This will be our
@@ -289,16 +299,7 @@ function plus_ext:selectRandomSkills(count, constraints)
 			return nil
 		end
 
-		-- Check all constraints
-		local isValid = true
-		for _, constraint in ipairs(constraints) do
-			if not constraint(selectedSkills, candidateSkillId) then
-				isValid = false
-				break
-			end
-		end
-
-		if isValid then
+		if self:checkSkillConstraints(pilot, selectedSkills, candidateSkillId) then
 			-- If valid, add to the selected but do not remove yet
 			-- ALlows for potential duplicates in the future
 			table.insert(selectedSkills, candidateSkillId)
@@ -321,25 +322,42 @@ function plus_ext:selectRandomSkills(count, constraints)
 	return selectedSkills
 end
 
--- Constraint: Ensures no duplicate skills are selected
-function plus_ext:constraintNoDuplicates(selectedSkills, candidateSkillId)
-	for _, skillId in ipairs(selectedSkills) do
-		if skillId == candidateSkillId then
+-- Checks if a skill can be assigned to the given pilot
+-- using all registered constraint functions
+-- Returns true if all constraints pass, false otherwise
+function plus_ext:checkSkillConstraints(pilot, selectedSkills, candidateSkillId)
+	-- Check all constraint functions
+	for _, constraintFn in ipairs(self._constraintFunctions) do
+		if not constraintFn(pilot, selectedSkills, candidateSkillId) then
 			return false
 		end
 	end
 	return true
 end
 
--- Creates constraint fn that ensures the skill can be assigned to the given pilot
--- using registered exclusions and inclusions for the pilot
--- Returns a constraint function for a specific pilot
-function plus_ext:constraintPilotSkillAssignment(pilotId)
-	-- Normalize to lowercase
-	local pilotIdLower = string.lower(pilotId)
+-- Registers a constraint fn that prevents duplicate skills
+-- Ensures that the same skill is not assigned to multiple slots for a pilot
+-- I making preventing duplicates a constraint because I could see a case for allowing
+-- duplicates. Some vanilla skills and custom skills could certainly allow duplicates
+function plus_ext:registerNoDupsConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- Check if this skill has already been selected
+		for _, skillId in ipairs(selectedSkills) do
+			if skillId == candidateSkillId then
+				return false
+			end
+		end
+		return true
+	end)
+end
 
-	return function(selectedSkills, candidateSkillId)
-		local skillIdLower = string.lower(candidateSkillId)
+-- Registers the built-in exclusion and inclusion constraint function for pilot skills
+-- so we can handle them easily similar to how vanilla does it
+function plus_ext:registerPlusExclusionInclusionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- Normalize to lowercase
+		local pilotIdLower = string.lower(pilot:getIdStr())
+		local candidateSkillIdLower = string.lower(candidateSkillId)
 
 		-- Get the skill object to check its type
 		local skill = self._enabledSkills[candidateSkillId]
@@ -352,11 +370,11 @@ function plus_ext:constraintPilotSkillAssignment(pilotId)
 		-- For default skills check if pilot is NOT in exclusion list (must be absent)
 		local isInclusionSkill = skill.skillType == "inclusion"
 		local pilotList = isInclusionSkill and self._pilotSkillInclusions[pilotIdLower] or self._pilotSkillExclusions[pilotIdLower]
-		local skillInList = pilotList and pilotList[skillIdLower]
+		local skillInList = pilotList and pilotList[candidateSkillIdLower]
 
 		-- Return true if (inclusion skill AND in list) OR (default skill AND not in list)
 		return isInclusionSkill == (skillInList == true)
-	end
+	end)
 end
 
 -- Main function to apply level up skills to a pilot (handles both skill slots)
@@ -377,14 +395,8 @@ function plus_ext:applySkillsToPilot(pilot)
 
 	-- If the skills are not stored, we need to assign them
 	if storedSkills == nil then
-		-- Define constraints for skill selection
-		local constraints = {
-			function(selected, candidate) return self:constraintNoDuplicates(selected, candidate) end,
-			self:constraintPilotSkillAssignment(pilotId)
-		}
-
-		-- Select 2 random skills that satisfy constraints
-		storedSkills = self:selectRandomSkills(2, constraints)
+		-- Select 2 random skills that satisfy all registered constraint functions
+		storedSkills = self:selectRandomSkills(pilot, 2)
 		if storedSkills == nil then
 			return
 		end
@@ -461,6 +473,10 @@ function plus_ext:init()
 	-- Register example inclusion skills and inclusions
 	-- TODO: May remove eventually or rename to testing?
 	self:registerExample()
+
+	-- Register built-in constraint functions
+	self:registerNoDupsConstraintFunction()  -- Prevents same skill in multiple slots
+	self:registerPlusExclusionInclusionConstraintFunction()  -- Checks pilot exclusions and inclusion-type skills
 
 	-- TODO: Temp. Long term control via options or other configs?
 	self:enableCategory("vanilla")
