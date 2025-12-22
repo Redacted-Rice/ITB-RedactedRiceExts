@@ -95,11 +95,11 @@ function plus_ext:logAndShowErrorPopup(message)
 end
 
 function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses)
-		
+
 	if self._registeredSkills[category] == nil then
 		self._registeredSkills[category] = {}
 	end
-	
+
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -139,9 +139,10 @@ end
 
 -- Uses the stored seed and sequential access count to ensure deterministic random values
 -- The RNG is seeded once per session, then we fast forward to the saved count
-function plus_ext:getRandomSkillId()
-	if #self._enabledSkillsIds == 0 then
-		LOG("PLUS Ext error: No enabled skills available")
+-- skillsList - array like table of skill IDs to select from
+function plus_ext:getRandomSkillId(skillsList)
+	if #skillsList == 0 then
+		LOG("PLUS Ext error: No skills available in list")
 		return nil
 	end
 
@@ -161,26 +162,102 @@ function plus_ext:getRandomSkillId()
 	end
 
 	-- Generate the next random index in the range of available skills
-	local index = math.random(1, #self._enabledSkillsIds)
+	local index = math.random(1, #skillsList)
 
 	-- Increment both local and saved count
 	self._localRandomCount = self._localRandomCount + 1
 	GAME.plus_ext.randomSeedCnt = self._localRandomCount
 
-	return self._enabledSkillsIds[index]
+	return skillsList[index]
 end
 
--- Main function to apply level up skill to a pilot
--- Takes a memhack pilot struct, pilot index, and skill index
--- Checks GAME memory and either loads the skill or creates and adds one
-function plus_ext:applySkillToPilot(pilot, skillIndex)
-	if pilot == nil then
-		LOG("PLUS Ext error: Pilot is nil")
-		return
+-- Selects random level up skills based on count and constraints
+-- Returns a array like table of skill IDs that satisfy the constraints
+-- Constraints is an optional table of functions that take (selectedSkills, candidateSkillId) and return true if valid
+--     This does not naturally enforce only one of each skill. This must be done through constraints if desired
+-- I pass count even though its currently only expected to be 2 just because I feel
+-- like it could be interesting and possible to have pilots with more than two skills
+-- Similar story for making preventing duplicates a constraint. Some vanilla skills and
+-- custom skills could certainly allow duplicates
+function plus_ext:selectRandomSkills(count, constraints)
+	if #self._enabledSkillsIds == 0 then
+		LOG("PLUS Ext error: No enabled skills available")
+		return nil
 	end
 
-	if skillIndex ~= 1 and skillIndex ~= 2 then
-		LOG("PLUS Ext error: Invalid skill index (must be 1 or 2): " .. tostring(skillIndex))
+	if count > #self._enabledSkillsIds then
+		LOG("PLUS Ext error: Cannot select " .. count .. " skills from " .. #self._enabledSkillsIds .. " available skills")
+		return nil
+	end
+
+	constraints = constraints or {}
+	local selectedSkills = {}
+
+	-- Create a copy of all available skill IDs as an array. This will be our
+	-- base list and we will narrow it down as we go if we try to assign
+	-- an unallowed skill
+	local availableSkills = {}
+	for _, skillId in ipairs(self._enabledSkillsIds) do
+		table.insert(availableSkills, skillId)
+	end
+
+	-- Keep selecting until we have enough skills or run out of options
+	while #selectedSkills < count and #availableSkills > 0 do
+		-- Get a random skill from the available pool
+		local candidateSkillId = self:getRandomSkillId(availableSkills)
+
+		if candidateSkillId == nil then
+			return nil
+		end
+
+		-- Check all constraints
+		local isValid = true
+		for _, constraint in ipairs(constraints) do
+			if not constraint(selectedSkills, candidateSkillId) then
+				isValid = false
+				break
+			end
+		end
+
+		if isValid then
+			-- If valid, add to the selected but do not remove yet
+			-- ALlows for potential duplicates in the future
+			table.insert(selectedSkills, candidateSkillId)
+		else
+			-- If the skill is invalid, remove it from the pool
+			for i, skillId in ipairs(availableSkills) do
+				if skillId == candidateSkillId then
+					table.remove(availableSkills, i)
+					break
+				end
+			end
+		end
+	end
+
+	-- Check we assigned the expected number of skill
+	if #selectedSkills ~= count then
+		LOG("PLUS Ext error: Failed to select " .. count .. " skills. Selected " .. #selectedSkills .. ". Constraints may be impossible to satisfy with available skills.")
+		return nil
+	end
+	return selectedSkills
+end
+
+-- Constraint: Ensures no duplicate skills are selected
+function plus_ext:constraintNoDuplicates(selectedSkills, candidateSkillId)
+	for _, skillId in ipairs(selectedSkills) do
+		if skillId == candidateSkillId then
+			return false
+		end
+	end
+	return true
+end
+
+-- Main function to apply level up skills to a pilot (handles both skill slots)
+-- Takes a memhack pilot struct and applies both skill slots (1 and 2)
+-- Checks GAME memory and either loads existing skills or creates and assigns new ones
+function plus_ext:applySkillsToPilot(pilot)
+	if pilot == nil then
+		LOG("PLUS Ext error: Pilot is nil")
 		return
 	end
 
@@ -188,37 +265,42 @@ function plus_ext:applySkillToPilot(pilot, skillIndex)
 	-- technically possible but not allowed by vanilla so this may change later
 	local pilotId = pilot:getIdStr()
 
-	-- Check if we already have a stored skill for this pilot
+	-- Try to get stored skills
 	local storedSkills = GAME.plus_ext.pilotSkills[pilotId]
-	local storedSkillId = storedSkills and storedSkills[skillIndex]
-	local skill = storedSkillId and self._enabledSkills[storedSkillId]
 
-	-- If no stored skill or stored skill is no longer enabled, get a new random one
-	if not skill then
-		if storedSkillId ~= nil then
-			LOG("PLUS Ext warning: Stored skill id " .. storedSkillId .. " is not enabled, reassigning")
-		end
+	-- If the skills are not stored, we need to assign them
+	if storedSkills == nil then
+		-- Define constraints for skill selection
+		local constraints = {
+			function(selected, candidate) return self:constraintNoDuplicates(selected, candidate) end
+		}
 
-		local randomSkillId = self:getRandomSkillId()
-		if randomSkillId == nil then
+		-- Select 2 random skills that satisfy constraints
+		storedSkills = self:selectRandomSkills(2, constraints)
+		if storedSkills == nil then
 			return
 		end
 
-		-- Store and use the new random skill
-		if storedSkills == nil then
-			GAME.plus_ext.pilotSkills[pilotId] = {}
-		end
-		GAME.plus_ext.pilotSkills[pilotId][skillIndex] = randomSkillId
-		skill = self._enabledSkills[randomSkillId]
-		storedSkillId = randomSkillId
+		-- Store the skills in GAME
+		GAME.plus_ext.pilotSkills[pilotId] = storedSkills
 
-		if self.PLUS_DEBUG then LOG("PLUS Ext: Assigning random skill " .. randomSkillId .. " to pilot " .. pilotId) end
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: Assigning random skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
+		end
 	else
-		if self.PLUS_DEBUG then LOG("PLUS Ext: Applying stored skill " .. storedSkillId .. " to pilot " .. pilotId) end
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: Applying stored skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
+		end
 	end
 
-	-- Apply the skill (0 = saveVal which is not needed since we use custom saving)
-	pilot:setLvlUpSkill(skillIndex, storedSkillId, skill.shortName, skill.fullName, skill.description, 0, skill.bonuses)
+	local skill1Id = storedSkills[1]
+	local skill2Id = storedSkills[2]
+	local skill1 = self._enabledSkills[skill1Id]
+	local skill2 = self._enabledSkills[skill2Id]
+
+	-- Apply both skills (0 = saveVal which is not needed since we use custom saving)
+	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, 0, skill1.bonuses)
+	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, 0, skill2.bonuses)
 end
 
 -- Helper function to get all pilots in the current squad
@@ -248,12 +330,10 @@ function plus_ext:applySkillsToAllPilots()
 		return
 	end
 
+	-- Apply/assign skills for each pilot
 	local pilots = self:getAllPilots()
-
 	for _, pilotData in ipairs(pilots) do
-		-- Apply skills to both skill slots (1 and 2)
-		self:applySkillToPilot(pilotData.pilot, 1)
-		self:applySkillToPilot(pilotData.pilot, 2)
+		self:applySkillsToPilot(pilotData.pilot)
 	end
 
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Applied skills to " .. #pilots .. " pilot(s)") end
@@ -268,7 +348,7 @@ end
 
 function plus_ext:init()
 	self:registerVanilla()
-	
+
 	-- TODO: Temp. Long term control via options or other configs?
 	self:enableCategory("vanilla")
 
