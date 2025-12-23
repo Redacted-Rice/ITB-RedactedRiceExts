@@ -5,6 +5,7 @@
 #include "lua.hpp"
 #include "memory.h"
 #include "process.h"
+#include "scanner/scanner_lua.h"
 
 #define DLLEXPORT __declspec(dllexport)
 
@@ -22,6 +23,12 @@ extern "C" DLLEXPORT int luaopen_memhack(lua_State* L) {
 	lua_pushstring(L, "process");
 	lua_newtable(L);
 	add_process_functions(L);
+	lua_rawset(L, -3);
+
+	/* ---------------- Add Scanner functions --------------- */
+	lua_pushstring(L, "scanner");
+	lua_newtable(L);
+	add_scanner_functions(L);
 	lua_rawset(L, -3);
 
 	/* ----------------------------------------------------- */

@@ -1,8 +1,6 @@
 Automatically replace dll in memhack when rebuild dll
 consider dll subtables - reorganize or flatten?
 
+Add scan for hanger
 Add tests/test support (see memedit?)
-Add dynamic scanning capabilities for all accessible memory (see memedit scan/scanner)
-	Include negate scans
-	Include value changed scans?
 Add base game offset example (score)
