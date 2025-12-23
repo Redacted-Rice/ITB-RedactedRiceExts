@@ -14,7 +14,7 @@ return {
   
   -- List of patterns for files to include
   include = {
-    "plus_ext$"
+    "cplus_plus_ex$"
   },
   
   -- List of patterns for files to exclude  
@@ -27,7 +27,7 @@ return {
   
   -- Path to use for resolving paths
   modules = {
-    ["plus_ext"] = "../scripts/plus_ext.lua"
+    ["cplus_plus_ex"] = "../scripts/cplus_plus_ex.lua"
   },
   
   -- Coverage report format
