@@ -16,16 +16,14 @@ plus_ext = {
 		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc" },
 		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc" },
 	},
+	-- TODO: Instead read these dynamically from the pilot struct. That way we support
+	-- existing custom pilots that may already have exclusions
 	VANILLA_PILOT_SKILL_EXCLUSIONS = {
-		{pilotId = "Pilot_Zoltan", skillIds = {"Health", "Skilled"}},
-		-- Add more exclusions here
-	},
-
-	EXAMPLE_INCLUSION_SKILLS = {
-		{id = "SuperGrid", shortName = "+6 Grid", fullName = "+6 Grid", description= "Increase grid defense by 6", bonuses = {grid = 6}, skillType = "inclusion" },
-	},
-	EXAMPLE_INCLUSIONS = {
-		{pilotId = "Pilot_Example", skillIds = {"SuperGrid"}},
+		{pilotId = "Pilot_BeetleMech", skillIds = {"Invulnerable", "Popular"}},
+		{pilotId = "Pilot_HornetMech", skillIds = {"Invulnerable", "Popular"}},
+		{pilotId = "Pilot_ScarabMech", skillIds = {"Invulnerable", "Popular"}},
+		{pilotId = "Pilot_Rock", skillIds = {"Health", "Skilled"}},
+		{pilotId = "Pilot_Zoltan", skillIds = {"Pain", "Skilled", "Regen", "Health"}},
 	},
 	_registeredSkills = {},  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType}
 	_registeredSkillsIds = {},  -- skillId -> category
@@ -76,20 +74,6 @@ function plus_ext:registerVanilla()
 		self:registerPilotSkillExclusions(entry.pilotId, entry.skillIds)
 	end
 end
-
--- Registers all example inclusion skills and their pilot inclusions
-function plus_ext:registerExample()
-	-- Register all example skills
-	for _, skill in ipairs(self.EXAMPLE_INCLUSION_SKILLS) do
-		self:registerSkill("example", skill)
-	end
-
-	-- Register all example pilot skill inclusions
-	for _, entry in ipairs(self.EXAMPLE_INCLUSIONS) do
-		self:registerPilotSkillInclusions(entry.pilotId, entry.skillIds)
-	end
-end
-
 
 -- Registers a constraint function for skill assignment
 -- These functions take pilot, selectedSkills, and candidateSkillId and return true if the candidateskill can be assigned to the pilot
@@ -341,6 +325,7 @@ function plus_ext:registerNoDupsConstraintFunction()
 		-- Check if this skill has already been selected
 		for _, skillId in ipairs(selectedSkills) do
 			if skillId == candidateSkillId then
+				if self.PLUS_DEBUG then LOG("PLUS Ext: Prevented duplicate add of skill ".. candidateSkillId.. " on pilot "..pilot:getIdStr()) end
 				return false
 			end
 		end
@@ -369,7 +354,9 @@ function plus_ext:registerPlusExclusionInclusionConstraintFunction()
 		local skillInList = pilotList and pilotList[candidateSkillId]
 
 		-- Return true if (inclusion skill AND in list) OR (default skill AND not in list)
-		return isInclusionSkill == (skillInList == true)
+		local allowed = isInclusionSkill == (skillInList == true)
+		if not allowed and self.PLUS_DEBUG then LOG("PLUS Ext: Prevented ".. (isInclusionSkill and "inclusion" or "exclusion").. " skill " .. candidateSkillId .. " for pilot " .. pilot:getIdStr()) end
+		return allowed
 	end)
 end
 
@@ -466,17 +453,12 @@ function plus_ext:init()
 	-- Register vanilla skills and exclusions
 	self:registerVanilla()
 
-	-- Register example inclusion skills and inclusions
-	-- TODO: May remove eventually or rename to testing?
-	self:registerExample()
-
 	-- Register built-in constraint functions
 	self:registerNoDupsConstraintFunction()  -- Prevents same skill in multiple slots
 	self:registerPlusExclusionInclusionConstraintFunction()  -- Checks pilot exclusions and inclusion-type skills
 
 	-- TODO: Temp. Long term control via options or other configs?
 	self:enableCategory("vanilla")
-	self:enableCategory("example")
 
 	-- Subscribe to game events
 	modApi.events.onGameEntered:subscribe(function()
