@@ -1,5 +1,15 @@
 Automatically replace dll in memhack when rebuild dll
 consider dll subtables - reorganize or flatten?
+dll -
+	rw - for read/write operations on memory address and supporting consts
+	alloc - for allocating
+	address - for getting addresses (base and UD), bounds, etc
+	scanner
+base obj (lua)
+	debug - helpful for troubleshooting
+		todo add a log each k & v fn as well?
+	struct - struct related helpers/functions for accessing/modifying memory
+	
 
 Add scan for hanger
 Add tests/test support (see memedit?)
