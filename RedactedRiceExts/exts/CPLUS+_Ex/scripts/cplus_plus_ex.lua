@@ -1,4 +1,4 @@
-plus_ext = {
+cplus_plus_ex = {
 	PLUS_DEBUG = true, -- eventually default to false
 	VANILLA_SKILLS = {
 		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0 },
@@ -27,26 +27,26 @@ plus_ext = {
 	_localRandomCount = nil  -- Track local random count for this session
 }
 
-function plus_ext:initGameStorage()
+function cplus_plus_ex:initGameStorage()
 	if GAME == nil then
 		return
 	end
 
-	if GAME.plus_ext == nil then
-		GAME.plus_ext = {}
+	if GAME.cplus_plus_ex == nil then
+		GAME.cplus_plus_ex = {}
 	end
 
-	if GAME.plus_ext.pilotSkills == nil then
-		GAME.plus_ext.pilotSkills = {}
+	if GAME.cplus_plus_ex.pilotSkills == nil then
+		GAME.cplus_plus_ex.pilotSkills = {}
 	end
 
-	if GAME.plus_ext.randomSeed == nil then
+	if GAME.cplus_plus_ex.randomSeed == nil then
 		-- Initialize with a seed based on os.time()
-		GAME.plus_ext.randomSeed = os.time()
+		GAME.cplus_plus_ex.randomSeed = os.time()
 	end
 
-	if GAME.plus_ext.randomSeedCnt == nil then
-		GAME.plus_ext.randomSeedCnt = 0
+	if GAME.cplus_plus_ex.randomSeedCnt == nil then
+		GAME.cplus_plus_ex.randomSeedCnt = 0
 	end
 
 	-- reset our local count to force a re-roll to ensure we
@@ -55,7 +55,7 @@ function plus_ext:initGameStorage()
 end
 
 -- Registers all vanilla skills
-function plus_ext:registerVanilla()
+function cplus_plus_ex:registerVanilla()
 	-- Register all vanilla skills
 	for _, skill in ipairs(self.VANILLA_SKILLS) do
 		self:registerSkill("vanilla", skill)
@@ -65,7 +65,7 @@ end
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
 -- This maintains the vanilla method of defining pilot exclusions to be compatible
 -- without any specific changes for using this extension
-function plus_ext:registerPilotExclusionsFromGlobal()
+function cplus_plus_ex:registerPilotExclusionsFromGlobal()
 	-- Clear only auto-loaded exclusions
 	self._pilotSkillExclusionsAuto = {}
 
@@ -111,7 +111,7 @@ end
 --   candidateSkillId - The skill ID being considered for assignment
 -- The default pilot inclusion/exclusion and duplicate prevention use this same function. These can be
 -- used as examples for using constraint functions
-function plus_ext:registerConstraintFunction(constraintFn)
+function cplus_plus_ex:registerConstraintFunction(constraintFn)
 	table.insert(self._constraintFunctions, constraintFn)
 	if self.PLUS_DEBUG then
 		LOG("PLUS Ext: Registered constraint function")
@@ -142,7 +142,7 @@ end
 -- Registers pilot skill exclusions
 -- Takes pilot id and list of skill ids to exclude
 -- isAuto true if auto-loaded from pilot Blacklist, false/nil if manually registered via API. Defaults to false
-function plus_ext:registerPilotSkillExclusions(pilotId, skillIds, isAuto)
+function cplus_plus_ex:registerPilotSkillExclusions(pilotId, skillIds, isAuto)
 	isAuto = isAuto or false
 	local targetTable = isAuto and self._pilotSkillExclusionsAuto or self._pilotSkillExclusionsManual
 	registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, "exclusion", isAuto)
@@ -152,12 +152,12 @@ end
 -- Takes pilot id and list of skill ids to include
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
-function plus_ext:registerPilotSkillInclusions(pilotId, skillIds)
+function cplus_plus_ex:registerPilotSkillInclusions(pilotId, skillIds)
 	registerPilotSkillRelationship(self, self._pilotSkillInclusions, pilotId, skillIds, "inclusion", false)
 end
 
 -- Shows an error popup to the user
-function plus_ext:showErrorPopup(message)
+function cplus_plus_ex:showErrorPopup(message)
 	if modApi then
 		-- Use modApi's message box for user-facing errors
 		modApi:scheduleHook(50, function()
@@ -189,7 +189,7 @@ function plus_ext:showErrorPopup(message)
 	end
 end
 
-function plus_ext:logAndShowErrorPopup(message)
+function cplus_plus_ex:logAndShowErrorPopup(message)
 	LOG(message)
 	self:showErrorPopup(message)
 end
@@ -198,7 +198,7 @@ end
 -- the extension fails to load or is uninstalled, a suitable vanilla skill will be used
 -- instead. If not provided or out of range, a random vanilla value will be used.
 -- The save data in vanilla only supports 0-13. Anything out of range is clamped to this range
-function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal)
+function cplus_plus_ex:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal)
 
 	if self._registeredSkills[category] == nil then
 		self._registeredSkills[category] = {}
@@ -242,7 +242,7 @@ function plus_ext:registerSkill(category, idOrTable, shortName, fullName, descri
 	self._registeredSkillsIds[id] = category
 end
 
-function plus_ext:enableCategory(category)
+function cplus_plus_ex:enableCategory(category)
 	if self._registeredSkills[category] == nil then
 		LOG("PLUS Ext error: Attempted to enable unknown category ".. category)
 		return
@@ -267,15 +267,15 @@ end
 -- Uses the stored seed and sequential access count to ensure deterministic random values
 -- The RNG is seeded once per session, then we fast forward to the saved count
 -- skillsList - array like table of skill IDs to select from
-function plus_ext:getRandomSkillId(skillsList)
+function cplus_plus_ex:getRandomSkillId(skillsList)
 	if #skillsList == 0 then
 		LOG("PLUS Ext error: No skills available in list")
 		return nil
 	end
 
 	-- Get the stored seed and count from GAME
-	local seed = GAME.plus_ext.randomSeed
-	local savedCount = GAME.plus_ext.randomSeedCnt
+	local seed = GAME.cplus_plus_ex.randomSeed
+	local savedCount = GAME.cplus_plus_ex.randomSeedCnt
 
 	-- If this is the first call this session, initialize the RNG to match
 	-- what is in our saved data
@@ -293,7 +293,7 @@ function plus_ext:getRandomSkillId(skillsList)
 
 	-- Increment both local and saved count
 	self._localRandomCount = self._localRandomCount + 1
-	GAME.plus_ext.randomSeedCnt = self._localRandomCount
+	GAME.cplus_plus_ex.randomSeedCnt = self._localRandomCount
 
 	return skillsList[index]
 end
@@ -302,7 +302,7 @@ end
 -- Returns a array like table of skill IDs that satisfy the constraints
 -- I pass count even though its currently only expected to be 2 just because I feel
 -- like it could be interesting and possible to have pilots with more than two skills
-function plus_ext:selectRandomSkills(pilot, count)
+function cplus_plus_ex:selectRandomSkills(pilot, count)
 	if #self._enabledSkillsIds == 0 then
 		LOG("PLUS Ext error: No enabled skills available")
 		return nil
@@ -358,7 +358,7 @@ end
 -- Checks if a skill can be assigned to the given pilot
 -- using all registered constraint functions
 -- Returns true if all constraints pass, false otherwise
-function plus_ext:checkSkillConstraints(pilot, selectedSkills, candidateSkillId)
+function cplus_plus_ex:checkSkillConstraints(pilot, selectedSkills, candidateSkillId)
 	-- Check all constraint functions
 	for _, constraintFn in ipairs(self._constraintFunctions) do
 		if not constraintFn(pilot, selectedSkills, candidateSkillId) then
@@ -372,7 +372,7 @@ end
 -- Ensures that the same skill is not assigned to multiple slots for a pilot
 -- I making preventing duplicates a constraint because I could see a case for allowing
 -- duplicates. Some vanilla skills and custom skills could certainly allow duplicates
-function plus_ext:registerNoDupsConstraintFunction()
+function cplus_plus_ex:registerNoDupsConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		-- Check if this skill has already been selected
 		for _, skillId in ipairs(selectedSkills) do
@@ -387,7 +387,7 @@ end
 
 -- Registers the built-in exclusion and inclusion constraint function for pilot skills
 -- so we can handle them easily similar to how vanilla does it
-function plus_ext:registerPlusExclusionInclusionConstraintFunction()
+function cplus_plus_ex:registerPlusExclusionInclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
 
@@ -428,7 +428,7 @@ end
 -- Main function to apply level up skills to a pilot (handles both skill slots)
 -- Takes a memhack pilot struct and applies both skill slots (1 and 2)
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
-function plus_ext:applySkillsToPilot(pilot)
+function cplus_plus_ex:applySkillsToPilot(pilot)
 	if pilot == nil then
 		LOG("PLUS Ext error: Pilot is nil")
 		return
@@ -439,7 +439,7 @@ function plus_ext:applySkillsToPilot(pilot)
 	local pilotId = pilot:getIdStr()
 
 	-- Try to get stored skills
-	local storedSkills = GAME.plus_ext.pilotSkills[pilotId]
+	local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
 
 	-- If the skills are not stored, we need to assign them
 	if storedSkills == nil then
@@ -450,7 +450,7 @@ function plus_ext:applySkillsToPilot(pilot)
 		end
 
 		-- Store the skills in GAME
-		GAME.plus_ext.pilotSkills[pilotId] = storedSkills
+		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 		if self.PLUS_DEBUG then
 			LOG("PLUS Ext: Assigning random skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
@@ -505,7 +505,7 @@ function plus_ext:applySkillsToPilot(pilot)
 end
 
 -- Helper function to get all pilots in the current squad
-function plus_ext:getAllPilots()
+function cplus_plus_ex:getAllPilots()
 	local pilots = {}
 
 	-- Iterate through the 3 squad positions (0, 1, 2)
@@ -525,7 +525,7 @@ function plus_ext:getAllPilots()
 end
 
 -- Apply skills to all pilots in the squad
-function plus_ext:applySkillsToAllPilots()
+function cplus_plus_ex:applySkillsToAllPilots()
 	if #self._enabledSkillsIds == 0 then
 		if self.PLUS_DEBUG then LOG("PLUS Ext: No enabled skills, skipping pilot skill assignment") end
 		return
@@ -541,7 +541,7 @@ function plus_ext:applySkillsToAllPilots()
 end
 
 -- Event handler for when the game is entered (loaded or new game)
-function plus_ext:onGameEntered()
+function cplus_plus_ex:onGameEntered()
 	self:initGameStorage()
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Game entered, storage initialized") end
 
@@ -551,7 +551,7 @@ function plus_ext:onGameEntered()
 	self:applySkillsToAllPilots()
 end
 
-function plus_ext:init()
+function cplus_plus_ex:init()
 	-- Register vanilla skills
 	self:registerVanilla()
 
@@ -564,7 +564,7 @@ function plus_ext:init()
 
 	-- Subscribe to game events
 	modApi.events.onGameEntered:subscribe(function()
-		plus_ext:onGameEntered()
+		cplus_plus_ex:onGameEntered()
 	end)
 
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end

@@ -5,7 +5,7 @@ return {
     coverage = true,
     lpath = "../scripts/?.lua",
     output = "plainTerminal",
-    ROOT = {"plus_ext_spec.lua"}
+    ROOT = {"cplus_plus_ex_spec.lua"}
   },
   coverage = {
     verbose = true,

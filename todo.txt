@@ -18,5 +18,4 @@ Add tests/test support (see memedit?)
 
 ---------- PLUS Ex ---------
 
-Rename to Custom Pilot Level Up Skills and more Extension (CPLUS+ Ex or C++ Ex)
 Preserve time traveler pilot across runs (Profile.pilot - seems to only sometimes be saved/loaded and going to main menu without restarting preserves cached profile data)
