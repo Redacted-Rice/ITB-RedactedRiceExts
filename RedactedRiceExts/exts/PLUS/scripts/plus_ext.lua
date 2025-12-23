@@ -16,20 +16,12 @@ plus_ext = {
 		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc" },
 		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc" },
 	},
-	-- TODO: Instead read these dynamically from the pilot struct. That way we support
-	-- existing custom pilots that may already have exclusions
-	VANILLA_PILOT_SKILL_EXCLUSIONS = {
-		{pilotId = "Pilot_BeetleMech", skillIds = {"Invulnerable", "Popular"}},
-		{pilotId = "Pilot_HornetMech", skillIds = {"Invulnerable", "Popular"}},
-		{pilotId = "Pilot_ScarabMech", skillIds = {"Invulnerable", "Popular"}},
-		{pilotId = "Pilot_Rock", skillIds = {"Health", "Skilled"}},
-		{pilotId = "Pilot_Zoltan", skillIds = {"Pain", "Skilled", "Regen", "Health"}},
-	},
 	_registeredSkills = {},  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType}
 	_registeredSkillsIds = {},  -- skillId -> category
 	_enabledSkills = {},  -- skillId -> {shortName, fullName, description, bonuses, skillType}
 	_enabledSkillsIds = {},  -- Array of all enabled skill IDs
-	_pilotSkillExclusions = {},  -- pilotId -> excluded skill ids (set-like table)
+	_pilotSkillExclusionsAuto = {},  -- pilotId -> excluded skill ids (set-like table) - auto-loaded from pilot Blacklists
+	_pilotSkillExclusionsManual = {},  -- pilotId -> excluded skill ids (set-like table) - manually registered via API
 	_pilotSkillInclusions = {},  -- pilotId -> included skill ids (set-like table)
 	_constraintFunctions = {},  -- Array of function(pilot, selectedSkills, candidateSkillId) -> boolean
 	_localRandomCount = nil  -- Track local random count for this session
@@ -62,16 +54,53 @@ function plus_ext:initGameStorage()
 	self._localRandomCount = nil
 end
 
--- Registers all vanilla skills and their pilot exclusions
+-- Registers all vanilla skills
 function plus_ext:registerVanilla()
 	-- Register all vanilla skills
 	for _, skill in ipairs(self.VANILLA_SKILLS) do
 		self:registerSkill("vanilla", skill)
 	end
+end
 
-	-- Register all vanilla pilot skill exclusions
-	for _, entry in ipairs(self.VANILLA_PILOT_SKILL_EXCLUSIONS) do
-		self:registerPilotSkillExclusions(entry.pilotId, entry.skillIds)
+-- Scans global for all pilot definitions and registers their Blacklist exclusions
+-- This maintains the vanilla method of defining pilot exclusions to be compatible
+-- without any specific changes for using this extension
+function plus_ext:registerPilotExclusionsFromGlobal()
+	-- Clear only auto-loaded exclusions
+	self._pilotSkillExclusionsAuto = {}
+
+	if _G.Pilot == nil then
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: Error: Pilot class not found, skipping exclusion registration")
+		end
+		return
+	end
+
+	local pilotCount = 0
+	local exclusionCount = 0
+
+	-- Scan _G for all Pilot instances using metatable check
+	-- This assumes all pilots are created via Pilot:new (e.g. via CreatePilot()) which
+	-- will automatically set the metatable to Pilot
+	for key, value in pairs(_G) do
+		if type(key) == "string" and type(value) == "table" and getmetatable(value) == _G.Pilot then
+			pilotCount = pilotCount + 1
+
+			-- Check if the pilot has a Blacklist array
+			if value.Blacklist ~= nil and type(value.Blacklist) == "table" and #value.Blacklist > 0 then
+				-- Register the blacklist as auto loaded exclusions
+				self:registerPilotSkillExclusions(key, value.Blacklist, true)
+				exclusionCount = exclusionCount + 1
+
+				if self.PLUS_DEBUG then
+					LOG("PLUS Ext: Found " .. #value.Blacklist .. " exclusion(s) for pilot " .. key)
+				end
+			end
+		end
+	end
+
+	if self.PLUS_DEBUG then
+		LOG("PLUS Ext: Scanned " .. pilotCount .. " pilot(s), registered exclusions for " .. exclusionCount .. " pilot(s)")
 	end
 end
 
@@ -90,9 +119,10 @@ function plus_ext:registerConstraintFunction(constraintFn)
 end
 
 -- Helper function to register pilot-skill relationships
--- targetTable: either _pilotSkillExclusions or _pilotSkillInclusions
+-- targetTable: either _pilotSkillExclusionsAuto, _pilotSkillExclusionsManual, or _pilotSkillInclusions
 -- relationshipType: "exclusion" or "inclusion" (for debug logging)
-local function registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, relationshipType)
+-- isAuto: true if auto-loaded, false if manual (for debug logging)
+local function registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, relationshipType, isAuto)
 	if targetTable[pilotId] == nil then
 		targetTable[pilotId] = {}
 	end
@@ -103,15 +133,19 @@ local function registerPilotSkillRelationship(self, targetTable, pilotId, skillI
 
 		if self.PLUS_DEBUG then
 			local action = relationshipType == "exclusion" and "cannot have" or "can have"
-			LOG("PLUS Ext: Registered " .. relationshipType .. " - Pilot " .. pilotId .. " " .. action .. " skill " .. skillId)
+			local source = isAuto and " (auto)" or " (manual)"
+			LOG("PLUS Ext: Registered " .. relationshipType .. source .. " - Pilot " .. pilotId .. " " .. action .. " skill " .. skillId)
 		end
 	end
 end
 
 -- Registers pilot skill exclusions
 -- Takes pilot id and list of skill ids to exclude
-function plus_ext:registerPilotSkillExclusions(pilotId, skillIds)
-	registerPilotSkillRelationship(self, self._pilotSkillExclusions, pilotId, skillIds, "exclusion")
+-- isAuto true if auto-loaded from pilot Blacklist, false/nil if manually registered via API. Defaults to false
+function plus_ext:registerPilotSkillExclusions(pilotId, skillIds, isAuto)
+	isAuto = isAuto or false
+	local targetTable = isAuto and self._pilotSkillExclusionsAuto or self._pilotSkillExclusionsManual
+	registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, "exclusion", isAuto)
 end
 
 -- Registers pilot skill inclusions
@@ -119,7 +153,7 @@ end
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
 function plus_ext:registerPilotSkillInclusions(pilotId, skillIds)
-	registerPilotSkillRelationship(self, self._pilotSkillInclusions, pilotId, skillIds, "inclusion")
+	registerPilotSkillRelationship(self, self._pilotSkillInclusions, pilotId, skillIds, "inclusion", false)
 end
 
 -- Shows an error popup to the user
@@ -341,7 +375,7 @@ function plus_ext:registerPlusExclusionInclusionConstraintFunction()
 
 		-- Get the skill object to check its type
 		local skill = self._enabledSkills[candidateSkillId]
-		
+
 		if skill == nil then
 			LOG("PLUS Ext warning: Skill " .. candidateSkillId .. " not found in enabled skills")
 			return false
@@ -350,13 +384,26 @@ function plus_ext:registerPlusExclusionInclusionConstraintFunction()
 		-- For inclusion skills check if pilot is in inclusion list
 		-- For default skills check if pilot is NOT in exclusion list (must be absent)
 		local isInclusionSkill = skill.skillType == "inclusion"
-		local pilotList = isInclusionSkill and self._pilotSkillInclusions[pilotId] or self._pilotSkillExclusions[pilotId]
-		local skillInList = pilotList and pilotList[candidateSkillId]
 
-		-- Return true if (inclusion skill AND in list) OR (default skill AND not in list)
-		local allowed = isInclusionSkill == (skillInList == true)
-		if not allowed and self.PLUS_DEBUG then LOG("PLUS Ext: Prevented ".. (isInclusionSkill and "inclusion" or "exclusion").. " skill " .. candidateSkillId .. " for pilot " .. pilot:getIdStr()) end
-		return allowed
+		if isInclusionSkill then
+			-- Check inclusion list
+			local pilotList = self._pilotSkillInclusions[pilotId]
+			local skillInList = pilotList and pilotList[candidateSkillId]
+			local allowed = skillInList == true
+			if not allowed and self.PLUS_DEBUG then
+				LOG("PLUS Ext: Prevented inclusion skill " .. candidateSkillId .. " for pilot " .. pilotId)
+			end
+			return allowed
+		else
+			-- Check both auto and manual exclusion lists
+			local autoExcluded = self._pilotSkillExclusionsAuto[pilotId] and self._pilotSkillExclusionsAuto[pilotId][candidateSkillId]
+			local manualExcluded = self._pilotSkillExclusionsManual[pilotId] and self._pilotSkillExclusionsManual[pilotId][candidateSkillId]
+			local excluded = autoExcluded or manualExcluded
+			if excluded and self.PLUS_DEBUG then
+				LOG("PLUS Ext: Prevented exclusion " .. (autoExcluded and "(auto)" or "") .. (manualExcluded and "(manual)" or "") .. " skill " .. candidateSkillId .. " for pilot " .. pilotId)
+			end
+			return not excluded
+		end
 	end)
 end
 
@@ -446,11 +493,15 @@ end
 function plus_ext:onGameEntered()
 	self:initGameStorage()
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Game entered, storage initialized") end
+
+	-- Regbister/refresh pilot exclusions from their global definitions
+	self:registerPilotExclusionsFromGlobal()
+
 	self:applySkillsToAllPilots()
 end
 
 function plus_ext:init()
-	-- Register vanilla skills and exclusions
+	-- Register vanilla skills
 	self:registerVanilla()
 
 	-- Register built-in constraint functions
