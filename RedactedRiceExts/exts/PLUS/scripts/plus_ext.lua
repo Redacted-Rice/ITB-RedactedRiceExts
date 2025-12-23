@@ -1,20 +1,20 @@
 plus_ext = {
 	PLUS_DEBUG = true, -- eventually default to false
 	VANILLA_SKILLS = {
-		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2} },
-		{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1} },
-		{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3} },
-		{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1} },
-		{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc" },
-		{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc" },
-		{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc" },
-		{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc" },
-		{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1} },
-		{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc" },
-		{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc" },
-		{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc" },
-		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc" },
-		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc" },
+		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0 },
+		{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1 },
+		{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2 },
+		{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3 },
+		{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4 },
+		{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5 },
+		{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6 },
+		{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7 },
+		{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8 },
+		{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9 },
+		{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10 },
+		{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11 },
+		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12 },
+		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13 },
 	},
 	_registeredSkills = {},  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType}
 	_registeredSkillsIds = {},  -- skillId -> category
@@ -194,7 +194,11 @@ function plus_ext:logAndShowErrorPopup(message)
 	self:showErrorPopup(message)
 end
 
-function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType)
+-- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
+-- the extension fails to load or is uninstalled, a suitable vanilla skill will be used
+-- instead. If not provided or out of range, a random vanilla value will be used.
+-- The save data in vanilla only supports 0-13. Anything out of range is clamped to this range
+function plus_ext:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal)
 
 	if self._registeredSkills[category] == nil then
 		self._registeredSkills[category] = {}
@@ -208,6 +212,7 @@ function plus_ext:registerSkill(category, idOrTable, shortName, fullName, descri
 		description = idOrTable.description
 		bonuses = idOrTable.bonuses
 		skillType = idOrTable.skillType
+		saveVal = idOrTable.saveVal
 	end
 
 	-- Check if ID is already registered globally
@@ -216,10 +221,23 @@ function plus_ext:registerSkill(category, idOrTable, shortName, fullName, descri
 		return
 	end
 
+	-- Validate and normalize saveVal
+	-- Default to -1 if not provided
+	local originalSaveVal = saveVal
+	saveVal = saveVal or -1
+	-- Convert non-numbers or values outside 0-13 range to -1 (random assignment)
+	if type(saveVal) ~= "number" or saveVal < 0 or saveVal > 13 then
+		if originalSaveVal ~= nil and originalSaveVal ~= -1 then
+			LOG("PLUS Ext: Warning: Skill '" .. id .. "' has invalid saveVal '" .. tostring(originalSaveVal) .. "' (must be 0-13 or -1). Using random assignment (-1) instead.")
+		end
+		saveVal = -1
+	end
+
 	-- Register the skill with its type included in the skill data
 	self._registeredSkills[category][id] = { shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
+			saveVal = saveVal,
 	}
 	self._registeredSkillsIds[id] = category
 end
@@ -448,12 +466,40 @@ function plus_ext:applySkillsToPilot(pilot)
 	local skill1 = self._enabledSkills[skill1Id]
 	local skill2 = self._enabledSkills[skill2Id]
 
-	-- Read the current saveVal from the pilot's existing skills to preserve them
-	local lvlUpSkills = pilot:getLvlUpSkills()
-	local saveVal1 = lvlUpSkills:getSkill1():getSaveVal()
-	local saveVal2 = lvlUpSkills:getSkill2():getSaveVal()
+	-- Determine saveVal for skill 1
+	-- If skill has saveVal = -1, assign random value (0-13)
+	local saveVal1 = skill1.saveVal
+	if saveVal1 == -1 then
+		saveVal1 = math.random(0, 13)
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: Assigned random saveVal " .. saveVal1 .. " to skill " .. skill1Id .. " for pilot " .. pilotId)
+		end
+	end
 
-	-- Apply both skills, preserving their existing saveVal
+	-- Determine saveVal for skill 2
+	-- If skill has saveVal = -1, assign random value (0-13)
+	local saveVal2 = skill2.saveVal
+	if saveVal2 == -1 then
+		saveVal2 = math.random(0, 13)
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: Assigned random saveVal " .. saveVal2 .. " to skill " .. skill2Id .. " for pilot " .. pilotId)
+		end
+	end
+
+	-- If both skills have the same saveVal, reassign skill2
+	if saveVal1 == saveVal2 then
+		-- Generate from 0-12, increment if >= saveVal1 to exclude skill1's value
+		-- This guarantees a different value
+		saveVal2 = math.random(0, 12)
+		if saveVal2 >= saveVal1 then
+			saveVal2 = saveVal2 + 1
+		end
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: SaveVal conflict detected for pilot " .. pilotId .. ", reassigned skill2 saveVal to " .. saveVal2)
+		end
+	end
+
+	-- Apply both skills with their determined saveVal
 	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
 	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
 end
