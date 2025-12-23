@@ -39,10 +39,22 @@
     <ClCompile Include="safememory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="scanner_core.cpp">
+    <ClCompile Include="scanner\scanner_base.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="scanner_lua.cpp">
+    <ClCompile Include="scanner\scanner_basic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="scanner\scanner_basic_avx2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="scanner\scanner_sequence.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="scanner\scanner_heap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="scanner\scanner_lua.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -71,10 +83,25 @@
     <ClInclude Include="itb_userdata.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="scanner_core.h">
+    <ClInclude Include="scanner\scanner_base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="scanner_lua.h">
+    <ClInclude Include="scanner\scanner_basic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scanner\scanner_basic_avx2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scanner\scanner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scanner\scanner_sequence.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scanner\scanner_heap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scanner\scanner_lua.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
