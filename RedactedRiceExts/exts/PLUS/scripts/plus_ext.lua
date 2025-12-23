@@ -109,16 +109,13 @@ end
 -- targetTable: either _pilotSkillExclusions or _pilotSkillInclusions
 -- relationshipType: "exclusion" or "inclusion" (for debug logging)
 local function registerPilotSkillRelationship(self, targetTable, pilotId, skillIds, relationshipType)
-	local pilotIdLower = string.lower(pilotId)
-
-	if targetTable[pilotIdLower] == nil then
-		targetTable[pilotIdLower] = {}
+	if targetTable[pilotId] == nil then
+		targetTable[pilotId] = {}
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		local skillIdLower = string.lower(skillId)
 		-- store with skillId as key so it acts like a set
-		targetTable[pilotIdLower][skillIdLower] = true
+		targetTable[pilotId][skillId] = true
 
 		if self.PLUS_DEBUG then
 			local action = relationshipType == "exclusion" and "cannot have" or "can have"
@@ -355,12 +352,11 @@ end
 -- so we can handle them easily similar to how vanilla does it
 function plus_ext:registerPlusExclusionInclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		-- Normalize to lowercase
-		local pilotIdLower = string.lower(pilot:getIdStr())
-		local candidateSkillIdLower = string.lower(candidateSkillId)
+		local pilotId = pilot:getIdStr()
 
 		-- Get the skill object to check its type
 		local skill = self._enabledSkills[candidateSkillId]
+		
 		if skill == nil then
 			LOG("PLUS Ext warning: Skill " .. candidateSkillId .. " not found in enabled skills")
 			return false
@@ -369,8 +365,8 @@ function plus_ext:registerPlusExclusionInclusionConstraintFunction()
 		-- For inclusion skills check if pilot is in inclusion list
 		-- For default skills check if pilot is NOT in exclusion list (must be absent)
 		local isInclusionSkill = skill.skillType == "inclusion"
-		local pilotList = isInclusionSkill and self._pilotSkillInclusions[pilotIdLower] or self._pilotSkillExclusions[pilotIdLower]
-		local skillInList = pilotList and pilotList[candidateSkillIdLower]
+		local pilotList = isInclusionSkill and self._pilotSkillInclusions[pilotId] or self._pilotSkillExclusions[pilotId]
+		local skillInList = pilotList and pilotList[candidateSkillId]
 
 		-- Return true if (inclusion skill AND in list) OR (default skill AND not in list)
 		return isInclusionSkill == (skillInList == true)
