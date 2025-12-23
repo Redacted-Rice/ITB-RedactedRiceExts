@@ -1,6 +1,6 @@
 local extension = {
 	id = "redactedrice_plus",
-	name = "Pilot Level Up Skills",
+	name = "CPLUS+ Ex (Pilot Extension)",
 	icon = "img/icon.png",
 	version = "0.1.0",
 	modApiVersion = "2.9.4",
@@ -19,8 +19,8 @@ end
 function extension:init(options)
 	local path = self.resourcePath
 
-	require(path.."scripts/plus_ext")
-	plus_ext:init()
+	require(path.."scripts/cplus_plus_ex")
+	cplus_plus_ex:init()
 end
 
 function extension:load(options, version)
