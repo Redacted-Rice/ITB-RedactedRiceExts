@@ -1,0 +1,16 @@
+-- Busted configuration file
+return {
+  default = {
+    verbose = true,
+    coverage = true,
+    lpath = "../scripts/?.lua",
+    output = "plainTerminal",
+    ROOT = {"plus_ext_spec.lua"}
+  },
+  coverage = {
+    verbose = true,
+    coverage = true,
+    lpath = "../scripts/?.lua",
+    output = "plainTerminal"
+  }
+}

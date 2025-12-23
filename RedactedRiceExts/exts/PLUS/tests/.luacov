@@ -1,0 +1,35 @@
+-- LuaCov configuration
+return {
+  -- File to store stats
+  statsfile = "luacov.stats.out",
+  
+  -- File to write report to
+  reportfile = "luacov.report.out",
+  
+  -- Run reporter on completion (true/false)
+  runreport = true,
+  
+  -- Delete stats file after reporting
+  deletestats = false,
+  
+  -- List of patterns for files to include
+  include = {
+    "plus_ext$"
+  },
+  
+  -- List of patterns for files to exclude  
+  exclude = {
+    "luacov$",
+    "busted",
+    "spec$",
+    "test$"
+  },
+  
+  -- Path to use for resolving paths
+  modules = {
+    ["plus_ext"] = "../scripts/plus_ext.lua"
+  },
+  
+  -- Coverage report format
+  -- codefromstrings = false
+}
