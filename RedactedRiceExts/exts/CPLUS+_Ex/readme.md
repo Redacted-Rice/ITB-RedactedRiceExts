@@ -1,5 +1,5 @@
-# Pilot Level Up Skills (PLUS) Extension
-RedactedRice's Pilot Skills Extension that allows defining, customizing and adding new level up skills
+# Customizable Pilot Level Up Skills and More Extension (CPLUS+ Ex or C++ Ex)
+RedactedRice's Pilot Extension that allows defining, customizing and adding new level up skills as well as a few other pilot related things such as leveling up and adding experience
 
 Join the Redacted Rice discord for support, mods, discussion and other projects: https://discord.gg/CNjTVrpN4v
 
