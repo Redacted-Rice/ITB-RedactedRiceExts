@@ -19,6 +19,5 @@ Add tests/test support (see memedit?)
 ---------- PLUS Ex ---------
 
 Rename to Custom Pilot Level Up Skills and more Extension (CPLUS+ Ex or C++ Ex)
-Read in pilot exclusions from pilot struct (_G[PilotId].Blacklist)
 Preserve time traveler pilot across runs (Profile.pilot - seems to only sometimes be saved/loaded and going to main menu without restarting preserves cached profile data)
 Make it preserve save values so all arent' health if it fails

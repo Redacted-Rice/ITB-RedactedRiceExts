@@ -448,9 +448,14 @@ function plus_ext:applySkillsToPilot(pilot)
 	local skill1 = self._enabledSkills[skill1Id]
 	local skill2 = self._enabledSkills[skill2Id]
 
-	-- Apply both skills (0 = saveVal which is not needed since we use custom saving)
-	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, 0, skill1.bonuses)
-	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, 0, skill2.bonuses)
+	-- Read the current saveVal from the pilot's existing skills to preserve them
+	local lvlUpSkills = pilot:getLvlUpSkills()
+	local saveVal1 = lvlUpSkills:getSkill1():getSaveVal()
+	local saveVal2 = lvlUpSkills:getSkill2():getSaveVal()
+
+	-- Apply both skills, preserving their existing saveVal
+	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
+	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
 end
 
 -- Helper function to get all pilots in the current squad
