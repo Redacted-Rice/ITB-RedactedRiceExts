@@ -40,48 +40,6 @@ size_t BasicScannerAVX2::findAlignedOffset(uintptr_t chunkBase) const {
 	return (firstAlignedAddr >= chunkBase) ? (firstAlignedAddr - chunkBase) : 0;
 }
 
-// Validate and add a single result
-// skipMatchCheck: When true, skips redundant validation since SIMD already confirmed match
-bool BasicScannerAVX2::validateAndAddResult(const uint8_t* buffer, size_t chunkSize, size_t offset,
-                                             uintptr_t chunkBase, ScanType scanType, const void* targetValue,
-                                             bool skipMatchCheck) {
-	uintptr_t actualAddress = chunkBase + offset;
-
-	ScanResult result;
-	if (readValueFromBuffer(buffer, chunkSize, offset, result, actualAddress)) {
-		if (skipMatchCheck || checkMatch(result, scanType, targetValue)) {
-			results.push_back(result);
-			if (results.size() >= maxResults) {
-				maxResultsReached = true;
-				return false;  // Stop scanning
-			}
-		}
-	}
-	return true;  // Continue scanning
-}
-
-// Scan remainder with scalar code if SIMD does not quite match up
-void BasicScannerAVX2::scanRemainder(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-                                      size_t startOffset, ScanType scanType, const void* targetValue) {
-	const size_t dataSize = getDataTypeSize();
-	size_t offset = startOffset;
-
-	// Track result count locally to avoid repeated .size() calls
-	size_t resultCount = results.size();
-	while (offset + dataSize <= chunkSize && resultCount < maxResults) {
-		uintptr_t actualAddress = chunkBase + offset;
-
-		if (actualAddress % alignment == 0) {
-			if (!validateAndAddResult(buffer, chunkSize, offset, chunkBase, scanType, targetValue)) {
-				return;  // Max results reached
-			}
-			resultCount++;
-		}
-
-		offset += alignment;
-	}
-}
-
 // Get comparison mask for current chunk
 // Performs SIMD comparison and returns mask based on scan type
 // NOT scans invert the mask at SIMD level
@@ -146,35 +104,6 @@ int BasicScannerAVX2::getComparisonMask(const uint8_t* buffer, ScanType scanType
 	return mask;
 }
 
-// Process mask and add matching results
-// Returns false if max results reached, true to continue scanning
-// Updates resultCount as results are added
-bool BasicScannerAVX2::processMask(int mask, const uint8_t* buffer, size_t chunkSize, size_t baseOffset,
-                                    uintptr_t chunkBase, ScanType scanType, const void* targetValue, size_t& resultCount) {
-	if (mask == 0) {
-		return true;  // No matches, continue
-	}
-
-	const size_t dataSize = getDataTypeSize();
-	const size_t avx2_stride = 32;
-	size_t valuesPerChunk = avx2_stride / dataSize;
-
-	for (size_t i = 0; i < valuesPerChunk; i++) {
-		size_t pos = baseOffset + i * dataSize;
-		if (pos + dataSize <= chunkSize) {
-			if (isMatchInMask(mask, i, dataType)) {
-				// Skip redundant checkMatch since SIMD already validated
-				if (!validateAndAddResult(buffer, chunkSize, pos, chunkBase, scanType, targetValue, true)) {
-					return false;  // Max results reached, stop scanning
-				}
-				resultCount++;  // Track locally to avoid .size() call
-			}
-		}
-	}
-
-	return true;  // Continue scanning
-}
-
 // Helper to check if a specific value in the mask matched
 // Mask interpretation varies by data type:
 // - INT/FLOAT: 4 bits per value (32 bits total for 8 values)
@@ -202,37 +131,60 @@ bool BasicScannerAVX2::isMatchInMask(int mask, size_t valueIndex, DataType type)
 	}
 }
 
-// Override chunk scanning with AVX2 dispatcher
+// Override chunk scanning with AVX2 dispatcher - scans into local results
 void BasicScannerAVX2::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-                                          ScanType scanType, const void* targetValue) {
-	// Optimize first scans (EXACT and NOT) scans with AVX2
-	// Any other type is not valid for first scans and should not get here but in
-	// case we add greater than/less than scans or something
+                                          ScanType scanType, const void* targetValue,
+                                          std::vector<ScanResult>& localResults, size_t maxLocalResults) {
+	// Use scalar path for non-EXACT/NOT scans
 	if (scanType != ScanType::EXACT && scanType != ScanType::NOT) {
-		BasicScanner::scanChunkInRegion(buffer, chunkSize, chunkBase, scanType, targetValue);
+		BasicScanner::scanChunkInRegion(buffer, chunkSize, chunkBase, scanType, targetValue,
+		                                localResults, maxLocalResults);
 		return;
 	}
-
-	const size_t avx2_stride = 32;  // 256 bits = 32 bytes
-
-	// Find aligned starting offset
+	
+	const size_t avx2_stride = 32;
+	const size_t dataSize = getDataTypeSize();
 	size_t offset = findAlignedOffset(chunkBase);
-
-	// Process with AVX2 - get mask and process matches
-	// Track result count locally to avoid repeated .size() calls
-	size_t resultCount = results.size();
-	while (offset + avx2_stride <= chunkSize && resultCount < maxResults) {
-		// Get comparison mask for this chunk
+	
+	// AVX2 processing
+	while (offset + avx2_stride <= chunkSize && localResults.size() < maxLocalResults) {
 		int mask = getComparisonMask(buffer + offset, scanType, targetValue);
-
-		// Process mask and add results (resultCount updated by reference)
-		if (!processMask(mask, buffer, chunkSize, offset, chunkBase, scanType, targetValue, resultCount)) {
-			return;  // Max results reached
+		
+		if (mask != 0) {
+			size_t valuesPerChunk = avx2_stride / dataSize;
+			
+			for (size_t i = 0; i < valuesPerChunk; i++) {
+				size_t pos = offset + i * dataSize;
+				if (pos + dataSize <= chunkSize) {
+					if (isMatchInMask(mask, i, dataType)) {
+						uintptr_t actualAddress = chunkBase + pos;
+						ScanResult result;
+						if (readValueFromBuffer(buffer, chunkSize, pos, result, actualAddress)) {
+							localResults.push_back(result);
+							
+							if (localResults.size() >= maxLocalResults) {
+								return;
+							}
+						}
+					}
+				}
+			}
 		}
-
+		
 		offset += avx2_stride;
 	}
-
-	// Handle remaining elements with scalar code
-	scanRemainder(buffer, chunkSize, chunkBase, offset, scanType, targetValue);
+	
+	// Scalar remainder
+	while (offset + dataSize <= chunkSize && localResults.size() < maxLocalResults) {
+		uintptr_t actualAddress = chunkBase + offset;
+		
+		if (actualAddress % alignment == 0) {
+			ScanResult result;
+			if (validateValueInBuffer(buffer, chunkSize, offset, actualAddress, scanType, targetValue, result)) {
+				localResults.push_back(result);
+			}
+		}
+		
+		offset += alignment;
+	}
 }

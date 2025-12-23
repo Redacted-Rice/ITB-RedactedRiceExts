@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <windows.h>
 #include <sysinfoapi.h>
+#include <omp.h>
 
 
 void* Scanner::operator new(size_t size) {
@@ -18,6 +19,26 @@ void Scanner::operator delete(void* ptr) noexcept {
 	if (ptr) {
 		ScannerHeap::deallocate(ptr, 0);
 	}
+}
+
+// Static methods for thread control
+void Scanner::setNumThreads(int numThreads) {
+	if (numThreads == 0) {
+		// Auto mode - use all available cores
+		omp_set_num_threads(omp_get_max_threads());
+	} else if (numThreads > 0) {
+		// Specific thread count
+		omp_set_num_threads(numThreads);
+	}
+	// Negative values ignored
+}
+
+int Scanner::getNumThreads() {
+	return omp_get_num_threads();
+}
+
+int Scanner::getMaxThreads() {
+	return omp_get_max_threads();
 }
 
 // Base constructor - common initialization for all scanners
@@ -148,94 +169,126 @@ void Scanner::rescan(ScanType scanType, const void* targetValue, size_t valueSiz
 	}
 }
 
-// Default first scan implementation - region loop
-void Scanner::firstScanImpl(ScanType scanType, const void* targetValue, size_t valueSize) {
-	// Call hook for scanner-specific scan type validation
-	if (!validateFirstScanType(scanType)) {
-		return;
-	}
+// Enumerate all safe memory regions for parallel scanning
+std::vector<MemoryRegion> Scanner::enumerateSafeRegions() {
+	std::vector<MemoryRegion> regions;
 
-	// Iterate through all memory regions
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
 	uintptr_t addr = (uintptr_t)si.lpMinimumApplicationAddress;
 	uintptr_t end = (uintptr_t)si.lpMaximumApplicationAddress;
 
-	// Allocate scan buffer once and reuse it
-	std::vector<uint8_t, ScannerAllocator<uint8_t>> buffer(SCAN_BUFFER_SIZE);
-
-	// Go through each region and scan it if its safe for reading
-	while (addr < end && !maxResultsReached) {
+	while (addr < end) {
 		MEMORY_BASIC_INFORMATION mbi{};
 		SIZE_T r = VirtualQuery((LPCVOID)addr, &mbi, sizeof(mbi));
 		if (r != sizeof(mbi)) break;
 
 		// Skip scanner heap to avoid detecting scanner's own memory
-		// Use AllocationBase directly since we already have it from VirtualQuery
-		if (ScannerHeap::isInScannerHeap(mbi.AllocationBase)) {
-			addr = (uintptr_t)mbi.BaseAddress + (uintptr_t)mbi.RegionSize;
-			continue;
-		}
-
-		if (SafeMemory::is_mbi_safe(mbi, false)) {
-			scanRegion((uintptr_t)mbi.BaseAddress, (size_t)mbi.RegionSize, scanType, targetValue, buffer);
-			if (maxResultsReached) {
-				addError("Maximum results (%zu) reached, stopping scan early", maxResults);
-				break;
+		if (!ScannerHeap::isInScannerHeap(mbi.AllocationBase)) {
+			// Check if region is safe for reading
+			if (SafeMemory::is_mbi_safe(mbi, false)) {
+				regions.emplace_back((uintptr_t)mbi.BaseAddress, (size_t)mbi.RegionSize);
 			}
 		}
 
-		// Update address to the next region and continue
-		// We do not need to worry about a sequence crossing the boundary here because we are
-		// looking at regions and having a value cross regions is not legal
 		addr = (uintptr_t)mbi.BaseAddress + (uintptr_t)mbi.RegionSize;
+	}
+
+	return regions;
+}
+
+// Default first scan implementation - parallel region scanning
+void Scanner::firstScanImpl(ScanType scanType, const void* targetValue, size_t valueSize) {
+	// Call hook for scanner-specific scan type validation
+	if (!validateFirstScanType(scanType)) {
+		return;
+	}
+
+	// Enumerate all safe regions
+	std::vector<MemoryRegion> regions = enumerateSafeRegions();
+
+	if (regions.empty()) {
+		addError("No scannable memory regions found");
+		return;
+	}
+
+	// Parallel scan using OpenMP
+	#pragma omp parallel
+	{
+		// Thread-local allocations (NOT on scanner heap - avoids contention)
+		std::vector<uint8_t> localBuffer(SCAN_BUFFER_SIZE);
+		std::vector<ScanResult> localResults;
+		localResults.reserve(10000);
+
+		// Process regions in parallel
+		#pragma omp for schedule(dynamic, 1) nowait
+		for (int i = 0; i < (int)regions.size(); i++) {
+			// Check if max results already reached (reading bool is atomic on x86/x64)
+			if (maxResultsReached) {
+				continue;
+			}
+
+			const MemoryRegion& region = regions[i];
+			size_t maxLocal = maxResults; // Each thread can collect up to max
+
+			// Scan region into thread-local results
+			scanRegion(region.base, region.size, scanType, targetValue,
+			          localBuffer, localResults, maxLocal);
+		}
+
+		// Merge local results into shared results (with strict limit enforcement)
+		if (!localResults.empty()) {
+			#pragma omp critical
+			{
+				// Double-check we haven't already reached limit (another thread might have filled it)
+				if (results.size() < maxResults) {
+					size_t remainingSpace = maxResults - results.size();
+					size_t toAdd = std::min<size_t>(remainingSpace, localResults.size());
+					results.insert(results.end(), localResults.begin(), localResults.begin() + toAdd);
+
+					if (results.size() >= maxResults) {
+						maxResultsReached = true;
+					}
+				}
+			}
+		}
+	}
+
+	if (maxResultsReached) {
+		addError("Maximum results (%zu) reached, stopping scan early", maxResults);
 	}
 }
 
-// Scan a single region in buffered chunks for first scan
+// Scan a single region in buffered chunks into local results
 void Scanner::scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue,
-                          std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer) {
+                          std::vector<uint8_t>& buffer, std::vector<ScanResult>& localResults, size_t maxLocalResults) {
 	if (size == 0 || alignment == 0) {
-		return; // Nothing to scan
+		return;
 	}
 
-	// Cache data type size - it won't change for the scan
 	const size_t dataSize = getDataTypeSize();
 	uintptr_t regionEnd = base + size;
-
 	uintptr_t currentBase = base;
 
-	// Scan region in buffered chunks with overlap to catch values at boundaries
-	// We overlap chunks by (dataSize - 1) bytes to ensure that any value starting
-	// near the end of our arbitrary chunks will be fully contained in the next one
-
-	while (currentBase < regionEnd && results.size() < maxResults) {
-
-		// Determine chunk size ensuring we don't read past the end of the region
+	// Scan region in buffered chunks with overlap
+	while (currentBase < regionEnd && localResults.size() < maxLocalResults) {
 		size_t chunkSize = std::min<size_t>(SCAN_BUFFER_SIZE, regionEnd - currentBase);
 
-		// Copy chunk with SEH protection in case memory becomes invalid
+		// Copy chunk with SEH protection
 		if (!safeCopyMemory(buffer.data(), (const void*)currentBase, chunkSize)) {
-			// Memory became invalid between VirtualQuery and memcpy
-			// Skip this chunk and continue
 			currentBase += chunkSize;
 			continue;
 		}
 
-		// Call derived class to scan this chunk buffer
-		scanChunkInRegion(buffer.data(), chunkSize, currentBase, scanType, targetValue);
+		// Scan chunk into local results
+		size_t remainingSpace = maxLocalResults - localResults.size();
+		scanChunkInRegion(buffer.data(), chunkSize, currentBase, scanType, targetValue,
+		                  localResults, remainingSpace);
 
-		// Early exit if max results reached
-		if (maxResultsReached) {
-			return;
-		}
-
-		// Move to next chunk with overlap to catch values straddling chunk boundaries
+		// Move to next chunk with overlap
 		currentBase += chunkSize;
 		if (dataSize > 1 && currentBase < regionEnd) {
-			// Subtract overlap only if we haven't reached the end
-			// This prevents infinite loop at region boundaries
 			size_t overlap = std::min<size_t>(dataSize - 1, chunkSize);
 			currentBase -= overlap;
 		}

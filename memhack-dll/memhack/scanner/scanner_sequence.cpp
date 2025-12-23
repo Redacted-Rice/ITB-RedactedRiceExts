@@ -119,42 +119,33 @@ bool SequenceScanner::validateFirstScanType(ScanType scanType) {
 }
 
 void SequenceScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-                                         ScanType scanType, const void* targetValue) {
+                                         ScanType scanType, const void* targetValue,
+                                         std::vector<ScanResult>& localResults, size_t maxLocalResults) {
 	size_t dataSize = getDataTypeSize();
-
-	// Optimized path for sequences using memchr
+	
+	// Optimized path using memchr
 	const uint8_t firstByte = searchSequence[0];
 	const uint8_t* searchStart = buffer;
 	const uint8_t* bufferEnd = buffer + chunkSize;
-
-	while (searchStart < bufferEnd && results.size() < maxResults) {
-		// Find next occurrence of first byte
+	
+	while (searchStart < bufferEnd && localResults.size() < maxLocalResults) {
 		const uint8_t* found = (const uint8_t*)memchr(searchStart, firstByte, bufferEnd - searchStart);
-
+		
 		if (found == nullptr) {
 			break;
 		}
-
+		
 		size_t offset = found - buffer;
-
-		// Check if full sequence fits in buffer
-		// TODO: I think this fit check is redundant with the check in validateValueInBuffer
+		
 		if (offset + dataSize <= chunkSize) {
 			uintptr_t actualAddress = chunkBase + offset;
-
-			// Validate the full sequence (using memcmp)
+			
 			ScanResult result;
 			if (validateValueInBuffer(buffer, chunkSize, offset, actualAddress, scanType, targetValue, result)) {
-				results.push_back(result);
-
-				if (results.size() >= maxResults) {
-					maxResultsReached = true;
-					return;
-				}
+				localResults.push_back(result);
 			}
 		}
-
-		// Move to next byte after the match
+		
 		searchStart = found + 1;
 	}
 }

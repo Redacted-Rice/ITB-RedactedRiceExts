@@ -18,6 +18,15 @@ const size_t SCAN_BUFFER_SIZE = 65536;
 // Rescan batching threshold - batch results within 4KB of each other
 const size_t CHUNK_THRESHOLD = 4096;
 
+// Memory region for parallel scanning
+struct MemoryRegion {
+	uintptr_t base;
+	size_t size;
+	
+	MemoryRegion() : base(0), size(0) {}
+	MemoryRegion(uintptr_t b, size_t s) : base(b), size(s) {}
+};
+
 // Maximum size for sequence searches (strings/byte arrays)
 // This prevents excessive memory allocation and overlap calculations
 // MUST be less than SCAN_BUFFER_SIZE for overlap logic to work correctly
@@ -130,6 +139,11 @@ public:
 	// Timing
 	virtual void setCheckTiming(bool enabled) { checkTiming = enabled; }
 	virtual bool getCheckTiming() const { return checkTiming; }
+	
+	// Parallelization control
+	static void setNumThreads(int numThreads); // 0 = auto (use all cores), 1 = single-threaded
+	static int getNumThreads();
+	static int getMaxThreads(); // Get max available threads on system
 
 protected:
 	// Common state shared by all scanners
@@ -163,16 +177,20 @@ protected:
 
 	// -------- Default first scan related functions ---------
 
+	// Enumerate all safe memory regions for scanning
+	std::vector<MemoryRegion> enumerateSafeRegions();
+
 	// Base class provides default region loop implementation
 	virtual void firstScanImpl(ScanType scanType, const void* targetValue, size_t valueSize);
 
-	// Scan a single region - base class provides default buffered implementation
-	virtual void scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue,
-	                        std::vector<uint8_t, ScannerAllocator<uint8_t>>& buffer);
+	// Scan a single region into local results (used by parallel first scan)
+	void scanRegion(uintptr_t base, size_t size, ScanType scanType, const void* targetValue,
+	                std::vector<uint8_t>& buffer, std::vector<ScanResult>& localResults, size_t maxLocalResults);
 
-	// Derived classes must implement chunk scanning
+	// Derived classes must implement chunk scanning into local results
 	virtual void scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-	                               ScanType scanType, const void* targetValue) = 0;
+	                               ScanType scanType, const void* targetValue,
+	                               std::vector<ScanResult>& localResults, size_t maxLocalResults) = 0;
 
 	// -------- Default rescan related functions ---------
 

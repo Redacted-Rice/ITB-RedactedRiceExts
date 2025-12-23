@@ -12,9 +12,10 @@ public:
 	virtual ~BasicScanner();
 
 protected:
-	// Chunk scanning - basic scanner implements alignment-based scan
+	// Chunk scanning - scans into local results vector
 	virtual void scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-	                               ScanType scanType, const void* targetValue) override;
+	                               ScanType scanType, const void* targetValue,
+	                               std::vector<ScanResult>& localResults, size_t maxLocalResults) override;
 
 	// Rescan pure virtuals - basic scanner implementations
 	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionEnd,

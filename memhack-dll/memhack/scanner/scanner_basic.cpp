@@ -202,38 +202,28 @@ bool BasicScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd,
 	return checkMatch(outResult, scanType, targetValue);
 }
 
-// Scan a single chunk of memory buffer for first scan
+// Scan a single chunk of memory buffer into local results
 void BasicScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-                                      ScanType scanType, const void* targetValue) {
-	// Cache data type size
+                                      ScanType scanType, const void* targetValue,
+                                      std::vector<ScanResult>& localResults, size_t maxLocalResults) {
 	const size_t dataSize = getDataTypeSize();
-
-	// Find aligned global starting offset within this chunk
+	
+	// Find aligned starting offset
 	uintptr_t firstAlignedAddr = chunkBase;
 	if (firstAlignedAddr % alignment != 0) {
 		firstAlignedAddr = ((firstAlignedAddr / alignment) + 1) * alignment;
 	}
 	size_t offset = (size_t)(firstAlignedAddr - chunkBase);
-
-	// Scan through buffer at alignment intervals
-	// Track result count locally to avoid repeated .size() calls
-	size_t resultCount = results.size();
-	while (offset + dataSize <= chunkSize && resultCount < maxResults) {
+	
+	// Scan into local results
+	while (offset + dataSize <= chunkSize && localResults.size() < maxLocalResults) {
 		uintptr_t actualAddress = chunkBase + offset;
-
-		// Validate value from buffer
+		
 		ScanResult result;
 		if (validateValueInBuffer(buffer, chunkSize, offset, actualAddress, scanType, targetValue, result)) {
-			// Match found - add to results
-			results.push_back(result);
-			resultCount++;
-
-			if (resultCount >= maxResults) {
-				maxResultsReached = true;
-				return;
-			}
+			localResults.push_back(result);
 		}
-
+		
 		offset += alignment;
 	}
 }

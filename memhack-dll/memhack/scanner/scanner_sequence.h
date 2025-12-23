@@ -23,7 +23,8 @@ protected:
 
 	// Chunk scanning - sequence scanner implements memchr based scan
 	virtual void scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
-	                               ScanType scanType, const void* targetValue) override;
+	                               ScanType scanType, const void* targetValue,
+	                               std::vector<ScanResult>& localResults, size_t maxLocalResults) override;
 
 	// Rescan pure virtuals - sequence scanner implementations
 	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionEnd,
