@@ -7,8 +7,8 @@ namespace SafeMemory {
     bool is_mbi_safe(MEMORY_BASIC_INFORMATION& mbi, bool write) {
         // Early exit on most common failure cases
         if (mbi.State != MEM_COMMIT) return false;
-        if (mbi.Type != MEM_PRIVATE) return false;
-        if (mbi.Protect & PAGE_GUARD) return false;
+        if (write && mbi.Type != MEM_PRIVATE) return false;
+        if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) return false;
 
         // Check access permissions (write or read-only)
         if (write) {

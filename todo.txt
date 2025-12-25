@@ -13,4 +13,3 @@ base obj (lua)
 
 Add scan for hanger
 Add tests/test support (see memedit?)
-Add base game offset example (score)

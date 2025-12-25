@@ -23,9 +23,11 @@ function extension:init(options)
 	memhack:init()
 
 	require(path.."structs/itb_string")
-
-	require(path.."structs/game")
+	
 	require(path.."structs/pilot")
+	
+	require(path.."appended_fns/game")
+	require(path.."appended_fns/pawn")
 
 end
 
