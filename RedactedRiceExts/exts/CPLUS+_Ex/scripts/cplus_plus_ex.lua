@@ -111,6 +111,31 @@ function cplus_plus_ex:doItAll()
 	self:savePersistentDataIfChanged()
 end
 
+function cplus_plus_ex:scanForTimeTraveler()
+	self:loadPersistentDataIfNeeded()
+	
+	-- TODO: Have a structured, dependent scan? Like string or array
+	-- but with some don't care sections
+	local scanner = memhack.dll.scanner.new("string", {checkTiming=true})
+	
+	for id, data in pairs(self._lastSavedPersistentData) do 
+		local results = scanner:firstScan("exact", id)
+		if self.PLUS_DEBUG then LOG("traveler search: found " .. results.resultCount .. " matches for pilot "..id.. ". Searching for timelines == " .. (data.prevTimelines + 1)) end
+		if results.resultCount > 0 then
+			local matches = scanner:getResults({limit = 1000})
+			for i = 1, results.resultCount do
+				local prevTimelinesFound = memhack.dll.memory.readInt(matches.results[i].address - 0x84 + 0x288)
+				if self.PLUS_DEBUG then LOG("traveler search: checking pilot id at " .. memhack.debug.intToHex(matches.results[i].address) .. " timelines: " .. prevTimelinesFound) end
+				if prevTimelinesFound == data.prevTimelines + 1 then
+					if self.PLUS_DEBUG then LOG("traveler search: Pilot found!") end
+					self.timeTraveler = memhack.structs.Pilot.new(matches.results[i].address - 0x84)
+				end
+			end
+		end
+		scanner:reset()
+	end
+end
+
 function cplus_plus_ex:searchForTimeTraveler()
 	if self._pilotStructs then
 		if self.PLUS_DEBUG then LOG("traveler search: Checking cached pilots") end
@@ -124,7 +149,7 @@ function cplus_plus_ex:searchForTimeTraveler()
 		end
 	else
 		if self.PLUS_DEBUG then LOG("traveler search: No cached pilots; Scanning for pilot") end
-		-- todo: scan and find traveler
+		self:scanForTimeTraveler()
 	end
 end
 

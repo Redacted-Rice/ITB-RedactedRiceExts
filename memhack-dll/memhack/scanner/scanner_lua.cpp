@@ -455,6 +455,8 @@ int scanner_get_results(lua_State* L) {
 		lua_pushinteger(L, result.address);
 		lua_rawset(L, -3);
 
+		// TODO: Only add value/table if we are pushing results
+	
 		// Add value field
 		lua_pushstring(L, "value");
 		if (dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY) {
