@@ -206,23 +206,46 @@ function plus_manager:registerSkill(category, idOrTable, shortName, fullName, de
 	self._registeredSkillsIds[id] = category
 end
 
+-- category and skill are optional and will be searched from registered values if omitted
+function plus_manager:enableSkill(id, category, skill)
+	category = category or self._registeredSkillsIds[id]
+	skill = skill or self._registeredSkills[category][id]
+	
+	-- Check if already enabled
+	if self._enabledSkills[id] ~= nil then
+		LOG("PLUS Ext warning: Skill " .. id .. " already enabled, skipping")
+	else
+		-- Add the skill to enabled list. We don't care at this point if its inclusion type or not
+		self._enabledSkills[id] = skill
+		table.insert(self._enabledSkillsIds, id)
+
+		if self.PLUS_DEBUG then
+			local skillType = skill.skillType or "default"
+			if self.PLUS_DEBUG then LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ")") end
+		end
+	end
+end
+
 function plus_manager:enableCategory(category)
 	if self._registeredSkills[category] == nil then
 		LOG("PLUS Ext error: Attempted to enable unknown category ".. category)
 		return
 	end
 	for id, skill in pairs(self._registeredSkills[category]) do
-		-- Check if already enabled
-		if self._enabledSkills[id] ~= nil then
-			LOG("PLUS Ext warning: Skill " .. id .. " already enabled, skipping")
-		else
-			-- Add the skill to enabled list. We don't care at this point if its inclusion type or not
-			self._enabledSkills[id] = skill
-			table.insert(self._enabledSkillsIds, id)
+		self:enableSkill(id, category, skill)
+	end
+end
 
-			if self.PLUS_DEBUG then
-				local skillType = skill.skillType or "default"
-				LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ")")
+function plus_manager:disableSkill(id)
+	if self._enabledSkills[id] == nil then
+		LOG("PLUS Ext: Warning: Skill " .. id .. " already disabled, skipping")
+	else
+		self._enabledSkills[id] = nil
+		for idx, skillId in ipairs(self._enabledSkillsIds) do
+			if skillId == id then
+				table.remove(self._enabledSkillsIds, idx)
+				if self.PLUS_DEBUG then LOG("PLUS Ext: Disabled skill: " .. id .. " (idx: " .. idx .. ")") end
+				break
 			end
 		end
 	end
