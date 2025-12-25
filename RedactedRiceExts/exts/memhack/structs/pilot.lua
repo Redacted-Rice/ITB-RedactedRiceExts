@@ -34,6 +34,7 @@ local Pilot = memhack.structManager.define("Pilot", {
 	skill = { offset = 0x6C, type = "struct", structType = "ItBString" },
 	id = { offset = 0x84, type = "struct", structType = "ItBString" },
 	lvlUpSkills = { offset = 0xD8, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
+	prevTimelines = { offset = 0x288, type = "int" },
 })
 
 local selfSetter = memhack.structManager.makeStdSelfSetterName()
