@@ -19,4 +19,4 @@ Add base game offset example (score)
 
 ---------- PLUS Ex ---------
 
-Preserve time traveler pilot across runs (Profile.pilot - seems to only sometimes be saved/loaded and going to main menu without restarting preserves cached profile data)
+Implement pilot scanning based on structs to narrow down results 
