@@ -1,5 +1,6 @@
 cplus_plus_ex = {
 	PLUS_DEBUG = true, -- eventually default to false
+	PLUS_EXTRA_DEBUG = false,
 	_pilotStructs = nil,
 	
 	_lastSavedPersistentData = nil,
@@ -50,6 +51,18 @@ function cplus_plus_ex:refreshLastSavedPersistentData()
 	for _, pilot in pairs(pilots) do
 		local id = pilot:getIdStr()
 		self._lastSavedPersistentData[id] = self._lastSavedPersistentData[id] or {}
+		if self._lastSavedPersistentData[id].name ~= pilot:getNameStr() then 
+			self._lastSavedPersistentData[id].name = pilot:getNameStr()
+			changed = true
+		end
+		if self._lastSavedPersistentData[id].xp ~= pilot:getXp() then 
+			self._lastSavedPersistentData[id].xp = pilot:getXp()
+			changed = true
+		end
+		if self._lastSavedPersistentData[id].level ~= pilot:getLevel() then 
+			self._lastSavedPersistentData[id].level = pilot:getLevel()
+			changed = true
+		end
 		if self._lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then 
 			self._lastSavedPersistentData[id].skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
 			changed = true
@@ -116,19 +129,35 @@ function cplus_plus_ex:scanForTimeTraveler()
 	
 	-- TODO: Have a structured, dependent scan? Like string or array
 	-- but with some don't care sections
+	-- If kept like this, instead use offsets from pilot struct def
+	-- This seems to be working well with additional fields
 	local scanner = memhack.dll.scanner.new("string", {checkTiming=true})
 	
 	for id, data in pairs(self._lastSavedPersistentData) do 
 		local results = scanner:firstScan("exact", id)
-		if self.PLUS_DEBUG then LOG("traveler search: found " .. results.resultCount .. " matches for pilot "..id.. ". Searching for timelines == " .. (data.prevTimelines + 1)) end
+		if self.PLUS_DEBUG then 
+			LOG("traveler search: found " .. results.resultCount .. " matches for pilot "..id.. 
+				". Searching for timelines == " .. (data.prevTimelines + 1) ..
+				", xp == " .. data.xp .. ", level == " .. data.level)
+		end
+		
 		if results.resultCount > 0 then
 			local matches = scanner:getResults({limit = 1000})
 			for i = 1, results.resultCount do
-				local prevTimelinesFound = memhack.dll.memory.readInt(matches.results[i].address - 0x84 + 0x288)
-				if self.PLUS_DEBUG then LOG("traveler search: checking pilot id at " .. memhack.debug.intToHex(matches.results[i].address) .. " timelines: " .. prevTimelinesFound) end
-				if prevTimelinesFound == data.prevTimelines + 1 then
-					if self.PLUS_DEBUG then LOG("traveler search: Pilot found!") end
-					self.timeTraveler = memhack.structs.Pilot.new(matches.results[i].address - 0x84)
+				local baseAddr = matches.results[i].address - 0x84
+				local xpFound = memhack.dll.memory.readInt(baseAddr + 0x3C)
+				local lvlFound = memhack.dll.memory.readInt(baseAddr + 0x68)
+				local prevTimelinesFound = memhack.dll.memory.readInt(baseAddr + 0x288)
+				
+				if prevTimelinesFound ~= data.prevTimelines + 1 then
+					if self.PLUS_EXTRA_DEBUG then LOG("traveler search: checking pilot at " .. baseAddr .. " timelines mismatch: " .. prevTimelinesFound) end
+				elseif xpFound ~= data.xp then
+					if self.PLUS_EXTRA_DEBUG then LOG("traveler search: checking pilot at " .. baseAddr .. " xp mismatch: " .. xpFound) end
+				elseif lvlFound ~= data.level then
+					if self.PLUS_EXTRA_DEBUG then LOG("traveler search: checking pilot at " .. baseAddr .. " level mismatch: " .. lvlFound) end
+				else
+					if self.PLUS_DEBUG then LOG("traveler search: found pilot at " .. baseAddr) end
+					self.timeTraveler = memhack.structs.Pilot.new(baseAddr)
 				end
 			end
 		end
