@@ -1,5 +1,5 @@
 local extension = {
-	id = "redactedrice_plus",
+	id = "redactedrice_cplus_plus",
 	name = "CPLUS+ Ex (Pilot Extension)",
 	icon = "img/icon.png",
 	version = "0.1.0",
