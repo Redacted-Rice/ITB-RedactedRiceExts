@@ -17,8 +17,8 @@ BasicScanner::BasicScanner(DataType dataType, size_t maxResults, size_t alignmen
 
 BasicScanner::~BasicScanner() {}
 
-size_t BasicScanner::getDataTypeSize() const {
-	switch (dataType) {
+size_t BasicScanner::getDataTypeSize(DataType type) const {
+	switch (type) {
 		case DataType::BYTE: return 1;
 		case DataType::INT: return 4;
 		case DataType::FLOAT: return 4;
@@ -28,8 +28,12 @@ size_t BasicScanner::getDataTypeSize() const {
 	}
 }
 
-bool BasicScanner::compare(const void* a, const void* b) const {
-	switch (dataType) {
+size_t BasicScanner::getDataTypeSize() const {
+	return getDataTypeSize(dataType);
+}
+
+bool BasicScanner::compare(const void* a, const void* b, DataType type) const {
+	switch (type) {
 		case DataType::BYTE:
 			return *(uint8_t*)a == *(uint8_t*)b;
 		case DataType::INT:
@@ -85,17 +89,17 @@ bool BasicScanner::checkMatch(const ScanResult& result, ScanType scanType, const
 
 	switch (scanType) {
 		case ScanType::EXACT:
-			return compare(currentValue, targetValue);
+			return compare(currentValue, targetValue, dataType);
 		case ScanType::NOT:
-			return !compare(currentValue, targetValue);
+			return !compare(currentValue, targetValue, dataType);
 		case ScanType::INCREASED:
 			return compareGreater(currentValue, oldValue);
 		case ScanType::DECREASED:
 			return compareLess(currentValue, oldValue);
 		case ScanType::CHANGED:
-			return !compare(currentValue, oldValue);
+			return !compare(currentValue, oldValue, dataType);
 		case ScanType::UNCHANGED:
-			return compare(currentValue, oldValue);
+			return compare(currentValue, oldValue, dataType);
 		default:
 			addError("Invalid scan type in checkMatch: %d", (int)scanType);
 			return false;
