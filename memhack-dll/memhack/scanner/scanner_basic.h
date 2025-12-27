@@ -8,8 +8,22 @@
 // Uses basic alignment-based scanning for universal support
 class BasicScanner : public Scanner {
 public:
+    // Data types
+    enum class DataType {
+    	BYTE,
+    	INT,
+    	FLOAT,
+    	DOUBLE,
+    	BOOL
+    };
+
 	BasicScanner(DataType dataType, size_t maxResults, size_t alignment);
 	virtual ~BasicScanner();
+	
+	static BasicScanner* create(DataType dataType, size_t maxResults, size_t alignment);
+
+    static bool compare(const void* a, const void* b, DataType type) const;
+    static size_t getDataTypeSize(DataType type) const;
 
 protected:
 	// Chunk scanning - scans into local results vector
@@ -27,11 +41,8 @@ protected:
 
 	// pure virtual getters implementations
 	virtual size_t getDataTypeSize() const override;
-	virtual bool isSequenceType() const override { return false; }
 
-protected:
 	// Compare values (int, float, etc)
-	bool compare(const void* a, const void* b) const;
 	bool compareGreater(const void* a, const void* b) const;
 	bool compareLess(const void* a, const void* b) const;
 
@@ -44,6 +55,8 @@ protected:
 
 	// Read value directly from memory for rescans
 	bool readValueDirect(uintptr_t address, uintptr_t regionEnd, ScanResult& result) const;
+	
+	DataType dataType;
 };
 
 #endif

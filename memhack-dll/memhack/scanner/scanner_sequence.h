@@ -4,15 +4,37 @@
 #include "scanner_base.h"
 #include <windows.h>
 
+// Maximum size for sequence searches (strings/byte arrays)
+// This prevents excessive memory allocation and overlap calculations
+// MUST be less than SCAN_BUFFER_SIZE for overlap logic to work correctly
+const size_t MAX_SEQUENCE_SIZE = 4096;
+
+// Compile-time assertion to ensure buffer is larger than max sequence
+static_assert(SCAN_BUFFER_SIZE > MAX_SEQUENCE_SIZE,
+              "SCAN_BUFFER_SIZE must be greater than MAX_SEQUENCE_SIZE for overlap to work");
+
 // Scanner implementation for sequence types (STRING, BYTE_ARRAY)
 // Uses memchr-based optimization to quickly find candidate positions
 class SequenceScanner : public Scanner {
 public:
+    // Data types
+    enum class DataType {
+    	STRING, // Fixed length string. Does not check null term. If needed use byte array for now at least
+    	BYTE_ARRAY
+    };
+
 	SequenceScanner(DataType dataType, size_t maxResults, size_t alignment);
 	virtual ~SequenceScanner();
+	
+	static SequenceScanner* create(DataType dataType, size_t maxResults, size_t alignment);
 
-	// Sequence specific overrides
-	virtual bool readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const override;
+	bool readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const;
+	
+	const std::vector<uint8_t, ScannerAllocator<uint8_t>>& getSearchSequence() const { return searchSequence; }
+	
+	void setSearchSequence(const void* data, size_t size);
+	
+	static bool compare(const uint8_t* a, const uint8_t* b);
 
 protected:
 	// Setup hook - store/update search sequence
@@ -36,19 +58,15 @@ protected:
 
 	// Getters
 	virtual size_t getDataTypeSize() const override;
-	virtual bool isSequenceType() const override { return true; }
-	virtual const std::vector<uint8_t, ScannerAllocator<uint8_t>>& getSearchSequence() const override { return searchSequence; }
-	virtual size_t getSequenceSize() const override { return searchSequence.size(); }
-
-private:
-	// Sequence storage
-	std::vector<uint8_t, ScannerAllocator<uint8_t>> searchSequence;
+	size_t getSequenceSize() const { return searchSequence.size(); }
 
 	// Sequence specific helpers
-	void setSearchSequence(const void* data, size_t size);
-	bool compare(const uint8_t* dataToCompare) const;
 	bool checkMatch(const uint8_t* dataToCompare, ScanType scanType) const;
 	bool validateSequenceDirect(uintptr_t address, uintptr_t regionEnd, ScanType scanType) const;
+	
+	// Sequence storage
+	DataType dataType;
+	std::vector<uint8_t, ScannerAllocator<uint8_t>> searchSequence;
 };
 
 #endif

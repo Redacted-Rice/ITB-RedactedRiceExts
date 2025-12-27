@@ -1,7 +1,5 @@
 #include "stdafx.h"
 #include "scanner_base.h"
-#include "scanner_sequence.h"
-#include "scanner_basic.h"
 #include "scanner_basic_avx2.h"
 #include "../safememory.h"
 
@@ -61,7 +59,9 @@ Scanner* Scanner::create(DataType dataType, size_t maxResults, size_t alignment)
 	// Determine if this is a sequence type
 	bool isSequence = (dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY);
 
-	if (isSequence) {
+    if (dataType == DataType::STRUCT) {
+        return new StructScanner(dataType, maxResults, alignment);
+	} else if (isSequence) {
 		return new SequenceScanner(dataType, maxResults, alignment);
 	} else {
 		// Check if AVX2 is available for basic types
