@@ -27,15 +27,6 @@ struct MemoryRegion {
 	MemoryRegion(uintptr_t b, size_t s) : base(b), size(s) {}
 };
 
-// Maximum size for sequence searches (strings/byte arrays)
-// This prevents excessive memory allocation and overlap calculations
-// MUST be less than SCAN_BUFFER_SIZE for overlap logic to work correctly
-const size_t MAX_SEQUENCE_SIZE = 4096;
-
-// Compile-time assertion to ensure buffer is larger than max sequence
-static_assert(SCAN_BUFFER_SIZE > MAX_SEQUENCE_SIZE,
-              "SCAN_BUFFER_SIZE must be greater than MAX_SEQUENCE_SIZE for overlap to work");
-
 // Float comparison epsilons
 const float FLOAT_EPSILON = 0.0001f;
 const double DOUBLE_EPSILON = 0.00000001;
@@ -48,17 +39,6 @@ enum class ScanType {
 	CHANGED,
 	UNCHANGED,
 	NOT
-};
-
-// Data types
-enum class DataType {
-	BYTE,
-	INT,
-	FLOAT,
-	DOUBLE,
-	BOOL,
-	STRING, // Fixed length string. Does not check null term. If needed use byte array for now at least
-	BYTE_ARRAY
 };
 
 union ScanValue {
@@ -96,34 +76,18 @@ public:
 	static void* operator new(size_t size);
 	static void operator delete(void* ptr) noexcept;
 
-	// Factory method to create appropriate scanner based on data type
-	static Scanner* create(DataType dataType, size_t maxResults, size_t alignment);
-
 	// Public scan methods (implemented in base with template method pattern)
 	void firstScan(ScanType scanType, const void* targetValue, size_t valueSize = 0);
 	void rescan(ScanType scanType, const void* targetValue, size_t valueSize = 0);
 	virtual void reset();
 
-	// Virtual method with default implementation (only needed for sequence types)
-	virtual bool readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const {
-		return false; // Default: not supported
-	}
-
 	// pure virtual getters
 	virtual size_t getDataTypeSize() const = 0;
-	virtual bool isSequenceType() const = 0;
 
 	// Getters
 	virtual bool isFirstScan() const { return !firstScanDone; }
 	virtual DataType getDataType() const { return dataType; }
 	virtual ScanType getLastScanType() const { return lastScanType; }
-
-	// Only valid if isSequenceType() == true
-	virtual const std::vector<uint8_t, ScannerAllocator<uint8_t>>& getSearchSequence() const {
-		static std::vector<uint8_t, ScannerAllocator<uint8_t>> empty;
-		return empty;
-	}
-	virtual size_t getSequenceSize() const { return 0; }
 
 	// Results
 	virtual const std::vector<ScanResult, ScannerAllocator<ScanResult>>& getResults() const { return results; }
@@ -147,7 +111,6 @@ public:
 
 protected:
 	// Common state shared by all scanners
-	DataType dataType;
 	size_t maxResults;
 	size_t alignment;
 	std::vector<ScanResult, ScannerAllocator<ScanResult>> results;
@@ -161,7 +124,7 @@ protected:
 	mutable size_t invalidAddressCount;
 
 	// Protected constructor for derived classes
-	Scanner(DataType dataType, size_t maxResults, size_t alignment);
+	Scanner(size_t maxResults, size_t alignment);
 
 	// Hook for scanner-specific setup (e.g., storing search sequence)
 	// Called by base class before firstScan and rescan
