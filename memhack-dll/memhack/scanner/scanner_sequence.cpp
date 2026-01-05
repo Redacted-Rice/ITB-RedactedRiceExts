@@ -6,9 +6,18 @@
 #include <algorithm>
 #include <windows.h>
 
+void* SequenceScanner::operator new(size_t size) {
+	return ScannerHeap::allocate(size);
+}
+
+void SequenceScanner::operator delete(void* ptr) noexcept {
+	if (ptr) {
+		ScannerHeap::deallocate(ptr, 0);
+	}
+}
 
 SequenceScanner::SequenceScanner(DataType dataType, size_t maxResults, size_t alignment) :
-	Scanner(dataType, maxResults, alignment)
+	Scanner(maxResults, alignment), dataType(dataType)
 {
 	// Just default to 1 for sequences
 	if (this->alignment == 0) {
@@ -19,6 +28,10 @@ SequenceScanner::SequenceScanner(DataType dataType, size_t maxResults, size_t al
 }
 
 SequenceScanner::~SequenceScanner() {}
+
+SequenceScanner* SequenceScanner::create(DataType dataType, size_t maxResults, size_t alignment) {
+	return new SequenceScanner(dataType, maxResults, alignment);
+}
 
 size_t SequenceScanner::getDataTypeSize() const {
 	size_t size = searchSequence.size();
@@ -36,7 +49,7 @@ void SequenceScanner::setSearchSequence(const void* data, size_t size) {
 	searchSequence.assign(bytes, bytes + size);
 }
 
-bool SequenceScanner::compare(const uint8_t* a, const uint8_t* b, size_t size) const {
+bool SequenceScanner::compare(const uint8_t* a, const uint8_t* b, size_t size) {
 	// do mem compare to optimize and since we have the full
 	// string read in already
 	return memcmp(a, b, size) == 0;
@@ -154,7 +167,7 @@ void SequenceScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize,
 
 // Process a single isolated result with direct memory read for rescan
 // Wrapper for validateSequenceDirect to match base class interface
-bool SequenceScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd,
+bool SequenceScanner::validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
                                            ScanType scanType, const void* targetValue,
                                            ScanResult& outResult) const {
 	// Validate sequence directly from memory with SEH protection
