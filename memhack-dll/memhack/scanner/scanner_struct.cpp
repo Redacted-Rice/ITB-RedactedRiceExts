@@ -7,16 +7,7 @@
 #include <windows.h>
 
 
-void* StructScanner::StructField::operator new(size_t size) {
-	return ScannerHeap::allocate(size);
-}
-
-void StructScanner::StructField::operator delete(void* ptr) noexcept {
-	if (ptr) {
-		ScannerHeap::deallocate(ptr, 0);
-	}
-}
-
+// StructFieldBasic implementation
 void* StructScanner::StructFieldBasic::operator new(size_t size) {
 	return ScannerHeap::allocate(size);
 }
@@ -27,10 +18,15 @@ void StructScanner::StructFieldBasic::operator delete(void* ptr) noexcept {
 	}
 }
 
-bool StructScanner::StructFieldBasic::compare(void* memoryAddr) const {
-    return BasicSequence::compare(memoryAddr, &val, type):
+StructScanner::StructFieldBasic::StructFieldBasic(int offset, BasicScanner::DataType type, ScanValue val)
+	: offset(offset), type(type), val(val) {
 }
 
+bool StructScanner::StructFieldBasic::compare(const void* memoryAddr) const {
+    return BasicScanner::compare(memoryAddr, &val, type);
+}
+
+// StructFieldSequence implementation
 void* StructScanner::StructFieldSequence::operator new(size_t size) {
 	return ScannerHeap::allocate(size);
 }
@@ -40,11 +36,16 @@ void StructScanner::StructFieldSequence::operator delete(void* ptr) noexcept {
 		ScannerHeap::deallocate(ptr, 0);
 	}
 }
-    
-bool StructScanner::StructFieldSequence::compare(void* memoryAddr) const {
-    return SequenceScanner::compare(memoryAddr, val.data(), val.size()):
+
+StructScanner::StructFieldSequence::StructFieldSequence(int offset, const uint8_t* data, size_t size)
+	: offset(offset), val(data, data + size) {
 }
 
+bool StructScanner::StructFieldSequence::compare(const uint8_t* memoryAddr) const {
+    return SequenceScanner::compare(memoryAddr, val.data(), val.size());
+}
+
+// StructSearch implementation
 void* StructScanner::StructSearch::operator new(size_t size) {
 	return ScannerHeap::allocate(size);
 }
@@ -55,37 +56,54 @@ void StructScanner::StructSearch::operator delete(void* ptr) noexcept {
 	}
 }
 
+StructScanner::StructSearch::StructSearch(uint8_t key)
+	: searchKey(key), sizeBeforeKey(0), sizeFromKey(1) {}
+
 // ------- end of supporting struct defs -------
 
-StructScanner::StructScanner(DataType dataType, size_t maxResults, size_t alignment) :
-	Scanner(dataType, maxResults, alignment)
+void* StructScanner::operator new(size_t size) {
+	return ScannerHeap::allocate(size);
+}
+
+void StructScanner::operator delete(void* ptr) noexcept {
+	if (ptr) {
+		ScannerHeap::deallocate(ptr, 0);
+	}
+}
+
+StructScanner::StructScanner(size_t maxResults, size_t alignment) :
+	Scanner(maxResults, alignment), searchStruct(0)
 {
 	// Just default to 1 for structs
 	if (this->alignment == 0) {
 		this->alignment = 1;
 	}
-	
+
 	// todo: filter results by alignment?
 }
 
 StructScanner::~StructScanner() {}
 
+StructScanner* StructScanner::create(size_t maxResults, size_t alignment) {
+	return new StructScanner(maxResults, alignment);
+}
+
 size_t StructScanner::getDataTypeSize() const {
 	return searchStruct.getSize();
 }
 
-void StructScanner::setSearchStruct(StructScanner& struct) {
-    //todo: move
-    searchStruct = struct;
+void StructScanner::setSearchStruct(const StructSearch& targetStruct) {
+    // Default copy will use the ScannerAllocator to copy the vectors
+    searchStruct = targetStruct;
 }
 
-bool StructScanner::compare(const void* keyAddr) const {
-    for (StructFieldBasic field : basicFields) {
+bool StructScanner::compare(const uint8_t* keyAddr) const {
+    for (const StructFieldBasic& field : searchStruct.basicFields) {
         if (!field.compare(keyAddr + field.offset)) {
             return false;
         }
     }
-    for (StructFieldSequence field : sequenceFields) {
+    for (const StructFieldSequence& field : searchStruct.sequenceFields) {
         if (!field.compare(keyAddr + field.offset)) {
             return false;
         }
@@ -118,26 +136,36 @@ bool StructScanner::validateValueInBuffer(const uint8_t* buffer, size_t bufferSi
                                               ScanResult& outResult) const {
 	outResult.address = actualAddress;
 
-	// Check if sequence fits in buffer first
-	if (offset + searchStruct.sizeAfterKey > bufferSize) {
+	// offset is where the key byte is in the buffer so as long as we are farther in the buffer than the sizeBeforeKey we are good
+	if (offset < searchStruct.sizeBeforeKey) {
+		return false;
+	}
+	// Check if we have enough bytes from the key position onwards
+	if (offset + searchStruct.sizeFromKey > bufferSize) {
 		return false;
 	}
 
 	// Compare directly from buffer (safe, already copied with SEH protection)
-	const uint8_t* bufferAddr = buffer + offset;
-	return checkMatch(bufferAddr, scanType);
+	// Pass the key position we detected
+	const uint8_t* keyAddr = buffer + offset;
+	return checkMatch(keyAddr, scanType);
 }
 
-// Validates sequence directly from memory with try/catch protection
+// Validates struct directly from memory with try/catch protection
 // Does try/catch read and compare all in one
-bool StructScanner::validateStructDirect(uintptr_t address, uintptr_t regionEnd, ScanType scanType) const {
-	// Check bounds first
-	if (address + searchStruct.sizeAfterKey > regionEnd) {
+bool StructScanner::validateStructDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd, ScanType scanType) const {
+	// Check we have enough bytes before the key
+	if (address < regionStart + searchStruct.sizeBeforeKey) {
+		return false;
+	}
+	// Check we have enough bytes from the key onwards
+	if (address + searchStruct.sizeFromKey > regionEnd) {
 		return false;
 	}
 
 	__try {
 		// Compare directly with try/catch protection
+		// Pass the key position we detected
 		return checkMatch((const uint8_t*)address, scanType);
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
@@ -150,8 +178,8 @@ bool StructScanner::setupScanCommon(ScanType scanType, const void* targetValue, 
 		addError("Struct types require non-null targetValue");
 		return false;
 	}
-	
-	StructSearch* targetStruct = (StructSearch*) targetValue
+
+	const StructSearch* targetStruct = (const StructSearch*) targetValue;
 	if (targetStruct->getSize() > MAX_STRUCT_SIZE) {
 		addError("Struct size (%zu) exceeds maximum allowed size (%zu)", targetStruct->getSize(), MAX_STRUCT_SIZE);
 		return false;
@@ -162,9 +190,9 @@ bool StructScanner::setupScanCommon(ScanType scanType, const void* targetValue, 
 }
 
 bool StructScanner::validateFirstScanType(ScanType scanType) {
-	// First scan for sequences only supports EXACT
+	// First scan for structs only supports EXACT
 	if (scanType != ScanType::EXACT) {
-		addError("First scan for sequences only supports EXACT scan type");
+		addError("First scan for structs only supports EXACT scan type");
 		return false;
 	}
 	return true;
@@ -173,40 +201,39 @@ bool StructScanner::validateFirstScanType(ScanType scanType) {
 void StructScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, uintptr_t chunkBase,
                                          ScanType scanType, const void* targetValue,
                                          std::vector<ScanResult>& localResults, size_t maxLocalResults) {
-	size_t dataSize = getDataTypeSize();
-	
-	// Optimized path using memchr
+	// Optimized path using memchr to find key byte
 	const uint8_t* searchStart = buffer;
 	const uint8_t* bufferEnd = buffer + chunkSize;
-	
+
 	while (searchStart < bufferEnd && localResults.size() < maxLocalResults) {
 		const uint8_t* found = (const uint8_t*)memchr(searchStart, searchStruct.searchKey, bufferEnd - searchStart);
-		
+
 		if (found == nullptr) {
 			break;
 		}
-		
+
+		// offset is the position of the key byte in the buffer
 		size_t offset = found - buffer;
-		
-		if (offset + dataSize <= chunkSize) {
-			uintptr_t actualAddress = chunkBase + offset;
-			
-			ScanResult result;
-			if (validateValueInBuffer(buffer, chunkSize, offset, actualAddress, scanType, targetValue, result)) {
-				localResults.push_back(result);
-			}
+
+		// Calculate actual memory address where key was found
+		uintptr_t actualAddress = chunkBase + offset;
+
+		// Validate the full struct
+		ScanResult result;
+		if (validateValueInBuffer(buffer, chunkSize, offset, actualAddress, scanType, targetValue, result)) {
+			localResults.push_back(result);
 		}
-		
+
 		searchStart = found + 1;
 	}
 }
 
 // Process a single isolated result with direct memory read for rescan
-// Wrapper for validateSequenceDirect to match base class interface
-bool StructScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd, const void* targetValue,
-                                           ScanResult& outResult) const {
-	// Validate sequence directly from memory with SEH protection
-	if (!validateStructDirect(address, regionEnd) {
+// Wrapper for validateStructDirect to match base class interface
+bool StructScanner::validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
+                                           ScanType scanType, const void* targetValue, ScanResult& outResult) const {
+	// Validate struct directly from memory with SEH protection
+	if (!validateStructDirect(address, regionStart, regionEnd, scanType)) {
 		return false;
 	}
 

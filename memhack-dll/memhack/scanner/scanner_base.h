@@ -86,7 +86,6 @@ public:
 
 	// Getters
 	virtual bool isFirstScan() const { return !firstScanDone; }
-	virtual DataType getDataType() const { return dataType; }
 	virtual ScanType getLastScanType() const { return lastScanType; }
 
 	// Results
@@ -170,13 +169,13 @@ protected:
 	                       ScanType scanType, const void* targetValue, std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults);
 
 	// Direct result processing - base class handles common logic
-	void rescanResultDirect(const ScanResult& oldResult, uintptr_t regionEnd,
+	void rescanResultDirect(const ScanResult& oldResult, uintptr_t regionStart, uintptr_t regionEnd,
 	                        ScanType scanType, const void* targetValue,
 	                        std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults);
 
 	// Derived classes implement these validation methods
 	// Validate value directly from memory with try/catch protection
-	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionEnd,
+	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
 	                                  ScanType scanType, const void* targetValue,
 	                                  ScanResult& outResult) const = 0;
 

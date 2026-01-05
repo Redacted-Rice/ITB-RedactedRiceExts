@@ -17,13 +17,19 @@ public:
     	BOOL
     };
 
+	// Override new/delete to allocate from scanner heap
+	static void* operator new(size_t size);
+	static void operator delete(void* ptr) noexcept;
+
 	BasicScanner(DataType dataType, size_t maxResults, size_t alignment);
 	virtual ~BasicScanner();
-	
+
 	static BasicScanner* create(DataType dataType, size_t maxResults, size_t alignment);
 
-    static bool compare(const void* a, const void* b, DataType type) const;
-    static size_t getDataTypeSize(DataType type) const;
+	DataType getDataType() const { return dataType; }
+
+    static bool compare(const void* a, const void* b, DataType type);
+    static size_t getDataTypeSize(DataType type);
 
 protected:
 	// Chunk scanning - scans into local results vector
@@ -32,7 +38,7 @@ protected:
 	                               std::vector<ScanResult>& localResults, size_t maxLocalResults) override;
 
 	// Rescan pure virtuals - basic scanner implementations
-	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionEnd,
+	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
 	                                  ScanType scanType, const void* targetValue,
 	                                  ScanResult& outResult) const override;
 	virtual bool validateValueInBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,
@@ -55,7 +61,7 @@ protected:
 
 	// Read value directly from memory for rescans
 	bool readValueDirect(uintptr_t address, uintptr_t regionEnd, ScanResult& result) const;
-	
+
 	DataType dataType;
 };
 

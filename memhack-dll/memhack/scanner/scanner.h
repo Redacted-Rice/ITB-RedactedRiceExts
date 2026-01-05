@@ -2,17 +2,19 @@
 #define SCANNER_H
 
 // Main public header for scanner functionality
-// Include this header to use scanners - the factory will create the appropriate type
+// Include specific scanner types
 
-#include "scanner/scanner_base.h"
+#include "scanner_base.h"
+#include "scanner_basic.h"
+#include "scanner_sequence.h"
+#include "scanner_struct.h"
 
-// Factory function is defined in scanner_base.h as a static method:
-// Scanner* Scanner::create(DataType dataType, size_t maxResults, size_t alignment);
-
-// Usage:
-//   Scanner* scanner = Scanner::create(DataType::INT, 10000, 4);
-//   scanner->firstScan(ScanType::EXACT, &value);
-//   // ... use scanner ...
-//   delete scanner;
+// Scanners are type-specific. You must create the appropriate scanner directly
+//   BasicScanner* scanner = BasicScanner::create(BasicScanner::DataType::INT, 10000, 4);
+//   SequenceScanner* scanner = SequenceScanner::create(SequenceScanner::DataType::STRING, 10000, 1);
+//   StructScanner* scanner = StructScanner::create(10000, 1);
+//
+// Lua bindings handle creation of any type with a single interface. Currently this is not
+// supported on the C side
 
 #endif
