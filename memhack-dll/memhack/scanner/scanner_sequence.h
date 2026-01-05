@@ -23,18 +23,24 @@ public:
     	BYTE_ARRAY
     };
 
+	// Override new/delete to allocate from scanner heap
+	static void* operator new(size_t size);
+	static void operator delete(void* ptr) noexcept;
+
 	SequenceScanner(DataType dataType, size_t maxResults, size_t alignment);
 	virtual ~SequenceScanner();
-	
+
 	static SequenceScanner* create(DataType dataType, size_t maxResults, size_t alignment);
 
 	bool readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const;
-	
+
 	const std::vector<uint8_t, ScannerAllocator<uint8_t>>& getSearchSequence() const { return searchSequence; }
-	
+
+	DataType getDataType() const { return dataType; }
+
 	void setSearchSequence(const void* data, size_t size);
-	
-	static bool compare(const uint8_t* a, const uint8_t* b);
+
+	static bool compare(const uint8_t* a, const uint8_t* b, size_t size);
 
 protected:
 	// Setup hook - store/update search sequence
@@ -49,7 +55,7 @@ protected:
 	                               std::vector<ScanResult>& localResults, size_t maxLocalResults) override;
 
 	// Rescan pure virtuals - sequence scanner implementations
-	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionEnd,
+	virtual bool validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
 	                                  ScanType scanType, const void* targetValue,
 	                                  ScanResult& outResult) const override;
 	virtual bool validateValueInBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,
@@ -63,7 +69,7 @@ protected:
 	// Sequence specific helpers
 	bool checkMatch(const uint8_t* dataToCompare, ScanType scanType) const;
 	bool validateSequenceDirect(uintptr_t address, uintptr_t regionEnd, ScanType scanType) const;
-	
+
 	// Sequence storage
 	DataType dataType;
 	std::vector<uint8_t, ScannerAllocator<uint8_t>> searchSequence;

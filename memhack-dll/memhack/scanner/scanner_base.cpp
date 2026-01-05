@@ -40,8 +40,8 @@ int Scanner::getMaxThreads() {
 }
 
 // Base constructor - common initialization for all scanners
-Scanner::Scanner(DataType dataType, size_t maxResults, size_t alignment) :
-	dataType(dataType), maxResults(maxResults), alignment(alignment), firstScanDone(false),
+Scanner::Scanner(size_t maxResults, size_t alignment) :
+	maxResults(maxResults), alignment(alignment), firstScanDone(false),
 	maxResultsReached(false), checkTiming(false), lastScanType(ScanType::EXACT), invalidAddressCount(0)
 {
 	// Always allow at least one result
@@ -52,25 +52,6 @@ Scanner::Scanner(DataType dataType, size_t maxResults, size_t alignment) :
 
 	// Pre-allocate a reasonable amount
 	results.reserve(std::min<size_t>(this->maxResults, 10000));
-}
-
-// Factory method to create appropriate scanner based on data type
-Scanner* Scanner::create(DataType dataType, size_t maxResults, size_t alignment) {
-	// Determine if this is a sequence type
-	bool isSequence = (dataType == DataType::STRING || dataType == DataType::BYTE_ARRAY);
-
-    if (dataType == DataType::STRUCT) {
-        return new StructScanner(dataType, maxResults, alignment);
-	} else if (isSequence) {
-		return new SequenceScanner(dataType, maxResults, alignment);
-	} else {
-		// Check if AVX2 is available for basic types
-		if (BasicScannerAVX2::isAVX2Supported()) {
-			return new BasicScannerAVX2(dataType, maxResults, alignment);
-		} else {
-			return new BasicScanner(dataType, maxResults, alignment);
-		}
-	}
 }
 
 // Template method for first scan - handles common setup and timing
@@ -404,7 +385,7 @@ void Scanner::processResultsInRegion(MEMORY_BASIC_INFORMATION& mbi, size_t& resu
 		resultIdx = batchEnd;
 	} else {
 		// Process single result directly (base class now handles this)
-		rescanResultDirect(result, regionEnd, scanType, targetValue, newResults);
+		rescanResultDirect(result, regionBase, regionEnd, scanType, targetValue, newResults);
 		resultIdx++;
 	}
 }
@@ -450,7 +431,7 @@ void Scanner::rescanResultBatch(const std::vector<ScanResult, ScannerAllocator<S
 }
 
 // Process a single isolated result with direct memory read
-void Scanner::rescanResultDirect(const ScanResult& oldResult, uintptr_t regionEnd,
+void Scanner::rescanResultDirect(const ScanResult& oldResult, uintptr_t regionStart, uintptr_t regionEnd,
                                   ScanType scanType, const void* targetValue,
                                   std::vector<ScanResult, ScannerAllocator<ScanResult>>& newResults) {
 	// Store old value for comparison (needed for CHANGED/UNCHANGED/etc scans)
@@ -458,7 +439,7 @@ void Scanner::rescanResultDirect(const ScanResult& oldResult, uintptr_t regionEn
 
 	// Call derived class to validate value directly from memory (with SEH protection)
 	ScanResult tempResult;
-	if (!validateValueDirect(oldResult.address, regionEnd, scanType, targetValue, tempResult)) {
+	if (!validateValueDirect(oldResult.address, regionStart, regionEnd, scanType, targetValue, tempResult)) {
 		invalidAddressCount++;
 		return;
 	}
