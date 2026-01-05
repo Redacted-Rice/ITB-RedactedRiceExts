@@ -2,7 +2,7 @@ cplus_plus_ex = {
 	PLUS_DEBUG = true, -- eventually default to false
 	PLUS_EXTRA_DEBUG = false,
 	_pilotStructs = nil,
-	
+
 	_lastSavedPersistentData = nil,
 	plus_manager = nil,
 	timeTraveler = nil,
@@ -45,33 +45,33 @@ function cplus_plus_ex:refreshLastSavedPersistentData()
 	if not pilots then
 		return false
 	end
-	
+
 	local changed = false
 	self._lastSavedPersistentData = self._lastSavedPersistentData or {}
 	for _, pilot in pairs(pilots) do
 		local id = pilot:getIdStr()
 		self._lastSavedPersistentData[id] = self._lastSavedPersistentData[id] or {}
-		if self._lastSavedPersistentData[id].name ~= pilot:getNameStr() then 
+		if self._lastSavedPersistentData[id].name ~= pilot:getNameStr() then
 			self._lastSavedPersistentData[id].name = pilot:getNameStr()
 			changed = true
 		end
-		if self._lastSavedPersistentData[id].xp ~= pilot:getXp() then 
+		if self._lastSavedPersistentData[id].xp ~= pilot:getXp() then
 			self._lastSavedPersistentData[id].xp = pilot:getXp()
 			changed = true
 		end
-		if self._lastSavedPersistentData[id].level ~= pilot:getLevel() then 
+		if self._lastSavedPersistentData[id].level ~= pilot:getLevel() then
 			self._lastSavedPersistentData[id].level = pilot:getLevel()
 			changed = true
 		end
-		if self._lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then 
+		if self._lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
 			self._lastSavedPersistentData[id].skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
 			changed = true
 		end
-		if self._lastSavedPersistentData[id].skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then 
+		if self._lastSavedPersistentData[id].skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
 			self._lastSavedPersistentData[id].skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
 			changed = true
 		end
-		if self._lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then 
+		if self._lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then
 			self._lastSavedPersistentData[id].prevTimelines = pilot:getPrevTimelines()
 			changed = true
 		end
@@ -118,49 +118,56 @@ end
 function cplus_plus_ex:doItAll()
 	self:refreshGameData()
 	self:loadPersistentDataIfNeeded()
-	
+
 	self.plus_manager:applySkillsToAllPilots()
-	
+
 	self:savePersistentDataIfChanged()
 end
 
 function cplus_plus_ex:scanForTimeTraveler()
 	self:loadPersistentDataIfNeeded()
-	
-	-- TODO: Have a structured, dependent scan? Like string or array
-	-- but with some don't care sections
-	-- If kept like this, instead use offsets from pilot struct def
-	-- This seems to be working well with additional fields
-	local scanner = memhack.dll.scanner.new("string", {checkTiming=true})
-	
-	for id, data in pairs(self._lastSavedPersistentData) do 
-		local results = scanner:firstScan("exact", id)
-		if self.PLUS_DEBUG then 
-			LOG("traveler search: found " .. results.resultCount .. " matches for pilot "..id.. 
-				". Searching for timelines == " .. (data.prevTimelines + 1) ..
+
+	-- Use struct scanner to find pilot by matching multiple fields at once
+	-- Get field definitions from Pilot struct
+	local PilotLayout = memhack.structs.Pilot._layout
+
+	-- We use the first byte of the ID string as the search key
+	local scanner = memhack.dll.scanner.new("struct", {checkTiming=true})
+	for id, data in pairs(self._lastSavedPersistentData) do
+		if self.PLUS_DEBUG then
+			LOG("traveler search: scanning for pilot "..id..
+				" with timelines == " .. (data.prevTimelines + 1) ..
 				", xp == " .. data.xp .. ", level == " .. data.level)
 		end
-		
-		if results.resultCount > 0 then
-			local matches = scanner:getResults({limit = 1000})
-			for i = 1, results.resultCount do
-				local baseAddr = matches.results[i].address - 0x84
-				local xpFound = memhack.dll.memory.readInt(baseAddr + 0x3C)
-				local lvlFound = memhack.dll.memory.readInt(baseAddr + 0x68)
-				local prevTimelinesFound = memhack.dll.memory.readInt(baseAddr + 0x288)
-				
-				if prevTimelinesFound ~= data.prevTimelines + 1 then
-					if self.PLUS_EXTRA_DEBUG then LOG("traveler search: checking pilot at " .. baseAddr .. " timelines mismatch: " .. prevTimelinesFound) end
-				elseif xpFound ~= data.xp then
-					if self.PLUS_EXTRA_DEBUG then LOG("traveler search: checking pilot at " .. baseAddr .. " xp mismatch: " .. xpFound) end
-				elseif lvlFound ~= data.level then
-					if self.PLUS_EXTRA_DEBUG then LOG("traveler search: checking pilot at " .. baseAddr .. " level mismatch: " .. lvlFound) end
-				else
-					if self.PLUS_DEBUG then LOG("traveler search: found pilot at " .. baseAddr) end
-					self.timeTraveler = memhack.structs.Pilot.new(baseAddr)
-				end
-			end
+
+		-- Create struct definition with first byte of ID as key passing the offset
+		-- from the base of the pilot struct so we can use our defined offsets as is
+		local structDef = memhack.dll.scanner.StructSearch.new(string.byte(id:sub(1,1)), PilotLayout.id.offset)
+
+		-- Add fields using struct-relative offsets. We created the key with the offset
+		-- from the pilot base struct so we don't need to compute them relative to the
+		-- key but instead use directly from the pilot base address
+		structDef:addField(PilotLayout.xp.offset, "int", data.xp)
+		structDef:addField(PilotLayout.level.offset, "int", data.level)
+		structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
+		structDef:addField(PilotLayout.id.offset, "string", id)
+
+		-- perform the scan
+		local results = scanner:firstScan("exact", structDef)
+
+		if self.PLUS_DEBUG then
+			LOG("traveler search: found " .. results.resultCount .. " matches")
 		end
+
+		if results.resultCount > 0 then
+			local matches = scanner:getResults({limit = 1})
+			-- Since we passed keyOffset, the address is already the struct base
+			local baseAddr = matches.results[1].address
+			if self.PLUS_DEBUG then LOG("traveler search: setting to found pilot at " .. string.format("0x%X", baseAddr)) end
+			self.timeTraveler = memhack.structs.Pilot.new(baseAddr)
+			break  -- Found the time traveler, no need to continue
+		end
+
 		scanner:reset()
 	end
 end
@@ -189,7 +196,7 @@ function cplus_plus_ex:addHooks()
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end
 end
 
-function cplus_plus_ex:addEvents()	
+function cplus_plus_ex:addEvents()
 	-- TODO: Maybe a different event?
 	modApi.events.onMainMenuEntered:subscribe(function()
 		cplus_plus_ex:clearGameData()
@@ -203,14 +210,14 @@ end
 function cplus_plus_ex:init(plus_manager)
 	self.plus_manager = plus_manager
 	self.plus_manager:init(self)
-	
+
 	-- Events are not cleared
 	self:addEvents()
 end
 
 function cplus_plus_ex:load()
 	self.plus_manager:load()
-	
+
 	-- Add the hooks - these are cleared each reload
 	self:addHooks()
 end
@@ -256,7 +263,7 @@ end
 -- Helper function to get all pilots in the current squad
 function cplus_plus_ex:getAllPilots()
 	if not Game then return nil end
-	
+
 	local pilots = {}
 
 	-- Iterate through the 3 squad positions (0, 1, 2)
