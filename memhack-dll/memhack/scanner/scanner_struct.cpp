@@ -18,12 +18,12 @@ void StructScanner::StructFieldBasic::operator delete(void* ptr) noexcept {
 	}
 }
 
-StructScanner::StructFieldBasic::StructFieldBasic(int offset, BasicScanner::DataType type, ScanValue val)
-	: offset(offset), type(type), val(val) {
+StructScanner::StructFieldBasic::StructFieldBasic(int offsetFromKey, BasicScanner::DataType type, ScanValue val)
+	: offsetFromKey(offsetFromKey), type(type), val(val) {
 }
 
-bool StructScanner::StructFieldBasic::compare(const void* memoryAddr) const {
-    return BasicScanner::compare(memoryAddr, &val, type);
+bool StructScanner::StructFieldBasic::compare(const uint8_t* keyAddr) const {
+    return BasicScanner::compare(keyAddr + offsetFromKey, &val, type);
 }
 
 // StructFieldSequence implementation
@@ -37,12 +37,12 @@ void StructScanner::StructFieldSequence::operator delete(void* ptr) noexcept {
 	}
 }
 
-StructScanner::StructFieldSequence::StructFieldSequence(int offset, const uint8_t* data, size_t size)
-	: offset(offset), val(data, data + size) {
+StructScanner::StructFieldSequence::StructFieldSequence(int offsetFromKey, const uint8_t* data, size_t size)
+	: offsetFromKey(offsetFromKey), val(data, data + size) {
 }
 
-bool StructScanner::StructFieldSequence::compare(const uint8_t* memoryAddr) const {
-    return SequenceScanner::compare(memoryAddr, val.data(), val.size());
+bool StructScanner::StructFieldSequence::compare(const uint8_t* keyAddr) const {
+    return SequenceScanner::compare(keyAddr + offsetFromKey, val.data(), val.size());
 }
 
 // StructSearch implementation
@@ -56,8 +56,12 @@ void StructScanner::StructSearch::operator delete(void* ptr) noexcept {
 	}
 }
 
-StructScanner::StructSearch::StructSearch(uint8_t key)
-	: searchKey(key), sizeBeforeKey(0), sizeFromKey(1) {}
+StructScanner::StructSearch::StructSearch(uint8_t key, int keyOffsetFromBase)
+	: searchKey(key), keyOffsetFromBase(keyOffsetFromBase),
+	  sizeBeforeKey(keyOffsetFromBase > 0 ? (size_t)keyOffsetFromBase : 0),
+	  sizeFromKey(1) {
+	// If keyOffsetFromBase is set, we need to track at least from base to key
+}
 
 // ------- end of supporting struct defs -------
 
@@ -99,12 +103,12 @@ void StructScanner::setSearchStruct(const StructSearch& targetStruct) {
 
 bool StructScanner::compare(const uint8_t* keyAddr) const {
     for (const StructFieldBasic& field : searchStruct.basicFields) {
-        if (!field.compare(keyAddr + field.offset)) {
+        if (!field.compare(keyAddr)) {
             return false;
         }
     }
     for (const StructFieldSequence& field : searchStruct.sequenceFields) {
-        if (!field.compare(keyAddr + field.offset)) {
+        if (!field.compare(keyAddr)) {
             return false;
         }
     }
@@ -134,9 +138,12 @@ bool StructScanner::checkMatch(const uint8_t* dataToCompare, ScanType scanType) 
 bool StructScanner::validateValueInBuffer(const uint8_t* buffer, size_t bufferSize, size_t offset,
                                               uintptr_t actualAddress, ScanType scanType, const void* targetValue,
                                               ScanResult& outResult) const {
-	outResult.address = actualAddress;
+	// actualAddress is where the key byte was found in memory
+	// Calculate struct base address by subtracting key's offset from base
+	outResult.address = actualAddress - searchStruct.keyOffsetFromBase;
 
-	// offset is where the key byte is in the buffer so as long as we are farther in the buffer than the sizeBeforeKey we are good
+	// offset is where the key byte is in the buffer so we just need to make sure its larger than the size before
+	// sizeBeforeKey includes the distance from base to key or any earlier fields
 	if (offset < searchStruct.sizeBeforeKey) {
 		return false;
 	}
@@ -146,27 +153,32 @@ bool StructScanner::validateValueInBuffer(const uint8_t* buffer, size_t bufferSi
 	}
 
 	// Compare directly from buffer (safe, already copied with SEH protection)
-	// Pass the key position we detected
+	// Pass the key position in buffer
 	const uint8_t* keyAddr = buffer + offset;
 	return checkMatch(keyAddr, scanType);
 }
 
 // Validates struct directly from memory with try/catch protection
 // Does try/catch read and compare all in one
-bool StructScanner::validateStructDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd, ScanType scanType) const {
+bool StructScanner::validateStructDirect(uintptr_t baseAddress, uintptr_t regionStart, uintptr_t regionEnd, ScanType scanType) const {
+	// baseAddress is the struct base so we need to compute the key address since
+	// our fields are all defined relative to the key
+	uintptr_t keyAddress = baseAddress + searchStruct.keyOffsetFromBase;
+
 	// Check we have enough bytes before the key
-	if (address < regionStart + searchStruct.sizeBeforeKey) {
+	// sizeBeforeKey includes the distance from base to key or any earlier fields
+	if (keyAddress < regionStart + searchStruct.sizeBeforeKey) {
 		return false;
 	}
-	// Check we have enough bytes from the key onwards
-	if (address + searchStruct.sizeFromKey > regionEnd) {
+	// Check if we have enough bytes from the key position onwards
+	if (keyAddress + searchStruct.sizeFromKey > regionEnd) {
 		return false;
 	}
 
 	__try {
 		// Compare directly with try/catch protection
-		// Pass the key position we detected
-		return checkMatch((const uint8_t*)address, scanType);
+		// Pass the key address
+		return checkMatch((const uint8_t*)keyAddress, scanType);
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER) {
 		return false;
@@ -232,12 +244,13 @@ void StructScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize, u
 // Wrapper for validateStructDirect to match base class interface
 bool StructScanner::validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
                                            ScanType scanType, const void* targetValue, ScanResult& outResult) const {
+	// Address parameter is the struct base address
 	// Validate struct directly from memory with SEH protection
 	if (!validateStructDirect(address, regionStart, regionEnd, scanType)) {
 		return false;
 	}
 
-	// Set address in result (structs don't store value)
+	// Set address in new result
 	outResult.address = address;
 	return true;
 }

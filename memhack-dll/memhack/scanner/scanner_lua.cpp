@@ -692,9 +692,25 @@ int struct_search_create(lua_State* L) {
 		return 0;
 	}
 
+	// Get optional keyOffset (defaults to 0)
+	int keyOffset = 0;
+	if (lua_gettop(L) >= 2) {
+		if (lua_isnumber(L, 2)) {
+			keyOffset = lua_tointeger(L, 2);
+		} else if (lua_isstring(L, 2)) {
+			if (!parseInt(lua_tostring(L, 2), keyOffset)) {
+				luaL_error(L, "keyOffset must be a number or hex string (e.g., '0x84')");
+				return 0;
+			}
+		} else if (!lua_isnil(L, 2)) {
+			luaL_error(L, "keyOffset must be a number or hex string");
+			return 0;
+		}
+	}
+
 	// Create StructSearch
 	StructScanner::StructSearch** structPtr = (StructScanner::StructSearch**)lua_newuserdata(L, sizeof(StructScanner::StructSearch*));
-	*structPtr = new StructScanner::StructSearch(keyByte);
+	*structPtr = new StructScanner::StructSearch(keyByte, keyOffset);
 
 	// Set metatable for garbage collection
 	luaL_getmetatable(L, "StructSearch");
