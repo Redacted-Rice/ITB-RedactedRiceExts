@@ -23,7 +23,7 @@ public:
 	// dont use inheritence so they are easily separated and dont have ti deal with delegation
     class StructFieldBasic {
     public:
-        int offset;
+        int offsetFromKey;  // Offset from key position (can be negative)
         BasicScanner::DataType type;
         ScanValue val;
 
@@ -31,26 +31,26 @@ public:
         static void* operator new(size_t size);
     	static void operator delete(void* ptr) noexcept;
 
-    	StructFieldBasic(int offset, BasicScanner::DataType type, ScanValue val);
+    	StructFieldBasic(int offsetFromKey, BasicScanner::DataType type, ScanValue val);
     	~StructFieldBasic() {}
 
-        bool compare(const void* memoryAddr) const;
+        bool compare(const uint8_t* keyAddr) const;
     };
 
 	// dont use inheritence so they are easily separated and dont have ti deal with delegation
     class StructFieldSequence {
     public:
-        int offset;
+        int offsetFromKey;  // Offset from key position (can be negative)
         std::vector<uint8_t, ScannerAllocator<uint8_t>> val;
 
 		// Override new/delete to allocate from scanner heap
         static void* operator new(size_t size);
     	static void operator delete(void* ptr) noexcept;
 
-    	StructFieldSequence(int offset, const uint8_t* data, size_t size);
+    	StructFieldSequence(int offsetFromKey, const uint8_t* data, size_t size);
     	~StructFieldSequence() {}
 
-        bool compare(const uint8_t* memoryAddr) const;
+        bool compare(const uint8_t* keyAddr) const;
     };
 
     class StructSearch {
@@ -58,28 +58,29 @@ public:
         uint8_t searchKey;
         std::vector<StructFieldBasic, ScannerAllocator<StructFieldBasic>> basicFields;
         std::vector<StructFieldSequence, ScannerAllocator<StructFieldSequence>> sequenceFields;
+		// Offset of the search key from struct base address. Defaults to 0
+        int keyOffsetFromBase;
         size_t sizeBeforeKey;
-        size_t sizeFromKey;  // Size from key onwards (includes the key byte itself, minimum 1)
+		// Size from key onwards (includes the key byte itself, minimum 1)
+        size_t sizeFromKey;
 
     	// Override new/delete to allocate from scanner heap
     	static void* operator new(size_t size);
     	static void operator delete(void* ptr) noexcept;
 
-    	StructSearch(uint8_t key);
+    	StructSearch(uint8_t key, int keyOffsetFromBase = 0);
     	~StructSearch() {}
 
-    	void adjustSizes(int offset, size_t length) {
+    	void adjustSizes(int offsetFromKey, size_t length) {
     	    // Field spans from key+offset to key+offset+length
-    	    // This could overlap or be on either side of the key
-    	    if (offset < 0) {
+    	    if (offsetFromKey < 0) {
     	        // Field starts before the key
-    	        size_t bytesBeforeKey = (size_t)(-offset);
+    	        size_t bytesBeforeKey = (size_t)(-offsetFromKey);
     	        if (bytesBeforeKey > sizeBeforeKey) {
     	            sizeBeforeKey = bytesBeforeKey;
     	        }
-
     	        // Check if field goes past the key
-    	        int fieldEnd = offset + (int)length;
+    	        int fieldEnd = offsetFromKey + (int)length;
     	        if (fieldEnd > 0) {
     	            if ((size_t)fieldEnd > sizeFromKey) {
     	                sizeFromKey = (size_t)fieldEnd;
@@ -87,21 +88,23 @@ public:
     	        }
     	    } else {
     	        // Field starts at or after the key
-    	        size_t fieldEnd = (size_t)offset + length;
+    	        size_t fieldEnd = (size_t)offsetFromKey + length;
     	        if (fieldEnd > sizeFromKey) {
     	            sizeFromKey = fieldEnd;
     	        }
     	    }
     	}
 
-        void addBasicField(int offset, BasicScanner::DataType type, ScanValue val) {
-            basicFields.emplace_back(offset, type, val);
-            adjustSizes(offset, BasicScanner::getDataTypeSize(type));
+        void addBasicField(int offsetFromBase, BasicScanner::DataType type, ScanValue val) {
+            int offsetFromKey = offsetFromBase - keyOffsetFromBase;
+            basicFields.emplace_back(offsetFromKey, type, val);
+            adjustSizes(offsetFromKey, BasicScanner::getDataTypeSize(type));
         }
 
-        void addSequenceField(int offset, const uint8_t* data, size_t size) {
-            sequenceFields.emplace_back(offset, data, size);
-            adjustSizes(offset, size);
+        void addSequenceField(int offsetFromBase, const uint8_t* data, size_t size) {
+            int offsetFromKey = offsetFromBase - keyOffsetFromBase;
+            sequenceFields.emplace_back(offsetFromKey, data, size);
+            adjustSizes(offsetFromKey, size);
         }
 
         size_t getSize() const { return sizeBeforeKey + sizeFromKey; }
@@ -148,7 +151,7 @@ private:
 	// Struct specific helpers
 	bool compare(const uint8_t* keyAddr) const;
 	bool checkMatch(const uint8_t* keyAddr, ScanType scanType) const;
-	bool validateStructDirect(uintptr_t keyAddress, uintptr_t regionStart, uintptr_t regionEnd, ScanType scanType) const;
+	bool validateStructDirect(uintptr_t baseAddress, uintptr_t regionStart, uintptr_t regionEnd, ScanType scanType) const;
 };
 
 #endif
