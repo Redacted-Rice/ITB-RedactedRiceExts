@@ -14,19 +14,24 @@ local extension = {
 }
 
 function extension:metadata()
+	modApi:addGenerationOption(
+		"cplus_plus_ex_dup_skills_allowed", "Enable Duplicate Skills",
+		"Allows skills marked as reusable to be assigned multiple times to a pilot",
+		{enabled = false}
+	)
 end
 
 function extension:init(options)
 	local path = self.resourcePath
 
 	local plus_manager = require(path.."scripts/plus_manager")
-	
+
 	require(path.."scripts/cplus_plus_ex")
 	cplus_plus_ex:init(plus_manager)
 end
 
 function extension:load(options, version)
-	cplus_plus_ex:load()
+	cplus_plus_ex:load(options)
 end
 
 return extension
