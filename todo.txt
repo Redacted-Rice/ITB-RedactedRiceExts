@@ -18,4 +18,8 @@ Add tests/test support (see memedit?)
 
 ---------- PLUS Ex ---------
 
-Implement pilot scanning based on structs to narrow down results 
+Tie into game for enabling/disabling AE skills
+Add (built in) options to exclude/include skills based on other skills
+Add/support exclusions defined in txt files for user additions for conflicting mods
+Look into a way to autoadd config options for each added skill? Maybe if not support config file based enable/disabling?
+(once added scan for hanger) update to assign skills to new pilots in hanger

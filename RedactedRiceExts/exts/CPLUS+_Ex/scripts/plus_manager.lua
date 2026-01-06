@@ -1,32 +1,33 @@
 local plus_manager = {
-	PLUS_DEBUG = nil, 
+	PLUS_DEBUG = nil,
 	_cplus_plus_ex = nil,
+	allowReusableSkills = false, -- will be set on load by options but default to vanilla
 	VANILLA_SKILLS = {
-		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0 },
-		{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1 },
-		{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2 },
-		{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3 },
-		{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4 },
-		{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5 },
-		{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6 },
-		{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7 },
-		{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8 },
-		{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9 },
-		{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10 },
-		{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11 },
-		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12 },
-		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13 },
+		{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = "reusable" },
+		{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = "reusable" },
+		{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = "reusable" },
+		{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = "reusable" },
+		{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = "per_pilot" },
+		{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = "per_pilot" },
+		{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = "per_pilot" }, -- Maybe reusable? investigate
+		{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = "per_pilot" },
+		{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = "reusable" },
+		{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = "reusable" },
+		{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = "per_pilot" }, -- Maybe reusable? investigate
+		{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = "per_pilot" }, -- Maybe reusable? investigate
+		{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = "per_pilot" }, -- Maybe reusable? investigate
+		{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = "per_pilot" }, -- Maybe reusable? investigate
 	},
-	_registeredSkills = {},  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType}
+	_registeredSkills = {},  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType, reusability}
 	_registeredSkillsIds = {},  -- skillId -> category
-	_enabledSkills = {},  -- skillId -> {shortName, fullName, description, bonuses, skillType}
+	_enabledSkills = {},  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability}
 	_enabledSkillsIds = {},  -- Array of all enabled skill IDs
 	_pilotSkillExclusionsAuto = {},  -- pilotId -> excluded skill ids (set-like table) - auto-loaded from pilot Blacklists
 	_pilotSkillExclusionsManual = {},  -- pilotId -> excluded skill ids (set-like table) - manually registered via API
 	_pilotSkillInclusions = {},  -- pilotId -> included skill ids (set-like table)
 	_constraintFunctions = {},  -- Array of function(pilot, selectedSkills, candidateSkillId) -> boolean
-	_localRandomCount = nil  -- Track local random count for this session
-
+	_localRandomCount = nil,  -- Track local random count for this session
+	_usedSkillsPerRun = {},  -- skillId -> true for per_run skills used this run
 }
 
 function plus_manager:initGameSaveData()
@@ -47,7 +48,7 @@ function plus_manager:initGameSaveData()
 		GAME.cplus_plus_ex.randomSeed = os.time()
 		GAME.cplus_plus_ex.randomSeedCnt = 0
 	end
-	
+
 	if self._localRandomCount ~= GAME.cplus_plus_ex.randomSeedCnt then
 		-- reset our local count to force a re-roll to ensure we
 		-- stay inline
@@ -163,7 +164,12 @@ end
 -- the extension fails to load or is uninstalled, a suitable vanilla skill will be used
 -- instead. If not provided or out of range, a random vanilla value will be used.
 -- The save data in vanilla only supports 0-13. Anything out of range is clamped to this range
-function plus_manager:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal)
+-- reusability is optional defines how the skill can be reused. Defaults to per_pilot to align with vanilla
+--   "reusable" - can be assigned to any pilot any number of times
+--   "per_pilot" - a pilot can only have this skill once - vanilla behavior
+--   "per_run" - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
+--			affect the game state in a one time only way
+function plus_manager:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability)
 	if self._registeredSkills[category] == nil then
 		self._registeredSkills[category] = {}
 	end
@@ -177,6 +183,7 @@ function plus_manager:registerSkill(category, idOrTable, shortName, fullName, de
 		bonuses = idOrTable.bonuses
 		skillType = idOrTable.skillType
 		saveVal = idOrTable.saveVal
+		reusability = idOrTable.reusability
 	end
 
 	-- Check if ID is already registered globally
@@ -197,11 +204,18 @@ function plus_manager:registerSkill(category, idOrTable, shortName, fullName, de
 		saveVal = -1
 	end
 
-	-- Register the skill with its type included in the skill data
+	-- Validate and normalize reusability
+	reusability = reusability or "per_pilot"
+	if reusability ~= "reusable" and reusability ~= "per_pilot" and reusability ~= "per_run" then
+		LOG("PLUS Ext: Warning: Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) .. "'. Using 'per_pilot' instead.")
+		reusability = "per_pilot"
+	end
+
+	-- Register the skill with its type and reusability included in the skill data
 	self._registeredSkills[category][id] = { shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
-			saveVal = saveVal,
+			saveVal = saveVal, reusability = reusability,
 	}
 	self._registeredSkillsIds[id] = category
 end
@@ -210,7 +224,7 @@ end
 function plus_manager:enableSkill(id, category, skill)
 	category = category or self._registeredSkillsIds[id]
 	skill = skill or self._registeredSkills[category][id]
-	
+
 	-- Check if already enabled
 	if self._enabledSkills[id] ~= nil then
 		LOG("PLUS Ext warning: Skill " .. id .. " already enabled, skipping")
@@ -220,8 +234,9 @@ function plus_manager:enableSkill(id, category, skill)
 		table.insert(self._enabledSkillsIds, id)
 
 		if self.PLUS_DEBUG then
-			local skillType = skill.skillType or "default"
-			if self.PLUS_DEBUG then LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ")") end
+			local skillType = skill.skillType
+			local reusability = skill.reusability
+			if self.PLUS_DEBUG then LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ", reusability: " .. reusability .. ")") end
 		end
 	end
 end
@@ -378,10 +393,14 @@ function plus_manager:applySkillsToPilot(pilot)
 		-- Store the skills in GAME
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
+		-- Track newly assigned skills for per_run constraints
+		self:markPerRunSkillAsUsed(storedSkills[1])
+		self:markPerRunSkillAsUsed(storedSkills[2])
+
 		if self.PLUS_DEBUG then LOG("PLUS Ext: Assigning random skills")
-		end		
+		end
 	end
-	
+
 	local skill1Id = storedSkills[1]
 	local skill2Id = storedSkills[2]
 	local skill1 = self._enabledSkills[skill1Id]
@@ -423,7 +442,7 @@ function plus_manager:applySkillsToPilot(pilot)
 	if self.PLUS_DEBUG then
 		LOG("PLUS Ext: Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
 	end
-	
+
 	-- Apply both skills with their determined saveVal
 	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
 	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
@@ -433,17 +452,33 @@ end
 function plus_manager:applySkillsToAllPilots()
 	-- ensure game data is initialized
 	self:initGameSaveData()
-	
+
 	if #self._enabledSkillsIds == 0 then
 		if self.PLUS_DEBUG then LOG("PLUS Ext: No enabled skills, skipping pilot skill assignment") end
 		return
 	end
 
-	-- Apply/assign skills for each pilot
 	local pilots = self._cplus_plus_ex:getAllPilots()
-	for _, pilotData in pairs(pilots) do
-		self:applySkillsToPilot(pilotData)
+
+	-- Reset per_run tracking and rebuild it from currently assigned skills
+	self._usedSkillsPerRun = {}
+	for _, pilot in pairs(pilots) do
+		local pilotId = pilot:getIdStr()
+		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+
+		if storedSkills ~= nil then
+			-- This pilot has assigned skills, mark them as used for per_run tracking
+			for _, skillId in ipairs(storedSkills) do
+				self:markPerRunSkillAsUsed(skillId)
+			end
+		end
 	end
+
+	-- Assign skills to pilots now that we updated the per run skills
+	for _, pilot in pairs(pilots) do
+		self:applySkillsToPilot(pilot)
+	end
+
 
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Applied skills to " .. #pilots .. " pilot(s)") end
 end
@@ -461,22 +496,6 @@ function plus_manager:checkSkillConstraints(pilot, selectedSkills, candidateSkil
 	return true
 end
 
--- Registers a constraint fn that prevents duplicate skills
--- Ensures that the same skill is not assigned to multiple slots for a pilot
--- I making preventing duplicates a constraint because I could see a case for allowing
--- duplicates. Some vanilla skills and custom skills could certainly allow duplicates
-function plus_manager:registerNoDupsConstraintFunction()
-	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		-- Check if this skill has already been selected
-		for _, skillId in ipairs(selectedSkills) do
-			if skillId == candidateSkillId then
-				if self.PLUS_DEBUG then LOG("PLUS Ext: Prevented duplicate add of skill ".. candidateSkillId.. " on pilot "..pilot:getIdStr()) end
-				return false
-			end
-		end
-		return true
-	end)
-end
 
 -- Registers the built-in exclusion and inclusion constraint function for pilot skills
 -- so we can handle them easily similar to how vanilla does it
@@ -518,15 +537,88 @@ function plus_manager:registerPlusExclusionInclusionConstraintFunction()
 	end)
 end
 
+-- Registers the reusability constraint function
+-- This enforces per_pilot and per_run skill restrictions
+function plus_manager:registerReusabilityConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		local pilotId = pilot:getIdStr()
+		local skill = self._enabledSkills[candidateSkillId]
+
+		if skill == nil then
+			LOG("PLUS Ext warning: Skill " .. candidateSkillId .. " not found in enabled skills")
+			return false
+		end
+
+		local reusability = skill.reusability
+
+		-- if reusability is not allowed, treat it as per_pilot
+		if not self.allowReusableSkills and reusability == "reusable" then
+			reusability = "per_pilot"
+			if self.PLUS_DEBUG then
+				LOG("PLUS Ext: Treating reusable skill " .. candidateSkillId .. " as per_pilot (override enabled)")
+			end
+		end
+
+		if reusability == "per_pilot" or reusability == "per_run" then
+			-- Check if this pilot already has this skill in their selected slots
+			-- This applies to both per_pilot and per_run (per_run is stricter and includes this check)
+			for _, skillId in ipairs(selectedSkills) do
+				if skillId == candidateSkillId then
+					if self.PLUS_DEBUG then
+						LOG("PLUS Ext: Prevented " .. reusability .. " skill " .. candidateSkillId .. " for pilot " .. pilotId .. " (already selected)")
+					end
+					return false
+				end
+			end
+
+			-- Additional check for per_run: ensure not used by ANY pilot
+			if reusability == "per_run" then
+				if self._usedSkillsPerRun[candidateSkillId] then
+					if self.PLUS_DEBUG then
+						LOG("PLUS Ext: Prevented per_run skill " .. candidateSkillId .. " for pilot " .. pilotId .. " (already used this run)")
+					end
+					return false
+				end
+			end
+		end
+		-- reusability == "reusable" always passes
+
+		return true
+	end)
+end
+
+-- Marks a per_run skill as used for this run
+-- Only per_run skills need global tracking - per_pilot is handled by constraint checking selectedSkills
+function plus_manager:markPerRunSkillAsUsed(skillId)
+	local skill = self._enabledSkills[skillId]
+	if skill == nil then
+		return
+	end
+
+	if skill.reusability == "per_run" then
+		-- Check if already marked
+		if self._usedSkillsPerRun[skillId] then
+			LOG("PLUS Ext: Warning: per_run skill " .. skillId .. " already marked as used")
+		end
+
+		-- Mark skill as used this run
+		self._usedSkillsPerRun[skillId] = true
+		if self.PLUS_DEBUG then
+			LOG("PLUS Ext: Marked per_run skill " .. skillId .. " as used this run")
+		end
+	end
+	-- reusable and per_pilot skills don't need tracking
+end
+
 function plus_manager:init(parent)
 	self._cplus_plus_ex = parent
 	self.PLUS_DEBUG = parent.PLUS_DEBUG
-	
+
 	-- Register vanilla skills
 	self:registerVanilla()
 
 	-- Register built-in constraint functions
-	self:registerNoDupsConstraintFunction()  -- Prevents same skill in multiple slots
+	self:registerReusabilityConstraintFunction()  -- Enforces per_pilot and per_run reusability
 	self:registerPlusExclusionInclusionConstraintFunction()  -- Checks pilot exclusions and inclusion-type skills
 
 	-- TODO: Temp. Long term control via options or other configs?
@@ -534,9 +626,14 @@ function plus_manager:init(parent)
 end
 
 
-function plus_manager:load()
+function plus_manager:load(options)
 	-- Register/refresh pilot exclusions from their global definitions
 	self:registerPilotExclusionsFromGlobal()
+	
+	-- Load option for allowing reusable skills (defaults to false/vanilla behavior)
+	if options and options["cplus_plus_ex_dup_skills_allowed"] then
+		self.allowReusableSkills = options["cplus_plus_ex_dup_skills_allowed"].enabled
+	end
 end
 
 return plus_manager

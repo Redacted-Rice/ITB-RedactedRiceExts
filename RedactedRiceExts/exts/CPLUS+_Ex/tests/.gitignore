@@ -1,6 +1,0 @@
-# LuaCov coverage files
-luacov.stats.out
-luacov.report.out
-
-# Busted temporary files
-*.tmp

@@ -1,0 +1,12 @@
+return {
+  -- limit coverage scope to actual code
+  include = {
+    "scripts/",
+  },
+  -- exclude the spec files from coverage
+  exclude = {
+    "spec",
+  },
+  -- Auto-generate report after tests so we don't have to run luacov manually
+  runreport = true,
+}

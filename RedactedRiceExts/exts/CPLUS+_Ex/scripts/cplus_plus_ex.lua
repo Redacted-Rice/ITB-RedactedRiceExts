@@ -215,8 +215,8 @@ function cplus_plus_ex:init(plus_manager)
 	self:addEvents()
 end
 
-function cplus_plus_ex:load()
-	self.plus_manager:load()
+function cplus_plus_ex:load(options)
+	self.plus_manager:load(options)
 
 	-- Add the hooks - these are cleared each reload
 	self:addHooks()
@@ -261,6 +261,7 @@ function cplus_plus_ex:logAndShowErrorPopup(message)
 end
 
 -- Helper function to get all pilots in the current squad
+-- in the future add pilots in hanger here as well
 function cplus_plus_ex:getAllPilots()
 	if not Game then return nil end
 
