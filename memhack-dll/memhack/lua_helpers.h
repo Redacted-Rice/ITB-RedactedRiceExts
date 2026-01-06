@@ -13,4 +13,7 @@ void lua_push(lua_State* L, type value);
 template <typename type>
 void lua_checktype(lua_State* L, int index);
 
+// Lua 5.1 equivalent of luaL_testudata
+void* lua_testudata(lua_State* L, int idx, const char* tname);
+
 #endif
