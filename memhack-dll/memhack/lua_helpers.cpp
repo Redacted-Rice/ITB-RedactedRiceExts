@@ -60,3 +60,17 @@ template <>
 void lua_checktype<const char*>(lua_State* L, int index) {
 	luaL_checktype(L, index, LUA_TSTRING);
 }
+
+// Lua 5.1 equivalent of luaL_testudata
+void* lua_testudata(lua_State* L, int idx, const char* tname) {
+    void* p = lua_touserdata(L, idx);
+    if (!p) return NULL;
+
+    if (lua_getmetatable(L, idx)) {
+        luaL_getmetatable(L, tname);
+        bool equal = lua_rawequal(L, -1, -2);
+        lua_pop(L, 2);
+        return equal ? p : NULL;
+    }
+    return NULL;
+}
