@@ -25,6 +25,8 @@ local plus_manager = {
 	_pilotSkillExclusionsAuto = {},  -- pilotId -> excluded skill ids (set-like table) - auto-loaded from pilot Blacklists
 	_pilotSkillExclusionsManual = {},  -- pilotId -> excluded skill ids (set-like table) - manually registered via API
 	_pilotSkillInclusions = {},  -- pilotId -> included skill ids (set-like table)
+	_skillExclusions = {},  -- skillId -> excluded skill ids (set-like table) - skills that cannot be taken together
+	_skillDependencies = {},  -- skillId -> required skill ids (set-like table) - skills that require another skill to be selected
 	_constraintFunctions = {},  -- Array of function(pilot, selectedSkills, candidateSkillId) -> boolean
 	_localRandomCount = nil,  -- Track local random count for this session
 	_usedSkillsPerRun = {},  -- skillId -> true for per_run skills used this run
@@ -122,6 +124,16 @@ function plus_manager:registerConstraintFunction(constraintFn)
 	end
 end
 
+-- Helper function to convert a set-like table to a comma-separated string
+-- Used for logging skill lists
+local function setToString(setTable)
+	local items = {}
+	for key, _ in pairs(setTable) do
+		table.insert(items, key)
+	end
+	return table.concat(items, ", ")
+end
+
 -- Helper function to register pilot-skill relationships
 -- targetTable: either _pilotSkillExclusionsAuto, _pilotSkillExclusionsManual, or _pilotSkillInclusions
 -- relationshipType: "exclusion" or "inclusion" (for debug logging)
@@ -158,6 +170,42 @@ end
 -- enabled, non-excluded skill will be available as well as any added here
 function plus_manager:registerPilotSkillInclusions(pilotId, skillIds)
 	registerPilotSkillRelationship(self, self._pilotSkillInclusions, pilotId, skillIds, "inclusion", false)
+end
+
+-- Registers a skill to skill exclusion
+-- Takes two skill ids that cannot be selected for the same pilot
+function plus_manager:registerSkillExclusion(skillId, excludedSkillId)
+	if self._skillExclusions[skillId] == nil then
+		self._skillExclusions[skillId] = {}
+	end
+	if self._skillExclusions[excludedSkillId] == nil then
+		self._skillExclusions[excludedSkillId] = {}
+	end
+
+	-- Register exclusion in both directions
+	self._skillExclusions[skillId][excludedSkillId] = true
+	self._skillExclusions[excludedSkillId][skillId] = true
+
+	if self.PLUS_DEBUG then
+		LOG("PLUS Ext: Registered exclusion: " .. skillId .. " <-> " .. excludedSkillId)
+	end
+end
+
+-- Registers a skill dependency
+-- Takes a skill id and a required skill id
+-- The dependent skill can only be selected if the required skill is already selected
+-- Call multiple times to add multiple dependecies that would work - only one of the
+-- added need to be assigned to satisfy the dependency
+function plus_manager:registerSkillDependency(skillId, requiredSkillId)
+	if self._skillDependencies[skillId] == nil then
+		self._skillDependencies[skillId] = {}
+	end
+
+	self._skillDependencies[skillId][requiredSkillId] = true
+
+	if self.PLUS_DEBUG then
+		LOG("PLUS Ext: Registered dependency: " .. skillId .. " requires " .. requiredSkillId)
+	end
 end
 
 -- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
@@ -587,6 +635,55 @@ function plus_manager:registerReusabilityConstraintFunction()
 	end)
 end
 
+-- Registers the skill exclusion and dependency constraint function
+-- This enforces skill to skill exclusions and dependencies
+function plus_manager:registerSkillExclusionDependencyConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- pilot id for logging
+		local pilotId = pilot:getIdStr()
+
+		-- Check if candidate is excluded by any already selected skill
+		if self._skillExclusions[candidateSkillId] then
+			for _, selectedSkillId in ipairs(selectedSkills) do
+				if self._skillExclusions[candidateSkillId][selectedSkillId] then
+					if self.PLUS_DEBUG then
+						LOG("PLUS Ext: Prevented skill " .. candidateSkillId .. " for pilot " .. pilotId ..
+							" (mutually exclusive with already selected skill " .. selectedSkillId .. ")")
+					end
+					return false
+				end
+			end
+		end
+
+		-- If candidate has dependencies at least one must be in selectedSkills already
+		if self._skillDependencies[candidateSkillId] then
+			local hasDependency = false
+
+			for requiredSkillId, _ in pairs(self._skillDependencies[candidateSkillId]) do
+				for _, selectedSkillId in ipairs(selectedSkills) do
+					if selectedSkillId == requiredSkillId then
+						hasDependency = true
+						break
+					end
+				end
+				if hasDependency then
+					break
+				end
+			end
+
+			if not hasDependency then
+				if self.PLUS_DEBUG then
+					LOG("PLUS Ext: Prevented skill " .. candidateSkillId .. " for pilot " .. pilotId ..
+						" (requires one of: " .. setToString(self._skillDependencies[candidateSkillId]) .. ")")
+				end
+				return false
+			end
+		end
+
+		return true
+	end)
+end
+
 -- Marks a per_run skill as used for this run
 -- Only per_run skills need global tracking - per_pilot is handled by constraint checking selectedSkills
 function plus_manager:markPerRunSkillAsUsed(skillId)
@@ -620,6 +717,7 @@ function plus_manager:init(parent)
 	-- Register built-in constraint functions
 	self:registerReusabilityConstraintFunction()  -- Enforces per_pilot and per_run reusability
 	self:registerPlusExclusionInclusionConstraintFunction()  -- Checks pilot exclusions and inclusion-type skills
+	self:registerSkillExclusionDependencyConstraintFunction()  -- Checks skill-to-skill exclusions and dependencies
 
 	-- TODO: Temp. Long term control via options or other configs?
 	self:enableCategory("vanilla")
@@ -629,7 +727,7 @@ end
 function plus_manager:load(options)
 	-- Register/refresh pilot exclusions from their global definitions
 	self:registerPilotExclusionsFromGlobal()
-	
+
 	-- Load option for allowing reusable skills (defaults to false/vanilla behavior)
 	if options and options["cplus_plus_ex_dup_skills_allowed"] then
 		self.allowReusableSkills = options["cplus_plus_ex_dup_skills_allowed"].enabled

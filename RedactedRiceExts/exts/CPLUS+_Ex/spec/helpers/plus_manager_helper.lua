@@ -25,6 +25,8 @@ function M.resetState()
 	pm._pilotSkillExclusionsAuto = {}
 	pm._pilotSkillExclusionsManual = {}
 	pm._pilotSkillInclusions = {}
+	pm._skillExclusions = {}
+	pm._skillDependencies = {}
 	pm._constraintFunctions = {}
 	pm._localRandomCount = nil
 	pm._usedSkillsPerRun = {}
