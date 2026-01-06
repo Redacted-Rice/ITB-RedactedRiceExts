@@ -4,6 +4,7 @@
 #include "scanner_basic.h"
 #include "scanner_sequence.h"
 #include "scanner_struct.h"
+#include "../lua_helpers.h"
 
 std::string toLower(const char* str) {
 	std::string result(str);
@@ -194,6 +195,7 @@ bool parseSequenceValue(lua_State* L, int valueIndex, SequenceScanner::DataType 
                         const void*& outData, size_t& outSize, std::vector<uint8_t, ScannerAllocator<uint8_t>>& bytesBuffer) {
 	switch (dataType) {
 		case SequenceScanner::DataType::STRING:
+		{
 			if (!lua_isstring(L, valueIndex)) {
 				luaL_error(L, "Expected string for STRING data type");
 				return false;
@@ -201,8 +203,10 @@ bool parseSequenceValue(lua_State* L, int valueIndex, SequenceScanner::DataType 
 			const char* str = lua_tolstring(L, valueIndex, &outSize);
 			outData = str;
 			return true;
+		}
 
 		case SequenceScanner::DataType::BYTE_ARRAY:
+		{
 			if (!lua_istable(L, valueIndex)) {
 				luaL_error(L, "Expected table for BYTE_ARRAY data type");
 				return false;
@@ -234,7 +238,7 @@ bool parseSequenceValue(lua_State* L, int valueIndex, SequenceScanner::DataType 
 			outData = bytesBuffer.data();
 			outSize = bytesBuffer.size();
 			return true;
-
+		}
 		default:
 			luaL_error(L, "Unknown sequence data type");
 			return false;
@@ -435,7 +439,7 @@ int scanner_first_scan(lua_State* L) {
 		}
 		scanner->firstScan(scanType, data, size);
 	} else if (dynamic_cast<StructScanner*>(scanner)) {
-		StructScanner::StructSearch** structPtr = (StructScanner::StructSearch**)luaL_testudata(L, 3, "StructSearch");
+		StructScanner::StructSearch** structPtr = (StructScanner::StructSearch**)lua_testudata(L, 3, "StructSearch");
 		if (!structPtr || !*structPtr) {
 			luaL_error(L, "Struct scanner requires StructSearch as target value");
 			return 0;
@@ -501,7 +505,7 @@ int scanner_rescan(lua_State* L) {
 		}
 		scanner->rescan(scanType, data, size);
 	} else if (dynamic_cast<StructScanner*>(scanner)) {
-		StructScanner::StructSearch** structPtr = (StructScanner::StructSearch**)luaL_testudata(L, 3, "StructSearch");
+		StructScanner::StructSearch** structPtr = (StructScanner::StructSearch**)lua_testudata(L, 3, "StructSearch");
 		if (!structPtr || !*structPtr) {
 			luaL_error(L, "Struct scanner requires StructSearch as target value");
 			return 0;
@@ -602,7 +606,7 @@ int scanner_get_results(lua_State* L) {
 	lua_newtable(L);
 
 	size_t startIdx = offset;
-	size_t endIdx = std::min(offset + limit, totalCount);
+	size_t endIdx = std::min<size_t>(offset + limit, totalCount);
 
 	// Build results array
 	for (size_t i = startIdx; i < endIdx; i++) {
