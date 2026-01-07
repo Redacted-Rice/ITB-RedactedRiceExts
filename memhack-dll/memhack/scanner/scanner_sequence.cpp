@@ -6,17 +6,32 @@
 #include <algorithm>
 #include <windows.h>
 
-SequenceScanner::SequenceScanner(DataType dataType, size_t maxResults, size_t alignment) :
-	Scanner(dataType, maxResults, alignment)
-{
-	// For sequence types, use byte alignment (1) since strings can appear at any offset
-	// We use memchr-based search which efficiently finds matches regardless of alignment
-	if (this->alignment == 0) {
-		this->alignment = 1;
+void* SequenceScanner::operator new(size_t size) {
+	return ScannerHeap::allocate(size);
+}
+
+void SequenceScanner::operator delete(void* ptr) noexcept {
+	if (ptr) {
+		ScannerHeap::deallocate(ptr, 0);
 	}
 }
 
+SequenceScanner::SequenceScanner(DataType dataType, size_t maxResults, size_t alignment) :
+	Scanner(maxResults, alignment), dataType(dataType)
+{
+	// Just default to 1 for sequences
+	if (this->alignment == 0) {
+		this->alignment = 1;
+	}
+	
+	// todo: filter potential result by alignment?
+}
+
 SequenceScanner::~SequenceScanner() {}
+
+SequenceScanner* SequenceScanner::create(DataType dataType, size_t maxResults, size_t alignment) {
+	return new SequenceScanner(dataType, maxResults, alignment);
+}
 
 size_t SequenceScanner::getDataTypeSize() const {
 	size_t size = searchSequence.size();
@@ -34,18 +49,18 @@ void SequenceScanner::setSearchSequence(const void* data, size_t size) {
 	searchSequence.assign(bytes, bytes + size);
 }
 
-bool SequenceScanner::compare(const uint8_t* dataToCompare) const {
+bool SequenceScanner::compare(const uint8_t* a, const uint8_t* b, size_t size) {
 	// do mem compare to optimize and since we have the full
 	// string read in already
-	return memcmp(dataToCompare, searchSequence.data(), searchSequence.size()) == 0;
+	return memcmp(a, b, size) == 0;
 }
 
 bool SequenceScanner::checkMatch(const uint8_t* dataToCompare, ScanType scanType) const {
 	switch (scanType) {
 		case ScanType::EXACT:
-			return compare(dataToCompare);
+			return compare(dataToCompare, searchSequence.data(), searchSequence.size());
 		case ScanType::NOT:
-			return !compare(dataToCompare);
+			return !compare(dataToCompare, searchSequence.data(), searchSequence.size());
 		case ScanType::CHANGED:
 		case ScanType::UNCHANGED:
 		case ScanType::INCREASED:
@@ -152,7 +167,7 @@ void SequenceScanner::scanChunkInRegion(const uint8_t* buffer, size_t chunkSize,
 
 // Process a single isolated result with direct memory read for rescan
 // Wrapper for validateSequenceDirect to match base class interface
-bool SequenceScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd,
+bool SequenceScanner::validateValueDirect(uintptr_t address, uintptr_t regionStart, uintptr_t regionEnd,
                                            ScanType scanType, const void* targetValue,
                                            ScanResult& outResult) const {
 	// Validate sequence directly from memory with SEH protection
@@ -164,8 +179,6 @@ bool SequenceScanner::validateValueDirect(uintptr_t address, uintptr_t regionEnd
 	outResult.address = address;
 	return true;
 }
-
-// Removed - base class handles rescanResultDirect, processResultsInRegion, rescanResultBatch, and rescanImpl now
 
 bool SequenceScanner::readSequenceBytes(uintptr_t address, std::vector<uint8_t, ScannerAllocator<uint8_t>>& outBytes) const {
 	size_t size = searchSequence.size();
