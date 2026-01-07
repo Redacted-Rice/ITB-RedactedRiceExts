@@ -167,6 +167,50 @@ describe("PLUS Manager Skill-to-Skill Constraints", function()
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "BasicFire")
 			assert.is_true(result)
 		end)
+
+		it("should prevent chain dependencies (dependent -> dependent)", function()
+			-- First dependency: AdvancedFire depends on BasicFire
+			plus_manager:registerSkillDependency("AdvancedFire", "BasicFire")
+			
+			-- Verify first dependency was registered
+			assert.is_not_nil(plus_manager._skillDependencies["AdvancedFire"])
+			assert.is_true(plus_manager._skillDependencies["AdvancedFire"]["BasicFire"])
+			
+			-- Try to create chain: MasterFire depends on AdvancedFire (which is already dependent)
+			plus_manager:registerSkillDependency("MasterFire", "AdvancedFire")
+			
+			-- Chain should be prevented - MasterFire should not have any dependencies registered
+			assert.is_nil(plus_manager._skillDependencies["MasterFire"])
+		end)
+
+		it("should allow multiple non-dependent skills to depend on the same base skill", function()
+			-- Both AdvancedFire and AdvancedIce can depend on BasicFire
+			plus_manager:registerSkillDependency("AdvancedFire", "BasicFire")
+			plus_manager:registerSkillDependency("AdvancedIce", "BasicFire")
+			
+			-- Both should be registered successfully
+			assert.is_not_nil(plus_manager._skillDependencies["AdvancedFire"])
+			assert.is_true(plus_manager._skillDependencies["AdvancedFire"]["BasicFire"])
+			
+			assert.is_not_nil(plus_manager._skillDependencies["AdvancedIce"])
+			assert.is_true(plus_manager._skillDependencies["AdvancedIce"]["BasicFire"])
+		end)
+
+		it("should prevent any chain regardless of registration order", function()
+			helper.setupTestSkills({
+				{id = "Base", shortName = "BS", fullName = "Base", description = "Test"},
+				{id = "Mid", shortName = "MD", fullName = "Mid", description = "Test"},
+				{id = "Top", shortName = "TP", fullName = "Top", description = "Test"},
+			})
+
+			-- Register Base -> Mid dependency first
+			plus_manager:registerSkillDependency("Mid", "Base")
+			assert.is_not_nil(plus_manager._skillDependencies["Mid"])
+			
+			-- Try to chain Mid -> Top (should be prevented)
+			plus_manager:registerSkillDependency("Top", "Mid")
+			assert.is_nil(plus_manager._skillDependencies["Top"])
+		end)
 	end)
 
 	describe("Combined Exclusions and Dependencies", function()

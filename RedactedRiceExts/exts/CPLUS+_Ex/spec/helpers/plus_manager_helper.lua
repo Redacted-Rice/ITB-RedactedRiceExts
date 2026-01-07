@@ -12,6 +12,9 @@ _G.GAME = {
 	}
 }
 
+-- Store original math.random function
+local _originalMathRandom = math.random
+
 -- Load the module
 M.plus_manager = require("plus_manager")
 
@@ -28,6 +31,9 @@ function M.resetState()
 	pm._skillExclusions = {}
 	pm._skillDependencies = {}
 	pm._constraintFunctions = {}
+	pm._weightModifiers = {}
+	pm._skillWeights = {}
+	pm._baseSkillWeight = 1.0
 	pm._localRandomCount = nil
 	pm._usedSkillsPerRun = {}
 	pm.allowReusableSkills = false
@@ -36,6 +42,8 @@ function M.resetState()
 	GAME.cplus_plus_ex.randomSeed = 12345
 	GAME.cplus_plus_ex.randomSeedCnt = 0
 
+	-- Restore original math.random and reseed
+	M.restoreMathRandom()
 	math.randomseed(12345)
 
 	-- Clear test pilots from _G
@@ -55,12 +63,33 @@ function M.createMockPilot(pilotId)
 	}
 end
 
--- Register and enable test skills
+-- Register test skills which also enables them
 function M.setupTestSkills(skills)
 	for _, skill in ipairs(skills) do
 		M.plus_manager:registerSkill("test", skill)
 	end
-	M.plus_manager:enableCategory("test")
+end
+
+-- Mock math.random to return predetermined values
+-- Takes an array of values to return in sequence
+function M.mockMathRandom(values)
+	local index = 1
+	math.random = function(...)
+		if index <= #values then
+			local value = values[index]
+			index = index + 1
+			return value
+		else
+			-- return nil to make sure we are aware we ran out of values
+			-- as this could cause unexpected test behavior
+			return nil
+		end
+	end
+end
+
+-- Restore original math.random function
+function M.restoreMathRandom()
+	math.random = _originalMathRandom
 end
 
 return M

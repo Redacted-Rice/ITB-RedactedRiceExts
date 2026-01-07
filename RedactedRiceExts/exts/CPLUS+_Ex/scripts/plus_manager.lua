@@ -28,6 +28,8 @@ local plus_manager = {
 	_skillExclusions = {},  -- skillId -> excluded skill ids (set-like table) - skills that cannot be taken together
 	_skillDependencies = {},  -- skillId -> required skill ids (set-like table) - skills that require another skill to be selected
 	_constraintFunctions = {},  -- Array of function(pilot, selectedSkills, candidateSkillId) -> boolean
+	_skillWeights = {},  -- skillId -> weight (always set during registration)
+	_defaultSkillWeight = 1.0,  -- Default weight for all skills
 	_localRandomCount = nil,  -- Track local random count for this session
 	_usedSkillsPerRun = {},  -- skillId -> true for per_run skills used this run
 }
@@ -191,12 +193,35 @@ function plus_manager:registerSkillExclusion(skillId, excludedSkillId)
 	end
 end
 
+-- Sets the weight for a specific skill. Default is 1.0
+function plus_manager:setSkillWeight(skillId, weight)
+	if weight < 0 then
+		LOG("PLUS Ext error: Skill weight must be >= 0, got " .. weight)
+		return
+	end
+
+	self._skillWeights[skillId] = weight
+
+	if self.PLUS_DEBUG then
+		LOG("PLUS Ext: Set weight for skill " .. skillId .. " to " .. weight)
+	end
+end
+
 -- Registers a skill dependency
 -- Takes a skill id and a required skill id
 -- The dependent skill can only be selected if the required skill is already selected
--- Call multiple times to add multiple dependecies that would work - only one of the
+-- Call multiple times to add multiple dependencies that would work - only one of the
 -- added need to be assigned to satisfy the dependency
+-- Note: Chain dependencies are not allowed - a dependent skill cannot depend on another dependent skill
 function plus_manager:registerSkillDependency(skillId, requiredSkillId)
+	-- Prevent chain dependencies - requiredSkillId cannot itself be a dependent skill
+	if self._skillDependencies[requiredSkillId] ~= nil then
+		LOG("PLUS Ext error: Cannot register dependency: " .. skillId .. " -> " .. requiredSkillId .. 
+			". Chain dependencies are not allowed. The required skill '" .. requiredSkillId .. 
+			"' is already a dependent skill.")
+		return
+	end
+
 	if self._skillDependencies[skillId] == nil then
 		self._skillDependencies[skillId] = {}
 	end
@@ -205,6 +230,62 @@ function plus_manager:registerSkillDependency(skillId, requiredSkillId)
 
 	if self.PLUS_DEBUG then
 		LOG("PLUS Ext: Registered dependency: " .. skillId .. " requires " .. requiredSkillId)
+	end
+end
+
+-- Auto-adjusts skill weights based on dependencies
+-- Dependent skills get weight = (numEnabledSkills - 1) / numDependencies
+-- Dependency skills get weight += 0.5 per dependent
+function plus_manager:autoAdjustDefaultWeights()
+	local dependencyUsages = {}
+	local numSkills = #self._enabledSkillsIds
+
+	-- Process all dependent skills
+	for dependentSkillId, dependencies in pairs(self._skillDependencies) do
+		-- Only adjust if the skill is enabled and still has default weight
+		if self._enabledSkills[dependentSkillId] and self._skillWeights[dependentSkillId] == self._defaultSkillWeight then
+			-- Count number of dependencies for this skill
+			local numDependencies = 0
+			for _, _ in pairs(dependencies) do
+				numDependencies = numDependencies + 1
+			end
+
+			-- Calculate new weight: (total skills - 1) / number of dependencies
+			-- This should make the dependent skills significantly more likley
+			-- to actually appear in a run and result in a single dependency
+			-- dependent skill being chosen ~50% of the time when the dependent
+			-- skill is chosen
+			-- Use -2 to remove the dependent skill but also the already selected
+			-- dependency skill
+			local newWeight = (numSkills - 2) / numDependencies
+			self:setSkillWeight(dependentSkillId, newWeight)
+			if self.PLUS_DEBUG then
+				LOG("PLUS Ext: Set dependent skill " .. dependentSkillId .. " weight to " .. newWeight .. " (numSkills=" .. numSkills .. ", numDependencies=" .. numDependencies .. ")")
+			end
+		end
+
+		-- Track dependency usage for bumping up the base skill as well
+		-- to help the dependent skill get chosen
+		for requiredSkillId, _ in pairs(dependencies) do
+			if dependencyUsages[requiredSkillId] == nil then
+				dependencyUsages[requiredSkillId] = 1
+			else
+				dependencyUsages[requiredSkillId] = dependencyUsages[requiredSkillId] + 1
+			end
+		end
+	end
+
+	-- Increase weight of skills that are dependencies for others
+	-- This will make the dependency easier to satisfy so it should actually
+	-- get chosen and allowed more often
+	for skillId, dependencyCount in pairs(dependencyUsages) do
+		if self._skillWeights[skillId] == self._defaultSkillWeight then
+			local newWeight = self._defaultSkillWeight + (dependencyCount * 0.5)
+			self:setSkillWeight(skillId, newWeight)
+			if self.PLUS_DEBUG then
+				LOG("PLUS Ext: Increased dependency skill " .. skillId .. " weight to " .. newWeight .. " (usedBy=" .. dependencyCount .. ")")
+			end
+		end
 	end
 end
 
@@ -266,6 +347,11 @@ function plus_manager:registerSkill(category, idOrTable, shortName, fullName, de
 			saveVal = saveVal, reusability = reusability,
 	}
 	self._registeredSkillsIds[id] = category
+	-- add an entry for weight
+	self:setSkillWeight(id, self._defaultSkillWeight)
+
+	-- Enable skill by default
+	self:enableSkill(id, category, self._registeredSkills[category][id])
 end
 
 -- category and skill are optional and will be searched from registered values if omitted
@@ -289,16 +375,6 @@ function plus_manager:enableSkill(id, category, skill)
 	end
 end
 
-function plus_manager:enableCategory(category)
-	if self._registeredSkills[category] == nil then
-		LOG("PLUS Ext error: Attempted to enable unknown category ".. category)
-		return
-	end
-	for id, skill in pairs(self._registeredSkills[category]) do
-		self:enableSkill(id, category, skill)
-	end
-end
-
 function plus_manager:disableSkill(id)
 	if self._enabledSkills[id] == nil then
 		LOG("PLUS Ext: Warning: Skill " .. id .. " already disabled, skipping")
@@ -316,14 +392,20 @@ end
 
 -- Uses the stored seed and sequential access count to ensure deterministic random values
 -- The RNG is seeded once per session, then we fast forward to the saved count
--- skillsList - array like table of skill IDs to select from
-function plus_manager:getRandomSkillId(skillsList)
-	if #skillsList == 0 then
+-- availableSkills - array like table of skill IDs to select from
+function plus_manager:getWeightedRandomSkillId(availableSkills)
+	if #availableSkills == 0 then
 		LOG("PLUS Ext error: No skills available in list")
 		return nil
 	end
 
-	-- Get the stored seed and count from GAME
+	-- Calculate total weight for the available skills
+	local totalWeight = 0
+	for _, skillId in ipairs(availableSkills) do
+		totalWeight = totalWeight + self._skillWeights[skillId]
+	end
+
+	-- Get seed and count from saved game data
 	local seed = GAME.cplus_plus_ex.randomSeed
 	local savedCount = GAME.cplus_plus_ex.randomSeedCnt
 
@@ -338,14 +420,22 @@ function plus_manager:getRandomSkillId(skillsList)
 		if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized RNG with seed " .. seed .. " and fast-forwarded " .. savedCount .. " times") end
 	end
 
-	-- Generate the next random index in the range of available skills
-	local index = math.random(1, #skillsList)
-
-	-- Increment both local and saved count
+	-- Weighted random selection
+	local randomValue = math.random() * totalWeight
 	self._localRandomCount = self._localRandomCount + 1
 	GAME.cplus_plus_ex.randomSeedCnt = self._localRandomCount
 
-	return skillsList[index]
+	local cumulativeWeight = 0
+	for _, skillId in ipairs(availableSkills) do
+		cumulativeWeight = cumulativeWeight + self._skillWeights[skillId]
+		if randomValue <= cumulativeWeight then
+			return skillId
+		end
+	end
+
+	-- Fallback to last skill. We shouldn't get here but just in case
+	LOG("PLUS Ext error: Weighted selection failed! Falling back to last skill")
+	return availableSkills[#availableSkills]
 end
 
 -- Selects random level up skills based on count and configured constraints
@@ -375,9 +465,8 @@ function plus_manager:selectRandomSkills(pilot, count)
 
 	-- Keep selecting until we have enough skills or run out of options
 	while #selectedSkills < count and #availableSkills > 0 do
-		-- Get a random skill from the available pool
-		local candidateSkillId = self:getRandomSkillId(availableSkills)
-
+		-- Get a weighted random skill from the available pool
+		local candidateSkillId = self:getWeightedRandomSkillId(availableSkills)
 		if candidateSkillId == nil then
 			return nil
 		end
@@ -707,6 +796,13 @@ function plus_manager:markPerRunSkillAsUsed(skillId)
 	-- reusable and per_pilot skills don't need tracking
 end
 
+function plus_manager:addEvents()
+	modApi.events.onModsFirstLoaded:subscribe(function()
+		plus_manager:autoAdjustDefaultWeights()
+	end)
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Manager: Initialized and subscribed to game events") end
+end
+
 function plus_manager:init(parent)
 	self._cplus_plus_ex = parent
 	self.PLUS_DEBUG = parent.PLUS_DEBUG
@@ -719,10 +815,9 @@ function plus_manager:init(parent)
 	self:registerPlusExclusionInclusionConstraintFunction()  -- Checks pilot exclusions and inclusion-type skills
 	self:registerSkillExclusionDependencyConstraintFunction()  -- Checks skill-to-skill exclusions and dependencies
 
-	-- TODO: Temp. Long term control via options or other configs?
-	self:enableCategory("vanilla")
+	-- Add events for auto adjusting weights
+	self:addEvents()
 end
-
 
 function plus_manager:load(options)
 	-- Register/refresh pilot exclusions from their global definitions
