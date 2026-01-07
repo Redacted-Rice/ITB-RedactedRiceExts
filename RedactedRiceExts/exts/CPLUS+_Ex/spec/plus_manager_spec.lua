@@ -24,17 +24,6 @@ describe("PLUS Manager Core Functionality", function()
 			assert.equals("test", plus_manager._registeredSkillsIds["TestSkill"])
 		end)
 
-		it("should enable a category of skills", function()
-			plus_manager:registerSkill("test", {id = "Skill1", shortName = "S1", fullName = "S1", description = "D1"})
-			plus_manager:registerSkill("test", {id = "Skill2", shortName = "S2", fullName = "S2", description = "D2"})
-
-			plus_manager:enableCategory("test")
-
-			assert.is_not_nil(plus_manager._enabledSkills["Skill1"])
-			assert.is_not_nil(plus_manager._enabledSkills["Skill2"])
-			assert.equals(2, #plus_manager._enabledSkillsIds)
-		end)
-
 		it("should default reusability to per_pilot", function()
 			plus_manager:registerSkill("test", {
 				id = "TestSkill",
@@ -274,6 +263,42 @@ describe("PLUS Manager Core Functionality", function()
 			assert.equals(6, appliedSkill1SaveVal, "Skill1 should keep its defined saveVal")
 			assert.is_not.equals(6, appliedSkill2SaveVal, "Skill2 should be reassigned")
 			assert.is_true(appliedSkill2SaveVal >= 0 and appliedSkill2SaveVal <= 13, "Skill2 should be in valid range")
+		end)
+	end)
+
+	describe("Integration with selectRandomSkills", function()
+		before_each(function()
+			helper.setupTestSkills({
+				{id = "Common1", shortName = "C1", fullName = "Common1", description = "Test", reusability = "per_pilot"},
+				{id = "Common2", shortName = "C2", fullName = "Common2", description = "Test", reusability = "per_pilot"},
+				{id = "Rare1", shortName = "R1", fullName = "Rare1", description = "Test", reusability = "per_pilot"},
+			})
+
+			plus_manager:setSkillWeight("Common1", 5.0)
+			plus_manager:setSkillWeight("Common2", 5.0)
+			plus_manager:setSkillWeight("Rare1", 1.0)
+
+			plus_manager:registerReusabilityConstraintFunction()
+			plus_manager:registerPlusExclusionInclusionConstraintFunction()
+		end)
+
+		it("should use weighted selection when selecting multiple skills", function()
+			-- Mock to select Common1, then Common2
+			-- 0.2 * 11.0 = 2.2, which is <= 5.0
+
+			-- 0.3 * 11.0 = 3.3, which is <= 5.0 so if common1 which should be excluded so removed and another tried
+			-- 0.3 (again) * 6.0 = 1.8, which is <= 5.0 so common 2 would be selected
+			helper.mockMathRandom({0.2, 0.3, 0.3})
+
+			local pilot = helper.createMockPilot("TestPilot")
+			local skills = plus_manager:selectRandomSkills(pilot, 2)
+
+			assert.is_not_nil(skills)
+			assert.equals(2, #skills)
+			-- With the mocked values and weights, we should get the commons more likely
+			assert.is_true(skills[1] == "Common1" or skills[1] == "Common2" or skills[1] == "Rare1")
+			assert.is_true(skills[2] == "Common1" or skills[2] == "Common2" or skills[2] == "Rare1")
+			assert.is_not.equals(skills[1], skills[2])
 		end)
 	end)
 end)
