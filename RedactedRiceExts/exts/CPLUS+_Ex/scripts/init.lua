@@ -20,10 +20,8 @@ end
 function extension:init(options)
 	local path = self.resourcePath
 
-	local plus_manager = require(path.."scripts/plus_manager")
-
 	require(path.."scripts/cplus_plus_ex")
-	cplus_plus_ex:init(plus_manager)
+	cplus_plus_ex:init()
 end
 
 function extension:load(options, version)

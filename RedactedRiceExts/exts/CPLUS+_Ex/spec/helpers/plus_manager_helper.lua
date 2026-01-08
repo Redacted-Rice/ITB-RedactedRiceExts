@@ -1,4 +1,4 @@
--- Shared test helpers for plus_manager tests
+-- Shared test helpers for CPLUS+ Extension tests
 
 local M = {}
 
@@ -16,29 +16,47 @@ _G.GAME = {
 local _originalMathRandom = math.random
 
 -- Load the module
-M.plus_manager = require("plus_manager")
+require("cplus_plus_ex")
+M.plus_manager = cplus_plus_ex  -- Maintain compatibility with existing tests
+local skill_config = M.plus_manager._modules.skill_config
 
--- Reset all plus_manager state
+-- Reset all state
 function M.resetState()
 	local pm = M.plus_manager
-	pm._registeredSkills = {}
-	pm._registeredSkillsIds = {}
-	pm._enabledSkills = {}
-	pm._enabledSkillsIds = {}
-	pm._constraintFunctions = {}
-	pm._localRandomCount = nil
-	pm._usedSkillsPerRun = {}
+	local skill_registry = pm._modules.skill_registry
+	local skill_config_module = pm._modules.skill_config
+	local skill_constraints = pm._modules.skill_constraints
+	local skill_selection = pm._modules.skill_selection
+	local time_traveler = pm._modules.time_traveler
+	
+	-- Reset skill_registry module state
+	skill_registry.registeredSkills = {}
+	skill_registry.registeredSkillsIds = {}
+	
+	-- Reset skill_config module state
+	skill_config_module.enabledSkills = {}
+	skill_config_module.enabledSkillsIds = {}
+	
+	-- Reset skill_constraints module state
+	skill_constraints.constraintFunctions = {}
+	
+	-- Reset skill_selection module state
+	skill_selection.localRandomCount = nil
+	skill_selection.usedSkillsPerRun = {}
+	
+	-- Reset time_traveler module state
+	time_traveler.pilotStructs = nil
+	time_traveler.lastSavedPersistentData = nil
+	time_traveler.timeTraveler = nil
 
-	-- Reset config structure
-	pm.config = {
-		allowReusableSkills = true,
-		autoAdjustWeights = true,
-		pilotSkillExclusions = {},
-		pilotSkillInclusions = {},
-		skillExclusions = {},
-		skillDependencies = {},
-		skillConfigs = {},
-	}
+	-- Reset config structure (owned by skill_config module)
+	skill_config.config.allowReusableSkills = true
+	skill_config.config.autoAdjustWeights = true
+	skill_config.config.pilotSkillExclusions = {}
+	skill_config.config.pilotSkillInclusions = {}
+	skill_config.config.skillExclusions = {}
+	skill_config.config.skillDependencies = {}
+	skill_config.config.skillConfigs = {}
 
 	GAME.cplus_plus_ex.pilotSkills = {}
 	GAME.cplus_plus_ex.randomSeed = 12345
@@ -54,6 +72,17 @@ function M.resetState()
 			_G[key] = nil
 		end
 	end
+	
+	-- Re-initialize modules (registers constraints, vanilla skills, etc.)
+	pm:initModules()
+	
+	-- Clear vanilla skills and enabled skills for test isolation
+	-- Tests will register their own skills as needed
+	skill_registry.registeredSkills = {}
+	skill_registry.registeredSkillsIds = {}
+	skill_config_module.enabledSkills = {}
+	skill_config_module.enabledSkillsIds = {}
+	skill_config.config.skillConfigs = {}
 end
 
 -- Create a minimal mock pilot struct
