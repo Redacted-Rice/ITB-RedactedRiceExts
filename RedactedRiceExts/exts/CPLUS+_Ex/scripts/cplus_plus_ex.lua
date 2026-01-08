@@ -1,283 +1,141 @@
+-- CPLUS+ Extension Main Module
+-- Coordinates skill modules and manages save/load operations
+
+-- Main extension object with state
 cplus_plus_ex = {
 	PLUS_DEBUG = true, -- eventually default to false
 	PLUS_EXTRA_DEBUG = false,
-	_pilotStructs = nil,
-
-	_lastSavedPersistentData = nil,
-	plus_manager = nil,
-	timeTraveler = nil,
 }
 
-function cplus_plus_ex:refreshGameData()
-	if Game then
-		self._pilotStructs = self:getAllPilots()
-		if self.PLUS_DEBUG then LOG("refreshGameData") end
-	end
+-- Constants
+cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
+local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
+local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
+
+cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
+cplus_plus_ex.DEFAULT_WEIGHT = 1.0
+cplus_plus_ex.VANILLA_SKILLS = {
+	{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
+	{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE },
+	{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE },
+	{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE },
+	{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT },
+	{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT },
+	{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT },
+	{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = PER_PILOT },
+	{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE },
+	{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = REUSABLE },
+	{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT },
+	{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = PER_PILOT },
+	{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = PER_PILOT },
+	{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = PER_PILOT },
+}
+
+-- Load modules
+local utils = require("scripts/utils")
+local skill_registry = require("scripts/skill_registry")
+local skill_config = require("scripts/skill_config")
+local skill_selection = require("scripts/skill_selection")
+local skill_constraints = require("scripts/skill_constraints")
+local time_traveler = require("scripts/time_traveler")
+
+cplus_plus_ex._modules = {
+	skill_config = skill_config,
+	skill_constraints = skill_constraints,
+	skill_registry = skill_registry,
+	skill_selection = skill_selection,
+	time_traveler = time_traveler,
+	utils = utils,
+}
+
+-- Initialize modules (called from init function)
+function cplus_plus_ex:initModules()
+	skill_config.init(self)
+	skill_constraints.init(self)
+	skill_registry.init(self)
+	skill_selection.init(self)
+	time_traveler.init(self)
 end
 
-function cplus_plus_ex:clearGameData()
-	self._pilotStructs = nil
-	if self.PLUS_DEBUG then LOG("clearGameData") end
-end
+-- Expose "public" module params/functions/classes APIs
+cplus_plus_ex.config = skill_config.config
+cplus_plus_ex.SkillConfig = skill_config.SkillConfig
 
-function cplus_plus_ex:loadPersistentDataIfNeeded()
-	if not self._lastSavedPersistentData then
-		if not modApi:isProfilePath() then return end
-		if self.PLUS_DEBUG then LOG("Loading persistent data!") end
-		self._lastSavedPersistentData = {}
+-- Expose the public facing APIs
+function cplus_plus_ex:setSkillConfig(...) return skill_config.setSkillConfig(...) end
+function cplus_plus_ex:enableSkill(...) return skill_config.enableSkill(...) end
+function cplus_plus_ex:disableSkill(...) return skill_config.disableSkill(...) end
+function cplus_plus_ex:removeSkillDependency(...) return skill_config.removeSkillDependency(...) end
+function cplus_plus_ex:setAdjustedWeightsConfigs() return skill_config.setAdjustedWeightsConfigs() end
+function cplus_plus_ex:resetToDefaults() return skill_config.resetToDefaults() end
+function cplus_plus_ex:getAllowedReusability(...) return skill_config.getAllowedReusability(...) end
 
-		sdlext.config(
-			modApi:getCurrentProfilePath().."modcontent.lua",
-			function(obj)
-				if obj.cplus_plus_ex then
-					for id, data in pairs(obj.cplus_plus_ex) do
-						self._lastSavedPersistentData[id] = data
-					end
-				end
-			end
-		)
-	end
-end
+function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints.checkSkillConstraints(...) end
+function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints.registerConstraintFunction(...) end
 
-function cplus_plus_ex:refreshLastSavedPersistentData()
-	local pilots = self:getAllPilots()
-	-- TODO what to do here
-	if not pilots then
-		return false
-	end
+function cplus_plus_ex:registerSkill(...) return skill_registry.registerSkill(...) end
+function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry.registerPilotSkillExclusions(...) end
+function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry.registerPilotSkillInclusions(...) end
+function cplus_plus_ex:registerSkillExclusion(...) return skill_registry.registerSkillExclusion(...) end
+function cplus_plus_ex:registerSkillDependency(...) return skill_registry.registerSkillDependency(...) end
 
-	local changed = false
-	self._lastSavedPersistentData = self._lastSavedPersistentData or {}
-	for _, pilot in pairs(pilots) do
-		local id = pilot:getIdStr()
-		self._lastSavedPersistentData[id] = self._lastSavedPersistentData[id] or {}
-		if self._lastSavedPersistentData[id].name ~= pilot:getNameStr() then
-			self._lastSavedPersistentData[id].name = pilot:getNameStr()
-			changed = true
-		end
-		if self._lastSavedPersistentData[id].xp ~= pilot:getXp() then
-			self._lastSavedPersistentData[id].xp = pilot:getXp()
-			changed = true
-		end
-		if self._lastSavedPersistentData[id].level ~= pilot:getLevel() then
-			self._lastSavedPersistentData[id].level = pilot:getLevel()
-			changed = true
-		end
-		if self._lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
-			self._lastSavedPersistentData[id].skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
-			changed = true
-		end
-		if self._lastSavedPersistentData[id].skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
-			self._lastSavedPersistentData[id].skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
-			changed = true
-		end
-		if self._lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then
-			self._lastSavedPersistentData[id].prevTimelines = pilot:getPrevTimelines()
-			changed = true
-		end
-	end
-	if self.PLUS_DEBUG then LOG("refreshLastSavedPersistentData: "..(changed and "true" or "false")) end
-	return changed
-end
+function cplus_plus_ex:applySkillsToPilot(...) return skill_selection.applySkillsToPilot(...) end
+function cplus_plus_ex:applySkillsToAllPilots() return skill_selection.applySkillsToAllPilots() end
 
-function cplus_plus_ex:persistentDataChanged()
-	local changed = false
-	if not self._lastSavedPersistentData then
-		local loaded = self:loadPersistentDataIfNeeded()
-		if not loaded then
-			self:refreshLastSavedPersistentData()
-		end
-		changed = true
-	else
-		changed = self:refreshLastSavedPersistentData()
-	end
+-- Wrapper for time_traveler since we can't do a ref as we reassign the ref each time we find the time traveler
+function cplus_plus_ex:getTimeTraveler() return time_traveler.timeTraveler end
 
-	if self.PLUS_DEBUG then LOG("persistentDataChanged: "..(changed and "true" or "false")) end
-	return changed
-end
 
-function cplus_plus_ex:savePersistentDataIfChanged()
-	if self:persistentDataChanged() then
-		if not modApi:isProfilePath() then return end
+function cplus_plus_ex:init()
+	-- Initialize modules
+	self:initModules()
 
-		if self.PLUS_DEBUG then LOG("Saving persistent data!") end
-		sdlext.config(
-			modApi:getCurrentProfilePath().."modcontent.lua",
-			function(readObj)
-				-- clear out any old data
-				readObj.cplus_plus_ex = {}
-				for _, pilot in pairs(self.getAllPilots()) do
-				local id = pilot:getIdStr()
-					readObj.cplus_plus_ex[id] = self._lastSavedPersistentData[id]
-				end
-			end
-		)
-	end
-end
-
-function cplus_plus_ex:doItAll()
-	self:refreshGameData()
-	self:loadPersistentDataIfNeeded()
-
-	self.plus_manager:applySkillsToAllPilots()
-
-	self:savePersistentDataIfChanged()
-end
-
-function cplus_plus_ex:scanForTimeTraveler()
-	self:loadPersistentDataIfNeeded()
-
-	-- Use struct scanner to find pilot by matching multiple fields at once
-	-- Get field definitions from Pilot struct
-	local PilotLayout = memhack.structs.Pilot._layout
-
-	-- We use the first byte of the ID string as the search key
-	local scanner = memhack.dll.scanner.new("struct", {checkTiming=true})
-	for id, data in pairs(self._lastSavedPersistentData) do
-		if self.PLUS_DEBUG then
-			LOG("traveler search: scanning for pilot "..id..
-				" with timelines == " .. (data.prevTimelines + 1) ..
-				", xp == " .. data.xp .. ", level == " .. data.level)
-		end
-
-		-- Create struct definition with first byte of ID as key passing the offset
-		-- from the base of the pilot struct so we can use our defined offsets as is
-		local structDef = memhack.dll.scanner.StructSearch.new(string.byte(id:sub(1,1)), PilotLayout.id.offset)
-
-		-- Add fields using struct-relative offsets. We created the key with the offset
-		-- from the pilot base struct so we don't need to compute them relative to the
-		-- key but instead use directly from the pilot base address
-		structDef:addField(PilotLayout.xp.offset, "int", data.xp)
-		structDef:addField(PilotLayout.level.offset, "int", data.level)
-		structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
-		structDef:addField(PilotLayout.id.offset, "string", id)
-
-		-- perform the scan
-		local results = scanner:firstScan("exact", structDef)
-
-		if self.PLUS_DEBUG then
-			LOG("traveler search: found " .. results.resultCount .. " matches")
-		end
-
-		if results.resultCount > 0 then
-			local matches = scanner:getResults({limit = 1})
-			-- Since we passed keyOffset, the address is already the struct base
-			local baseAddr = matches.results[1].address
-			if self.PLUS_DEBUG then LOG("traveler search: setting to found pilot at " .. string.format("0x%X", baseAddr)) end
-			self.timeTraveler = memhack.structs.Pilot.new(baseAddr)
-			break  -- Found the time traveler, no need to continue
-		end
-
-		scanner:reset()
-	end
-end
-
-function cplus_plus_ex:searchForTimeTraveler()
-	if self._pilotStructs then
-		if self.PLUS_DEBUG then LOG("traveler search: Checking cached pilots") end
-		for _, pilot in pairs(self._pilotStructs) do
-			local pilotData = self._lastSavedPersistentData[pilot:getIdStr()]
-			if self.PLUS_DEBUG then LOG("traveler search: ".. pilot:getPrevTimelines() .. " - " .. pilotData.prevTimelines + 1) end
-			if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
-				self.timeTraveler = pilot
-				if self.PLUS_DEBUG then LOG("PLUS Ext: Found time traveler! ".. pilot:getIdStr()) end
-			end
-		end
-	else
-		if self.PLUS_DEBUG then LOG("traveler search: No cached pilots; Scanning for pilot") end
-		self:scanForTimeTraveler()
-	end
-end
-
-function cplus_plus_ex:addHooks()
-	modApi:addSaveGameHook(function()
-		cplus_plus_ex:doItAll()
-	end)
-	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end
-end
-
-function cplus_plus_ex:addEvents()
-	-- TODO: Maybe a different event?
-	modApi.events.onMainMenuEntered:subscribe(function()
-		cplus_plus_ex:clearGameData()
-	end)
-	modApi.events.onHangarEntered:subscribe(function()
-		cplus_plus_ex:searchForTimeTraveler()
-	end)
-	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
-end
-
-function cplus_plus_ex:init(plus_manager)
-	self.plus_manager = plus_manager
-	self.plus_manager:init(self)
-
-	-- Events are not cleared
+	-- Add events
 	self:addEvents()
 end
 
 function cplus_plus_ex:load(options)
-	self.plus_manager:load(options)
-
 	-- Add the hooks - these are cleared each reload
 	self:addHooks()
 end
 
--- Shows an error popup to the user
-function cplus_plus_ex:showErrorPopup(message)
-	if modApi then
-		-- Use modApi's message box for user-facing errors
-		modApi:scheduleHook(50, function()
-			sdlext.showDialog(
-				function(dialog)
-					local ui = require("ui")
-					local frame = Ui()
-						:widthpx(500):heightpx(200)
-						:caption("PLUS Extension Error")
-
-					frame:addSurface(Ui()
-						:width(1):height(1)
-						:decorate({ DecoSolid(deco.colors.buttonborder) })
-					)
-
-					local scrollarea = UiScrollArea()
-						:width(1):height(1)
-						:padding(10)
-					frame:add(scrollarea)
-
-					local textbox = UiTextBox(message)
-						:width(1)
-					scrollarea:add(textbox)
-
-					return frame
-				end
-			)
-		end)
-	end
+function cplus_plus_ex:addEvents()
+	modApi.events.onMainMenuEntered:subscribe(function()
+		time_traveler.clearGameData()
+	end)
+	modApi.events.onHangarEntered:subscribe(function()
+		time_traveler.searchForTimeTraveler()
+	end)
+	modApi.events.onModsFirstLoaded:subscribe(function()
+		cplus_plus_ex:postModsLoadedConfig()
+	end)
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
 end
 
-function cplus_plus_ex:logAndShowErrorPopup(message)
-	LOG(message)
-	self:showErrorPopup(message)
+function cplus_plus_ex:postModsLoadedConfig()
+	-- Read vanilla pilot exclusions to support vanilla API
+	skill_registry.readPilotExclusionsFromGlobal()
+
+	-- Auto-adjust weights for dependencies
+	self:setAdjustedWeightsConfigs()
+
+	-- Set the defaults to our registered/setup values
+	self.defaultConfig = utils.deepcopy(self.config)
+
+	-- TODO: Then load any saved configurations
 end
 
--- Helper function to get all pilots in the current squad
--- in the future add pilots in hanger here as well
-function cplus_plus_ex:getAllPilots()
-	if not Game then return nil end
+function cplus_plus_ex:addHooks()
+	modApi:addSaveGameHook(function()
+		self:updateAndSaveSkills()
+	end)
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end
+end
 
-	local pilots = {}
-
-	-- Iterate through the 3 squad positions (0, 1, 2)
-	for i = 0, 2 do
-		local pawnId = i  -- Pawn IDs correspond to squad positions
-		local pawn = Game:GetPawn(pawnId)
-
-		if pawn ~= nil then
-			local pilot = pawn:GetPilot()
-			if pilot ~= nil then
-				pilots[i + 1] = pilot
-			end
-		end
-	end
-	return pilots
+-- Do all time_traveler operations (refresh, load, apply, save)
+function cplus_plus_ex:updateAndSaveSkills()
+	time_traveler.refreshGameData()
+	time_traveler.loadPersistentDataIfNeeded()
+	self:applySkillsToAllPilots()
+	time_traveler.savePersistentDataIfChanged()
 end
