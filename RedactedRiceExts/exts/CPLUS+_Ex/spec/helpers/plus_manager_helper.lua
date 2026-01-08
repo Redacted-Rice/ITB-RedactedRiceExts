@@ -25,18 +25,20 @@ function M.resetState()
 	pm._registeredSkillsIds = {}
 	pm._enabledSkills = {}
 	pm._enabledSkillsIds = {}
-	pm._pilotSkillExclusionsAuto = {}
-	pm._pilotSkillExclusionsManual = {}
-	pm._pilotSkillInclusions = {}
-	pm._skillExclusions = {}
-	pm._skillDependencies = {}
 	pm._constraintFunctions = {}
-	pm._weightModifiers = {}
-	pm._skillWeights = {}
-	pm._baseSkillWeight = 1.0
 	pm._localRandomCount = nil
 	pm._usedSkillsPerRun = {}
-	pm.allowReusableSkills = false
+
+	-- Reset config structure
+	pm.config = {
+		allowReusableSkills = true,
+		autoAdjustWeights = true,
+		pilotSkillExclusions = {},
+		pilotSkillInclusions = {},
+		skillExclusions = {},
+		skillDependencies = {},
+		skillConfigs = {},
+	}
 
 	GAME.cplus_plus_ex.pilotSkills = {}
 	GAME.cplus_plus_ex.randomSeed = 12345

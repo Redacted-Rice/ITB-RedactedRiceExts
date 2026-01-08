@@ -20,35 +20,17 @@ describe("PLUS Manager Pilot Constraints", function()
 			plus_manager:registerPlusExclusionInclusionConstraintFunction()
 		end)
 
-		it("should register manual exclusions for a pilot", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health", "Move"}, false)
+		it("should register exclusions for a pilot", function()
+			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health", "Move"})
 
-			local exclusions = plus_manager._pilotSkillExclusionsManual["Pilot_Zoltan"]
+			local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_Zoltan"]
 			assert.is_not_nil(exclusions)
 			assert.is_true(exclusions["Health"])
 			assert.is_true(exclusions["Move"])
 		end)
 
-		it("should register auto exclusions for a pilot", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health", "Move"}, true)
-
-			local exclusions = plus_manager._pilotSkillExclusionsAuto["Pilot_Zoltan"]
-			assert.is_not_nil(exclusions)
-			assert.is_true(exclusions["Health"])
-			assert.is_true(exclusions["Move"])
-		end)
-
-		it("should prevent manually excluded skills for a pilot", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"}, false)
-
-			local pilot = helper.createMockPilot("Pilot_Zoltan")
-			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
-
-			assert.is_false(result)
-		end)
-
-		it("should prevent auto excluded skills for a pilot", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"}, true)
+		it("should prevent excluded skills for a pilot", function()
+			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"})
 
 			local pilot = helper.createMockPilot("Pilot_Zoltan")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
@@ -57,7 +39,7 @@ describe("PLUS Manager Pilot Constraints", function()
 		end)
 
 		it("should allow non-excluded skills for a pilot", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"}, false)
+			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"})
 
 			local pilot = helper.createMockPilot("Pilot_Zoltan")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Move")
@@ -66,7 +48,7 @@ describe("PLUS Manager Pilot Constraints", function()
 		end)
 
 		it("should not affect other pilots", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"}, false)
+			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"})
 
 			local pilot = helper.createMockPilot("Pilot_Other")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
@@ -88,7 +70,7 @@ describe("PLUS Manager Pilot Constraints", function()
 		it("should register inclusions for a pilot", function()
 			plus_manager:registerPilotSkillInclusions("Pilot_Soldier", {"Special"})
 
-			local inclusions = plus_manager._pilotSkillInclusions["Pilot_Soldier"]
+			local inclusions = plus_manager.config.pilotSkillInclusions["Pilot_Soldier"]
 			assert.is_not_nil(inclusions)
 			assert.is_true(inclusions["Special"])
 		end)
@@ -149,14 +131,14 @@ describe("PLUS Manager Pilot Constraints", function()
 				Blacklist = {"Grid"}
 			}, Pilot)
 
-			plus_manager:registerPilotExclusionsFromGlobal()
+			plus_manager:readPilotExclusionsFromGlobal()
 
-			local exclusionsA = plus_manager._pilotSkillExclusionsAuto["Pilot_TestA"]
+			local exclusionsA = plus_manager.config.pilotSkillExclusions["Pilot_TestA"]
 			assert.is_not_nil(exclusionsA)
 			assert.is_true(exclusionsA["Health"])
 			assert.is_true(exclusionsA["Move"])
 
-			local exclusionsB = plus_manager._pilotSkillExclusionsAuto["Pilot_TestB"]
+			local exclusionsB = plus_manager.config.pilotSkillExclusions["Pilot_TestB"]
 			assert.is_not_nil(exclusionsB)
 			assert.is_true(exclusionsB["Grid"])
 		end)
@@ -166,33 +148,18 @@ describe("PLUS Manager Pilot Constraints", function()
 				Name = "No Blacklist Pilot"
 			}, Pilot)
 
-			plus_manager:registerPilotExclusionsFromGlobal()
+			plus_manager:readPilotExclusionsFromGlobal()
 
-			local exclusions = plus_manager._pilotSkillExclusionsAuto["Pilot_TestNoBlacklist"]
+			local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_TestNoBlacklist"]
 			assert.is_nil(exclusions)
 		end)
 
-		it("should clear auto exclusions on each call", function()
-			_G.Pilot_TestFirst = setmetatable({
-				Name = "First Pilot",
-				Blacklist = {"Health"}
-			}, Pilot)
+		it("should not clear registered exclusions", function()
+			plus_manager:registerPilotSkillExclusions("Pilot_Manual", {"Health"})
 
-			plus_manager:registerPilotExclusionsFromGlobal()
-			assert.is_not_nil(plus_manager._pilotSkillExclusionsAuto["Pilot_TestFirst"])
+			plus_manager:readPilotExclusionsFromGlobal()
 
-			_G.Pilot_TestFirst = nil
-			plus_manager:registerPilotExclusionsFromGlobal()
-
-			assert.is_nil(plus_manager._pilotSkillExclusionsAuto["Pilot_TestFirst"])
-		end)
-
-		it("should not clear manual exclusions", function()
-			plus_manager:registerPilotSkillExclusions("Pilot_Manual", {"Health"}, false)
-
-			plus_manager:registerPilotExclusionsFromGlobal()
-
-			local manualExclusions = plus_manager._pilotSkillExclusionsManual["Pilot_Manual"]
+			local manualExclusions = plus_manager.config.pilotSkillExclusions["Pilot_Manual"]
 			assert.is_not_nil(manualExclusions)
 			assert.is_true(manualExclusions["Health"])
 		end)

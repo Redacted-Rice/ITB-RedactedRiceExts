@@ -25,9 +25,9 @@ describe("PLUS Manager Weighted Random Selection", function()
 
 		it("should handle equal weights (uniform distribution)", function()
 			-- Set all to same weight
-			plus_manager:setSkillWeight("Health", 1.0)
-			plus_manager:setSkillWeight("Move", 1.0)
-			plus_manager:setSkillWeight("Grid", 1.0)
+			plus_manager:setSkillConfig("Health", {set_weight = 1.0})
+			plus_manager:setSkillConfig("Move", {set_weight = 1.0})
+			plus_manager:setSkillConfig("Grid", {set_weight = 1.0})
 
 			local availableSkills = {"Health", "Move", "Grid"}
 
@@ -59,10 +59,10 @@ describe("PLUS Manager Weighted Random Selection", function()
 		end)
 
 		it("should respect custom weights (high weight more likely)", function()
-			plus_manager:setSkillWeight("Common", 10.0)
-			plus_manager:setSkillWeight("Uncommon", 5.0)
-			plus_manager:setSkillWeight("Rare", 3.0)
-			plus_manager:setSkillWeight("Epic", 1.0)
+			plus_manager:setSkillConfig("Common", {set_weight = 10.0})
+			plus_manager:setSkillConfig("Uncommon", {set_weight = 5.0})
+			plus_manager:setSkillConfig("Rare", {set_weight = 3.0})
+			plus_manager:setSkillConfig("Epic", {set_weight = 1.0})
 
 			local availableSkills = {"Common", "Uncommon", "Rare", "Epic"}
 
@@ -110,9 +110,9 @@ describe("PLUS Manager Weighted Random Selection", function()
 
 		it("should handle zero weight (effectively disabled)", function()
 			-- SkillA has weight 0, SkillB and SkillC have weight 1
-			plus_manager:setSkillWeight("SkillA", 0.0)
-			plus_manager:setSkillWeight("SkillB", 1.0)
-			plus_manager:setSkillWeight("SkillC", 1.0)
+			plus_manager:setSkillConfig("SkillA", {set_weight = 0.0})
+			plus_manager:setSkillConfig("SkillB", {set_weight = 1.0})
+			plus_manager:setSkillConfig("SkillC", {set_weight = 1.0})
 
 			local availableSkills = {"SkillA", "SkillB", "SkillC"}
 
@@ -129,10 +129,10 @@ describe("PLUS Manager Weighted Random Selection", function()
 		end)
 
 		it("should handle boundary random value at cumulative weight threshold", function()
-			plus_manager:setSkillWeight("SkillA", 1.0)
-			plus_manager:setSkillWeight("SkillB", 1.0)
-			plus_manager:setSkillWeight("SkillC", 1.0)
-			plus_manager:setSkillWeight("SkillD", 1.0)
+			plus_manager:setSkillConfig("SkillA", {set_weight = 1.0})
+			plus_manager:setSkillConfig("SkillB", {set_weight = 1.0})
+			plus_manager:setSkillConfig("SkillC", {set_weight = 1.0})
+			plus_manager:setSkillConfig("SkillD", {set_weight = 1.0})
 
 			local availableSkills = {"SkillA", "SkillB", "SkillC", "SkillD"}
 
@@ -156,11 +156,11 @@ describe("PLUS Manager Weighted Random Selection", function()
 				{id = "Skill5", shortName = "S5", fullName = "Skill5", description = "Test"},
 			})
 
-			plus_manager:setSkillWeight("Skill1", 1.0)
-			plus_manager:setSkillWeight("Skill2", 2.0)
-			plus_manager:setSkillWeight("Skill3", 3.0)
-			plus_manager:setSkillWeight("Skill4", 4.0)
-			plus_manager:setSkillWeight("Skill5", 5.0)
+			plus_manager:setSkillConfig("Skill1", {set_weight = 1.0})
+			plus_manager:setSkillConfig("Skill2", {set_weight = 2.0})
+			plus_manager:setSkillConfig("Skill3", {set_weight = 3.0})
+			plus_manager:setSkillConfig("Skill4", {set_weight = 4.0})
+			plus_manager:setSkillConfig("Skill5", {set_weight = 5.0})
 		end)
 
 		it("should only consider weights of skills in availableSkills list", function()
@@ -225,7 +225,7 @@ describe("PLUS Manager Weighted Random Selection", function()
 		end)
 	end)
 
-	describe("Auto-Adjust Default Weights for Dependencies", function()
+	describe("Auto-Adjust Weights for Dependencies", function()
 		it("should calculate weight based on (numSkills - 2) / numDependencies", function()
 			helper.setupTestSkills({
 				{id = "Base1", shortName = "B1", fullName = "Base1", description = "Test"},
@@ -237,16 +237,17 @@ describe("PLUS Manager Weighted Random Selection", function()
 			-- Total: 5 skills
 
 			plus_manager:registerSkillDependency("Dependent1", "Base1")
-			plus_manager:autoAdjustDefaultWeights()
+			plus_manager:setAdjustedWeightsConfigs()
 
-			-- Dependent1 has 1 dependency, 5 total skills: (5-2)/1 = 3.0
-			assert.equals(3.0, plus_manager._skillWeights["Dependent1"])
-			-- Base1 gets +0.5
-			assert.equals(1.5, plus_manager._skillWeights["Base1"])
-			-- Others unchanged
-			assert.equals(1.0, plus_manager._skillWeights["Base2"])
-			assert.equals(1.0, plus_manager._skillWeights["Base3"])
-			assert.equals(1.0, plus_manager._skillWeights["Base4"])
+			-- Dependent1 has 1 dependency, 5 total skills: (5-2)/1 = 3.0 times base weight
+			-- Base weight is 1.0, so 3.0 * 1.0 = 3.0
+			assert.equals(3.0, plus_manager.config.skillConfigs["Dependent1"].adj_weight)
+			-- Base1 gets +0.5: 1.0 + 0.5 = 1.5
+			assert.equals(1.5, plus_manager.config.skillConfigs["Base1"].adj_weight)
+			-- Others unchanged (1.0)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base2"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base3"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base4"].adj_weight)
 		end)
 
 		it("should handle multiple dependencies reducing weight", function()
@@ -261,16 +262,17 @@ describe("PLUS Manager Weighted Random Selection", function()
 
 			plus_manager:registerSkillDependency("Complex", "Base1")
 			plus_manager:registerSkillDependency("Complex", "Base2")
-			plus_manager:autoAdjustDefaultWeights()
+			plus_manager:setAdjustedWeightsConfigs()
 
-			-- Complex has 2 dependencies, 5 total skills: (5-2)/2 = 1.5
-			assert.equals(1.5, plus_manager._skillWeights["Complex"])
-			-- All bases get +0.5
-			assert.equals(1.5, plus_manager._skillWeights["Base1"])
-			assert.equals(1.5, plus_manager._skillWeights["Base2"])
-			-- others unchanged
-			assert.equals(1.0, plus_manager._skillWeights["Base3"])
-			assert.equals(1.0, plus_manager._skillWeights["Base4"])
+			-- Complex has 2 dependencies, 5 total skills: (5-2)/2 = 1.5 times base weight
+			-- Base weight is 1.0, so 1.5 * 1.0 = 1.5
+			assert.equals(1.5, plus_manager.config.skillConfigs["Complex"].adj_weight)
+			-- Both bases get +0.5: 1.0 + 0.5 = 1.5
+			assert.equals(1.5, plus_manager.config.skillConfigs["Base1"].adj_weight)
+			assert.equals(1.5, plus_manager.config.skillConfigs["Base2"].adj_weight)
+			-- Others unchanged (1.0)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base3"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base4"].adj_weight)
 		end)
 
 		it("should accumulate dependency weight increases", function()
@@ -284,15 +286,58 @@ describe("PLUS Manager Weighted Random Selection", function()
 			plus_manager:registerSkillDependency("Dependent1", "Popular")
 			plus_manager:registerSkillDependency("Dependent2", "Popular")
 			plus_manager:registerSkillDependency("Dependent3", "Popular")
-			plus_manager:autoAdjustDefaultWeights()
+			plus_manager:setAdjustedWeightsConfigs()
 
 			-- Popular is used by 3 dependents: 1.0 + (3 * 0.5) = 2.5
-			assert.equals(2.5, plus_manager._skillWeights["Popular"])
+			assert.equals(2.5, plus_manager.config.skillConfigs["Popular"].adj_weight)
 
-			-- Each dependent has 1 dependency, 4 total skills: (4-2)/1 = 2.0
-			assert.equals(2.0, plus_manager._skillWeights["Dependent1"])
-			assert.equals(2.0, plus_manager._skillWeights["Dependent2"])
-			assert.equals(2.0, plus_manager._skillWeights["Dependent3"])
+			-- Each dependent has 1 dependency, 4 total skills: (4-2)/1 = 2.0 times base weight
+			-- Base weight is 1.0, so 2.0 * 1.0 = 2.0
+			assert.equals(2.0, plus_manager.config.skillConfigs["Dependent1"].adj_weight)
+			assert.equals(2.0, plus_manager.config.skillConfigs["Dependent2"].adj_weight)
+			assert.equals(2.0, plus_manager.config.skillConfigs["Dependent3"].adj_weight)
+		end)
+
+		it("should use autoAdjustWeights config flag", function()
+			helper.setupTestSkills({
+				{id = "Base1", shortName = "B1", fullName = "Base1", description = "Test"},
+				{id = "Base2", shortName = "B2", fullName = "Base2", description = "Test"},
+				{id = "Base3", shortName = "B3", fullName = "Base3", description = "Test"},
+				{id = "Dependent", shortName = "DP", fullName = "Dependent", description = "Test"},
+			})
+
+			plus_manager:registerSkillDependency("Dependent", "Base1")
+
+			-- Disable auto-adjust
+			plus_manager.config.autoAdjustWeights = false
+			plus_manager:setAdjustedWeightsConfigs()
+
+			-- Weights should remain at base values (1.0)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Dependent"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base1"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base2"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base3"].adj_weight)
+		end)
+
+		it("should multiply custom base weights by dependency factor", function()
+			helper.setupTestSkills({
+				{id = "Base1", shortName = "B1", fullName = "Base1", description = "Test", weight = 2.0},
+				{id = "Base2", shortName = "B2", fullName = "Base2", description = "Test"},
+				{id = "Base3", shortName = "B3", fullName = "Base3", description = "Test"},
+				{id = "Dependent", shortName = "DP", fullName = "Dependent", description = "Test", weight = 2.0},
+			})
+			-- 2 skills total
+
+			plus_manager:registerSkillDependency("Dependent", "Base1")
+			plus_manager:setAdjustedWeightsConfigs()
+
+			-- Dependent has custom weight 2.0, adjusted by (4-2)/1 = 2, so 2.0 * 2 = 4.0
+			assert.equals(4.0, plus_manager.config.skillConfigs["Dependent"].adj_weight)
+			-- Base gets +0.5: 2.0 + 0.5 = 2.5
+			assert.equals(2.5, plus_manager.config.skillConfigs["Base1"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base2"].adj_weight)
+			assert.equals(1.0, plus_manager.config.skillConfigs["Base3"].adj_weight)
 		end)
 	end)
+
 end)

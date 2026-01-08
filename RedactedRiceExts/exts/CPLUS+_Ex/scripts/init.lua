@@ -14,11 +14,7 @@ local extension = {
 }
 
 function extension:metadata()
-	modApi:addGenerationOption(
-		"cplus_plus_ex_dup_skills_allowed", "Enable Duplicate Skills",
-		"Allows skills marked as reusable to be assigned multiple times to a pilot",
-		{enabled = false}
-	)
+	-- will handled through custom UI
 end
 
 function extension:init(options)
