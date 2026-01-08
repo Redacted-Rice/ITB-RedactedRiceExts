@@ -25,9 +25,9 @@ describe("PLUS Manager Skill-to-Skill Constraints", function()
 		it("should register skill exclusion", function()
 			plus_manager:registerSkillExclusion("Fire", "Ice")
 
-			assert.is_not_nil(plus_manager._skillExclusions["Fire"])
-			assert.is_true(plus_manager._skillExclusions["Fire"]["Ice"])
-			assert.is_true(plus_manager._skillExclusions["Ice"]["Fire"])
+			assert.is_not_nil(plus_manager.config.skillExclusions["Fire"])
+			assert.is_true(plus_manager.config.skillExclusions["Fire"]["Ice"])
+			assert.is_true(plus_manager.config.skillExclusions["Ice"]["Fire"])
 		end)
 
 		it("should prevent mutually exclusive skills from being selected together", function()
@@ -102,8 +102,8 @@ describe("PLUS Manager Skill-to-Skill Constraints", function()
 		it("should register skill dependency", function()
 			plus_manager:registerSkillDependency("AdvancedFire", "BasicFire")
 
-			assert.is_not_nil(plus_manager._skillDependencies["AdvancedFire"])
-			assert.is_true(plus_manager._skillDependencies["AdvancedFire"]["BasicFire"])
+			assert.is_not_nil(plus_manager.config.skillDependencies["AdvancedFire"])
+			assert.is_true(plus_manager.config.skillDependencies["AdvancedFire"]["BasicFire"])
 		end)
 
 		it("should allow dependent skill when dependency is selected", function()
@@ -171,29 +171,31 @@ describe("PLUS Manager Skill-to-Skill Constraints", function()
 		it("should prevent chain dependencies (dependent -> dependent)", function()
 			-- First dependency: AdvancedFire depends on BasicFire
 			plus_manager:registerSkillDependency("AdvancedFire", "BasicFire")
-			
+
 			-- Verify first dependency was registered
-			assert.is_not_nil(plus_manager._skillDependencies["AdvancedFire"])
-			assert.is_true(plus_manager._skillDependencies["AdvancedFire"]["BasicFire"])
-			
+			assert.is_not_nil(plus_manager.config.skillDependencies["AdvancedFire"])
+			assert.is_true(plus_manager.config.skillDependencies["AdvancedFire"]["BasicFire"])
+
 			-- Try to create chain: MasterFire depends on AdvancedFire (which is already dependent)
-			plus_manager:registerSkillDependency("MasterFire", "AdvancedFire")
-			
-			-- Chain should be prevented - MasterFire should not have any dependencies registered
-			assert.is_nil(plus_manager._skillDependencies["MasterFire"])
+			local success = plus_manager:registerSkillDependency("MasterFire", "AdvancedFire")
+
+			-- Chain should be prevented - should return false
+			assert.is_false(success)
+			-- MasterFire should not have any dependencies registered
+			assert.is_nil(plus_manager.config.skillDependencies["MasterFire"])
 		end)
 
 		it("should allow multiple non-dependent skills to depend on the same base skill", function()
 			-- Both AdvancedFire and AdvancedIce can depend on BasicFire
 			plus_manager:registerSkillDependency("AdvancedFire", "BasicFire")
 			plus_manager:registerSkillDependency("AdvancedIce", "BasicFire")
-			
+
 			-- Both should be registered successfully
-			assert.is_not_nil(plus_manager._skillDependencies["AdvancedFire"])
-			assert.is_true(plus_manager._skillDependencies["AdvancedFire"]["BasicFire"])
-			
-			assert.is_not_nil(plus_manager._skillDependencies["AdvancedIce"])
-			assert.is_true(plus_manager._skillDependencies["AdvancedIce"]["BasicFire"])
+			assert.is_not_nil(plus_manager.config.skillDependencies["AdvancedFire"])
+			assert.is_true(plus_manager.config.skillDependencies["AdvancedFire"]["BasicFire"])
+
+			assert.is_not_nil(plus_manager.config.skillDependencies["AdvancedIce"])
+			assert.is_true(plus_manager.config.skillDependencies["AdvancedIce"]["BasicFire"])
 		end)
 
 		it("should prevent any chain regardless of registration order", function()
@@ -205,11 +207,12 @@ describe("PLUS Manager Skill-to-Skill Constraints", function()
 
 			-- Register Base -> Mid dependency first
 			plus_manager:registerSkillDependency("Mid", "Base")
-			assert.is_not_nil(plus_manager._skillDependencies["Mid"])
-			
+			assert.is_not_nil(plus_manager.config.skillDependencies["Mid"])
+
 			-- Try to chain Mid -> Top (should be prevented)
-			plus_manager:registerSkillDependency("Top", "Mid")
-			assert.is_nil(plus_manager._skillDependencies["Top"])
+			local success = plus_manager:registerSkillDependency("Top", "Mid")
+			assert.is_false(success)
+			assert.is_nil(plus_manager.config.skillDependencies["Top"])
 		end)
 	end)
 
@@ -239,4 +242,5 @@ describe("PLUS Manager Skill-to-Skill Constraints", function()
 			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Ice"}, "AdvancedFire"))
 		end)
 	end)
+
 end)
