@@ -109,16 +109,24 @@ function skill_config.setSkillConfig(skillId, config)
 	-- If we reached here, its a good config. Apply it
 	skill_config.config.skillConfigs[skillId] = new_config
 	if new_config.enabled and not curr_config.enabled then
-		skill_config.enableSkill(skillId)
+		skill_config._enableSkill_internal(skillId)
 	elseif not new_config.enabled and curr_config.enabled then
-		skill_config.disableSkill(skillId)
+		skill_config._disableSkill_internal(skillId)
 	end
 
 	if owner.PLUS_DEBUG then LOG("PLUS Ext: Set config for skill " .. skillId) end
 end
 
+function skill_config.enableSkill(skillId)
+	skill_config.setSkillConfig(skillId, {enabled = true})
+end
+
+function skill_config.disableSkill(skillId)
+	skill_config.setSkillConfig(skillId, {enabled = false})
+end
+
 -- Enable a skill. Should not be called directly
-function skill_config.enableSkill(id)
+function skill_config._enableSkill_internal(id)
 	local category = skill_registry.registeredSkillsIds[id]
 	local skill = skill_registry.registeredSkills[category][id]
 
@@ -140,7 +148,7 @@ function skill_config.enableSkill(id)
 end
 
 -- Disable a skill. Should not be called directly
-function skill_config.disableSkill(id)
+function skill_config._disableSkill_internal(id)
 	if skill_config.enabledSkills[id] == nil then
 		LOG("PLUS Ext: Warning: Skill " .. id .. " already disabled, skipping")
 	else
