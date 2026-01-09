@@ -21,7 +21,7 @@ function extension:init(options)
 	local path = self.resourcePath
 
 	require(path.."scripts/cplus_plus_ex")
-	cplus_plus_ex:init()
+	cplus_plus_ex:init(path)
 end
 
 function extension:load(options, version)
