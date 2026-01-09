@@ -24,4 +24,6 @@ Allow customizable skills
 	Look into a way to autoadd config options for each added skill? Maybe if not support config file based enable/disabling?
 	or instead just provide a UI? That would probably be cleaner, easier, and better
 (once added scan for hanger) update to assign skills to new pilots in hanger
+Grid and reactors don't stack - make a way to stack them on skills
+OnLevelUp Hook/event for pilots? Tie into dialogs?
 
