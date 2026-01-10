@@ -73,6 +73,8 @@ function cplus_plus_ex:initModules(path)
 	function cplus_plus_ex:setAdjustedWeightsConfigs() return skill_config.setAdjustedWeightsConfigs() end
 	function cplus_plus_ex:resetToDefaults() return skill_config.resetToDefaults() end
 	function cplus_plus_ex:getAllowedReusability(...) return skill_config.getAllowedReusability(...) end
+	function cplus_plus_ex:saveConfiguration() return skill_config.saveConfiguration() end
+	function cplus_plus_ex:loadConfiguration() return skill_config.loadConfiguration() end
 
 	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints.checkSkillConstraints(...) end
 	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints.registerConstraintFunction(...) end
@@ -124,9 +126,10 @@ function cplus_plus_ex:postModsLoadedConfig()
 	self:setAdjustedWeightsConfigs()
 
 	-- Set the defaults to our registered/setup values
-	self.defaultConfig = utils.deepcopy(self.config)
+	skill_config.captureDefaultConfigs()
 
-	-- TODO: Then load any saved configurations
+	-- Load any saved configurations
+	skill_config.loadConfiguration()
 end
 
 function cplus_plus_ex:addHooks()
