@@ -60,7 +60,10 @@ end
 -- Get allowed reusability options for a skill
 function skill_config.getAllowedReusability(skillId)
 	-- This is called by register before the skills are registered so default to all allowed
-	local minReusability = skill_registry.registeredSkills.reusability or owner.REUSABLILITY.REUSABLE
+	local minReusability = owner.REUSABLILITY.REUSABLE
+	if skill_registry.registeredSkills[skillId] and skill_registry.registeredSkills[skillId].reusability then
+		minReusability = skill_registry.registeredSkills[skillId].reusability
+	end
 	local allowed = {}
 
 	for val = minReusability, owner.REUSABLILITY.PER_RUN do
@@ -95,7 +98,7 @@ function skill_config.setSkillConfig(skillId, config)
 	end
 
 	if config.reusability then
-		local normalizeReuse = utils.normalizeReusabilityToInt(config.reusability, owner.REUSABLILITY)
+		local normalizeReuse = utils.normalizeReusabilityToInt(config.reusability)
 		if not normalizeReuse then
 			LOG("PLUS Ext: Error: Invalid skill reusability passed: " .. config.reusability)
 			return
@@ -127,8 +130,7 @@ end
 
 -- Enable a skill. Should not be called directly
 function skill_config._enableSkill_internal(id)
-	local category = skill_registry.registeredSkillsIds[id]
-	local skill = skill_registry.registeredSkills[category][id]
+	local skill = skill_registry.registeredSkills[id]
 
 	-- Check if already enabled
 	if skill_config.enabledSkills[id] ~= nil then
@@ -196,7 +198,7 @@ end
 -- Dependency skills get weight += 0.5 per dependent
 function skill_config.setAdjustedWeightsConfigs()
 	-- first just copy all the set weights to adj weights for all skills
-	for skillId, _ in pairs(skill_registry.registeredSkillsIds) do
+	for skillId, _ in pairs(skill_registry.registeredSkills) do
 		local config = skill_config.config.skillConfigs[skillId]
 		config.adj_weight = config.set_weight
 	end
@@ -255,12 +257,128 @@ function skill_config.setAdjustedWeightsConfigs()
 	end
 end
 
+function skill_config.captureDefaultConfigs()
+	skill_config.defaultConfig = utils.deepcopy(skill_config.config)
+end
+
 -- Resets configuration to default state
 -- Restores all values to what they were at initial load (after registration and auto-loading)
 function skill_config.resetToDefaults()
-	skill_config.config = utils.deepcopy(owner.defaultConfig)
-	-- TODO: Update internal state vars as well
-	-- TODO: save? Or is this handled elsewhere?
+	utils.deepcopyInPlace(skill_config.config, skill_config.defaultConfig)
+	
+	-- Rebuild enabled skills list from the reset config
+	skill_config.enabledSkills = {}
+	skill_config.enabledSkillsIds = {}
+	
+	for skillId, skillConfigObj in pairs(skill_config.config.skillConfigs) do
+		if skillConfigObj.enabled then
+			local skill = skill_registry.registeredSkills[skillId]
+			skill_config.enabledSkills[skillId] = skill
+			table.insert(skill_config.enabledSkillsIds, skillId)
+		end
+	end
+	
+	-- Note: Saving is handled by the caller (e.g., UI saveConfiguration())
+	if owner.PLUS_DEBUG then
+		LOG("PLUS Ext: Reset configuration to defaults")
+	end
+end
+
+-- Save configuration to modcontent.lua (pattern from time_traveler.lua)
+function skill_config.saveConfiguration()
+	if not modApi:isProfilePath() then return end
+
+	if owner.PLUS_DEBUG then
+		LOG("PLUS Ext: Saving skill configuration to modcontent.lua")
+	end
+
+	sdlext.config(
+		modApi:getCurrentProfilePath().."modcontent.lua",
+		function(obj)
+			obj.cplus_plus_ex = obj.cplus_plus_ex or {}
+			-- reset the whole table on save? Maybe just copy over changes like on load?
+			obj.cplus_plus_ex.skill_config = utils.deepcopy(skill_config.config)
+		end
+	)
+end
+
+-- Load configuration from modcontent.lua (pattern from time_traveler.lua)
+-- Merges saved config into current config to preserve defaults for newly added skills
+function skill_config.loadConfiguration()
+	if not modApi:isProfilePath() then return end
+
+	if owner.PLUS_DEBUG then
+		LOG("PLUS Ext: Loading skill configuration from modcontent.lua")
+	end
+
+	sdlext.config(
+		modApi:getCurrentProfilePath().."modcontent.lua",
+		function(obj)
+			if obj.cplus_plus_ex and obj.cplus_plus_ex.skill_config then
+				local savedConfig = obj.cplus_plus_ex.skill_config
+				
+				-- Merge saved config into current config
+				-- This preserves defaults for newly registered skills
+				
+				-- Update simple boolean flags
+				if savedConfig.allowReusableSkills ~= nil then
+					skill_config.config.allowReusableSkills = savedConfig.allowReusableSkills
+				end
+				if savedConfig.autoAdjustWeights ~= nil then
+					skill_config.config.autoAdjustWeights = savedConfig.autoAdjustWeights
+				end
+				
+				-- Update sparse, saved as added tables
+				-- We don't merge these since we only save exclusions not relationships
+				if savedConfig.pilotSkillExclusions then
+					skill_config.config.pilotSkillExclusions = utils.deepcopy(savedConfig.pilotSkillExclusions)
+				end
+				if savedConfig.pilotSkillInclusions then
+					skill_config.config.pilotSkillInclusions = utils.deepcopy(savedConfig.pilotSkillInclusions)
+				end
+				if savedConfig.skillExclusions then
+					skill_config.config.skillExclusions = utils.deepcopy(savedConfig.skillExclusions)
+				end
+				if savedConfig.skillDependencies then
+					skill_config.config.skillDependencies = utils.deepcopy(savedConfig.skillDependencies)
+				end
+				
+				-- Merge skillConfigs to update existing skill but preserve new defaults
+				if savedConfig.skillConfigs then
+					for skillId, savedSkillConfig in pairs(savedConfig.skillConfigs) do
+						-- Only update if skill was registered
+						if skill_config.config.skillConfigs[skillId] then
+							skill_config.config.skillConfigs[skillId] = utils.deepcopy(savedSkillConfig)
+						else
+							if owner.PLUS_DEBUG then
+								LOG("PLUS Ext: Ignoring saved config for removed skill: " .. skillId)
+							end
+						end
+					end
+				end
+
+				skill_config.rebuildEnabledSkills()
+				
+				if owner.PLUS_DEBUG then
+					LOG("PLUS Ext: Loaded and merged skill configuration")
+				end
+			end
+		end
+	)
+end
+
+function skill_config.rebuildEnabledSkills()
+	-- Rebuild enabled skills list from merged config
+	skill_config.enabledSkills = {}
+	skill_config.enabledSkillsIds = {}
+
+	for skillId, skillConfigObj in pairs(skill_config.config.skillConfigs) do
+		if skillConfigObj.enabled then
+			local skill = skill_registry.registeredSkills[skillId]
+			skill_config.enabledSkills[skillId] = skill
+			table.insert(skill_config.enabledSkillsIds, skillId)
+		end
+	end
 end
 
 return skill_config

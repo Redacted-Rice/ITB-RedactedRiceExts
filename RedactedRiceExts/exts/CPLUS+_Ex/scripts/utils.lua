@@ -33,6 +33,32 @@ function utils.deepcopy(orig, seen)
 	return copy
 end
 
+-- Deep copy function for tables that preserves the top level table
+-- Note: Does not deep copy metatables to avoid circular references
+function utils.deepcopyInPlace(copy, orig)
+	if type(copy) == 'table' and type(orig) == 'table' then
+		-- clear the table first
+		for k, _ in pairs(copy) do
+			copy[k] = nil
+		end
+		
+		-- Check if we've already copied this table (circular reference)
+		seen = {}
+		seen[orig] = copy
+
+		for orig_key, orig_value in next, orig, nil do
+			copy[utils.deepcopy(orig_key, seen)] = utils.deepcopy(orig_value, seen)
+		end
+
+		-- Copy metatable reference but don't deep copy it (avoids circular refs)
+		local mt = getmetatable(orig)
+		if mt then
+			setmetatable(copy, mt)
+		end
+	end
+	return copy
+end
+
 -- Helper function to convert a set-like table to a comma-separated string
 -- Used for logging skill lists
 function utils.setToString(setTable)
@@ -44,15 +70,15 @@ function utils.setToString(setTable)
 end
 
 -- Normalize reusability value to integer constant
-function utils.normalizeReusabilityToInt(reusability, REUSABLILITY)
+function utils.normalizeReusabilityToInt(reusability)
 	if reusability == nil then
 		return nil
 	end
 
 	if type(reusability) == "number" then
-		if reusability == REUSABLILITY.REUSABLE or
-		   reusability == REUSABLILITY.PER_PILOT or
-		   reusability == REUSABLILITY.PER_RUN then
+		if reusability == cplus_plus_ex.REUSABLILITY.REUSABLE or
+				reusability == cplus_plus_ex.REUSABLILITY.PER_PILOT or
+				reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 			return reusability
 		end
 		return nil
@@ -60,11 +86,11 @@ function utils.normalizeReusabilityToInt(reusability, REUSABLILITY)
 
 	if type(reusability) == "string" then
 		if reusability == "REUSABLE" or reusability == "reusable" then
-			return REUSABLILITY.REUSABLE
+			return cplus_plus_ex.REUSABLILITY.REUSABLE
 		elseif reusability == "PER_PILOT" or reusability == "per_pilot" then
-			return REUSABLILITY.PER_PILOT
+			return cplus_plus_ex.REUSABLILITY.PER_PILOT
 		elseif reusability == "PER_RUN" or reusability == "per_run" then
-			return REUSABLILITY.PER_RUN
+			return cplus_plus_ex.REUSABLILITY.PER_RUN
 		end
 	end
 

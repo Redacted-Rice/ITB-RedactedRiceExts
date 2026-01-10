@@ -12,8 +12,7 @@ local skill_config = nil
 local utils = nil
 
 -- Module state
-skill_registry.registeredSkills = {}  -- category -> skillId -> {shortName, fullName, description, bonuses, skillType, reusability}
-skill_registry.registeredSkillsIds = {}  -- skillId -> category
+skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability}
 
 -- Initialize the module with reference to owner
 function skill_registry.init(ownerRef)
@@ -35,10 +34,6 @@ end
 --			affect the game state in a one time only way
 -- weight optional default weight for the skill
 function skill_registry.registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight)
-	if skill_registry.registeredSkills[category] == nil then
-		skill_registry.registeredSkills[category] = {}
-	end
-
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -53,9 +48,9 @@ function skill_registry.registerSkill(category, idOrTable, shortName, fullName, 
 	end
 
 	-- Check if ID is already registered globally
-	if skill_registry.registeredSkillsIds[id] ~= nil then
+	if skill_registry.registeredSkills[id] ~= nil then
 		utils.logAndShowErrorPopup("PLUS Ext error: Skill ID '" .. id .. "' in category '" .. category ..
-				"' conflicts with existing skill from category '" .. skill_registry.registeredSkillsIds[id] .. "'.")
+				"' conflicts with existing skill from category '" .. skill_registry.registeredSkills[id].category .. "'.")
 		return
 	end
 
@@ -74,7 +69,7 @@ function skill_registry.registerSkill(category, idOrTable, shortName, fullName, 
 
 	-- Validate and normalize reusability
 	-- First handle nil input
-	reusability = utils.normalizeReusabilityToInt(reusability, owner.REUSABLILITY)
+	reusability = utils.normalizeReusabilityToInt(reusability)
 	if not reusability then
 		LOG("PLUS Ext: Warning: Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) ..
 				"' 1-3 (corresponding to enum values in REUSABLILITY. Defaulting to PER_PILOT")
@@ -82,12 +77,11 @@ function skill_registry.registerSkill(category, idOrTable, shortName, fullName, 
 	end
 
 	-- Register the skill with its type and reusability included in the skill data
-	skill_registry.registeredSkills[category][id] = { shortName = shortName, fullName = fullName, description = description,
+	skill_registry.registeredSkills[id] = { id = id, category = category, shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
 			saveVal = saveVal, reusability = reusability,
 	}
-	skill_registry.registeredSkillsIds[id] = category
 
 	-- add a config value
 	skill_config.setSkillConfig(id, {enabled = true, reusability = reusability, set_weight = weight})
