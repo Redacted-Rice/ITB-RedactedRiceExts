@@ -11,7 +11,13 @@ base obj (lua)
 	struct - struct related helpers/functions for accessing/modifying memory
 
 
-Add scan for hanger
+Add scan for hanger. FOUND IT!!!!
+	As a backup/double check, check the vtable of research control
+	Breach.exe+4B4F08 -> onj + 0x18 -> Game + 0x10 -> GameMap + 0x5674 (ResearchControl) + 0x68 hanger (vector) (56DC)
+		This is to head of vector. Tail is next byte
+		From there offset offset by 11c (or 120) to get pilot
+		Note the vector can reallocate!
+
 Add tests/test support (see memedit?)
 
 
