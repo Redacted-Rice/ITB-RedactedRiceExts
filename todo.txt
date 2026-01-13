@@ -1,37 +1,44 @@
-Automatically replace dll in memhack when rebuild dll
-consider dll subtables - reorganize or flatten?
-dll -
-	rw - for read/write operations on memory address and supporting consts
-	alloc - for allocating
-	address - for getting addresses (base and UD), bounds, etc
-	scanner
-base obj (lua)
-	debug - helpful for troubleshooting
-		todo add a log each k & v fn as well?
-	struct - struct related helpers/functions for accessing/modifying memory
-
-
-Add scan for hanger. FOUND IT!!!!
+For 1.0 release:
+1. Add scan for storage in upgrade menu
 	As a backup/double check, check the vtable of research control
 	Breach.exe+4B4F08 -> onj + 0x18 -> Game + 0x10 -> GameMap + 0x5674 (ResearchControl) + 0x68 hanger (vector) (56DC)
 		This is to head of vector. Tail is next byte
 		From there offset offset by 11c (or 120) to get pilot
 		Note the vector can reallocate!
-
-Add tests/test support (see memedit?)
-
-
+	Need to investigate/handle weapons vs pilots. Check for field in wrapper struct or for vtable
+		Is the x120 offset for pilot the same for weapon?
+2. Restructure calls?
+	consider dll subtables - reorganize or flatten?
+	dll -
+		rw - for read/write operations on memory address and supporting consts
+		alloc - for allocating
+		address - for getting addresses (base and UD), bounds, etc
+		scanner
+	base obj (lua)
+		debug - helpful for troubleshooting
+			todo add a log each k & v fn as well?
+		struct - struct related helpers/functions for accessing/modifying memory
+3. Look into adding tests (at least in lua?). May not be very feasible for most things
+	Add tests/test support (see memedit?)
+4. Document how to find/how I found the references in memhack
+	1. Score
+	2. Rep
+	3. pilot (in mech)
+	4. storage (very complex)
+	
 
 ---------- PLUS Ex ---------
 
-Finish up spacing on UI
-Add relationships editor to UI
-
-Tie into game for enabling/disabling AE skills. Remove/replace AE Skills checkbox saying its unused with CPLUS+ instead?
-(once added scan for hanger) update to assign skills to new pilots in hanger
-Grid and reactors don't stack - make a way to stack them on skills
-	Add OnLevelUp Hook/event for pilots? Tie into on save data to determine. Also tie into level up fn?
-Add localization support/auto generate skill texts and such to support GetText? Is this needed?
-	Doesn't seem to be but might be good to have "auto dictionary" support. Need to think on how to do this
+For 1.0 release:
+1. Add relationships editor to UI
+2. Check into removing/hiding AE skills UI checkbox
+3. Update to assign pilot skills in storage
+4. Add OnLevelUp Hook/event for pilots? Tie into on save data to determine. Also tie into level up fn?
+5. Allow grid and reactors to stack like hp and move (using 4)
+	Right now only the first one with it applies
+	
+Next release candadites:
+1. Move to GetText to be consistent/allow localization
+2. Add auto support of "auto-dictonarying" skill strings
 	Mostly just replacing test with GetText and adding a SetText. Can probably try calling GetText to see if it exists first
 
