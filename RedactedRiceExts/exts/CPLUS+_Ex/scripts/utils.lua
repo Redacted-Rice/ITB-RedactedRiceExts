@@ -154,4 +154,42 @@ function utils.getAllSquadPilots()
 	return pilots
 end
 
+-- Helper function to get all pilots in the current squad
+-- in the future add pilots in hanger here as well
+function utils.searchForAllPilotIds(includeAi, includePlaceholder)
+	local pilots = {}
+	for k, v in pairs(_G) do
+		if type(v) == "table" and getmetatable(v) == Pilot then
+			-- if we don't include placeholder and we find it, skip it
+			if (not includePlaceholder) and k == "Placeholder_Pilot" then
+				--skip
+			-- same for AI
+			elseif (not includeAi) and k == "Pilot_Artificial" then
+				--skip
+			else
+				table.insert(pilots, k)
+			end
+		end
+	end
+	return pilots
+end
+
+function utils.sortByValue(t, comparator)
+	-- extract keys
+	local keys = {}
+	for k in pairs(t) do
+		keys[#keys+1] = k
+	end
+
+	-- Sort keys by their associated values
+	table.sort(keys, function(a, b)
+		if comparator then
+			return comparator(t[a], t[b])
+		else
+			return t[a] < t[b]
+		end
+	end)
+	return keys
+end
+
 return utils

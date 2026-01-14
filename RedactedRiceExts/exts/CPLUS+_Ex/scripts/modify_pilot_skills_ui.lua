@@ -2,6 +2,7 @@
 -- UI for modifying skill weights and configurations
 
 local modify_pilot_skills_ui = {}
+local utils = cplus_plus_ex._modules.utils
 
 local scrollContent = nil
 -- Track UI widjets for updates
@@ -14,11 +15,82 @@ local adjustedPercentLabels = {}
 local SKILL_NAME_HEADER = "Skill Name"
 local REUSABLILITY_HEADER = "Reusability"
 local REUSABLILITY_NAMES = { "Reusable", "Per Pilot", "Per Run" }
+local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
+
+local ROW_HEIGHT = 41
+local CHECKBOX_PADDING = 40
+local DROPDOWN_PADDING = 40
+local PILOT_SIZE = 65
+local RELATIONSHIP_BUTTON_WIDTH = 140
+
+modify_pilot_skills_ui.unnamedPilotDisplayNames = {
+	Pilot_Rust = "Corp. Rust",
+	Pilot_Detritus = "Corp. Detritus",
+	Pilot_Pinnacle = "Corp. Pinnacle",
+	Pilot_Archive = "Corp. Archive",
+	Pilot_HornetMech = "Cyborg Hornet",
+	Pilot_ScarabMech = "Cyborg Scarab",
+	Pilot_BeetleMech = "Cyborg Beetle",
+}
 
 -- todo: move
 -- Check if skill is dependent (has dependencies)
 function modify_pilot_skills_ui.isDependentSkill(skillId)
 	return cplus_plus_ex.config.skillDependencies[skillId] ~= nil
+end
+
+function modify_pilot_skills_ui.getPilotsData(pilotIds)
+	local pilotData = {}
+	
+	for _, id in pairs(utils.searchForAllPilotIds()) do
+		pilotData[id] = GetText(_G[id].Name) or _G[id].Name or id
+		-- if the name is empty, we have a custom list of names to use
+		-- otherwise just fall back to id
+		if _G[id].Name == "" then
+			if modify_pilot_skills_ui.unnamedPilotDisplayNames[id] then
+				pilotData[id] = modify_pilot_skills_ui.unnamedPilotDisplayNames[id]
+			else
+				pilotData[id] = id
+			end
+		end
+	end
+	return pilotData
+end
+
+function modify_pilot_skills_ui.getSkillsData()
+	local skills = {}
+	local defaultSkills = {}
+	local inclusionSkills = {}
+	
+	for skillId, skill in pairs(cplus_plus_ex._modules.skill_registry.registeredSkills) do
+		local skillName = GetText(skill.shortName) or skill.shortName
+		skills[skillId] = skillName
+		if skill.skillType == "inclusion" then
+			inclusionSkills[skillId] = skillName
+		else
+			defaultSkills[skillId] = skillName
+		end
+	end
+	return skills, defaultSkills, inclusionSkills
+end
+
+function modify_pilot_skills_ui.getPilotPortrait(pilotId, scale)
+	scale = scale or 1  -- Default scale to 1
+	
+	-- Get portrait (taken from pilot deck selector)
+	local portrait = _G[pilotId].Portrait
+	if portrait == "" then
+		local advanced = list_contains(ADVANCED_PILOTS, pilotId)
+		local prefix = advanced and "img/advanced/portraits/pilots/" or "img/portraits/pilots/"
+		path = prefix .. pilotId .. ".png"
+	else
+		path = "img/portraits/" .. portrait .. ".png"
+	end
+	
+	return sdlext.getSurface({
+		path = path,
+		scale = scale
+	})
 end
 
 -- Gets all skills organized by type (dependent vs non-dependent)
@@ -142,13 +214,13 @@ function modify_pilot_skills_ui.determineColumnLengths()
 	end
 	local longestName = modify_pilot_skills_ui.getLongestLength(names)
 	-- Extra room for Checkbox
-	local paddedName = longestName + 40
+	local paddedName = longestName + CHECKBOX_PADDING
 
-	local reuseOptions = cplus_plus_ex._modules.utils.deepcopy(REUSABLILITY_NAMES)
-		table.insert(reuseOptions, REUSABLILITY_HEADER)
+	local reuseOptions = utils.deepcopy(REUSABLILITY_NAMES)
+	table.insert(reuseOptions, REUSABLILITY_HEADER)
 	local longestReuse = modify_pilot_skills_ui.getLongestLength(reuseOptions)
 	-- Extra room for drop down image
-	local paddedReuse = longestReuse + 40
+	local paddedReuse = longestReuse + DROPDOWN_PADDING
 
 	return paddedName, paddedReuse
 end
@@ -159,7 +231,7 @@ function modify_pilot_skills_ui.buildSkillEntryEnable(entryRow, skill, enabled, 
 	local category = skill.category
 
 	local enabledCheckbox = UiCheckbox()
-		:widthpx(skillLength):heightpx(41)
+		:widthpx(skillLength):heightpx(ROW_HEIGHT)
 		:settooltip("Category: " .. category .. "\n\n" .. description)
 		:decorate({
 			DecoButton(),
@@ -188,7 +260,6 @@ function modify_pilot_skills_ui.buildSkillEntryReusability(entryRow, skill, resu
 	local reusabilityStrings = {}
 	local reusabilityTooltips = {}
 
-	-- TODO: This whole drop down needs some work
 	-- Build dropdown options from allowed values
 	local count = 1
 	for k, _ in pairs(allowedReusability) do
@@ -203,7 +274,7 @@ function modify_pilot_skills_ui.buildSkillEntryReusability(entryRow, skill, resu
 	if #reusabilityValues == 1 then
 		-- Only one option: show as read-only label
 		reusabilityWidget = Ui()
-			:widthpx(resuabilityLength):heightpx(41)
+			:widthpx(resuabilityLength):heightpx(ROW_HEIGHT)
 			:settooltip(reusabilityStrings[1] .. " (fixed)")
 			:decorate({
 				DecoFrame(),
@@ -235,7 +306,7 @@ end
 
 function modify_pilot_skills_ui.buildSkillEntryWeightInput(entryRow, skill, setWeight)
 	local weightInput = UiInputField()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:settooltip("Enter weight (numeric only, press Enter to apply)")
 		:decorate({
 			DecoButton(),
@@ -277,7 +348,7 @@ end
 function modify_pilot_skills_ui.buildSkillEntryLabels(entryRow, skill)
 	-- Percentage label 
 	local percentageLabel = Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:settooltip("TODO")
 		:decorate({
 			DecoFrame(),
@@ -290,7 +361,7 @@ function modify_pilot_skills_ui.buildSkillEntryLabels(entryRow, skill)
 
 	-- Adjusted weight label (13% width, reduced from 15%)
 	local adjustedWeightLabel = Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:settooltip("TODO")
 		:decorate({
 			DecoFrame(),
@@ -303,7 +374,7 @@ function modify_pilot_skills_ui.buildSkillEntryLabels(entryRow, skill)
 
 	-- Adjusted percentage label 
 	local adjustedPercentLabel = Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:settooltip("TODO")
 		:decorate({
 			DecoFrame(),
@@ -324,7 +395,7 @@ function modify_pilot_skills_ui.buildSkillEntry(skill, isDependent, skillLength,
 	end
 
 	local entryRow = UiWeightLayout()
-		:width(1):heightpx(41)
+		:width(1):heightpx(ROW_HEIGHT)
 
 	-- Add values to the row
 	modify_pilot_skills_ui.buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength)
@@ -338,9 +409,9 @@ end
 -- Builds header row for skill columns
 function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 	local headerRow = UiWeightLayout()
-		:width(1):heightpx(41)
+		:width(1):heightpx(ROW_HEIGHT)
 	Ui()
-		:widthpx(skillLength):heightpx(41)
+		:widthpx(skillLength):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -349,7 +420,7 @@ function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 		:addTo(headerRow)
 
 	Ui()
-		:widthpx(resuabilityLength):heightpx(41)
+		:widthpx(resuabilityLength):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -359,7 +430,7 @@ function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 		:addTo(headerRow)
 
 	Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -368,7 +439,7 @@ function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 		:addTo(headerRow)
 
 	Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -378,7 +449,7 @@ function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 		:addTo(headerRow)
 
 	Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -388,7 +459,7 @@ function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 		:addTo(headerRow)
 
 	Ui()
-		:width(0.25):heightpx(41)
+		:width(0.25):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -402,7 +473,7 @@ end
 
 function modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
 	local settingsHeader = Ui()
-		:width(1):heightpx(41)
+		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -412,7 +483,7 @@ function modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
 
 	-- Allow duplicate skills checkbox
 	local allowDupsCheckbox = UiCheckbox()
-		:width(1):heightpx(41)
+		:width(1):heightpx(ROW_HEIGHT)
 		:settooltip("Allow reusable skills to be assigned multiple times to the same pilot")
 		:decorate({
 			DecoButton(),
@@ -431,7 +502,7 @@ function modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
 		
 	-- Auto-adjust dependent weights checkbox
 	local autoAdjustCheckbox = UiCheckbox()
-		:width(1):heightpx(41)
+		:width(1):heightpx(ROW_HEIGHT)
 		:settooltip("Automatically adjust weights for dependent skills based on their dependencies")
 		:decorate({
 			DecoButton(),
@@ -455,7 +526,7 @@ end
 
 function modify_pilot_skills_ui.buildSkillsList(scrollContent)
 local skillsHeader = Ui()
-		:width(1):heightpx(41)
+		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -463,7 +534,6 @@ local skillsHeader = Ui()
 		})
 		:addTo(scrollContent)
 
-	-- TODO: Skill length being ignored?
 	local skillLength, reuseabilityLength = modify_pilot_skills_ui.determineColumnLengths()
 
 	-- Add column headers
@@ -475,7 +545,7 @@ local skillsHeader = Ui()
 	-- Non-Dependent Skills
 	if #nonDependentSkills > 0 then
 		local nonDepHeader = Ui()
-			:width(1):heightpx(41)
+			:width(1):heightpx(ROW_HEIGHT)
 			:decorate({
 				DecoFrame(),
 				DecoAlign(0, 2),
@@ -495,7 +565,7 @@ local skillsHeader = Ui()
 	-- Dependent Skills but only if there are any
 	if #dependentSkills > 0 then
 		local depHeader = Ui()
-			:width(1):heightpx(41)
+			:width(1):heightpx(ROW_HEIGHT)
 			:decorate({
 				DecoFrame(),
 				DecoAlign(0, 2),
@@ -510,6 +580,358 @@ local skillsHeader = Ui()
 	
 	-- Initial percentage calculation
 	modify_pilot_skills_ui.updateAllPercentages()
+end
+
+function modify_pilot_skills_ui.addPilotImage(pilotId, row)
+	local pilotUi = Ui()
+		:widthpx(PILOT_SIZE):heightpx(ROW_HEIGHT)
+	
+	-- Add potrait if we have one
+	if pilotId and pilotId ~= "All" and pilotId ~= "" then
+		local portrait = modify_pilot_skills_ui.getPilotPortrait(pilotId)
+		if portrait then
+			pilotUi:decorate({
+					DecoSurface(portrait),
+				})
+		end
+	end
+	
+	pilotUi:addTo(row)
+	return pilotUi
+end
+
+function modify_pilot_skills_ui.addExistingRelLabel(text, row)
+	Ui()
+		:width(0.5):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(),
+			DecoAlign(0, 2),
+			DecoText(text)
+		})
+		:addTo(row)
+end
+
+function modify_pilot_skills_ui.addNewRelDropDown(label, listVals, listDisplay, selectFn, row)
+	local dropDown = UiDropDown(listVals, listDisplay, listVals[1])
+		-- Half the usable space
+		:width(0.5):heightpx(ROW_HEIGHT)
+		:settooltip("Select " .. label:lower() .. " (or All)")
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, 33),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(row)
+		
+	dropDown.optionSelected:subscribe(selectFn)
+end
+
+function modify_pilot_skills_ui.addArrowLabel(bidirectional, row)
+	local text = bidirectional and "↔" or "→"
+	Ui()
+		:widthpx(36):heightpx(ROW_HEIGHT)
+		:decorate({
+			-- center doesn't seem to do what I expect it to
+			DecoAlign(5, 0),
+			DecoCAlignedText(text)
+		})
+		:addTo(row)
+end
+
+function modify_pilot_skills_ui.createDropDownItems(dataList)
+	local listDisplay = {"", "All"}
+	local listVals = {"", "All"}
+	local sortedSourceKeys = utils.sortByValue(dataList)
+	for _, k in ipairs(sortedSourceKeys) do
+		table.insert(listDisplay, dataList[k])
+		table.insert(listVals, k)
+	end
+	return listDisplay, listVals
+end
+
+-- Builds a relationship editor section
+function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTable, title, sourceList, targetList, sourceLabel, targetLabel, isSameTypeRelation)
+	-- create list values with empty and all
+	local listDisplay, listVals = modify_pilot_skills_ui.createDropDownItems(sourceList)
+	local targetListDisplay, targetListVals = modify_pilot_skills_ui.createDropDownItems(targetList)
+	
+	-- Section header
+	Ui()
+		:width(1):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoText(title, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+		})
+		:addTo(parent)
+	
+	-- Container for this section
+	local largestHeight = sourceLabel == "Pilot" and PILOT_SIZE or ROW_HEIGHT
+	local padding = largestHeight - ROW_HEIGHT  + 3
+	
+	local sectionContainer = UiBoxLayout()
+		:vgap(padding)
+		:width(1)
+		:addTo(parent)
+	
+	-- State for the add dropdowns
+	local selectedSource = listVals[1]
+	local selectedTarget = targetListVals[1]
+	local currentPilotPortrait = nil
+	
+	-- Function to rebuild the list of existing relationships
+	local function rebuildRelationshipList()
+		-- Clear existing list (remove all but the add row)
+		while #sectionContainer.children > 1 do
+			sectionContainer.children[#sectionContainer.children]:detach()
+		end
+		
+		-- Build list of all existing relationships
+		for sourceId, targets in pairs(relationshipTable) do
+			for targetId, _ in pairs(targets) do
+				local entryRow = UiWeightLayout()
+					:width(1):heightpx(ROW_HEIGHT)
+					:addTo(sectionContainer)
+				
+				-- Pilot portrait if its a pilot
+				if sourceLabel == "Pilot" then
+					modify_pilot_skills_ui.addPilotImage(sourceId, entryRow)
+				end
+				
+				modify_pilot_skills_ui.addExistingRelLabel(sourceList[sourceId], entryRow)
+				modify_pilot_skills_ui.addArrowLabel(title == "Skill Exclusions", entryRow)
+				modify_pilot_skills_ui.addExistingRelLabel(targetList[targetId], entryRow)
+				
+				-- Remove button
+				local btnRemove = sdlext.buildButton(
+					"Remove",
+					"Remove this relationship",
+					function()
+						-- Remove from config
+						if relationshipTable[sourceId] then
+							relationshipTable[sourceId][targetId] = nil
+							-- If no more targets, remove source entry
+							local hasAny = false
+							for _, _ in pairs(relationshipTable[sourceId]) do
+								hasAny = true
+								break
+							end
+							if not hasAny then
+								relationshipTable[sourceId] = nil
+							end
+						end
+						
+						-- Save and rebuild
+						cplus_plus_ex:saveConfiguration()
+						rebuildRelationshipList()
+						return true
+					end
+				)
+				btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
+					:heightpx(ROW_HEIGHT)
+					:addTo(entryRow)
+			end
+		end
+	end
+	
+	-- add row
+	local addRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(sectionContainer)
+	
+	-- Pilot portrait if its a pilot
+	if sourceLabel == "Pilot" then
+		currentPilotPortrait = modify_pilot_skills_ui.addPilotImage(selectedSource, addRow)
+	end
+	
+	-- Source dropdown
+	modify_pilot_skills_ui.addNewRelDropDown(sourceLabel, listVals, listDisplay, 
+		function(oldChoice, oldValue, newChoice, newValue)
+			selectedSource = newValue
+			
+			-- Update portrait if its a pilot table
+			if sourceLabel == "Pilot" and currentPilotPortrait then
+				-- Remove old portrait decoration
+				for i = #currentPilotPortrait.decorations, 1, -1 do
+					local deco = currentPilotPortrait.decorations[i]
+					if deco.__index and deco.__index:isSubclassOf(DecoSurface) then
+						table.remove(currentPilotPortrait.decorations, i)
+					end
+				end
+				
+				-- Add new portrait if not "All"
+				if newValue ~= "All" and newValue ~= "" then
+					local portrait = modify_pilot_skills_ui.getPilotPortrait(newValue)
+					if portrait then
+						table.insert(currentPilotPortrait.decorations, DecoSurface(portrait))
+					end
+				end
+			end
+		end, addRow)
+	
+	-- Arrow
+	modify_pilot_skills_ui.addArrowLabel(title == "Skill Exclusions", addRow)
+	
+	-- Target dropdown
+	modify_pilot_skills_ui.addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, 
+		function(oldChoice, oldValue, newChoice, newValue)
+			selectedTarget = newValue
+		end, addRow)
+	
+	-- Add button
+	local btnAdd = sdlext.buildButton(
+		"Add",
+		"Add this relationship",
+		function()
+			-- Validation
+			if not selectedSource or selectedSource == "" then
+				sdlext.showButtonDialog(
+					"Invalid Selection",
+					"Please select a " .. sourceLabel:lower() .. " from the first dropdown.",
+					function() end,
+					{"OK"}
+				)
+				return true
+			end
+			if not selectedTarget or selectedTarget == "" then
+				sdlext.showButtonDialog(
+					"Invalid Selection",
+					"Please select a " .. targetLabel:lower() .. " from the second dropdown.",
+					function() end,
+					{"OK"}
+				)
+				return true
+			end
+			
+			-- Cannot select All for both
+			if selectedSource == "All" and selectedTarget == "All" then
+				sdlext.showButtonDialog(
+					"Invalid Selection",
+					"Cannot select 'All' for both source and target.\n\nPlease select at least one specific item.",
+					function() end,
+					{"OK"}
+				)
+				return true
+			end
+			
+			-- source and target can't be the same
+			if selectedSource == selectedTarget then
+				sdlext.showButtonDialog(
+					"Invalid Selection",
+					"Cannot create a relationship from a skill to itself (or all to all).\n\nPlease select different skills.",
+					function() end,
+					{"OK"}
+				)
+				return true
+			end
+			
+			-- Handle "All" selections
+			local sourcesToAdd = {}
+			local targetsToAdd = {}
+			
+			if selectedSource == "All" then
+				sourcesToAdd = sourceList
+			else
+				sourcesToAdd = {selectedSource = true}
+			end
+			
+			if selectedTarget == "All" then
+				targetsToAdd = targetList
+			else
+				targetsToAdd = {selectedTarget = true}
+			end
+			
+			-- Add all combinations
+			for sourceId, _ in pairs(sourcesToAdd) do
+				for targetId, _ in pairs(targetsToAdd) do
+					-- Skip adding to self (if all was used)
+					if not (sourceId == targetId) then
+						if not relationshipTable[sourceId] then
+							relationshipTable[sourceId] = {}
+						end
+						relationshipTable[sourceId][targetId] = true
+					end
+				end
+			end
+			
+			-- Save and rebuild
+			cplus_plus_ex:saveConfiguration()
+			rebuildRelationshipList()
+			return true
+		end
+	)
+	btnAdd:widthpx(RELATIONSHIP_BUTTON_WIDTH)
+		:heightpx(ROW_HEIGHT)
+		:addTo(addRow)
+	
+	-- Build initial list
+	rebuildRelationshipList()
+end
+
+function modify_pilot_skills_ui.buildRelationships(scrollContent)
+	-- Section header
+	Ui()
+		:width(1):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoText("Skill Relationships", nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+		})
+		:addTo(scrollContent)
+	
+	-- Get lists for dropdowns
+	local pilotData = modify_pilot_skills_ui.getPilotsData()
+	local skillData, exlusionSkillData, inclusionSkillData = modify_pilot_skills_ui.getSkillsData()
+	
+	-- Pilot Skill Exclusions
+	modify_pilot_skills_ui.buildRelationshipEditor(
+		scrollContent,
+		cplus_plus_ex.config.pilotSkillExclusions,
+		"Pilot Skill Exclusions",
+		pilotData,
+		exlusionSkillData,
+		"Pilot",
+		"Skill",
+		false
+	)
+	
+	-- Pilot Skill Inclusions
+	modify_pilot_skills_ui.buildRelationshipEditor(
+		scrollContent,
+		cplus_plus_ex.config.pilotSkillInclusions,
+		"Pilot Skill Inclusions",
+		pilotData,
+		inclusionSkillData,
+		"Pilot",
+		"Skill",
+		false
+	)
+	
+	-- Skill Exclusions
+	modify_pilot_skills_ui.buildRelationshipEditor(
+		scrollContent,
+		cplus_plus_ex.config.skillExclusions,
+		"Skill Exclusions",
+		skillData,
+		skillData,
+		"Skill",
+		"Skill",
+		true
+	)
+	
+	-- Skill Dependencies
+	modify_pilot_skills_ui.buildRelationshipEditor(
+		scrollContent,
+		cplus_plus_ex.config.skillDependencies,
+		"Skill Dependencies",
+		skillData,
+		skillData,
+		"Skill",
+		"Dependent Skill",
+		true
+	)
 end
 
 -- Builds the main content for the dialog
@@ -528,6 +950,7 @@ function modify_pilot_skills_ui.buildMainContent(scroll)
 	-- Add the settings
 	modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
 	modify_pilot_skills_ui.buildSkillsList(scrollContent)
+	modify_pilot_skills_ui.buildRelationships(scrollContent)
 end
 
 function modify_pilot_skills_ui.buildResetConfirmation()
