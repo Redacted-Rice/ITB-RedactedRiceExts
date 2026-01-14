@@ -27,15 +27,22 @@ local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArra
 
 local Pilot = memhack.structManager.define("Pilot", {
 	-- Any other interesting values to pull out?
-	name = { offset = 0x20, type = "struct", structType = "ItBString" },
-	xp = { offset = 0x3C, type = "int", hideSetter = true},
-	levelUpXp = { offset = 0x40, type = "int", hideSetter = true},
-	level = { offset = 0x68, type = "int", hideSetter = true},
-	skill = { offset = 0x6C, type = "struct", structType = "ItBString" },
-	id = { offset = 0x84, type = "struct", structType = "ItBString" },
-	lvlUpSkills = { offset = 0xD8, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
-	prevTimelines = { offset = 0x288, type = "int" },
-})
+	vtable = { offset = 0x00, type = "pointer" },
+	name = { offset = 0x14, type = "struct", structType = "ItBString" },
+	xp = { offset = 0x30, type = "int", hideSetter = true},
+	levelUpXp = { offset = 0x34, type = "int", hideSetter = true},
+	level = { offset = 0x5C, type = "int", hideSetter = true},
+	skill = { offset = 0x60, type = "struct", structType = "ItBString" },
+	id = { offset = 0x78, type = "struct", structType = "ItBString" },
+	lvlUpSkills = { offset = 0xCC, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
+	prevTimelines = { offset = 0x27C, type = "int" },
+}) 
+
+-- todo: add vftable ref? 0x008320d4
+-- pilot pointer vtable ref 00828790
+-- skill pointer vtable ref 008287a4
+-- Skill has no vtable
+-- Smart pointer - two pointers - struct addr, mem_management addr
 
 local selfSetter = memhack.structManager.makeStdSelfSetterName()
 
