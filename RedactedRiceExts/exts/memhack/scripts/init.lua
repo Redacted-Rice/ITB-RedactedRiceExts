@@ -22,6 +22,10 @@ function extension:init(options)
 	require(path.."memhack")
 	memhack:init()
 
+	-- Load hooks system
+	memhack.hooks = require(path.."scripts/hooks")
+	memhack.hooks:init()
+
 	require(path.."structs/itb_string")
 	
 	require(path.."structs/pilot")
@@ -32,6 +36,7 @@ function extension:init(options)
 end
 
 function extension:load(options, version)
+	memhack.hooks:load()
 end
 
 return extension

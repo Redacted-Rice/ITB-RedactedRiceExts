@@ -240,6 +240,9 @@ function skill_selection.applySkillsToPilot(pilot)
 	-- Apply both skills with their determined saveVal
 	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
 	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
+
+	-- Handle bonus combination if needed
+	owner._modules.pilot_bonus_combiner.combinePilotBonuses(pilot)
 end
 
 -- Apply skills to all pilots in the squad
