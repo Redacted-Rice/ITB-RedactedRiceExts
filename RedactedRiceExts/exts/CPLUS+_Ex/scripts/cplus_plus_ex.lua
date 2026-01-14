@@ -15,7 +15,7 @@ local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
 cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
 cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
-	{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE }, 
+	{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
 	{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE },
 	{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = PER_PILOT }, -- only registers one grid for some reason
 	{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = PER_PILOT }, -- only registers one for some reason
@@ -37,6 +37,7 @@ local skill_config = nil
 local skill_selection = nil
 local skill_constraints = nil
 local time_traveler = nil
+local pilot_bonus_combiner = nil
 
 -- Initialize modules (called from init function)
 function cplus_plus_ex:initModules(path)
@@ -46,22 +47,25 @@ function cplus_plus_ex:initModules(path)
 	skill_selection = require(path.."scripts/skill_selection")
 	skill_constraints = require(path.."scripts/skill_constraints")
 	time_traveler = require(path.."scripts/time_traveler")
-	
+	pilot_bonus_combiner = require(path.."scripts/pilot_bonus_combiner")
+
 	self._modules = {
 		skill_config = skill_config,
 		skill_constraints = skill_constraints,
 		skill_registry = skill_registry,
 		skill_selection = skill_selection,
 		time_traveler = time_traveler,
+		pilot_bonus_combiner = pilot_bonus_combiner,
 		utils = utils,
 	}
-	
+
 	skill_config.init(self)
 	skill_constraints.init(self)
 	skill_registry.init(self)
 	skill_selection.init(self)
 	time_traveler.init(self)
-	
+	pilot_bonus_combiner.init(self)
+
 	-- Expose "public" module params/functions/classes APIs
 	cplus_plus_ex.config = skill_config.config
 	cplus_plus_ex.SkillConfig = skill_config.SkillConfig
@@ -135,6 +139,10 @@ end
 function cplus_plus_ex:addHooks()
 	modApi:addSaveGameHook(function()
 		self:updateAndSaveSkills()
+	end)
+
+	memhack.hooks.events.onPilotLevelChanged:subscribe(function(pilot, previousLevel, previousXp)
+		pilot_bonus_combiner.onPilotLevelChanged(pilot, previousLevel, previousXp)
 	end)
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end
 end

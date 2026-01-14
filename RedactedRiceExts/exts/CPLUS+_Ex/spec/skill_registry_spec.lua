@@ -19,9 +19,8 @@ describe("Skill Registry Module", function()
 				bonuses = {health = 1}
 			})
 
-			assert.is_not_nil(plus_manager._modules.skill_registry.registeredSkills["test"])
-			assert.is_not_nil(plus_manager._modules.skill_registry.registeredSkills["test"]["TestSkill"])
-			assert.equals("test", plus_manager._modules.skill_registry.registeredSkillsIds["TestSkill"])
+			assert.is_not_nil(plus_manager._modules.skill_registry.registeredSkills["TestSkill"])
+			assert.equals("test", plus_manager._modules.skill_registry.registeredSkills["TestSkill"].category)
 		end)
 
 		it("should default reusability to PER_PILOT", function()
@@ -32,63 +31,35 @@ describe("Skill Registry Module", function()
 				description = "Test"
 			})
 
-			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._modules.skill_registry.registeredSkills["test"]["TestSkill"].reusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._modules.skill_registry.registeredSkills["TestSkill"].reusability)
 		end)
 	end)
 
 	describe("SaveVal Validation", function()
 		it("should accept valid boundary saveVal values (0 and 13)", function()
 			plus_manager:registerSkill("test", {id = "Skill0", shortName = "S0", fullName = "Skill0", description = "Test", saveVal = 0})
-			assert.equals(0, plus_manager._modules.skill_registry.registeredSkills["test"]["Skill0"].saveVal)
+			assert.equals(0, plus_manager._modules.skill_registry.registeredSkills["Skill0"].saveVal)
 
 			plus_manager:registerSkill("test", {id = "Skill13", shortName = "S13", fullName = "Skill13", description = "Test", saveVal = 13})
-			assert.equals(13, plus_manager._modules.skill_registry.registeredSkills["test"]["Skill13"].saveVal)
+			assert.equals(13, plus_manager._modules.skill_registry.registeredSkills["Skill13"].saveVal)
 		end)
 
 		it("should convert invalid saveVal to -1", function()
 			plus_manager:registerSkill("test", {id = "SkillAbove", shortName = "SA", fullName = "SkillAbove", description = "Test", saveVal = 14})
-			assert.equals(-1, plus_manager._modules.skill_registry.registeredSkills["test"]["SkillAbove"].saveVal)
+			assert.equals(-1, plus_manager._modules.skill_registry.registeredSkills["SkillAbove"].saveVal)
 
 			plus_manager:registerSkill("test", {id = "SkillBelow", shortName = "SB", fullName = "SkillBelow", description = "Test", saveVal = -2})
-			assert.equals(-1, plus_manager._modules.skill_registry.registeredSkills["test"]["SkillBelow"].saveVal)
+			assert.equals(-1, plus_manager._modules.skill_registry.registeredSkills["SkillBelow"].saveVal)
 		end)
 	end)
 
 	describe("Automatic SaveVal Selection and Conflict Resolution", function()
 		local mockPilot
-		local mockLvlUpSkills
-		local appliedSkill1SaveVal, appliedSkill2SaveVal
+		local tracking
 
 		before_each(function()
-			-- Mock the pilot and lvlUpSkills structure
-			mockLvlUpSkills = {
-				getSkill1 = function()
-					return {
-						getSaveVal = function() return appliedSkill1SaveVal or 0 end
-					}
-				end,
-				getSkill2 = function()
-					return {
-						getSaveVal = function() return appliedSkill2SaveVal or 1 end
-					}
-				end
-			}
-
-			mockPilot = {
-				getIdStr = function() return "TestPilot" end,
-				getLvlUpSkills = function() return mockLvlUpSkills end,
-				setLvlUpSkill = function(self, index, id, shortName, fullName, description, saveVal, bonuses)
-					if index == 1 then
-						appliedSkill1SaveVal = saveVal
-					else
-						appliedSkill2SaveVal = saveVal
-					end
-				end
-			}
-
-			-- Reset applied values
-			appliedSkill1SaveVal = nil
-			appliedSkill2SaveVal = nil
+			-- Create mock pilot with tracking using convenience helper
+			mockPilot, tracking = helper.createMockPilotWithTracking("TestPilot")
 		end)
 
 		it("should use defined saveVal when provided", function()
@@ -101,8 +72,8 @@ describe("Skill Registry Module", function()
 
 			plus_manager:applySkillsToPilot(mockPilot)
 
-			assert.equals(5, appliedSkill1SaveVal)
-			assert.equals(7, appliedSkill2SaveVal)
+			assert.equals(5, tracking.skill1SaveVal)
+			assert.equals(7, tracking.skill2SaveVal)
 		end)
 
 		it("should assign random saveVal (0-13) when set to -1", function()
@@ -116,11 +87,11 @@ describe("Skill Registry Module", function()
 			plus_manager:applySkillsToPilot(mockPilot)
 
 			-- Should be in valid range
-			assert.is_true(appliedSkill1SaveVal >= 0 and appliedSkill1SaveVal <= 13, "Skill1 saveVal should be 0-13")
-			assert.is_true(appliedSkill2SaveVal >= 0 and appliedSkill2SaveVal <= 13, "Skill2 saveVal should be 0-13")
+			assert.is_true(tracking.skill1SaveVal >= 0 and tracking.skill1SaveVal <= 13, "Skill1 saveVal should be 0-13")
+			assert.is_true(tracking.skill2SaveVal >= 0 and tracking.skill2SaveVal <= 13, "Skill2 saveVal should be 0-13")
 
 			-- Should be different (conflict resolution)
-			assert.is_not.equals(appliedSkill1SaveVal, appliedSkill2SaveVal, "Random saveVals should be different")
+			assert.is_not.equals(tracking.skill1SaveVal, tracking.skill2SaveVal, "Random saveVals should be different")
 		end)
 
 		it("should resolve conflicts when both skills have same defined saveVal", function()
@@ -133,9 +104,9 @@ describe("Skill Registry Module", function()
 
 			plus_manager:applySkillsToPilot(mockPilot)
 
-			assert.equals(6, appliedSkill1SaveVal, "Skill1 should keep its defined saveVal")
-			assert.is_not.equals(6, appliedSkill2SaveVal, "Skill2 should be reassigned")
-			assert.is_true(appliedSkill2SaveVal >= 0 and appliedSkill2SaveVal <= 13, "Skill2 should be in valid range")
+			assert.equals(6, tracking.skill1SaveVal, "Skill1 should keep its defined saveVal")
+			assert.is_not.equals(6, tracking.skill2SaveVal, "Skill2 should be reassigned")
+			assert.is_true(tracking.skill2SaveVal >= 0 and tracking.skill2SaveVal <= 13, "Skill2 should be in valid range")
 		end)
 	end)
 end)

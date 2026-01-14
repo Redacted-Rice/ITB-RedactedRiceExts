@@ -26,8 +26,6 @@ local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArra
 })
 
 local Pilot = memhack.structManager.define("Pilot", {
-	-- Any other interesting values to pull out?
-	vtable = { offset = 0x00, type = "pointer" },
 	name = { offset = 0x14, type = "struct", structType = "ItBString" },
 	xp = { offset = 0x30, type = "int", hideSetter = true},
 	levelUpXp = { offset = 0x34, type = "int", hideSetter = true},
@@ -36,7 +34,7 @@ local Pilot = memhack.structManager.define("Pilot", {
 	id = { offset = 0x78, type = "struct", structType = "ItBString" },
 	lvlUpSkills = { offset = 0xCC, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
 	prevTimelines = { offset = 0x27C, type = "int" },
-}) 
+})
 
 -- todo: add vftable ref? 0x008320d4
 -- pilot pointer vtable ref 00828790
@@ -67,20 +65,33 @@ function createPilotFuncs()
 	-- maybe one to change the pilot type?
 
 	Pilot.levelUp = function(self)
-		local newLevel = self:getLevel() + 1
+		local previousLevel = self:getLevel()
+		local previousXp = self:getXp()
+		local newLevel = previousLevel + 1
 		if newLevel <= 2 then
 			self:_setXp(0)
 			self:_setLevel(newLevel)
 			self:_setLevelUpXp((newLevel + 1) * 25)
+
+			-- Manually fire. This change will not by default cause a save game change which is our
+			-- main trigger for the level change
+			
+			memhack.hooks.fireOnPilotLevelChanged(self, previousLevel, previousXp)
 		end
 	end
 
 	Pilot.levelDown = function(self)
-		local newLevel = self:getLevel() - 1
+		local previousLevel = self:getLevel()
+		local previousXp = self:getXp()
+		local newLevel = previousLevel - 1
 		if newLevel >= 0 then
 			self:_setXp(0)
 			self:_setLevel(newLevel)
 			self:_setLevelUpXp((newLevel + 1) * 25)
+
+			-- Manually fire. This change will not by default cause a save game change which is our
+			-- main trigger for the level change
+			memhack.hooks.fireOnPilotLevelChanged(self, previousLevel, previousXp)
 		end
 	end
 end
@@ -106,7 +117,7 @@ function createPilotLvlUpSkillFuncs()
 	memhack.structManager.makeItBStringGetterWrapper(Pilot, "name")
 	memhack.structManager.makeItBStringGetterWrapper(Pilot, "skill")
 	memhack.structManager.makeItBStringGetterWrapper(Pilot, "id")
-	
+
 	-- Convinience wrappers for level up skills array values
 	-- See PilotLvlUpSkill.set for arg defs
 	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill1")
