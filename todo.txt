@@ -30,8 +30,14 @@ For 1.0 release:
 ---------- PLUS Ex ---------
 
 For 1.0 release:
-1. Add relationships editor to UI
-2. Check into removing/hiding AE skills UI checkbox
+1. Cleanup relationship GUI and get it looking a bit nicer
+	a. Collapsable frames for sections (like weapons deck)
+	b. Spacing between sections
+	c. drop down sizing and location
+2. Check into removing/hiding/replacing text for AE skills UI checkbox
+	a. Toggle_NewPilotAbilities - "Pilot Abilities"
+	b. TipTitle_New_PilotAbilities	- "Advanced Pilot Abilities"
+	c. TipTitle_New_PilotAbilities	- "Enable advanced pilot abilities. Pilots will gain new skills as they level up.\n\nRecommended for anyone who has a good grasp of the core game."
 3. Update to assign pilot skills in storage
 4. Add OnLevelUp Hook/event for pilots? Tie into on save data to determine. Also tie into level up fn?
 5. Allow grid and reactors to stack like hp and move (using 4)
