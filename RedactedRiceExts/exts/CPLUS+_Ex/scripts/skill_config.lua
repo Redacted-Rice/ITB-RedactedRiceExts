@@ -79,8 +79,10 @@ function skill_config.setSkillConfig(skillId, config)
 
 	if config.enabled ~= nil then
 		if config.enabled then
+			LOG("ENABLED")
 			new_config.enabled = true
 		else
+			LOG("DISABLED")
 			new_config.enabled = false
 		end
 	end
@@ -95,6 +97,7 @@ function skill_config.setSkillConfig(skillId, config)
 		-- we have a valid value if for some reason we don't call auto-adjust weights (like
 		-- we are doing in some of the tests)
 		new_config.adj_weight = config.set_weight
+		LOG(new_config.set_weight .. " " .. config.set_weight)
 	end
 
 	if config.reusability then
@@ -107,7 +110,10 @@ function skill_config.setSkillConfig(skillId, config)
 			return
 		end
 		new_config.reusability = config.reusability
+		LOG(new_config.reusability .. " " .. config.reusability)
 	end
+	LOG("DONE")
+	LOG(skillId)
 
 	-- If we reached here, its a good config. Apply it
 	skill_config.config.skillConfigs[skillId] = new_config

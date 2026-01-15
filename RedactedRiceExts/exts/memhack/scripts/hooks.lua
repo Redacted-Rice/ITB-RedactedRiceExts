@@ -1,7 +1,8 @@
--- Mostly stolen from ModApiExt
+-- Mostly stolen and then reworked from ModApiExt
 
 local hooks = {
 	"pilotLevelChanged",
+	DEBUG = true,
 }
 
 function hooks:init()
@@ -36,17 +37,16 @@ function hooks:addTo(tbl)
 			assert(type(fn) == "function")
 			table.insert(self[hookId], fn)
 		end
-
-		-- functions to fire the hooks are built in internal.lua
+		if self.DEBUG then LOG("Added functions for hook "..name) end
 	end
 end
 
 function hooks:clearHooks()
 	-- too lazy to update this function with new hooks every time
-	for k, v in pairs(self) do
-		if type(v) == "table" and modApi:stringEndsWith(k, "Hooks") then
-			self[k] = {}
-		end
+	for _, name in ipairs(self) do
+		local hookId = name.."Hooks"
+		self[hookId] = {}
+		if self.DEBUG then LOG("Cleared hook "..name) end
 	end
 end
 
@@ -66,6 +66,7 @@ function hooks:buildBroadcastFunc(hooksField, argsFunc)
 		)
 	end
 
+	if self.DEBUG then LOG("Build fire...Hooks Fn for hook ".. hooksField) end
 	return function(...)
 		local args = {...}
 
@@ -76,30 +77,25 @@ function hooks:buildBroadcastFunc(hooksField, argsFunc)
 			args = argsFunc and {argsFunc()} or nil
 		end
 
-		for i, extObj in ipairs(modApiExt_internal.extObjects) do
-			if extObj[hooksField] then
-				for j, hook in ipairs(extObj[hooksField]) do
-					-- invoke the hook in a xpcall, since errors in SkillEffect
-					-- scripts fail silently, making debugging a nightmare.
-					local ok, err = xpcall(
-						args
-							and function() hook(unpack(args)) end
-							or  function() hook() end,
-						errfunc
-					)
-
-					if not ok then
-						local owner = extObj.owner and extObj.owner.id or "<unknown>"
-						LOG("In mod id '" .. owner .. "', ", err)
-					end
-				end
-			end
+		if hooks.DEBUG then LOG("Executing " .. #hooks[hooksField] .. " hooks for ".. hooksField) end
+		for j, hook in ipairs(hooks[hooksField]) do
+			-- invoke the hook in a xpcall, since errors in SkillEffect
+			-- scripts fail silently, making debugging a nightmare.
+			local ok, err = xpcall(
+				args
+					and function() hook(unpack(args)) end
+					or  function() hook() end,
+				errfunc
+			)
 		end
 	end
 end
 
 function hooks:initBroadcastHooks(tbl)
-	tbl.firePilotLevelChangedHooks = self:buildBroadcastFunc("pilotLevelChangedHooks")
+	for _, name in ipairs(self) do
+		local Name = name:gsub("^.", string.upper)
+		tbl["fire" .. Name .. "Hooks"] = self:buildBroadcastFunc(name .. "Hooks")
+	end
 end
 
 return hooks
