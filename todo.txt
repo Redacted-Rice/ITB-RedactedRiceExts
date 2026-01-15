@@ -39,9 +39,14 @@ For 1.0 release:
 	b. TipTitle_New_PilotAbilities	- "Advanced Pilot Abilities"
 	c. TipTitle_New_PilotAbilities	- "Enable advanced pilot abilities. Pilots will gain new skills as they level up.\n\nRecommended for anyone who has a good grasp of the core game."
 3. Update to assign pilot skills in storage
-4. Add OnLevelUp Hook/event for pilots? Tie into on save data to determine. Also tie into level up fn?
-5. Allow grid and reactors to stack like hp and move (using 4)
-	Right now only the first one with it applies
+*4. Add OnLevelUp Hook/event for pilots? Tie into on save data to determine. Also tie into level up fn?
+	Add on skill change hook/event?
+	Hook events not working/triggering. Plain hook works
+*5. Allow grid and reactors to stack like hp and move (using 4)
+	Need to tie into more places than currently with just lvl up fn
+	
+Bugs
+1. Reusability not saving/restoring correctly? Seems to be working now? Can't retrigger it for some reason? Was getting nil skillId? Maybe related to extra skills no longer there?
 	
 Next release candadites:
 1. Move to GetText to be consistent/allow localization

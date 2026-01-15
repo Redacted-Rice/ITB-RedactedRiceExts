@@ -17,8 +17,8 @@ cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
 	{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
 	{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE },
-	{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = PER_PILOT }, -- only registers one grid for some reason
-	{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = PER_PILOT }, -- only registers one for some reason
+	{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE },
+	{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE },
 	{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT }, -- doesn't work
 	{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT }, -- doesn't work
 	{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT }, -- doesn't work
@@ -119,6 +119,10 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onModsFirstLoaded:subscribe(function()
 		cplus_plus_ex:postModsLoadedConfig()
 	end)
+	
+	memhack.hooks.events.onPilotLevelChanged:subscribe(function(pilot, previousLevel, previousXp)
+		pilot_bonus_combiner.onPilotLevelChanged(pilot, previousLevel, previousXp)
+	end)
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
 end
 
@@ -140,10 +144,10 @@ function cplus_plus_ex:addHooks()
 	modApi:addSaveGameHook(function()
 		self:updateAndSaveSkills()
 	end)
-
-	memhack.hooks.events.onPilotLevelChanged:subscribe(function(pilot, previousLevel, previousXp)
-		pilot_bonus_combiner.onPilotLevelChanged(pilot, previousLevel, previousXp)
+	memhack.hooks:addPilotLevelChangedHook(function(pilot, previousLevel, previousXp)
+		LOG("HOOKED")
 	end)
+
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end
 end
 

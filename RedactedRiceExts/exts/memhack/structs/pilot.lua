@@ -76,7 +76,7 @@ function createPilotFuncs()
 			-- Manually fire. This change will not by default cause a save game change which is our
 			-- main trigger for the level change
 			
-			memhack.hooks.fireOnPilotLevelChanged(self, previousLevel, previousXp)
+			memhack.hooks.firePilotLevelChangedHooks(self, previousLevel, previousXp)
 		end
 	end
 
@@ -91,7 +91,7 @@ function createPilotFuncs()
 
 			-- Manually fire. This change will not by default cause a save game change which is our
 			-- main trigger for the level change
-			memhack.hooks.fireOnPilotLevelChanged(self, previousLevel, previousXp)
+			memhack.hooks.firePilotLevelChangedHooks(self, previousLevel, previousXp)
 		end
 	end
 end
