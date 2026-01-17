@@ -7,9 +7,19 @@ local Debug = {}
 local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "Debug", memhack.DEBUG.SCANNER)
 
+local path = GetParentPath(...)
+-- Note: ITB modloader doesn't support init.lua package loading pattern,
+-- but I want to structure it like that so I just explicitly load the
+-- init.lua file
+Debug.MemoryAnalyzer = require(path.."memory_analyzer/init")
+
 -- Initialize the debug utilities with a DLL instance
 function Debug.init(dll)
 	Debug._dll = dll
+
+	-- Initialize MemoryAnalyzer with DLL
+	Debug.MemoryAnalyzer.init(dll)
+
 	return Debug
 end
 
@@ -134,4 +144,3 @@ function Debug.logFromMemory(address, numBytes, bytesPerLine, bytesPerGroup)
 end
 
 return Debug
-
