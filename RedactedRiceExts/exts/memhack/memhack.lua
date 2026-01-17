@@ -22,4 +22,9 @@ function memhack:init()
 	-- Initialize structure system
 	self.structManager = require(path.."utils/structmanager")
 	self.structs = self.structManager.init(self.dll)
+	
+	
+	require(path.."structs/vector")
+	require(path.."structs/research_control")
+	require(path.."structs/game_map")
 end

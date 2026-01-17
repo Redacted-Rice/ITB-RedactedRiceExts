@@ -1,18 +1,18 @@
-local REPUTATION_OFFSET = 0x848C
-
 local function onGameClassInitialized(GameClass, game)
+	-- persistent pointer. This won't change and stays even between runs
+	-- and going to the main menu
+	GameClass.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(game))
+
 	-- Upper case to align with BoardPawn conventions
 	GameClass.GetReputation = function(self)
-		local gamePtr = memhack.dll.memory.getUserdataAddr(self)
-		return memhack.dll.memory.readInt(gamePtr + REPUTATION_OFFSET)
+		return GameClass.memhackObj:getReputation()
 	end
 
 	GameClass.SetReputation = function(self, reputation)
 		if type(reputation) ~= "number" then
 			error(string.format("Reputation must be a number, got %s", type(reputation)))
 		end
-		local gamePtr = memhack.dll.memory.getUserdataAddr(self)
-		memhack.dll.memory.writeInt(gamePtr + REPUTATION_OFFSET, reputation)
+		 GameClass.memhackObj:setReputation(reputation)
 	end
 
 	-- Convenience function to add/subtract reputation
@@ -20,17 +20,19 @@ local function onGameClassInitialized(GameClass, game)
 		if type(amount) ~= "number" then
 			error(string.format("Amount must be a number, got %s", type(amount)))
 		end
-		local current = self:GetReputation()
-		self:SetReputation(current + amount)
+		GameClass.memhackObj:SetReputation(GameClass.memhackObj:getReputation() + amount)
 	end
 	
-	-- This was found by identifying the memory using cheat engine the searching
-	-- backwards a couple jumps until I found a stable exe offset & chain
+	-- This was found by identifying the memory using cheat engine then searching
+	-- (via pointer scan for this address) for stable references in Breach.exe and repeating
+	-- until I found the chain that doesn't change
 	-- There may be some other interesting pointers or values stored here as well
+	-- but this doesn't seem to be part of GameMap interestingly and is static - 
+	-- it doesn't change address per run (but obviously is cleared/reset on load/new game)
 	local function getScoreAddr()
 		local exeBase = memhack.dll.process.getExeBase()
 		local intermediateAddr = memhack.dll.memory.readPointer(exeBase + 0x4D19E0)
-		local gameStateStructAddr = memhack.dll.memory.readPointer(intermediateAddr + 0x10)
+		local gameStateStructAddr = memhack.dll.memory.readPointer(intermediateAddr + 0x20)
 		return gameStateStructAddr + 0x148
 	end
 	
