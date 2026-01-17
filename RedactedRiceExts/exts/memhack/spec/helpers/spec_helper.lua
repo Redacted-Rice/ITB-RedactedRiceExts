@@ -92,7 +92,14 @@ function M.setupGlobals()
 	}
 
 	_G.GetParentPath = _G.GetParentPath or function(modPath)
-		return ""
+		-- Extract directory path from module path
+		-- For "utils/memory_analyzer/init", returns "utils/memory_analyzer/"
+		-- For "utils/debug", returns "utils/"
+		if not modPath or modPath == "" then
+			return ""
+		end
+		local path = modPath:match("(.*/)[^/]*$")
+		return path or ""
 	end
 
 	_G.try = _G.try or function(fn)

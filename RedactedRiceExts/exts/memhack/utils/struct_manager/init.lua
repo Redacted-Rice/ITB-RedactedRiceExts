@@ -68,14 +68,13 @@ StructManager.HIDE_PREFIX = "_"
 StructManager._dll = nil
 StructManager._structures = nil
 
--- Load subcomponents
 local path = GetParentPath(...)
 
-StructManager.TYPE_HANDLERS = require(path.."structmanager/type_handlers")
+StructManager.TYPE_HANDLERS = require(path .. "type_handlers")
 
-StructManager._validation = require(path.."structmanager/validation")
-StructManager._methodGeneration = require(path.."structmanager/method_generation")
-StructManager._structureCreation = require(path.."structmanager/structure_creation")
+StructManager._validation = require(path .. "validation")
+StructManager._methodGeneration = require(path .. "method_generation")
+StructManager._structureCreation = require(path .. "structure_creation")
 
 -- Initialize the structure system with a DLL instance and structs table
 -- dll: The memhack DLL instance

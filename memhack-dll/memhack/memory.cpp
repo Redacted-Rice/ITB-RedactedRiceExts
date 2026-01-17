@@ -157,6 +157,7 @@ int read_byte_array(lua_State* L) {
 	return 1;
 }
 
+
 // Write functions - write a value to the given address
 int write_byte(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
@@ -338,6 +339,10 @@ void add_memory_functions(lua_State* L) {
 
 	lua_pushstring(L, "allocNullTermString");
 	lua_pushcfunction(L, alloc_null_term_string);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "allocByteArray");
+	lua_pushcfunction(L, alloc_byte_array);
 	lua_rawset(L, -3);
 
 	// Read functions

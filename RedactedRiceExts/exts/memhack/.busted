@@ -7,7 +7,7 @@ return {
     coverage = false,
     output = "plainTerminal",
     helper = "spec/clear_coverage.lua",
-    lpath = "scripts/?.lua;scripts/?/init.lua;structs/?.lua;utils/?.lua;spec/?.lua;spec/?/init.lua"
+    lpath = "?.lua;?/init.lua;scripts/?.lua;scripts/?/init.lua;structs/?.lua;utils/?.lua;utils/?/init.lua;utils/?/?.lua;spec/?.lua;spec/?/init.lua"
   },
   default = {
     ROOT = {"spec"},

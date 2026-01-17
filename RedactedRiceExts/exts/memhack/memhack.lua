@@ -49,7 +49,10 @@ function memhack:init(mockDll)
 	self.hooks = self._subobjects.hooks
 
 	-- Initialize structure system
-	self.structManager = require(path.."utils/structmanager")
+	-- Note: ITB modloader doesn't support init.lua package loading pattern,
+	-- but I want to structure it like that so I just explicitly load the
+	-- init.lua file
+	self.structManager = require(path.."utils/struct_manager/init")
 	self.structs = self.structManager:init(self.dll)
 
 	-- Load all the structs
