@@ -25,6 +25,8 @@ function memhack:init()
 	
 	
 	require(path.."structs/vector")
+	require(path.."structs/storage_object")
+	require(path.."structs/storage")
 	require(path.."structs/research_control")
 	require(path.."structs/game_map")
 end

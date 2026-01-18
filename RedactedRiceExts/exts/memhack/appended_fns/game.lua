@@ -56,6 +56,10 @@ local function onGameClassInitialized(GameClass, game)
 		local current = self:GetScore()
 		self:SetScore(current + amount)
 	end
+	
+	GameClass.GetStorage = function(self)
+		return self.memhackObj:getResearchControl():getStorage()
+	end
 end
 
 modApi.events.onGameClassInitialized:subscribe(onGameClassInitialized)
