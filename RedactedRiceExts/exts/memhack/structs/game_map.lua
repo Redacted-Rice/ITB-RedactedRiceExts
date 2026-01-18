@@ -2,7 +2,9 @@
 
 
 local MemhackGameMap = memhack.structManager.define("GameMap", {
-	researchControl = { offset = 0x5674, type = "struct", structType = "ResearchControl" },
+	researchControl = { offset = 0x5674, type = "struct", structType = "ResearchControl", --[[structs don't define setters]] },
+	-- This could be a memedit scan but instead did here as its more annoying
+	-- to calibrate than most scans
 	reputation = { offset = 0x848C, type = "int" },
 })
 
