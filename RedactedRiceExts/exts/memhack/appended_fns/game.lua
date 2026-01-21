@@ -1,18 +1,24 @@
 local function onGameClassInitialized(GameClass, game)
 	-- persistent pointer. This won't change and stays even between runs
 	-- and going to the main menu
-	GameClass.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(game))
-
+	
+	GameClass.GetMemhackObj = function(self)
+		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
+			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(game))
+		end
+		return self.memhackObj
+	end
+	
 	-- Upper case to align with BoardPawn conventions
 	GameClass.GetReputation = function(self)
-		return GameClass.memhackObj:getReputation()
+		return self:GetMemhackObj():getReputation()
 	end
 
 	GameClass.SetReputation = function(self, reputation)
 		if type(reputation) ~= "number" then
 			error(string.format("Reputation must be a number, got %s", type(reputation)))
 		end
-		 GameClass.memhackObj:setReputation(reputation)
+		 self:GetMemhackObj():setReputation(reputation)
 	end
 
 	-- Convenience function to add/subtract reputation
@@ -20,7 +26,8 @@ local function onGameClassInitialized(GameClass, game)
 		if type(amount) ~= "number" then
 			error(string.format("Amount must be a number, got %s", type(amount)))
 		end
-		GameClass.memhackObj:SetReputation(GameClass.memhackObj:getReputation() + amount)
+		local obj = self:GetMemhackObj()
+		obj:SetReputation(obj:getReputation() + amount)
 	end
 	
 	-- This was found by identifying the memory using cheat engine then searching
@@ -58,7 +65,7 @@ local function onGameClassInitialized(GameClass, game)
 	end
 	
 	GameClass.GetStorage = function(self)
-		return self.memhackObj:getResearchControl():getStorage()
+		return self:GetMemhackObj():getResearchControl():getStorage()
 	end
 end
 
