@@ -20,6 +20,9 @@ function skill_selection.init(ownerRef)
 	skill_constraints = ownerRef._modules.skill_constraints
 	skill_config_module = ownerRef._modules.skill_config
 	utils = ownerRef._modules.utils
+	
+	modApi.events.onPodWindowShown:subscribe(skill_selection.applySkillToPodPilot)
+	modApi.events.onPerfectIslandWindowShown:subscribe(skill_selection.applySkillToPerfectIslandPilot)
 end
 
 -- Initialize game save data for skills
@@ -255,7 +258,8 @@ function skill_selection.applySkillsToAllPilots()
 		return
 	end
 
-	local pilots = utils.getAllSquadPilots()
+	-- Assign skills for all squad and storage pilots
+	local pilots = Game:GetAvailablePilots()
 
 	-- Reset per_run tracking and rebuild it from currently assigned skills
 	skill_selection.usedSkillsPerRun = {}
@@ -277,6 +281,24 @@ function skill_selection.applySkillsToAllPilots()
 	end
 
 	if owner.PLUS_DEBUG then LOG("PLUS Ext: Applied skills to " .. #pilots .. " pilot(s)") end
+end
+
+function skill_selection.applySkillToPodPilot()
+	-- If its a pilot, assign skills
+	local pilot = Game:GetPodRewardPilot()
+	-- TODO: I think I don't need the 0 check
+	if pilot and pilot:getAddress() ~= 0 then
+		skill_selection.applySkillsToPilot(pilot)
+	end
+end
+
+function skill_selection.applySkillToPerfectIslandPilot()
+	-- If its a pilot, assign skills
+	local pilot = Game:GetPerfectIslandRewardPilot()
+	-- TODO: I think I don't need the 0 check
+	if pilot and pilot:getAddress() ~= 0 then
+		skill_selection.applySkillsToPilot(pilot)
+	end
 end
 
 -- Marks a per_run skill as used for this run
