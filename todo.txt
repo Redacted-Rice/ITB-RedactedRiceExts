@@ -25,6 +25,10 @@ For 1.0 release:
 	2. Rep
 	3. pilot (in mech)
 	4. storage (very complex)
+5. Change pointed/strucType to subType for consistency
+6. Find pilots in pods and island rewards
+	a. Make sure it doesn't find weapons
+	b. Perfect island in squad data
 	
 
 ---------- PLUS Ex ---------
