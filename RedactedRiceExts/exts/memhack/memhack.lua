@@ -33,6 +33,9 @@ function memhack:init(mockDll)
 	require(path.."structs/itb_string")
 	require(path.."structs/vector")
 
+	-- Pilot-related structs (order matters - dependencies must be loaded first)
+	require(path.."structs/pilot_lvl_up_skill")
+	require(path.."structs/pilot_lvl_up_skills_array")
 	require(path.."structs/pilot")
 
 	require(path.."structs/storage_object")
