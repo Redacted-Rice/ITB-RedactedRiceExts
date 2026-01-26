@@ -7,34 +7,34 @@ local SETTER_PREFIX = StructManager.SETTER_PREFIX
 local HIDE_PREFIX = StructManager.HIDE_PREFIX
 local TYPE_HANDLERS = StructManager.TYPE_HANDLERS
 
--- Helper: Resolve pointed type and read value
-local function resolvePointedType(pointedType, ptrValue, fieldDef)
-	if type(pointedType) ~= "string" then
-		error(string.format("Unknown structure type: %s", fieldDef.pointedType))
+-- Helper: Resolve sub type and read value
+local function resolveSubType(subType, ptrValue, fieldDef)
+	if type(subType) ~= "string" then
+		error(string.format("Unknown structure type: %s", fieldDef.subType))
 	end
 
 	-- Check for unsupported types
-	if pointedType == "pointer" or pointedType == "struct" then
-		error(string.format("structure type '%s' not supported", pointedType))
+	if subType == "pointer" or subType == "struct" then
+		error(string.format("structure type '%s' not supported", subType))
 	end
 
 	-- Types that need size
-	if pointedType == "string" or pointedType == "bytearray" then
+	if subType == "string" or subType == "bytearray" then
 		if fieldDef.pointedSize == nil then
-			error(string.format("pointedType '%s' requires pointedSize", pointedType))
+			error(string.format("subType '%s' requires pointedSize", subType))
 		end
-		return TYPE_HANDLERS[pointedType].read(ptrValue, fieldDef.pointedSize)
+		return TYPE_HANDLERS[subType].read(ptrValue, fieldDef.pointedSize)
 	end
 
 	-- Native types like int, bool, etc
-	if TYPE_HANDLERS[pointedType] ~= nil then
-		return TYPE_HANDLERS[pointedType].read(ptrValue)
+	if TYPE_HANDLERS[subType] ~= nil then
+		return TYPE_HANDLERS[subType].read(ptrValue)
 	end
 
 	-- Defined struct
-	local structType = StructManager._structures[pointedType]
+	local structType = StructManager._structures[subType]
 	if not structType then
-		error(string.format("Unknown structure type: %s", fieldDef.pointedType))
+		error(string.format("Unknown structure type: %s", fieldDef.subType))
 	end
 	return structType.new(ptrValue)
 end
@@ -62,8 +62,8 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 		return handler.read(address)
 	end
 
-	-- Typed wrapper getter (getXxx or _getXxx) if pointedType specified
-	if fieldDef.pointedType then
+	-- Typed wrapper getter (getXxx or _getXxx) if subType specified
+	if fieldDef.subType then
 		local wrapperGetterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
 		StructType[wrapperGetterName] = function(self)
 			local address = self._address + fieldDef.offset
@@ -74,7 +74,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 				return nil
 			end
 
-			return resolvePointedType(fieldDef.pointedType, ptrValue, fieldDef)
+			return resolveSubType(fieldDef.subType, ptrValue, fieldDef)
 		end
 	end
 end
@@ -120,15 +120,15 @@ function methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef
 end
 
 -- Helper: Resolve struct type from string or return as-is
-local function resolveStructType(structType)
-	if type(structType) == "string" then
-		local resolved = StructManager._structures[structType]
+local function resolveStructType(subType)
+	if type(subType) == "string" then
+		local resolved = StructManager._structures[subType]
 		if not resolved then
-			error(string.format("Unknown structure type: %s", structType))
+			error(string.format("Unknown structure type: %s", subType))
 		end
 		return resolved
 	end
-	return structType
+	return subType
 end
 
 function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
@@ -136,7 +136,7 @@ function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, 
 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
-		local structType = resolveStructType(fieldDef.structType)
+		local structType = resolveStructType(fieldDef.subType)
 		return structType.new(address)
 	end
 end

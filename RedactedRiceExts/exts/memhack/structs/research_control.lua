@@ -3,7 +3,7 @@ local MemhackResearchControl = memhack.structManager.define("ResearchControl", {
 	-- there are 3 spaces in the UI? Anyways we need to be able to account for this
 	-- Should I define and expose the vector or wrap it at this point? I'm kind of thinking
 	-- of wrapping it. Maybe just a special vector to account for the 3? StorageVector?
-	storage = { offset = 0x68, type = "struct", structType = "Storage", --[[structs don't define setters]] },
+	storage = { offset = 0x68, type = "struct", subType = "Storage", --[[structs don't define setters]] },
 })
 
 function onModsFirstLoaded()

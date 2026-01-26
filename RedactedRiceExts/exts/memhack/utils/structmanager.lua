@@ -15,7 +15,7 @@
 	  - getXxx() / setXxx() - read/write the value
 	- pointer: 32 bit pointer
 	  - getXxxPtr() / setXxxPtr() - read/write the raw pointer value
-	  - getXxx() - get wrapped object at pointed address (if pointedType specified)
+	  - getXxx() - get wrapped object at pointed address (if subType specified)
 	- struct: Inline struct (not a pointer)
 	  - getXxx() - get wrapped struct at this field's address
 	  - No setter - modify individual fields on the returned object instead
@@ -23,9 +23,9 @@
 	Supported Types:
 	- int, bool, double, float, byte: Basic types, no additional params
 	- pointer: 32 bit pointer
-	  - optional: pointedType for automatic wrapping of the pointed type
+	  - optional: subType for automatic wrapping of the pointed type
 	- struct: Inline struct (not a pointer)
-	  - required: structType
+	  - required: subType
 	- string: C style null terminated string
 	  - required: maxLength (including null terminator)
 	- bytearray: Array of bytes

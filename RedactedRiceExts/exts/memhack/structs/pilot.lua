@@ -1,13 +1,13 @@
 local PilotLvlUpSkill = memhack.structManager.define("PilotLvlUpSkill", {
 	-- This is the main value used to determine skill effect in game. Note that the + move, hp, & cores
 	-- skills use the bonus values below instead
-	id = { offset = 0x0, type = "struct", structType = "ItBString" },
+	id = { offset = 0x0, type = "struct", subType = "ItBString" },
 	-- Displayed in the small box in UI
-	shortName = { offset = 0x18, type = "struct", structType = "ItBString" },
+	shortName = { offset = 0x18, type = "struct", subType = "ItBString" },
 	-- Displayed when hovering over skill
-	fullName = { offset = 0x30, type = "struct", structType = "ItBString" },
+	fullName = { offset = 0x30, type = "struct", subType = "ItBString" },
 	-- Displayed when hovering over skill
-	description = { offset = 0x48, type = "struct", structType = "ItBString" },
+	description = { offset = 0x48, type = "struct", subType = "ItBString" },
 	healthBonus = { offset = 0x60, type = "int"},
 	-- Hide getters/setters so we can define public ones that track what was set
 	-- vs what we need to put in memory for these to combine correctly
@@ -37,18 +37,18 @@ PilotLvlUpSkill.stateDefinition = {
 -- Array of two PilotLvlUpSkill structs back to back
 -- PilotLvlUpSkill size is 0x74 bytes
 local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArray", {
-	skill1 = { offset = 0x00, type = "struct", structType = "PilotLvlUpSkill" },
-	skill2 = { offset = 0x74, type = "struct", structType = "PilotLvlUpSkill" },
+	skill1 = { offset = 0x00, type = "struct", subType = "PilotLvlUpSkill" },
+	skill2 = { offset = 0x74, type = "struct", subType = "PilotLvlUpSkill" },
 })
 
 local Pilot = memhack.structManager.define("Pilot", {
-	name = { offset = 0x14, type = "struct", structType = "ItBString" },
+	name = { offset = 0x14, type = "struct", subType = "ItBString" },
 	xp = { offset = 0x30, type = "int", hideSetter = true},
 	levelUpXp = { offset = 0x34, type = "int", hideSetter = true},
 	level = { offset = 0x5C, type = "int", hideSetter = true},
-	skill = { offset = 0x60, type = "struct", structType = "ItBString" },
-	id = { offset = 0x78, type = "struct", structType = "ItBString" },
-	lvlUpSkills = { offset = 0xCC, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
+	skill = { offset = 0x60, type = "struct", subType = "ItBString" },
+	id = { offset = 0x78, type = "struct", subType = "ItBString" },
+	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
 	prevTimelines = { offset = 0x27C, type = "int" },
 })
 

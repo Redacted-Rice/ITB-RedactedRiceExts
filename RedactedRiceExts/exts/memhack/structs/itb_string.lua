@@ -7,7 +7,7 @@ local ItBString = memhack.structManager.define("ItBString", {
 	strLocal = { offset = 0x0, type = "string", maxLength = 16, hideSetter = true, hideGetter = true },
 	-- Same idea as strLocal but a pointer to the value if its too large to fit locally
 	-- May not always be valid - calling getters may be unsafe
-	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true, pointedType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
+	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true, subType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
 	-- Length of the strLocal/string pointed to by strRemote. This is set the same regardless
 	-- of which is used
 	strLen = { offset = 0x10, type = "int", hideSetter = true },

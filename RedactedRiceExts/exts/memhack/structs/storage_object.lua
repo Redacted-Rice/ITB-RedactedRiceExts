@@ -9,7 +9,7 @@ local MemhackStorageObj = memhack.structManager.define("StorageObject", {
 	-- Its a Skill but haven't had a reason to define Skill yet so leave it untyped
 	skill = { offset = 0x114, type = "pointer", hideSetter = true },
 	-- Smart pointer ("double" reference - dont try to set)
-	pilot = { offset = 0x11C, type = "pointer", pointedType = "Pilot", hideSetter = true },
+	pilot = { offset = 0x11C, type = "pointer", subType = "Pilot", hideSetter = true },
 })
 
 
