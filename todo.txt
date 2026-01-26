@@ -5,12 +5,10 @@ For 1.0 release:
 	2. Rep
 	3. pilot (in mech)
 	4. storage (very complex)
-3. Add queued firing of re-entrant hooks
 5. Hijack AddPilot to avoid searching _G for pilots?
 6. Add structure verification support (vtables or custom funcs)
 7. Split structs out of pilot into separate classes (Maybe not the array one but at least lvl up skills itself)
 8. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
-9. Change pointed/strucType to subType for consistency
 
 Next release:
 1. Look into adding tests on c++ side?

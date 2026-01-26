@@ -193,28 +193,6 @@ end
 
 -------------------- Pilot and Skill State Change Tracking ---------------------
 
--- Capture and update pilot state in tracker
-function stateTracker.capturePilotState(pilot)
-	if not pilot then return end
-
-	local pilotAddr = pilot:getAddress()
-	if memhack.structs and memhack.structs.Pilot and memhack.structs.Pilot.stateDefinition then
-		stateTracker._pilotTrackers[pilotAddr] = stateTracker.captureState(
-			pilot, memhack.structs.Pilot.stateDefinition)
-	end
-end
-
--- Capture and update skill state in tracker
-function stateTracker.captureSkillState(skill)
-	if not skill then return end
-
-	local skillAddr = skill:getAddress()
-	if memhack.structs and memhack.structs.PilotLvlUpSkill and memhack.structs.PilotLvlUpSkill.stateDefinition then
-		stateTracker._skillTrackers[skillAddr] = stateTracker.captureState(
-			skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
-	end
-end
-
 -- Check for level up skill changes on a pilot and fire hooks if changes detected
 function stateTracker.checkForLvlUpSkillChanges(pilot)
 	if not memhack.structs.PilotLvlUpSkill or not memhack.structs.PilotLvlUpSkill.stateDefinition then
@@ -332,20 +310,99 @@ function stateTracker.cleanupStaleTrackers()
 	stateTracker.cleanupStaleSkillSetValues(activeSkills)
 end
 
-function stateTracker.wrapHooksToUpdateStateTrackers()
-	-- Build the raw broadcast functions
-	local rawFirePilotChanged = memhack.hooks.firePilotChangedHooks
-	local rawFireSkillChanged = memhack.hooks.firePilotLvlUpSkillChangedHooks
+-- Build a re-entrant wrapper for a hook fire function
+-- This handles re-entrant calls (hooks called during hook execution) by:
+-- 1. Setting a flag when re-entrant call is detected
+-- 2. Completing all current hooks first
+-- 3. Re-capturing state and firing again if flag was set
+--
+-- Args:
+--   hookName: Name of the hook (e.g., "PilotChanged")
+--   stateDef: State definition for capturing state
+--   tracker: The tracker table (_pilotTrackers or _skillTrackers)
+function stateTracker.buildReentrantHookWrapper(hookName, stateDef, tracker)
+	-- Track if we're currently executing and if changes occurred during execution
+	local isExecuting = false
+	local changesPending = false
+	local fireHookName = "fire"..hookName.."Hooks"
+	local rawFireFn = memhack.hooks[fireHookName]
+	-- arbitrary number of iterations to prevent infinite loops
+	local MAX_ITERATIONS = 20
 
-	-- Wrap to capture state after firing to prevents double firing from state tracking
-	memhack.hooks.firePilotChangedHooks = function(pilot, changes)
-		rawFirePilotChanged(pilot, changes)
-		stateTracker.capturePilotState(pilot)
+	return function(obj, changes)
+		-- If there are not changes, bail now
+		if not changes or not next(changes) then
+			return
+		-- If we're already executing, just mark that changes happened
+		elseif isExecuting then
+			changesPending = true
+			return
+		end
+
+		-- Mark that we're executing so we can detect re-entrant calls
+		isExecuting = true
+
+
+		-- Update the tracked state before calling the hooks. This prevents the
+		-- tracker from detecting and firing changes a second time and this also
+		-- lets us compare state afterward to see what changes were made by
+		-- re-entrant calls
+		local objAddr = obj:getAddress()
+		tracker[objAddr] = stateTracker.captureState(obj, stateDef)
+
+		local iteration = 0
+		while changes and next(changes) do
+			iteration = iteration + 1
+			-- Check for max iterations specifically so we can detect if we finished
+			-- or ran out of iterations
+			if iteration > MAX_ITERATIONS then
+				isExecuting = false
+				error(string.format(
+					"%s exceeded max iterations (%d). Possible infinite loop in hook callbacks. Aborting",
+					fireHookName, MAX_ITERATIONS
+				))
+				return
+			end
+
+			-- clear re-entrant flag and fire fns
+			changesPending = false
+			rawFireFn(obj, changes)
+
+			-- if no changes were detected, we are done - state will
+			-- match the previous tracked state so no need to update it
+			if not changesPending then
+				break
+			end
+
+			-- Re-entrant call detected, re-capture state, find the changes,
+			-- and update the tracked state. If there actually is no change (e.g.
+			-- it got changed then changed back) then it will break at the top
+			-- of the loop check
+			local oldState = tracker[objAddr]
+			local newState = stateTracker.captureState(obj, stateDef)
+			changes = stateTracker.compareStates(oldState, newState)
+			tracker[objAddr] = newState
+		end
+
+		-- Clear executing flag
+		isExecuting = false
 	end
-	memhack.hooks.firePilotLvlUpSkillChangedHooks = function(skill, changes)
-		rawFireSkillChanged(skill, changes)
-		stateTracker.captureSkillState(skill)
-	end
+end
+
+function stateTracker.wrapHooksToUpdateStateTrackers()
+	-- Wrap pilot changed hook with re-entrant support
+	memhack.hooks.firePilotChangedHooks = stateTracker.buildReentrantHookWrapper(
+		"PilotChanged",
+		memhack.structs.Pilot.stateDefinition,
+		stateTracker._pilotTrackers
+	)
+
+	-- Wrap skill changed hook with re-entrant support
+	memhack.hooks.firePilotLvlUpSkillChangedHooks = stateTracker.buildReentrantHookWrapper(
+		"PilotLvlUpSkillChanged",
+		memhack.structs.PilotLvlUpSkill.stateDefinition,
+		stateTracker._skillTrackers
+	)
 end
 
 function stateTracker.registerTriggerHooks()

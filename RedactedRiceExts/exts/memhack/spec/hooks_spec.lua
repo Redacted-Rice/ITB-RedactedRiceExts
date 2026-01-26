@@ -203,6 +203,143 @@ describe("Hooks Module", function()
 		end)
 	end)
 
+	describe("re-entrant hook wrapper", function()
+		local originalHooks
+		local mockPilot
+
+		before_each(function()
+			originalHooks = hooks.pilotChangedHooks
+			hooks.pilotChangedHooks = {}
+
+			-- Re-apply re-entrant wrapper
+			stateTracker.wrapHooksToUpdateStateTrackers()
+
+			mockPilot = mocks.createMockPilot({pilotId = "TestPilot", level = 1, xp = 10})
+		end)
+
+		after_each(function()
+			hooks.pilotChangedHooks = originalHooks
+		end)
+
+		it("should handle multiple sequential re-entrant calls", function()
+			local callCount = 0
+
+			hooks:addPilotChangedHook(function(p, changes)
+				callCount = callCount + 1
+
+				if callCount == 1 then
+					mockPilot._xp = 20
+					hooks.firePilotChangedHooks(mockPilot, {xp = {old = 10, new = 20}})
+				elseif callCount == 2 then
+					mockPilot._level = 2
+					hooks.firePilotChangedHooks(mockPilot, {level = {old = 1, new = 2}})
+				end
+			end)
+
+			local initialChanges = {xp = {old = 0, new = 10}}
+			hooks.firePilotChangedHooks(mockPilot, initialChanges)
+
+			assert.are.equal(3, callCount)
+		end)
+
+		it("should prevent infinite loops with max iteration limit", function()
+			local callCount = 0
+
+			hooks:addPilotChangedHook(function(p, changes)
+				callCount = callCount + 1
+				mockPilot._xp = mockPilot._xp + 1
+				hooks.firePilotChangedHooks(mockPilot, {xp = {old = mockPilot._xp - 1, new = mockPilot._xp}})
+			end)
+
+			mockPilot._xp = 1
+			local initialChanges = {xp = {old = 0, new = 1}}
+
+			local success, err = pcall(function()
+				hooks.firePilotChangedHooks(mockPilot, initialChanges)
+			end)
+
+			assert.is_false(success)
+			assert.is_not_nil(err:find("exceeded max iterations"))
+			assert.are.equal(20, callCount)
+		end)
+
+		it("should complete all hooks before checking for re-entrant changes", function()
+			local hook1Calls = {}
+			local hook2Calls = {}
+
+			hooks:addPilotChangedHook(function(p, changes)
+				table.insert(hook1Calls, changes)
+
+				if #hook1Calls == 1 then
+					mockPilot._level = 2
+					hooks.firePilotChangedHooks(mockPilot, {level = {old = 1, new = 2}})
+				end
+			end)
+
+			hooks:addPilotChangedHook(function(p, changes)
+				table.insert(hook2Calls, changes)
+			end)
+
+			local initialChanges = {xp = {old = 0, new = 10}}
+			hooks.firePilotChangedHooks(mockPilot, initialChanges)
+
+			-- Both hooks called twice
+			assert.are.equal(2, #hook1Calls)
+			assert.are.equal(2, #hook2Calls)
+
+			-- Verify both hooks completed with initial changes before re-firing
+			-- Both called first with the original changes
+			assert.are.same({xp = {old = 0, new = 10}}, hook1Calls[1])
+			assert.are.same({xp = {old = 0, new = 10}}, hook2Calls[1])
+
+			-- Both called second with the updated changes
+			assert.are.same({level = {old = 1, new = 2}}, hook1Calls[2])
+			assert.are.same({level = {old = 1, new = 2}}, hook2Calls[2])
+		end)
+
+		it("should handle two hooks that cancel each other out", function()
+			local hook1Called = 0
+			local hook2Called = 0
+
+			hooks:addPilotChangedHook(function(p, changes)
+				hook1Called = hook1Called + 1
+				if hook1Called == 1 then
+					mockPilot._xp = 50
+					hooks.firePilotChangedHooks(mockPilot, {xp = {old = 10, new = 50}})
+				end
+			end)
+
+			hooks:addPilotChangedHook(function(p, changes)
+				hook2Called = hook2Called + 1
+				if hook2Called == 1 then
+					mockPilot._xp = 10  -- Revert to original
+				end
+			end)
+
+			local initialChanges = {xp = {old = 0, new = 10}}
+			hooks.firePilotChangedHooks(mockPilot, initialChanges)
+
+			-- Both hooks called once - re-entrant flag was set but final state shows no changes
+			assert.are.equal(1, hook1Called)
+			assert.are.equal(1, hook2Called)
+			-- Final value is 10
+			assert.are.equal(10, mockPilot._xp)
+		end)
+
+		it("should not fire if changes are nil or empty", function()
+			local callCount = 0
+
+			hooks:addPilotChangedHook(function(p, changes)
+				callCount = callCount + 1
+			end)
+
+			hooks.firePilotChangedHooks(mockPilot, nil)
+			hooks.firePilotChangedHooks(mockPilot, {})
+
+			assert.are.equal(0, callCount)
+		end)
+	end)
+
 	describe("memory leak prevention", function()
 		it("should cleanup stale pilot trackers", function()
 			-- Setup mock game state

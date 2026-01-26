@@ -154,6 +154,67 @@ describe("Pilot Changed Hook", function()
 		end)
 	end)
 
+	describe("re-entrant wrapper integration", function()
+		before_each(function()
+			-- Re-apply re-entrant wrapper for this test suite
+			-- (main before_each rebuilds broadcast functions which removes the wrapper)
+			memhack.stateTracker.wrapHooksToUpdateStateTrackers()
+		end)
+		
+		it("should queue re-entrant calls and re-fire with actual state changes", function()
+			-- This test verifies that the re-entrant wrapper is actually being used for pilotChanged hooks
+			-- by checking the order and arguments of hook calls.
+
+			local hook1Calls = {}
+			local hook2Calls = {}
+
+			-- First hook modifies pilot during first call and triggers re-entrant call
+			hooks:addPilotChangedHook(function(p, changes)
+				table.insert(hook1Calls, changes)
+
+				if #hook1Calls == 1 then
+					-- Modify pilot state
+					mockPilot._level = 2
+					-- Trigger re-entrant call - should set flag and return immediately
+					hooks.firePilotChangedHooks(mockPilot, {level = {old = 1, new = 2}})
+				end
+			end)
+
+			-- Second hook just records changes
+			hooks:addPilotChangedHook(function(p, changes)
+				table.insert(hook2Calls, changes)
+			end)
+
+			local initialChanges = {xp = {old = 0, new = 10}}
+			hooks.firePilotChangedHooks(mockPilot, initialChanges)
+
+			-- Both hooks called twice
+			assert.are.equal(2, #hook1Calls)
+			assert.are.equal(2, #hook2Calls)
+
+			-- Verify queuing behavior by checking call order/args
+			-- If queuing works both hook1 & hook 2 are called with the initial changes then a second time
+			-- with the new changes. If queuing is not working, then hook1 is called with initial, hook1 is
+			-- called with the updated, hook2 is called with the updated and then finally called with the
+			-- initial
+
+			-- Both called first with the original changes
+			assert.are.same({xp = {old = 0, new = 10}}, hook1Calls[1])
+			assert.are.same({xp = {old = 0, new = 10}}, hook2Calls[1])
+
+			-- Both called second with the updated changes
+			assert.are.same({level = {old = 1, new = 2}}, hook1Calls[2])
+			assert.are.same({level = {old = 1, new = 2}}, hook2Calls[2])
+
+			-- Verify state tracker has final state
+			local pilotAddr = mockPilot:getAddress()
+			local trackedState = memhack.stateTracker._pilotTrackers[pilotAddr]
+			assert.is_not_nil(trackedState)
+			assert.are.equal(2, trackedState.level)
+			assert.are.equal(25, trackedState.xp)
+		end)
+	end)
+
 	describe("events integration", function()
 		it("should have onPilotChanged event", function()
 			assert.is_not_nil(hooks.events)
