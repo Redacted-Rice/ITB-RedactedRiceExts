@@ -225,6 +225,68 @@ describe("Pilot Skill Changed Hook", function()
 		end)
 	end)
 
+	describe("re-entrant wrapper integration", function()
+		before_each(function()
+			-- Re-apply re-entrant wrapper for this test suite
+			-- (main before_each rebuilds broadcast functions which removes the wrapper)
+			memhack.stateTracker.wrapHooksToUpdateStateTrackers()
+		end)
+		
+		it("should queue re-entrant calls and re-fire with actual state changes", function()
+			-- This test verifies that the re-entrant wrapper is actually being used for skill changed hooks
+			-- by checking the order and arguments of hook calls.
+
+			local hook1Calls = {}
+			local hook2Calls = {}
+
+			-- First hook modifies skill during first call and triggers re-entrant call
+			hooks:addPilotLvlUpSkillChangedHook(function(p, s, changes)
+				table.insert(hook1Calls, changes)
+
+				if #hook1Calls == 1 then
+					-- Modify skill state
+					skill1._grid_bonus = 2
+					-- Trigger re-entrant call - should set flag and return immediately
+					hooks.firePilotLvlUpSkillChangedHooks(skill1, {gridBonus = {old = 0, new = 2}})
+				end
+			end)
+
+			-- Second hook just records changes
+			hooks:addPilotLvlUpSkillChangedHook(function(p, s, changes)
+				table.insert(hook2Calls, changes)
+			end)
+
+			skill1._cores_bonus = 1
+			local initialChanges = {coresBonus = {old = 0, new = 1}}
+			hooks.firePilotLvlUpSkillChangedHooks(skill1, initialChanges)
+
+			-- Both hooks called twice
+			assert.are.equal(2, #hook1Calls)
+			assert.are.equal(2, #hook2Calls)
+
+			-- Verify queuing behavior by checking call order/args
+			-- If queuing works both hook1 & hook 2 are called with the initial changes then a second time
+			-- with the new changes. If queuing is not working, then hook1 is called with initial, hook1 is
+			-- called with the updated, hook2 is called with the updated and then finally called with the
+			-- initial
+
+			-- Both called first with the original changes
+			assert.are.same({coresBonus = {old = 0, new = 1}}, hook1Calls[1])
+			assert.are.same({coresBonus = {old = 0, new = 1}}, hook2Calls[1])
+
+			-- Both called second with the updated changes
+			assert.are.same({gridBonus = {old = 0, new = 2}}, hook1Calls[2])
+			assert.are.same({gridBonus = {old = 0, new = 2}}, hook2Calls[2])
+
+			-- Verify state tracker has final state
+			local skillAddr = skill1:getAddress()
+			local trackedState = memhack.stateTracker._skillTrackers[skillAddr]
+			assert.is_not_nil(trackedState)
+			assert.are.equal(2, trackedState.gridBonus)
+			assert.are.equal(1, trackedState.coresBonus)
+		end)
+	end)
+
 	describe("events integration", function()
 		it("should have onPilotLvlUpSkillChanged event", function()
 			assert.is_not_nil(hooks.events)

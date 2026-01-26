@@ -39,6 +39,9 @@ function M.createMockSkill(params)
 
 	-- Add getters using helper
 	skill.getIdStr = makeGetter("_id")
+	skill.getShortNameStr = function(self) return "Short" end  -- Mock value
+	skill.getFullNameStr = function(self) return "Full Name" end  -- Mock value
+	skill.getDescriptionStr = function(self) return "Description" end  -- Mock value
 	skill.getCoresBonus = makeGetter("_cores_bonus")
 	skill.getGridBonus = makeGetter("_grid_bonus")
 	skill.getHealthBonus = makeGetter("_health_bonus")
@@ -129,9 +132,17 @@ function M.createMockPilot(params)
 
 	-- Add basic getters
 	mockPilot.getIdStr = makeGetter("_id")
+	mockPilot.getNameStr = function(self) return "Pilot Name" end  -- Mock value
+	mockPilot.getSkillStr = function(self) return "Skill" end  -- Mock value
 	mockPilot.getLevel = makeGetter("_level")
 	mockPilot.getXp = makeGetter("_xp")
+	mockPilot.getLevelUpXp = function(self) return 100 end  -- Mock value
+	mockPilot.getPrevTimelines = function(self) return 0 end  -- Mock value
 	mockPilot.getAddress = makeGetter("_address")
+	
+	-- Add setters
+	mockPilot.setLevel = makeSetter("_level")
+	mockPilot.setXp = makeSetter("_xp")
 
 	-- Add getLvlUpSkills with parent injection
 	mockPilot.getLvlUpSkills = function(self)
