@@ -1,5 +1,5 @@
--- Busted configuration for CPLUS+ Extension
--- Run from CPLUS+_Ex folder with: busted
+-- Busted configuration for memhack extension
+-- Run from memhack folder with: busted
 return {
   _all = {
     lua = "lua",
@@ -7,7 +7,7 @@ return {
     coverage = false,
     output = "plainTerminal",
     helper = "spec/clear_coverage.lua",
-    lpath = "scripts/?.lua;scripts/?/init.lua;spec/?.lua;spec/?/init.lua;../memhack/spec/?.lua;../memhack/spec/?/init.lua"
+    lpath = "scripts/?.lua;scripts/?/init.lua;structs/?.lua;utils/?.lua;spec/?.lua;spec/?/init.lua"
   },
   default = {
     ROOT = {"spec"},

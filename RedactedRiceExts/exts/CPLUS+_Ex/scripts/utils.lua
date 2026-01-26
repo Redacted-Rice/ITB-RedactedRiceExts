@@ -134,25 +134,9 @@ function utils.logAndShowErrorPopup(message)
 	utils.showErrorPopup(message)
 end
 
--- Helper function to get all pilots in the current squad
--- in the future add pilots in hanger here as well
-function utils.getAllSquadPilots()
-	if not Game then return nil end
-
-	local pilots = {}
-	for i = 0, 2 do
-		local pawnId = i
-		local pawn = Game:GetPawn(pawnId)
-
-		if pawn ~= nil then
-			local pilot = pawn:GetPilot()
-			if pilot ~= nil then
-				pilots[i + 1] = pilot
-			end
-		end
-	end
-	return pilots
-end
+-- TODO: Hijack AddPilot function? How does ModLoader override vanilla functions?
+-- See if I can do that instead so I don't have to search _G which is costly and has
+-- a noticible freeze
 
 -- Helper function to get all pilots in the current squad
 -- in the future add pilots in hanger here as well

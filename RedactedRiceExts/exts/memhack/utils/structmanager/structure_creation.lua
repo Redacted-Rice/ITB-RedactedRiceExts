@@ -84,7 +84,11 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 	-- Constructor
 	function StructType.new(address)
 		local instance = setmetatable({}, StructType)
+		instance.isMemhackObj = true
 		instance._address = address
+		instance.getAddress = function(self)
+			return self._address
+		end
 
 		-- If a source table is provided, copy its entries
 		if StructType then

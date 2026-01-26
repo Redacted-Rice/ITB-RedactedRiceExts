@@ -29,12 +29,12 @@ local function onGameClassInitialized(GameClass, game)
 		local obj = self:GetMemhackObj()
 		obj:SetReputation(obj:getReputation() + amount)
 	end
-	
+
 	-- This was found by identifying the memory using cheat engine then searching
 	-- (via pointer scan for this address) for stable references in Breach.exe and repeating
 	-- until I found the chain that doesn't change
 	-- There may be some other interesting pointers or values stored here as well
-	-- but this doesn't seem to be part of GameMap interestingly and is static - 
+	-- but this doesn't seem to be part of GameMap interestingly and is static -
 	-- it doesn't change address per run (but obviously is cleared/reset on load/new game)
 	local function getScoreAddr()
 		local exeBase = memhack.dll.process.getExeBase()
@@ -42,7 +42,7 @@ local function onGameClassInitialized(GameClass, game)
 		local gameStateStructAddr = memhack.dll.memory.readPointer(intermediateAddr + 0x20)
 		return gameStateStructAddr + 0x148
 	end
-	
+
 	-- Doesn't need to be a part of game but it fits logically there
 	GameClass.GetScore = function(self)
 		return memhack.dll.memory.readInt(getScoreAddr())
