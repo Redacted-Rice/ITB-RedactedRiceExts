@@ -154,6 +154,12 @@ function skill_selection.selectRandomSkills(pilot, count)
 	return selectedSkills
 end
 
+local function skillDataToTable(id, shortName, fullName, description, saveVal, bonuses)
+	return {id = id, shortName = shortName, fullName = fullName, description = description,
+		healthBonus = bonuses.health, coresBonus = bonuses.cores, gridBonus = bonuses.grid,
+		moveBonus = bonuses.move, saveVal = saveVal}
+end
+
 -- Main function to apply level up skills to a pilot (handles both skill slots)
 -- Takes a memhack pilot struct and applies both skill slots (1 and 2)
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
@@ -241,11 +247,10 @@ function skill_selection.applySkillsToPilot(pilot)
 	end
 
 	-- Apply both skills with their determined saveVal
-	pilot:setLvlUpSkill(1, skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
-	pilot:setLvlUpSkill(2, skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
-
-	-- Handle bonus combination if needed
-	owner._modules.pilot_bonus_combiner.combinePilotBonuses(pilot)
+	pilot:setLvlUpSkill(1, skillDataToTable(
+			skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses))
+	pilot:setLvlUpSkill(2, skillDataToTable(
+			skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 end
 
 -- Apply skills to all pilots in the squad

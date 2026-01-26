@@ -24,7 +24,7 @@ end
 -- Refresh game data (get all pilots)
 function time_traveler.refreshGameData()
 	if Game then
-		time_traveler.pilotStructs = utils.getAllSquadPilots()
+		time_traveler.pilotStructs = Game:GetSquadPilots()
 		if owner.PLUS_DEBUG then LOG("refreshGameData") end
 	end
 end
@@ -57,7 +57,7 @@ end
 
 -- Refresh last saved persistent data with current pilot state
 function time_traveler.refreshLastSavedPersistentData()
-	local pilots = utils.getAllSquadPilots()
+	local pilots = Game and Game:GetSquadPilots() or nil
 	if not pilots then
 		return false
 	end
@@ -125,7 +125,7 @@ function time_traveler.savePersistentDataIfChanged()
 			function(readObj)
 				readObj.cplus_plus_ex = {}
 				readObj.cplus_plus_ex.last_run_pilots = {}
-				for _, pilot in pairs(utils.getAllSquadPilots()) do
+				for _, pilot in pairs(Game:GetSquadPilots()) do
 					local id = pilot:getIdStr()
 					readObj.cplus_plus_ex.last_run_pilots[id] = time_traveler.lastSavedPersistentData[id]
 				end

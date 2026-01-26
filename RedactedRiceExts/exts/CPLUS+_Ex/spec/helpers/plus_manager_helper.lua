@@ -1,6 +1,7 @@
 -- Shared test helpers for CPLUS+ Extension tests
 
 local M = {}
+local mocks = require("helpers/mocks")
 
 -- Mock external dependencies
 _G.LOG = function(msg) end
@@ -15,10 +16,30 @@ _G.GAME = {
 -- Store original math.random function
 local _originalMathRandom = math.random
 
+-- Mock modApi for tests
+_G.modApi = _G.modApi or {}
+_G.modApi.events = _G.modApi.events or {}
+_G.modApi.events.onPodWindowShown = {
+	subscribe = function(self, callback) end
+}
+_G.modApi.events.onPerfectIslandWindowShown = {
+	subscribe = function(self, callback) end
+}
+_G.modApi.scheduleHook = function(self, delay, callback)
+	-- Mock implementation - do nothing, as executing the callback would require full UI libraries
+	-- Tests should not be showing error dialogs anyway
+end
+
 -- Mock memhack.hooks for tests
 _G.memhack = _G.memhack or {}
-_G.memhack.hooks = _G.memhack.hooks or {
-	fireOnPilotLevelChanged = {}
+_G.memhack.hooks = _G.memhack.hooks or {}
+_G.memhack.hooks.events = _G.memhack.hooks.events or {
+	onPilotChanged = {
+		subscribe = function(self, callback) end
+	},
+	onPilotLvlUpSkillChanged = {
+		subscribe = function(self, callback) end
+	}
 }
 
 -- Load the module
@@ -55,7 +76,6 @@ function M.resetState()
 	local skill_constraints = pm._modules.skill_constraints
 	local skill_selection = pm._modules.skill_selection
 	local time_traveler = pm._modules.time_traveler
-	local pilot_bonus_combiner = pm._modules.pilot_bonus_combiner
 
 	-- Reset skill_registry module state
 	skill_registry.registeredSkills = {}
@@ -97,71 +117,11 @@ function M.resetState()
 	pm.config.skillConfigs = {}
 end
 
--- Create a mock skill with all required methods
--- Optional params: skillId, coresBonus, gridBonus, saveVal
-function M.createMockSkill(params)
-	params = params or {}
-	return {
-		_id = params.skillId or "",
-		_cores_bonus = params.coresBonus or 0,
-		_grid_bonus = params.gridBonus or 0,
-		_save_val = params.saveVal or 0,
-		getIdStr = function(self) return self._id end,
-		getCoresBonus = function(self) return self._cores_bonus end,
-		getGridBonus = function(self) return self._grid_bonus end,
-		getSaveVal = function(self) return self._save_val end,
-		setCoresBonus = function(self, value) self._cores_bonus = value end,
-		setGridBonus = function(self, value) self._grid_bonus = value end,
-		setSaveVal = function(self, value) self._save_val = value end,
-	}
-end
-
--- Create a mock lvl up skills array with two skills
--- Can optionally pass in existing skill mocks, otherwise creates new ones
-function M.createMockLvlUpSkills(skill1, skill2)
-	local mockSkill1 = skill1 or M.createMockSkill()
-	local mockSkill2 = skill2 or M.createMockSkill()
-
-	return {
-		_skill1 = mockSkill1,
-		_skill2 = mockSkill2,
-		getSkill1 = function(self) return self._skill1 end,
-		getSkill2 = function(self) return self._skill2 end,
-	}
-end
-
--- Create a minimal mock pilot struct
--- Optional params: pilotId, level, lvlUpSkills
--- Can be called with a string (pilotId) or table with params
-function M.createMockPilot(params)
-	-- Handle string argument (just pilot ID)
-	if type(params) == "string" then
-		params = {pilotId = params}
-	end
-	params = params or {}
-	local pilotId = params.pilotId or params[1] or "MockPilot"
-	local level = params.level or 0
-	local mockLvlUpSkills = params.lvlUpSkills or M.createMockLvlUpSkills()
-
-	return {
-		_id = pilotId,
-		_level = level,
-		_lvlUpSkills = mockLvlUpSkills,
-		getIdStr = function(self) return self._id end,
-		getLevel = function(self) return self._level end,
-		getLvlUpSkills = function(self) return self._lvlUpSkills end,
-		setLvlUpSkill = function(self, skillNum, skillId, shortName, fullName, description, saveVal, bonuses)
-			-- Store skill info in the appropriate mock skill
-			local skill = (skillNum == 1) and mockLvlUpSkills._skill1 or mockLvlUpSkills._skill2
-			skill._id = skillId
-			skill._save_val = saveVal
-			if bonuses then
-				skill._cores_bonus = bonuses.cores or 0
-				skill._grid_bonus = bonuses.grid or 0
-			end
-		end
-	}
-end
+-- Re-export mock functions from mocks module
+M.createMockSkill = mocks.createMockSkill
+M.createMockLvlUpSkills = mocks.createMockLvlUpSkills
+M.createMockPilot = mocks.createMockPilot
+M.createMockPilotWithTracking = mocks.createMockPilotWithTracking
 
 -- Register test skills which also enables them
 function M.setupTestSkills(skills)
@@ -190,66 +150,6 @@ end
 -- Restore original math.random function
 function M.restoreMathRandom()
 	math.random = _originalMathRandom
-end
-
--- Create a complete mock pilot with skill tracking for testing skill application
--- Returns: pilot, tracking
--- Where tracking has:
---   - skill1SaveVal: the saveVal applied to skill slot 1
---   - skill2SaveVal: the saveVal applied to skill slot 2
---   - skill1: the mock skill object in slot 1
---   - skill2: the mock skill object in slot 2
-function M.createMockPilotWithTracking(pilotId)
-	pilotId = pilotId or "TestPilot"
-	
-	-- Create tracking object to store applied values
-	local tracking = {
-		skill1SaveVal = nil,
-		skill2SaveVal = nil,
-		skill1 = nil,
-		skill2 = nil,
-	}
-	
-	-- Create mock skills
-	local mockSkill1 = M.createMockSkill()
-	local mockSkill2 = M.createMockSkill()
-	
-	tracking.skill1 = mockSkill1
-	tracking.skill2 = mockSkill2
-	
-	-- Override getSaveVal to return tracked values
-	mockSkill1.getSaveVal = function() return tracking.skill1SaveVal or 0 end
-	mockSkill2.getSaveVal = function() return tracking.skill2SaveVal or 1 end
-	
-	-- Create mock lvl up skills
-	local mockLvlUpSkills = M.createMockLvlUpSkills(mockSkill1, mockSkill2)
-	
-	-- Create mock pilot
-	local mockPilot = M.createMockPilot({
-		pilotId = pilotId,
-		level = 0,
-		lvlUpSkills = mockLvlUpSkills
-	})
-	
-	-- Override setLvlUpSkill to track applied saveVals
-	mockPilot.setLvlUpSkill = function(self, index, id, shortName, fullName, description, saveVal, bonuses)
-		local skill = (index == 1) and mockSkill1 or mockSkill2
-		skill._id = id
-		skill._save_val = saveVal
-		if bonuses then
-			skill._cores_bonus = bonuses.cores or 0
-			skill._grid_bonus = bonuses.grid or 0
-		end
-		
-		-- Track applied saveVals for assertions
-		if index == 1 then
-			tracking.skill1SaveVal = saveVal
-		else
-			tracking.skill2SaveVal = saveVal
-		end
-	end
-	
-	return mockPilot, tracking
 end
 
 return M

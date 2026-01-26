@@ -37,7 +37,6 @@ local skill_config = nil
 local skill_selection = nil
 local skill_constraints = nil
 local time_traveler = nil
-local pilot_bonus_combiner = nil
 
 -- Initialize modules (called from init function)
 function cplus_plus_ex:initModules(path)
@@ -47,7 +46,6 @@ function cplus_plus_ex:initModules(path)
 	skill_selection = require(path.."scripts/skill_selection")
 	skill_constraints = require(path.."scripts/skill_constraints")
 	time_traveler = require(path.."scripts/time_traveler")
-	pilot_bonus_combiner = require(path.."scripts/pilot_bonus_combiner")
 
 	self._modules = {
 		skill_config = skill_config,
@@ -55,7 +53,6 @@ function cplus_plus_ex:initModules(path)
 		skill_registry = skill_registry,
 		skill_selection = skill_selection,
 		time_traveler = time_traveler,
-		pilot_bonus_combiner = pilot_bonus_combiner,
 		utils = utils,
 	}
 
@@ -64,7 +61,6 @@ function cplus_plus_ex:initModules(path)
 	skill_registry.init(self)
 	skill_selection.init(self)
 	time_traveler.init(self)
-	pilot_bonus_combiner.init(self)
 
 	-- Expose "public" module params/functions/classes APIs
 	cplus_plus_ex.config = skill_config.config
@@ -120,11 +116,7 @@ function cplus_plus_ex:addEvents()
 		cplus_plus_ex:postModsLoadedConfig()
 	end)
 	
-	memhack.hooks.events.onPilotLevelChanged:subscribe(function(pilot, previousLevel, previousXp)
-		pilot_bonus_combiner.onPilotLevelChanged(pilot, previousLevel, previousXp)
-	end)
-	
-		-- temp for testing
+	-- temp for testing
 	modApi.events.onPerfectIslandWindowShown:subscribe(function()
 		LOG("PERFECT ISALND DETECTED!!!")
 	end)
@@ -160,8 +152,11 @@ function cplus_plus_ex:addHooks()
 	modApi:addSaveGameHook(function()
 		self:updateAndSaveSkills()
 	end)
-	memhack.hooks:addPilotLevelChangedHook(function(pilot, previousLevel, previousXp)
-		LOG("HOOKED")
+	memhack.hooks:addPilotChangedHook(function(pilot)
+		LOG("HOOKED PILOT CHANGED")
+	end)
+	memhack.hooks:addPilotLvlUpSkillChangedHook(function(pilot, skill)
+		LOG("HOOKED PLUS CHANGED")
 	end)
 
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end

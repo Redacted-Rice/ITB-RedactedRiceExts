@@ -22,15 +22,25 @@ ItBString.REMOTE = 0x1F
 local selfGetter = memhack.structManager.makeStdSelfGetterName()
 local selfSetter = memhack.structManager.makeStdSelfSetterName()
 
--- Requires function named <STD_SELF_GETTER>
-memhack.structManager.makeItBStringGetterWrapper = function(struct, itbStrName)
-	local internalGetter = memhack.structManager.makeStdGetterName(itbStrName)
-	local getterWrapper = internalGetter .. "Str"
+-- Custom getter for getting the string value from the struct
+function ItBString.makeItBStringGetterName(itbStrName)
+	-- Don't override default struct getter
+	return StructManager.makeStdGetterName(itbStrName) .. "Str"
+end
 
-	struct[getterWrapper] = function(self)
-		local obj = self[internalGetter](self)
-		return obj[selfGetter](obj)
-	end
+-- Custom setter taking string value or ItBString struct
+function ItBString.makeItBStringSetterName(itbStrName)
+	-- No default setter for struct and this handles both struct and string args
+	-- so use the std setter name
+	return StructManager.makeStdSetterName(itbStrName)
+end
+
+-- Creates both the setter and getter wrappers for the ItBString struct
+function ItBString.makeItBStringGetSetWrappers(struct, itbStrName)
+	memhack.structManager._methodGeneration.makeStructGetWrapper(
+			struct, itbStrName, ItBString.makeItBStringGetterName(itbStrName), selfGetter)
+	memhack.structManager._methodGeneration.makeStructSetWrapper(
+			struct, itbStrName, ItBString.makeItBStringSetterName(itbStrName), selfSetter)
 end
 
 function onModsFirstLoaded()
