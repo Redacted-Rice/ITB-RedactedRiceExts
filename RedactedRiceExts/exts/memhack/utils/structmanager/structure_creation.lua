@@ -42,9 +42,9 @@ local function calculateFieldSize(field)
 		return handler.size
 	elseif field.length then
 		return field.length
-	elseif field.type == "struct" and field.structType then
+	elseif field.type == "struct" and field.subType then
 		-- Get size from the nested struct
-		local structType = field.structType
+		local structType = field.subType
 		if type(structType) == "string" then
 			structType = StructManager._structures[structType]
 		end
@@ -137,13 +137,13 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 				local success = pcall(function()
 					local customToString = self["toString"]
 					if customToString then
-						val = customToString(self)
-					elseif valType == "pointer" then
-						val = self[ptrGetterName](self)
-						if fieldDef.pointedType then
-							local valObj = self[getterName](self)
-							val = objGetter(self) .. "(" .. val .. ")"
-						end
+					val = customToString(self)
+				elseif valType == "pointer" then
+					val = self[ptrGetterName](self)
+					if fieldDef.subType then
+						local valObj = self[getterName](self)
+						val = objGetter(self) .. "(" .. val .. ")"
+					end
 					else
 						val = self[getterName](self)
 					end
@@ -154,9 +154,9 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 				end
 			end
 			if valType == "struct" then
-				valType = valType .. " - " .. fieldDef.structType
-			elseif valType == "pointer" and fieldDef.pointedType ~= nil then
-				valType = valType .. " - " .. fieldDef.pointedType
+				valType = valType .. " - " .. fieldDef.subType
+			elseif valType == "pointer" and fieldDef.subType ~= nil then
+				valType = valType .. " - " .. fieldDef.subType
 			end
 			table.insert(lines, string.format("%s(%s): {%s}", fieldName, valType, tostring(val)))
 		end
