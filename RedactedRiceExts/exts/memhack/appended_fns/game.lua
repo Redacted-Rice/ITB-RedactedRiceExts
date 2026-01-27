@@ -1,10 +1,10 @@
-local function onGameClassInitialized(GameClass, game)
+local function onGameClassInitialized(GameClass)
 	-- persistent pointer. This won't change and stays even between runs
 	-- and going to the main menu
 	
 	GameClass.GetMemhackObj = function(self)
 		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
-			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(game))
+			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(self))
 		end
 		return self.memhackObj
 	end
@@ -108,11 +108,13 @@ local function onGameClassInitialized(GameClass, game)
 	-- your storage. If there is no pilot or the pod UI is not open, will
 	-- return nil
 	GameClass.GetPodRewardPilot = function(self)
-		return self:GetMemhackObj():getVictoryScreen():getPodRewardPilot()
+		local pilot = self:GetMemhackObj():getVictoryScreen():getPodRewardPilot()
+		return pilot
 	end
 	
 	GameClass.GetPerfectIslandRewardPilot = function(self)
-		return self:GetMemhackObj():getUnknownObj1():getPerfectIslandRewardPilot()
+		local pilot = self:GetMemhackObj():getUnknownObj1():getPerfectIslandRewardPilot()
+		return pilot
 	end
 end
 
