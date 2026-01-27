@@ -23,7 +23,7 @@ describe("Hooks Module", function()
 			hooks.pilotChangedHooks = {}
 
 			-- Build the broadcast function
-			fireFunc = hooks:buildBroadcastFunc("pilotChangedHooks")
+			fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, nil)
 		end)
 
 		after_each(function()
@@ -86,7 +86,7 @@ describe("Hooks Module", function()
 			hooks.pilotLvlUpSkillChangedHooks = {}
 
 			-- Build the broadcast function with parent prepending
-			fireFunc = hooks:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Pilot"})
+			fireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Pilot"}, nil)
 		end)
 
 		after_each(function()
@@ -116,7 +116,7 @@ describe("Hooks Module", function()
 
 		it("should handle multiple parents", function()
 			-- Create a new fire function with multiple parents
-			local multiParentFireFunc = hooks:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Grandparent", "Parent"})
+			local multiParentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Grandparent", "Parent"}, nil)
 
 			local grandparent = {type = "grandparent"}
 			local parent = {type = "parent"}
@@ -174,7 +174,7 @@ describe("Hooks Module", function()
 
 		it("should preserve argument order with parent first", function()
 			-- Create fire function with single parent
-			local parentFireFunc = hooks:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Parent"})
+			local parentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Parent"}, nil)
 
 			local argOrder = {}
 
@@ -436,7 +436,7 @@ describe("Hooks Module", function()
 				hook2Called = true
 			end
 
-			local fireFunc = hooks:buildBroadcastFunc("pilotChangedHooks")
+			local fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, nil)
 
 			-- Should not throw error - hooks module logs errors instead
 			fireFunc()

@@ -17,16 +17,10 @@ describe("Pilot Skill Changed Hook", function()
 	local originalHooks
 
 	before_each(function()
-		-- Initialize hooks
-		hooks:addTo(hooks)
-		hooks:initBroadcastHooks(hooks)
-		hooks:load()  -- This adds the event dispatcher hooks
-
-		-- Save and clear hooks array
+		-- Save original hooks array and clear it for testing
+		-- The fire function already exists from memhack initialization
 		originalHooks = hooks.pilotLvlUpSkillChangedHooks
 		hooks.pilotLvlUpSkillChangedHooks = {}
-		-- Rebuild broadcast function to point to the new empty array
-		hooks:initBroadcastHooks(hooks)
 
 		pilot = mocks.createMockPilot({
 			pilotId = "TestPilot",
@@ -55,7 +49,7 @@ describe("Pilot Skill Changed Hook", function()
 
 			assert.are.equal(1, #hooks.pilotLvlUpSkillChangedHooks)
 
-			hooks.firePilotLvlUpSkillChangedHooks(skill1, {})
+			hooks.firePilotLvlUpSkillChangedHooks(skill1, {id = {old = "OldSkill", new = "NewSkill"}})
 			assert.is_true(called)
 		end)
 
@@ -67,7 +61,7 @@ describe("Pilot Skill Changed Hook", function()
 
 			assert.are.equal(2, #hooks.pilotLvlUpSkillChangedHooks)
 
-			hooks.firePilotLvlUpSkillChangedHooks(skill1, {})
+			hooks.firePilotLvlUpSkillChangedHooks(skill1, {id = {old = "OldSkill", new = "NewSkill"}})
 			assert.are.equal(11, count)
 		end)
 	end)
@@ -105,12 +99,13 @@ describe("Pilot Skill Changed Hook", function()
 			-- Create orphan skill without parent
 			local orphanSkill = mocks.createMockSkill({skillId = "Orphan"})
 
-			hooks.firePilotLvlUpSkillChangedHooks(orphanSkill, {})
+			local changes = {id = {old = "OldSkill", new = "NewSkill"}}
+			hooks.firePilotLvlUpSkillChangedHooks(orphanSkill, changes)
 
 			-- Pilot should be nil (not omitted)
 			assert.is_nil(capturedPilot)
 			assert.are.equal(orphanSkill, capturedSkill)
-			assert.are.same({}, capturedChanges)
+			assert.are.same(changes, capturedChanges)
 		end)
 
 		it("should prepend correct pilot for skill1", function()
@@ -120,7 +115,7 @@ describe("Pilot Skill Changed Hook", function()
 				capturedPilot = p
 			end)
 
-			hooks.firePilotLvlUpSkillChangedHooks(skill1, {})
+			hooks.firePilotLvlUpSkillChangedHooks(skill1, {id = {old = "OldSkill", new = "NewSkill"}})
 
 			assert.are.equal(pilot, capturedPilot)
 			assert.are.equal("TestPilot", capturedPilot:getIdStr())
@@ -133,7 +128,7 @@ describe("Pilot Skill Changed Hook", function()
 				capturedPilot = p
 			end)
 
-			hooks.firePilotLvlUpSkillChangedHooks(skill2, {})
+			hooks.firePilotLvlUpSkillChangedHooks(skill2, {id = {old = "OldSkill", new = "NewSkill"}})
 
 			assert.are.equal(pilot, capturedPilot)
 			assert.are.equal("TestPilot", capturedPilot:getIdStr())
@@ -175,7 +170,7 @@ describe("Pilot Skill Changed Hook", function()
 				table.insert(callOrder, 3)
 			end)
 
-			hooks.firePilotLvlUpSkillChangedHooks(skill1, {})
+			hooks.firePilotLvlUpSkillChangedHooks(skill1, {id = {old = "OldSkill", new = "NewSkill"}})
 
 			assert.are.equal(3, #callOrder)
 			assert.are.equal(1, callOrder[1])
@@ -218,7 +213,7 @@ describe("Pilot Skill Changed Hook", function()
 			end)
 
 			-- Should not throw, but log error
-			hooks.firePilotLvlUpSkillChangedHooks(skill1, {})
+			hooks.firePilotLvlUpSkillChangedHooks(skill1, {id = {old = "OldSkill", new = "NewSkill"}})
 
 			-- Second hook should still be called
 			assert.is_true(hook2Called)
@@ -299,9 +294,9 @@ describe("Pilot Skill Changed Hook", function()
 		end)
 
 	it("should dispatch onPilotLvlUpSkillChanged event when hook fires with original hooks", function()
-		-- Restore original hooks (contains event dispatcher) and rebuild broadcast function
+		-- Restore original hooks (contains event dispatcher)
+		-- The fire function already exists and will use the restored array
 		hooks.pilotLvlUpSkillChangedHooks = originalHooks
-		hooks:initBroadcastHooks(hooks)
 
 		-- Track event dispatch
 		local eventDispatched = false

@@ -4,7 +4,49 @@ local M = {}
 
 M.createMockSkill = memhackMocks.createMockSkill
 M.createMockLvlUpSkills = memhackMocks.createMockLvlUpSkills
-M.createMockPilot = memhackMocks.createMockPilot
+
+-- Wrap memhack's createMockPilot to add getPawnId/isPiloting methods
+-- and ensure address is always set (in case math.random is mocked and returns nil)
+M.createMockPilot = function(params)
+	-- Handle string argument (just pilot ID)
+	if type(params) == "string" then
+		params = {pilotId = params}
+	end
+	params = params or {}
+	
+	-- Ensure address is explicitly set to avoid nil from mocked math.random
+	if not params.address then
+		-- Generate a simple sequential address for testing
+		M._nextAddress = (M._nextAddress or 1000000) + 1
+		params.address = M._nextAddress
+	end
+	
+	local mockPilot = memhackMocks.createMockPilot(params)
+	
+	-- Add getPawnId method (returns pawnId if piloting, nil otherwise)
+	mockPilot.getPawnId = function(self)
+		if not _G.Game or not _G.Board then return nil end
+		
+		local pilotAddr = self:getAddress()
+		for pawnId = 0, 2 do
+			local pawn = _G.Board.GetPawn and _G.Board.GetPawn(pawnId) or nil
+			if pawn then
+				local pawnPilot = pawn.GetPilot and pawn.GetPilot() or nil
+				if pawnPilot and pawnPilot:getAddress() == pilotAddr then
+					return pawnId
+				end
+			end
+		end
+		return nil
+	end
+	
+	-- Add isPiloting method
+	mockPilot.isPiloting = function(self)
+		return self:getPawnId() ~= nil
+	end
+	
+	return mockPilot
+end
 
 function M.createMockPilotWithTracking(pilotId)
 	pilotId = pilotId or "TestPilot"
@@ -16,8 +58,9 @@ function M.createMockPilotWithTracking(pilotId)
 		skill2 = nil,
 	}
 
-	local mockSkill1 = M.createMockSkill()
-	local mockSkill2 = M.createMockSkill()
+	-- Create skills for tracking
+	local mockSkill1 = memhackMocks.createMockSkill()
+	local mockSkill2 = memhackMocks.createMockSkill()
 
 	tracking.skill1 = mockSkill1
 	tracking.skill2 = mockSkill2

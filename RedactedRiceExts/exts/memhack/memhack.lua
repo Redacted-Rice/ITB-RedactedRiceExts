@@ -46,7 +46,7 @@ function memhack:init(mockDll)
 	require(path.."structs/game_map")
 
 	-- Load hooks system
-	self.hooks = require(path.."scripts/hooks"):init()
+	self.hooks = require(path.."scripts/hooks"):init(self)
 	self.stateTracker = require(path.."scripts/state_tracker").init()
 	-- Wrap hooks to update state trackers to prevent double firing from state tracking
 	-- Could be wrapped in init but put here so the dependency is obvious

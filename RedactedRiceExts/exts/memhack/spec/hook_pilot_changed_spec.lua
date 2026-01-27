@@ -17,17 +17,10 @@ describe("Pilot Changed Hook", function()
 	before_each(function()
 		hooksCalled = {}
 
-		-- Initialize hooks (this sets up the hook arrays and fire functions)
-		hooks:addTo(hooks)
-		hooks:initBroadcastHooks(hooks)
-		hooks:load()  -- This adds the event dispatcher hooks
-
-		-- Save reference to original hooks array (now contains event dispatcher)
+		-- Save original hooks array and clear it for testing
+		-- The fire function already exists from memhack initialization
 		originalHooks = hooks.pilotChangedHooks
-		-- Create a fresh empty array for tests
 		hooks.pilotChangedHooks = {}
-		-- Rebuild broadcast function to point to the new empty array
-		hooks:initBroadcastHooks(hooks)
 
 		mockPilot = mocks.createMockPilot({
 			pilotId = "TestPilot",
@@ -55,7 +48,8 @@ describe("Pilot Changed Hook", function()
 			assert.are.equal(1, #hooks.pilotChangedHooks)
 
 			-- Fire hook and verify it was called
-			hooks.firePilotChangedHooks(mockPilot, {})
+			local changes = {level = {old = 1, new = 2}}
+			hooks.firePilotChangedHooks(mockPilot, changes)
 			assert.is_true(called)
 		end)
 
@@ -68,7 +62,8 @@ describe("Pilot Changed Hook", function()
 
 			assert.are.equal(3, #hooks.pilotChangedHooks)
 
-			hooks.firePilotChangedHooks(mockPilot, {})
+			local changes = {level = {old = 1, new = 2}}
+			hooks.firePilotChangedHooks(mockPilot, changes)
 			assert.are.equal(111, count)
 		end)
 	end)
@@ -106,7 +101,8 @@ describe("Pilot Changed Hook", function()
 				table.insert(callOrder, 3)
 			end)
 
-			hooks.firePilotChangedHooks(mockPilot, {})
+			local changes = {level = {old = 1, new = 2}}
+			hooks.firePilotChangedHooks(mockPilot, changes)
 
 			assert.are.equal(3, #callOrder)
 			assert.are.equal(1, callOrder[1])
@@ -147,7 +143,8 @@ describe("Pilot Changed Hook", function()
 			end)
 
 			-- Should not throw, but log error
-			hooks.firePilotChangedHooks(mockPilot, {})
+			local changes = {level = {old = 1, new = 2}}
+			hooks.firePilotChangedHooks(mockPilot, changes)
 
 			-- Second hook should still be called
 			assert.is_true(hook2Called)
@@ -160,7 +157,7 @@ describe("Pilot Changed Hook", function()
 			-- (main before_each rebuilds broadcast functions which removes the wrapper)
 			memhack.stateTracker.wrapHooksToUpdateStateTrackers()
 		end)
-		
+
 		it("should queue re-entrant calls and re-fire with actual state changes", function()
 			-- This test verifies that the re-entrant wrapper is actually being used for pilotChanged hooks
 			-- by checking the order and arguments of hook calls.
@@ -228,9 +225,9 @@ describe("Pilot Changed Hook", function()
 		end)
 
 	it("should dispatch onPilotChanged event when hook fires with original hooks", function()
-		-- Restore original hooks (contains event dispatcher) and rebuild broadcast function
+		-- Restore original hooks (contains event dispatcher)
+		-- The fire function already exists and will use the restored array
 		hooks.pilotChangedHooks = originalHooks
-		hooks:initBroadcastHooks(hooks)
 
 		-- Track event dispatch
 		local eventDispatched = false
