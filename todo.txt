@@ -1,5 +1,4 @@
 For 1.0 release:
-1. Find pilots in pods and island rewards
 2. Document how to find/how I found the references in memhack
 	1. Score
 	2. Rep

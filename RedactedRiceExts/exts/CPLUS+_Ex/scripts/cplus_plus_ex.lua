@@ -116,21 +116,6 @@ function cplus_plus_ex:addEvents()
 		cplus_plus_ex:postModsLoadedConfig()
 	end)
 	
-	-- temp for testing
-	modApi.events.onPerfectIslandWindowShown:subscribe(function()
-		LOG("PERFECT ISALND DETECTED!!!")
-	end)
-	modApi.events.onPerfectIslandWindowHidden:subscribe(function()
-		LOG("PERFECT ISALND GONE!!!")
-	end)
-	modApi.events.onPodWindowShown:subscribe(function()
-		LOG("POD REWARD DETECTED!!!")
-	end)
-	modApi.events.onPodWindowHidden:subscribe(function()
-		-- temp for testing
-		LOG("POD REWARD GONE!!!")
-	end)
-	
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
 end
 
