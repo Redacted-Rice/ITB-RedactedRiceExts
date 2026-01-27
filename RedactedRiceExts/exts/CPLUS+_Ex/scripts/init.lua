@@ -21,20 +21,8 @@ function extension:init(options)
 	local path = self.resourcePath
 
 	-- Initialize main extension
-	require(path.."scripts/cplus_plus_ex")
-	cplus_plus_ex:init(path)
-	
-	-- Load UI module
-	local modify_pilot_skills_ui = require(path.."scripts/modify_pilot_skills_ui")
-	
-	-- Add menu button
-	sdlext.addModContent(
-		"Modify Pilot Skills",
-		function()
-			modify_pilot_skills_ui.createDialog()
-		end,
-		"Modify skill weights and configurations"
-	)
+	require(path.."cplus_plus_ex")
+	cplus_plus_ex:init()
 end
 
 function extension:load(options, version)

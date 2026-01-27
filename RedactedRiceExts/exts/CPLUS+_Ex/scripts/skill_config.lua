@@ -57,6 +57,17 @@ function skill_config.init(ownerRef)
 	utils = ownerRef._modules.utils
 end
 
+-- Get all enabled skill IDs as a set (skillId -> true)
+function skill_config.getEnabledSkillsSet()
+	local enabledSet = {}
+	for skillId, skillConfig in pairs(skill_config.config.skillConfigs) do
+		if skillConfig.enabled then
+			enabledSet[skillId] = true
+		end
+	end
+	return enabledSet
+end
+
 -- Get allowed reusability options for a skill
 function skill_config.getAllowedReusability(skillId)
 	-- This is called by register before the skills are registered so default to all allowed
@@ -79,10 +90,8 @@ function skill_config.setSkillConfig(skillId, config)
 
 	if config.enabled ~= nil then
 		if config.enabled then
-			LOG("ENABLED")
 			new_config.enabled = true
 		else
-			LOG("DISABLED")
 			new_config.enabled = false
 		end
 	end
@@ -112,8 +121,6 @@ function skill_config.setSkillConfig(skillId, config)
 		new_config.reusability = config.reusability
 		LOG(new_config.reusability .. " " .. config.reusability)
 	end
-	LOG("DONE")
-	LOG(skillId)
 
 	-- If we reached here, its a good config. Apply it
 	skill_config.config.skillConfigs[skillId] = new_config
@@ -151,6 +158,11 @@ function skill_config._enableSkill_internal(id)
 			local reusability = skill.reusability
 			if owner.PLUS_DEBUG then LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ", reusability: " .. reusability .. ")") end
 		end
+
+		-- Trigger state update for enabled skills
+		if owner._modules and owner._modules.skill_state_tracker then
+			owner._modules.skill_state_tracker.updateEnabledSkills()
+		end
 	end
 	if owner.PLUS_DEBUG then LOG("PLUS Ext: Skill " .. id .. " enabled") end
 end
@@ -167,6 +179,11 @@ function skill_config._disableSkill_internal(id)
 				if owner.PLUS_DEBUG then LOG("PLUS Ext: Disabled skill: " .. id .. " (idx: " .. idx .. ")") end
 				break
 			end
+		end
+
+		-- Trigger state update for enabled skills
+		if owner._modules and owner._modules.skill_state_tracker then
+			owner._modules.skill_state_tracker.updateEnabledSkills()
 		end
 	end
 	if owner.PLUS_DEBUG then LOG("PLUS Ext: Skill " .. id .. " disabled") end
@@ -271,11 +288,11 @@ end
 -- Restores all values to what they were at initial load (after registration and auto-loading)
 function skill_config.resetToDefaults()
 	utils.deepcopyInPlace(skill_config.config, skill_config.defaultConfig)
-	
+
 	-- Rebuild enabled skills list from the reset config
 	skill_config.enabledSkills = {}
 	skill_config.enabledSkillsIds = {}
-	
+
 	for skillId, skillConfigObj in pairs(skill_config.config.skillConfigs) do
 		if skillConfigObj.enabled then
 			local skill = skill_registry.registeredSkills[skillId]
@@ -283,7 +300,12 @@ function skill_config.resetToDefaults()
 			table.insert(skill_config.enabledSkillsIds, skillId)
 		end
 	end
-	
+
+	-- Trigger state update for enabled skills
+	if owner._modules and owner._modules.skill_state_tracker then
+		owner._modules.skill_state_tracker.updateEnabledSkills()
+	end
+
 	-- Note: Saving is handled by the caller (e.g., UI saveConfiguration())
 	if owner.PLUS_DEBUG then
 		LOG("PLUS Ext: Reset configuration to defaults")
@@ -322,10 +344,10 @@ function skill_config.loadConfiguration()
 		function(obj)
 			if obj.cplus_plus_ex and obj.cplus_plus_ex.skill_config then
 				local savedConfig = obj.cplus_plus_ex.skill_config
-				
+
 				-- Merge saved config into current config
 				-- This preserves defaults for newly registered skills
-				
+
 				-- Update simple boolean flags
 				if savedConfig.allowReusableSkills ~= nil then
 					skill_config.config.allowReusableSkills = savedConfig.allowReusableSkills
@@ -333,7 +355,7 @@ function skill_config.loadConfiguration()
 				if savedConfig.autoAdjustWeights ~= nil then
 					skill_config.config.autoAdjustWeights = savedConfig.autoAdjustWeights
 				end
-				
+
 				-- Update sparse, saved as added tables
 				-- We don't merge these since we only save exclusions not relationships
 				if savedConfig.pilotSkillExclusions then
@@ -348,7 +370,7 @@ function skill_config.loadConfiguration()
 				if savedConfig.skillDependencies then
 					skill_config.config.skillDependencies = utils.deepcopy(savedConfig.skillDependencies)
 				end
-				
+
 				-- Merge skillConfigs to update existing skill but preserve new defaults
 				if savedConfig.skillConfigs then
 					for skillId, savedSkillConfig in pairs(savedConfig.skillConfigs) do
@@ -364,7 +386,7 @@ function skill_config.loadConfiguration()
 				end
 
 				skill_config.rebuildEnabledSkills()
-				
+
 				if owner.PLUS_DEBUG then
 					LOG("PLUS Ext: Loaded and merged skill configuration")
 				end
@@ -384,6 +406,11 @@ function skill_config.rebuildEnabledSkills()
 			skill_config.enabledSkills[skillId] = skill
 			table.insert(skill_config.enabledSkillsIds, skillId)
 		end
+	end
+
+	-- Trigger state update for enabled skills
+	if owner._modules and owner._modules.skill_state_tracker then
+		owner._modules.skill_state_tracker.updateEnabledSkills()
 	end
 end
 

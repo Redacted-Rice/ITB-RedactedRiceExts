@@ -3,54 +3,110 @@
 local M = {}
 local mocks = require("helpers/mocks")
 
--- Mock external dependencies
-_G.LOG = function(msg) end
-_G.GAME = {
-	cplus_plus_ex = {
-		pilotSkills = {},
-		randomSeed = 12345,
-		randomSeedCnt = 0
-	}
-}
-
 -- Store original math.random function
 local _originalMathRandom = math.random
 
--- Mock modApi for tests
-_G.modApi = _G.modApi or {}
-_G.modApi.events = _G.modApi.events or {}
-_G.modApi.events.onPodWindowShown = {
-	subscribe = function(self, callback) end
-}
-_G.modApi.events.onPerfectIslandWindowShown = {
-	subscribe = function(self, callback) end
-}
-_G.modApi.scheduleHook = function(self, delay, callback)
-	-- Mock implementation - do nothing, as executing the callback would require full UI libraries
-	-- Tests should not be showing error dialogs anyway
+-- Setup globals needed by the extension
+function M.setupGlobals()
+	_G.LOG = _G.LOG or function(msg) end
+
+	_G.GetParentPath = _G.GetParentPath or function(modPath)
+		return ""
+	end
+
+	-- Mock modApi events
+	_G.modApi = _G.modApi or {}
+	_G.modApi.events = _G.modApi.events or {}
+	_G.modApi.events.onPodWindowShown = { subscribe = function() end }
+	_G.modApi.events.onPerfectIslandWindowShown = { subscribe = function() end }
+	_G.modApi.events.onGameEntered = { subscribe = function() end }
+	_G.modApi.events.onGameExited = { subscribe = function() end }
+	_G.modApi.scheduleHook = function() end
+	_G.modApi.addSaveGameHook = function() end
+
+	_G.Event = _G.Event or function() return {dispatch = function() end} end
+	_G.Game = _G.Game or {}
+	_G.Board = nil
+
+	_G.sdlext = _G.sdlext or {
+		addModContent = function() end
+	}
+
+	_G.GAME = {
+		cplus_plus_ex = {
+			pilotSkills = {},
+			randomSeed = 12345,
+			randomSeedCnt = 0
+		}
+	}
 end
 
--- Mock memhack.hooks for tests
-_G.memhack = _G.memhack or {}
-_G.memhack.hooks = _G.memhack.hooks or {}
-_G.memhack.hooks.events = _G.memhack.hooks.events or {
-	onPilotChanged = {
-		subscribe = function(self, callback) end
-	},
-	onPilotLvlUpSkillChanged = {
-		subscribe = function(self, callback) end
-	}
-}
+-- Stub memhack with minimal API needed by CPLUS+
+function M.stubMemhack()
+	local Event = _G.Event
+	_G.memhack = {
+		hooks = {
+			events = {
+				onPilotChanged = Event(),
+				onPilotLvlUpSkillChanged = Event(),
+			},
+			addTo = function(hookTbl, owner, debugId)
+				hookTbl.events = hookTbl.events or {}
+				for _, name in ipairs(hookTbl) do
+					local Name = name:gsub("^.", string.upper)
+					local hookId = name.."Hooks"
+					local eventId = "on"..Name
+					local addHook = "add"..Name.."Hook"
 
--- Load the module
+					hookTbl.events[eventId] = _G.Event()
+					hookTbl[hookId] = {}
+					hookTbl[addHook] = function(self, fn)
+						table.insert(self[hookId], fn)
+					end
+
+					if owner then
+						owner[addHook] = function(self, fn)
+							return hookTbl[addHook](hookTbl, fn)
+						end
+					end
+				end
+			end,
+			reload = function(hookTbl, debugId) end,
+			buildBroadcastFunc = function(hooksField, tbl, argsFunc, parentsToPrepend, debugId)
+				return function(...)
+					local hooks = tbl[hooksField]
+					if hooks then
+						for _, hook in ipairs(hooks) do
+							pcall(hook, ...)
+						end
+					end
+				end
+			end,
+		},
+		-- Stub hook registration functions
+		addPilotChangedHook = function(self, fn) end,
+		addPilotLvlUpSkillChangedHook = function(self, fn) end,
+	}
+end
+
+-- Initialize CPLUS+ extension
+M.setupGlobals()
+M.stubMemhack()
+
 require("cplus_plus_ex")
 M.plus_manager = cplus_plus_ex
--- Initialize modules so _modules table is available
-M.plus_manager:initModules("")
+M.plus_manager:initModules()
 
 -- Reset all state
 function M.resetState()
 	local pm = M.plus_manager
+
+	-- First, completely reset Game and Board to prevent any lingering state
+	_G.Game = {
+		GetAvailablePilots = function() return {} end,
+		GetSquadPilots = function() return {} end
+	}
+	_G.Board = nil
 
 	GAME.cplus_plus_ex.pilotSkills = {}
 	GAME.cplus_plus_ex.randomSeed = 12345
@@ -68,7 +124,9 @@ function M.resetState()
 	end
 
 	-- Re-initialize modules (registers constraints, vanilla skills, etc.)
-	pm:initModules("")
+	-- Note: This calls skill_state_tracker:load() which calls updateAllStates()
+	-- so Game/Board MUST be reset before this
+	pm:initModules()
 
 	-- Now access modules after they've been initialized
 	local skill_registry = pm._modules.skill_registry
@@ -76,6 +134,7 @@ function M.resetState()
 	local skill_constraints = pm._modules.skill_constraints
 	local skill_selection = pm._modules.skill_selection
 	local time_traveler = pm._modules.time_traveler
+	local skill_state_tracker = pm._modules.skill_state_tracker
 
 	-- Reset skill_registry module state
 	skill_registry.registeredSkills = {}
@@ -99,6 +158,19 @@ function M.resetState()
 	time_traveler.pilotStructs = nil
 	time_traveler.lastSavedPersistentData = nil
 	time_traveler.timeTraveler = nil
+
+	-- Reset skill_state_tracker module state after initModules to override any state
+	-- that may have been set
+	skill_state_tracker._enabledSkills = {}
+	skill_state_tracker._inRunSkills = {}
+	skill_state_tracker._activeSkills = {}
+
+	-- Reset hooks module state to clear any added during tests
+	local hooks_module = pm.hooks
+	hooks_module.skillEnabledHooks = {}
+	hooks_module.skillInRunHooks = {}
+	hooks_module.skillActiveHooks = {}
+	hooks_module:initBroadcastHooks(hooks_module)
 
 	-- Reset config structure (owned by skill_config module)
 	pm.config.allowReusableSkills = true
@@ -150,6 +222,35 @@ end
 -- Restore original math.random function
 function M.restoreMathRandom()
 	math.random = _originalMathRandom
+end
+
+-- Clean up all globals set by CPLUS+ tests to prevent pollution
+-- Call this after all CPLUS+ tests complete
+function M.cleanupGlobals()
+	-- Remove CPLUS+ globals
+	_G.cplus_plus_ex = nil
+	_G.GAME = nil
+	_G.Game = nil
+	_G.Board = nil
+	_G.modApi = nil
+	_G.Event = nil
+	_G.sdlext = nil
+	_G.LOG = nil
+	_G.GetParentPath = nil
+	
+	-- Remove memhack stub (critical for memhack tests to work)
+	_G.memhack = nil
+	
+	-- Clear package.loaded for CPLUS+ modules to ensure fresh load next time
+	for key in pairs(package.loaded) do
+		if type(key) == "string" and (
+			key:match("^cplus_plus") or
+			key:match("^scripts%.") or
+			key:match("^helpers%.")
+		) then
+			package.loaded[key] = nil
+		end
+	end
 end
 
 return M

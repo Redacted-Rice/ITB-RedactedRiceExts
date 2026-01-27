@@ -136,6 +136,28 @@ function createPilotFuncs()
 		self:setXp(self:getXp() + xpToAdd)
 	end
 
+	-- Get the pawn ID (0-2) for this pilot if piloting a mech, nil otherwise
+	Pilot.getPawnId = function(self)
+		if not Game then return nil end
+
+		local pilotAddr = self:getAddress()
+		for pawnId = 0, 2 do
+			local pawn = Game:GetPawn(pawnId)
+			if pawn then
+				local pawnPilot = pawn:GetPilot()
+				if pawnPilot and pawnPilot:getAddress() == pilotAddr then
+					return pawnId
+				end
+			end
+		end
+		return nil
+	end
+
+	-- Check if this pilot is currently piloting a mech
+	Pilot.isPiloting = function(self)
+		return self:getPawnId() ~= nil
+	end
+
 	-- Convenience getter for level up skill by index
 	-- idx is either 1 or 2 for the respective skill
 	-- Parent wrapping is already handled:

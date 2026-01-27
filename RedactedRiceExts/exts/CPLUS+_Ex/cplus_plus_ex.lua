@@ -1,11 +1,13 @@
 -- CPLUS+ Extension Main Module
 -- Coordinates skill modules and manages save/load operations
 
--- Main extension object with state
-cplus_plus_ex = {
-	PLUS_DEBUG = true, -- eventually default to false
-	PLUS_EXTRA_DEBUG = false,
-}
+cplus_plus_ex = cplus_plus_ex or {}
+
+local path = GetParentPath(...)
+
+-- Extension settings
+cplus_plus_ex.PLUS_DEBUG = true -- eventually default to false
+cplus_plus_ex.PLUS_EXTRA_DEBUG = false
 
 -- Constants
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
@@ -37,15 +39,21 @@ local skill_config = nil
 local skill_selection = nil
 local skill_constraints = nil
 local time_traveler = nil
+local hooks = nil
+local skill_state_tracker = nil
+local modify_pilot_skills_ui = nil
 
--- Initialize modules (called from init function)
-function cplus_plus_ex:initModules(path)
+-- Initialize modules
+function cplus_plus_ex:initModules()
 	utils = require(path.."scripts/utils")
 	skill_registry = require(path.."scripts/skill_registry")
 	skill_config = require(path.."scripts/skill_config")
 	skill_selection = require(path.."scripts/skill_selection")
 	skill_constraints = require(path.."scripts/skill_constraints")
 	time_traveler = require(path.."scripts/time_traveler")
+	hooks = require(path.."scripts/hooks")
+	skill_state_tracker = require(path.."scripts/skill_state_tracker")
+	modify_pilot_skills_ui = require(path.."scripts/modify_pilot_skills_ui")
 
 	self._modules = {
 		skill_config = skill_config,
@@ -54,17 +62,25 @@ function cplus_plus_ex:initModules(path)
 		skill_selection = skill_selection,
 		time_traveler = time_traveler,
 		utils = utils,
+		hooks = hooks,
+		skill_state_tracker = skill_state_tracker,
+		modify_pilot_skills_ui = modify_pilot_skills_ui,
 	}
 
+	hooks:init(self)
+
+	-- Expose some modules/data at the root level for easier access
+	cplus_plus_ex.hooks = hooks
+	cplus_plus_ex.config = skill_config.config
+	cplus_plus_ex.SkillConfig = skill_config.SkillConfig
+
+	skill_state_tracker:init(self)
 	skill_config.init(self)
 	skill_constraints.init(self)
 	skill_registry.init(self)
 	skill_selection.init(self)
 	time_traveler.init(self)
-
-	-- Expose "public" module params/functions/classes APIs
-	cplus_plus_ex.config = skill_config.config
-	cplus_plus_ex.SkillConfig = skill_config.SkillConfig
+	modify_pilot_skills_ui:init(self)
 
 	function cplus_plus_ex:setSkillConfig(...) return skill_config.setSkillConfig(...) end
 	function cplus_plus_ex:enableSkill(...) return skill_config.enableSkill(...) end
@@ -88,19 +104,38 @@ function cplus_plus_ex:initModules(path)
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection.applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection.applySkillsToAllPilots() end
 
+	-- Skill state checking functions
+	function cplus_plus_ex:isSkillEnabled(...) return skill_state_tracker.isSkillEnabled(...) end
+	function cplus_plus_ex:isSkillInRun(...) return skill_state_tracker.isSkillInRun(...) end
+	function cplus_plus_ex:isSkillActive(...) return skill_state_tracker.isSkillActive(...) end
+	function cplus_plus_ex:isSkillOnPilots(...) return skill_state_tracker.isSkillOnPilots(...) end
+
+	-- Get pilots/mechs with skills
+	function cplus_plus_ex:getPilotsWithSkill(...) return skill_state_tracker.getPilotsWithSkill(...) end
+	function cplus_plus_ex:getMechsWithSkill(...) return skill_state_tracker.getMechsWithSkill(...) end
+
+	-- Get all skills by category
+	function cplus_plus_ex:getSkillsEnabled(...) return skill_state_tracker.getSkillsEnabled(...) end
+	function cplus_plus_ex:getSkillsInRun(...) return skill_state_tracker.getSkillsInRun(...) end
+	function cplus_plus_ex:getSkillsActive(...) return skill_state_tracker.getSkillsActive(...) end
+
 	-- Wrapper for time_traveler since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getTimeTraveler() return time_traveler.timeTraveler end
 end
 
-function cplus_plus_ex:init(path)
-	-- Initialize modules
-	self:initModules(path)
+function cplus_plus_ex:init()
+	-- Initialize all our modules
+	self:initModules()
 
 	-- Add events
 	self:addEvents()
 end
 
 function cplus_plus_ex:load(options)
+	-- Load submodules that need loading
+	hooks:load()
+	skill_state_tracker:load()
+
 	-- Add the hooks - these are cleared each reload
 	self:addHooks()
 end
@@ -115,7 +150,7 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onModsFirstLoaded:subscribe(function()
 		cplus_plus_ex:postModsLoadedConfig()
 	end)
-	
+
 	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
 end
 
@@ -137,6 +172,8 @@ function cplus_plus_ex:addHooks()
 	modApi:addSaveGameHook(function()
 		self:updateAndSaveSkills()
 	end)
+
+	-- Temporary for testing memhack. Will remove later
 	memhack.hooks:addPilotChangedHook(function(pilot)
 		LOG("HOOKED PILOT CHANGED")
 	end)

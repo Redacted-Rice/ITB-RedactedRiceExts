@@ -129,6 +129,9 @@ function M.initMemhack()
 	local mockDll = createMockDll()
 	memhack:init(mockDll)
 
+	-- Load memhack as well
+	memhack:load()
+
 	return memhack
 end
 

@@ -1,4 +1,7 @@
--- Mostly stolen and then reworked from ModApiExt
+-- Memhack hooks system
+-- Taken originally from ModApiExt hooks and then modified
+-- to be more reusable and to support auto parent getting for
+-- memhack structs
 
 -- Lua 5.1 compatibility: unpack is global in 5.1, table.unpack in 5.2+
 local unpack = unpack or table.unpack
@@ -17,34 +20,43 @@ local hooks = {
 	DEBUG = true,
 }
 
-function hooks:init()
-	self:addTo(self)
+function hooks:init(owner)
+	hooks.addTo(self, owner, self.DEBUG and "Memhack" or nil)
 	self:initBroadcastHooks(self)
 	return hooks
 end
 
-function hooks:load()
+-- Reloads hooks by clearing and re-adding event dispatchers
+function hooks.reload(hookTbl, debugId)
 	-- clear out previously registered hooks, since we're reloading.
-	self:clearHooks()
+	hooks.clearHooks(hookTbl, debugId)
 
 	-- add hooks to dispatch events of same name
-	for eventId, event in pairs(self.events) do
+	for eventId, event in pairs(hookTbl.events) do
 		local addHook = "add"..eventId:match("on(.+)").."Hook"
-		self[addHook](self, function(...)
+		hookTbl[addHook](hookTbl, function(...)
 			event:dispatch(...)
 		end)
 	end
+end
+
+function hooks:load()
+	hooks.reload(self, self.DEBUG and "Memhack" or nil)
 	return hooks
 end
 
-function hooks:addTo(tbl)
-	if tbl.events == nil then
-		tbl.events = {}
+-- Reusable: Add hook registration functions to a table
+-- hookNames: array of hook names (e.g., {"pilotChanged", "skillChanged"})
+-- tbl: table to add hooks to (the hooks object itself)
+-- debugId: optional string identifier for debug logging (e.g., "Memhack", "CPLUS+")
+function hooks.addTo(hookTbl, owner, debugId)
+	if hookTbl.events == nil then
+		hookTbl.events = {}
 	end
 
-	local events = tbl.events
+	local events = hookTbl.events
 
-	for _, name in ipairs(self) do
+	for _, name in ipairs(hookTbl) do
 		local Name = name:gsub("^.", string.upper) -- capitalize first letter
 		local name = name:gsub("^.", string.lower) -- lower case first letter
 
@@ -54,42 +66,40 @@ function hooks:addTo(tbl)
 
 		events[eventId] = Event()
 
-		tbl[hookId] = {}
-		tbl[addHook] = function(self, fn)
+		hookTbl[hookId] = {}
+		hookTbl[addHook] = function(self, fn)
 			assert(type(fn) == "function")
 			table.insert(self[hookId], fn)
 		end
-		if self.DEBUG then LOG("Added functions for hook "..name) end
+		-- Add the add hook function to the owner if provided
+		if owner then
+			owner[addHook] = function(self, fn)
+				return hookTbl[addHook](hookTbl, fn)
+			end
+		end
+		if debugId then LOG(debugId .. " Hooks: Added functions for hook "..name) end
 	end
 end
 
-function hooks:clearHooks()
-	-- too lazy to update this function with new hooks every time
-	for _, name in ipairs(self) do
+-- Reusable: Clear all registered hooks
+-- hookNames: array of hook names
+-- tbl: table containing the hooks
+-- debugId: optional string identifier for debug logging (e.g., "Memhack", "CPLUS+")
+function hooks.clearHooks(hookTbl, debugId)
+	for _, name in ipairs(hookTbl) do
 		local hookId = name.."Hooks"
-		self[hookId] = {}
-		if self.DEBUG then LOG("Cleared hook "..name) end
+		hookTbl[hookId] = {}
+		if debugId then LOG(debugId .. " Hooks: Cleared hook "..name) end
 	end
 end
 
---[[
-	Creates a broadcast function for the specified hooks field, allowing
-	to trigger the hook callbacks on all registered modApiExt objects.
-
-	hooksField: Name of the hooks field to broadcast to
-	argsFunc: Optional function that provides arguments when none are passed
-	memhackStructParentsToPrepend: Optional array of parent type names (e.g., {"Pilot"})
-	   	that will be retrieved from the first argument and prepended to args. Nil
-		parents are still passed for consistent argument format.
---]]
-function hooks:buildBroadcastFunc(hooksField, argsFunc, memhackStructParentsToPrepend)
-	--[[local errfunc = function(e)
-		return string.format(
-			"A '%s' callback has failed:\n%s",
-			hooksField, e
-		)
-	end]]
-	-- TODO: Test this
+-- Reusable: Build a broadcast function that fires all registered hooks
+-- hooksField: name of the hooks field (e.g., "pilotChangedHooks")
+-- tbl: table containing the hooks
+-- argsFunc: optional function that provides arguments when none are passed
+-- parentsToPrepend: optional array of parent type names for memhack structs
+-- debugId: optional string identifier for debug logging (e.g., "Memhack", "CPLUS+")
+function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, debugId)
 	local errfunc = function(e)
 		return debug.traceback(
 			string.format("A '%s' callback has failed:\n%s", hooksField, tostring(e)),
@@ -97,27 +107,23 @@ function hooks:buildBroadcastFunc(hooksField, argsFunc, memhackStructParentsToPr
 		)
 	end
 
-
-	if self.DEBUG then LOG("Build fire...Hooks Fn for hook ".. hooksField) end
+	if debugId then LOG(debugId .. " Hooks: Build fire...Hooks Fn for hook ".. hooksField) end
 	return function(...)
 		local args = {...}
 		local argCount = select('#', ...)
 
 		if argCount == 0 then
-			-- We didn't receive arguments directly. Fall back to
-			-- the argument function.
-			-- Make sure that all hooks receive the same arguments.
+			-- We didn't receive arguments directly. Fall back to the argument function.
 			args = argsFunc and {argsFunc()} or nil
 			argCount = args and #args or 0
 		end
 
 		-- Prepend parent args if specified
-		-- Use direct indexing instead of table.insert to preserve nil values
 		local argsPrepended = {}
 		local prependCount = 0
-		if memhackStructParentsToPrepend and #memhackStructParentsToPrepend > 0 and args and argCount > 0 then
+		if parentsToPrepend and #parentsToPrepend > 0 and args and argCount > 0 then
 			local obj = args[1]  -- First argument is the object
-			for i, parentName in ipairs(memhackStructParentsToPrepend) do
+			for i, parentName in ipairs(parentsToPrepend) do
 				argsPrepended[i] = memhack.structManager.getParentOfType(obj, parentName)
 				prependCount = prependCount + 1
 			end
@@ -133,10 +139,9 @@ function hooks:buildBroadcastFunc(hooksField, argsFunc, memhackStructParentsToPr
 		-- Update arg count to include prepended parents
 		argCount = prependCount + argCount
 
-		if self.DEBUG then LOG("Executing hooks for ".. hooksField) end
-		for j, hook in ipairs(self[hooksField] or {}) do
-			-- invoke the hook in a xpcall, since errors in SkillEffect
-			-- scripts fail silently, making debugging a nightmare.
+		if debugId then LOG(debugId .. " Hooks: Executing hooks for ".. hooksField) end
+		for j, hook in ipairs(tbl[hooksField] or {}) do
+			-- invoke the hook in a xpcall for proper error reporting
 			local ok, err = xpcall(
 				function()
 					if argCount > 0 then
@@ -156,8 +161,8 @@ function hooks:buildBroadcastFunc(hooksField, argsFunc, memhackStructParentsToPr
 end
 
 function hooks:initBroadcastHooks(tbl)
-	tbl["firePilotChangedHooks"] = self:buildBroadcastFunc("pilotChangedHooks")
-	tbl["firePilotLvlUpSkillChangedHooks"] = self:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Pilot"})
+	tbl["firePilotChangedHooks"] = hooks.buildBroadcastFunc("pilotChangedHooks", tbl, nil, nil, self.DEBUG and "Memhack" or nil)
+	tbl["firePilotLvlUpSkillChangedHooks"] = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", tbl, nil, {"Pilot"}, self.DEBUG and "Memhack" or nil)
 end
 
 return hooks

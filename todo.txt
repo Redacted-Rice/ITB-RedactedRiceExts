@@ -1,12 +1,12 @@
 For 1.0 release:
-2. Document how to find/how I found the references in memhack
+1. Document how to find/how I found the references in memhack
 	1. Score
 	2. Rep
 	3. pilot (in mech)
 	4. storage (very complex)
-5. Hijack AddPilot to avoid searching _G for pilots?
-6. Add structure verification support (vtables or custom funcs)
-8. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
+2. Hijack AddPilot to avoid searching _G for pilots?
+3. Add structure verification support (vtables or custom funcs)
+4. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
 
 Next release:
 1. Look into adding tests on c++ side?
@@ -23,8 +23,6 @@ For 1.0 release:
 	a. Toggle_NewPilotAbilities - "Pilot Abilities"
 	b. TipTitle_New_PilotAbilities	- "Advanced Pilot Abilities"
 	c. TipTitle_New_PilotAbilities	- "Enable advanced pilot abilities. Pilots will gain new skills as they level up.\n\nRecommended for anyone who has a good grasp of the core game."
-3. Update to assign pilot skills in storage
-4. Make skill enable/active hooks and function calls
 
 
 Bugs
