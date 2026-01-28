@@ -21,8 +21,6 @@ describe("Skill In Run Hook", function()
 		originalHooks = hooks.skillInRunHooks
 		-- Create a fresh empty array for tests
 		hooks.skillInRunHooks = {}
-		-- Rebuild broadcast function to point to the new empty array
-		hooks:initBroadcastHooks(hooks)
 
 		-- Create mock pilot and skill
 		mockPilot = mocks.createMockPilot({

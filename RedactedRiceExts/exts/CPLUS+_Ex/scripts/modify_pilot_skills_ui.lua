@@ -33,8 +33,8 @@ modify_pilot_skills_ui.unnamedPilotDisplayNames = {
 	Pilot_BeetleMech = "Cyborg Beetle",
 }
 
-function modify_pilot_skills_ui:init(ownerRef)
-    utils = ownerRef._modules.utils
+function modify_pilot_skills_ui:init()
+    utils = cplus_plus_ex._subobjects.utils
     sdlext.addModContent(
         "Modify Pilot Skills",
         function()
@@ -42,15 +42,15 @@ function modify_pilot_skills_ui:init(ownerRef)
         end,
         "Modify skill weights and configurations"
     )
+    return self
 end
 
--- todo: move
 -- Check if skill is dependent (has dependencies)
-function modify_pilot_skills_ui.isDependentSkill(skillId)
+function modify_pilot_skills_ui:isDependentSkill(skillId)
 	return cplus_plus_ex.config.skillDependencies[skillId] ~= nil
 end
 
-function modify_pilot_skills_ui.getPilotsData(pilotIds)
+function modify_pilot_skills_ui:getPilotsData(pilotIds)
 	local pilotData = {}
 
 	for _, id in pairs(utils.searchForAllPilotIds()) do
@@ -68,12 +68,12 @@ function modify_pilot_skills_ui.getPilotsData(pilotIds)
 	return pilotData
 end
 
-function modify_pilot_skills_ui.getSkillsData()
+function modify_pilot_skills_ui:getSkillsData()
 	local skills = {}
 	local defaultSkills = {}
 	local inclusionSkills = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._modules.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		local skillName = GetText(skill.shortName) or skill.shortName
 		skills[skillId] = skillName
 		if skill.skillType == "inclusion" then
@@ -85,7 +85,7 @@ function modify_pilot_skills_ui.getSkillsData()
 	return skills, defaultSkills, inclusionSkills
 end
 
-function modify_pilot_skills_ui.getPilotPortrait(pilotId, scale)
+function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
 	scale = scale or 1  -- Default scale to 1
 
 	-- Get portrait (taken from pilot deck selector)
@@ -105,12 +105,12 @@ function modify_pilot_skills_ui.getPilotPortrait(pilotId, scale)
 end
 
 -- Gets all skills organized by type (dependent vs non-dependent)
-function modify_pilot_skills_ui.getAllSkillsByType()
+function modify_pilot_skills_ui:getAllSkillsByType()
 	local dependentSkills = {}
 	local nonDependentSkills = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._modules.skill_registry.registeredSkills) do
-		if modify_pilot_skills_ui.isDependentSkill(skillId) then
+	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+		if modify_pilot_skills_ui:isDependentSkill(skillId) then
 			table.insert(dependentSkills, skill)
 		else
 			table.insert(nonDependentSkills, skill)
@@ -129,16 +129,16 @@ function modify_pilot_skills_ui.getAllSkillsByType()
 end
 
 -- calculate total weight to use for non-dependent and dependent weights
-function modify_pilot_skills_ui.calculateTotalWeights(adjusted)
+function modify_pilot_skills_ui:calculateTotalWeights(adjusted)
 	local totalWeight = 0
 	local totalDepWeight = 0
 	-- Calculate the total of all enabled skills
-	for _, otherSkillId in ipairs(cplus_plus_ex._modules.skill_config.enabledSkillsIds) do
+	for _, otherSkillId in ipairs(cplus_plus_ex._subobjects.skill_config.enabledSkillsIds) do
 		local skillConfigObj = cplus_plus_ex.config.skillConfigs[otherSkillId]
 		if skillConfigObj and skillConfigObj.enabled then
 			local weight = adjusted and skillConfigObj.adj_weight or skillConfigObj.set_weight
 			-- for non dependent, we exclude dependent skill weights
-			if not modify_pilot_skills_ui.isDependentSkill(otherSkillId) then
+			if not modify_pilot_skills_ui:isDependentSkill(otherSkillId) then
 				totalWeight = totalWeight + weight
 			end
 			totalDepWeight = totalDepWeight + weight
@@ -148,14 +148,14 @@ function modify_pilot_skills_ui.calculateTotalWeights(adjusted)
 	return totalWeight, totalDepWeight
 end
 
-function modify_pilot_skills_ui.updateLabelPecentages(adjusted)
-	local nonDepWeight, depWeight = modify_pilot_skills_ui.calculateTotalWeights(adjusted)
+function modify_pilot_skills_ui:updateLabelPecentages(adjusted)
+	local nonDepWeight, depWeight = modify_pilot_skills_ui:calculateTotalWeights(adjusted)
 	local labels =  adjusted and adjustedPercentLabels or percentageLabels
 
 	for skillId, label in pairs(labels) do
 
 		local percentage = 0
-		local isDependent = modify_pilot_skills_ui.isDependentSkill(skillId)
+		local isDependent = modify_pilot_skills_ui:isDependentSkill(skillId)
 		local totalWeight = isDependent and depWeight  or nonDepWeight
 		local skillConfigObj = cplus_plus_ex.config.skillConfigs[skillId]
 		if skillConfigObj and skillConfigObj.enabled then
@@ -173,10 +173,10 @@ function modify_pilot_skills_ui.updateLabelPecentages(adjusted)
 end
 
 -- Update all percentage displays
-function modify_pilot_skills_ui.updateAllPercentages()
+function modify_pilot_skills_ui:updateAllPercentages()
 	-- Update set (false) and adjusted (true) percentages
-	modify_pilot_skills_ui.updateLabelPecentages(false)
-	modify_pilot_skills_ui.updateLabelPecentages(true)
+	modify_pilot_skills_ui:updateLabelPecentages(false)
+	modify_pilot_skills_ui:updateLabelPecentages(true)
 
 	-- Update adjusted weights
 	for skillId, label in pairs(adjustedWeightLabels) do
@@ -196,7 +196,7 @@ function modify_pilot_skills_ui.updateAllPercentages()
 end
 
 -- Validate and parse numeric input
-function modify_pilot_skills_ui.validateNumericInput(text)
+function modify_pilot_skills_ui:validateNumericInput(text)
 	-- Allow empty string, numbers, and decimal point
 	if text == "" then return true, 0 end
 
@@ -208,7 +208,7 @@ function modify_pilot_skills_ui.validateNumericInput(text)
 	return true, num
 end
 
-function modify_pilot_skills_ui.getLongestLength(entries)
+function modify_pilot_skills_ui:getLongestLength(entries)
 	local maxWidth = 0
 	for _, entry in pairs(entries) do
 		local deco = DecoText(entry)
@@ -218,25 +218,25 @@ function modify_pilot_skills_ui.getLongestLength(entries)
 	return maxWidth
 end
 
-function modify_pilot_skills_ui.determineColumnLengths()
+function modify_pilot_skills_ui:determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
-	for skillId, skill in pairs(cplus_plus_ex._modules.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
 	end
-	local longestName = modify_pilot_skills_ui.getLongestLength(names)
+	local longestName = modify_pilot_skills_ui:getLongestLength(names)
 	-- Extra room for Checkbox
 	local paddedName = longestName + CHECKBOX_PADDING
 
 	local reuseOptions = utils.deepcopy(REUSABLILITY_NAMES)
 	table.insert(reuseOptions, REUSABLILITY_HEADER)
-	local longestReuse = modify_pilot_skills_ui.getLongestLength(reuseOptions)
+	local longestReuse = modify_pilot_skills_ui:getLongestLength(reuseOptions)
 	-- Extra room for drop down image
 	local paddedReuse = longestReuse + DROPDOWN_PADDING
 
 	return paddedName, paddedReuse
 end
 
-function modify_pilot_skills_ui.buildSkillEntryEnable(entryRow, skill, enabled, skillLength)
+function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, skillLength)
 	local shortName = GetText(skill.shortName)
 	local description = GetText(skill.description)
 	local category = skill.category
@@ -260,12 +260,12 @@ function modify_pilot_skills_ui.buildSkillEntryEnable(entryRow, skill, enabled, 
 		else
 			cplus_plus_ex:disableSkill(skill.id)
 		end
-		modify_pilot_skills_ui.updateAllPercentages()
+		modify_pilot_skills_ui:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
 	end)
 end
 
-function modify_pilot_skills_ui.buildSkillEntryReusability(entryRow, skill, resuability, resuabilityLength)
+function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resuability, resuabilityLength)
 	local allowedReusability = cplus_plus_ex:getAllowedReusability(skill.id)
 	local reusabilityValues = {}
 	local reusabilityStrings = {}
@@ -315,7 +315,7 @@ function modify_pilot_skills_ui.buildSkillEntryReusability(entryRow, skill, resu
 	end
 end
 
-function modify_pilot_skills_ui.buildSkillEntryWeightInput(entryRow, skill, setWeight)
+function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, setWeight)
 	local weightInput = UiInputField()
 		:width(0.25):heightpx(ROW_HEIGHT)
 		:settooltip("Enter weight (numeric only, press Enter to apply)")
@@ -339,13 +339,13 @@ function modify_pilot_skills_ui.buildSkillEntryWeightInput(entryRow, skill, setW
 
 	-- Handle weight changes
 	weightInput.onEnter = function(self)
-		local isValid, value = modify_pilot_skills_ui.validateNumericInput(self.textfield)
+		local isValid, value = modify_pilot_skills_ui:validateNumericInput(self.textfield)
 		if isValid and value >= 0 then
 			cplus_plus_ex:setSkillConfig(skill.id, {set_weight = value})
 			if cplus_plus_ex.config.autoAdjustWeights then
 				cplus_plus_ex:setAdjustedWeightsConfigs()
 			end
-			modify_pilot_skills_ui.updateAllPercentages()
+			modify_pilot_skills_ui:updateAllPercentages()
 			cplus_plus_ex:saveConfiguration()
 		else
 			-- Reset to current value if invalid
@@ -356,7 +356,7 @@ function modify_pilot_skills_ui.buildSkillEntryWeightInput(entryRow, skill, setW
 	end
 end
 
-function modify_pilot_skills_ui.buildSkillEntryLabels(entryRow, skill)
+function modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 	-- Percentage label
 	local percentageLabel = Ui()
 		:width(0.25):heightpx(ROW_HEIGHT)
@@ -398,7 +398,7 @@ function modify_pilot_skills_ui.buildSkillEntryLabels(entryRow, skill)
 end
 
 -- Builds a single skill entry row
-function modify_pilot_skills_ui.buildSkillEntry(skill, isDependent, skillLength, resuabilityLength)
+function modify_pilot_skills_ui:buildSkillEntry(skill, isDependent, skillLength, resuabilityLength)
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
 		LOG("PLUS Ext: Warning: No config for skill " .. skill.id)
@@ -409,16 +409,16 @@ function modify_pilot_skills_ui.buildSkillEntry(skill, isDependent, skillLength,
 		:width(1):heightpx(ROW_HEIGHT)
 
 	-- Add values to the row
-	modify_pilot_skills_ui.buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength)
-	modify_pilot_skills_ui.buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
-	modify_pilot_skills_ui.buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.set_weight)
-	modify_pilot_skills_ui.buildSkillEntryLabels(entryRow, skill)
+	modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength)
+	modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
+	modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.set_weight)
+	modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 
 	return entryRow
 end
 
 -- Builds header row for skill columns
-function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
+function modify_pilot_skills_ui:buildHeaderRow(skillLength, resuabilityLength)
 	local headerRow = UiWeightLayout()
 		:width(1):heightpx(ROW_HEIGHT)
 	Ui()
@@ -482,7 +482,7 @@ function modify_pilot_skills_ui.buildHeaderRow(skillLength, resuabilityLength)
 	return headerRow
 end
 
-function modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
+function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 	local settingsHeader = Ui()
 		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
@@ -530,12 +530,12 @@ function modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
 		if checked then
 			cplus_plus_ex:setAdjustedWeightsConfigs()
 		end
-		modify_pilot_skills_ui.updateAllPercentages()
+		modify_pilot_skills_ui:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
 	end)
 end
 
-function modify_pilot_skills_ui.buildSkillsList(scrollContent)
+function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 local skillsHeader = Ui()
 		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
@@ -545,13 +545,13 @@ local skillsHeader = Ui()
 		})
 		:addTo(scrollContent)
 
-	local skillLength, reuseabilityLength = modify_pilot_skills_ui.determineColumnLengths()
+	local skillLength, reuseabilityLength = modify_pilot_skills_ui:determineColumnLengths()
 
 	-- Add column headers
-	modify_pilot_skills_ui.buildHeaderRow(skillLength, reuseabilityLength):addTo(scrollContent)
+	modify_pilot_skills_ui:buildHeaderRow(skillLength, reuseabilityLength):addTo(scrollContent)
 
 	-- Get all skills organized by type
-	local nonDependentSkills, dependentSkills = modify_pilot_skills_ui.getAllSkillsByType()
+	local nonDependentSkills, dependentSkills = modify_pilot_skills_ui:getAllSkillsByType()
 
 	-- Non-Dependent Skills
 	if #nonDependentSkills > 0 then
@@ -565,7 +565,7 @@ local skillsHeader = Ui()
 			:addTo(scrollContent)
 
 		for _, skill in ipairs(nonDependentSkills) do
-			modify_pilot_skills_ui.buildSkillEntry(skill, false, skillLength, reuseabilityLength):addTo(scrollContent)
+			modify_pilot_skills_ui:buildSkillEntry(skill, false, skillLength, reuseabilityLength):addTo(scrollContent)
 		end
 	else
 		-- I guess this is technically possible if they had more skills,
@@ -585,21 +585,21 @@ local skillsHeader = Ui()
 			:addTo(scrollContent)
 
 		for _, skill in ipairs(dependentSkills) do
-			modify_pilot_skills_ui.buildSkillEntry(skill, true, skillLength, reuseabilityLength):addTo(scrollContent)
+			modify_pilot_skills_ui:buildSkillEntry(skill, true, skillLength, reuseabilityLength):addTo(scrollContent)
 		end
 	end
 
 	-- Initial percentage calculation
-	modify_pilot_skills_ui.updateAllPercentages()
+	modify_pilot_skills_ui:updateAllPercentages()
 end
 
-function modify_pilot_skills_ui.addPilotImage(pilotId, row)
+function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	local pilotUi = Ui()
 		:widthpx(PILOT_SIZE):heightpx(ROW_HEIGHT)
 
 	-- Add potrait if we have one
 	if pilotId and pilotId ~= "All" and pilotId ~= "" then
-		local portrait = modify_pilot_skills_ui.getPilotPortrait(pilotId)
+		local portrait = modify_pilot_skills_ui:getPilotPortrait(pilotId)
 		if portrait then
 			pilotUi:decorate({
 					DecoSurface(portrait),
@@ -611,7 +611,7 @@ function modify_pilot_skills_ui.addPilotImage(pilotId, row)
 	return pilotUi
 end
 
-function modify_pilot_skills_ui.addExistingRelLabel(text, row)
+function modify_pilot_skills_ui:addExistingRelLabel(text, row)
 	Ui()
 		:width(0.5):heightpx(ROW_HEIGHT)
 		:decorate({
@@ -622,7 +622,7 @@ function modify_pilot_skills_ui.addExistingRelLabel(text, row)
 		:addTo(row)
 end
 
-function modify_pilot_skills_ui.addNewRelDropDown(label, listVals, listDisplay, selectFn, row)
+function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, selectFn, row)
 	local dropDown = UiDropDown(listVals, listDisplay, listVals[1])
 		-- Half the usable space
 		:width(0.5):heightpx(ROW_HEIGHT)
@@ -639,7 +639,7 @@ function modify_pilot_skills_ui.addNewRelDropDown(label, listVals, listDisplay, 
 	dropDown.optionSelected:subscribe(selectFn)
 end
 
-function modify_pilot_skills_ui.addArrowLabel(bidirectional, row)
+function modify_pilot_skills_ui:addArrowLabel(bidirectional, row)
 	local text = bidirectional and "↔" or "→"
 	Ui()
 		:widthpx(36):heightpx(ROW_HEIGHT)
@@ -651,7 +651,7 @@ function modify_pilot_skills_ui.addArrowLabel(bidirectional, row)
 		:addTo(row)
 end
 
-function modify_pilot_skills_ui.createDropDownItems(dataList)
+function modify_pilot_skills_ui:createDropDownItems(dataList)
 	local listDisplay = {"", "All"}
 	local listVals = {"", "All"}
 	local sortedSourceKeys = utils.sortByValue(dataList)
@@ -663,10 +663,10 @@ function modify_pilot_skills_ui.createDropDownItems(dataList)
 end
 
 -- Builds a relationship editor section
-function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTable, title, sourceList, targetList, sourceLabel, targetLabel, isSameTypeRelation)
+function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTable, title, sourceList, targetList, sourceLabel, targetLabel, isSameTypeRelation)
 	-- create list values with empty and all
-	local listDisplay, listVals = modify_pilot_skills_ui.createDropDownItems(sourceList)
-	local targetListDisplay, targetListVals = modify_pilot_skills_ui.createDropDownItems(targetList)
+	local listDisplay, listVals = modify_pilot_skills_ui:createDropDownItems(sourceList)
+	local targetListDisplay, targetListVals = modify_pilot_skills_ui:createDropDownItems(targetList)
 
 	-- Section header
 	Ui()
@@ -708,12 +708,12 @@ function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTabl
 
 				-- Pilot portrait if its a pilot
 				if sourceLabel == "Pilot" then
-					modify_pilot_skills_ui.addPilotImage(sourceId, entryRow)
+					modify_pilot_skills_ui:addPilotImage(sourceId, entryRow)
 				end
 
-				modify_pilot_skills_ui.addExistingRelLabel(sourceList[sourceId], entryRow)
-				modify_pilot_skills_ui.addArrowLabel(title == "Skill Exclusions", entryRow)
-				modify_pilot_skills_ui.addExistingRelLabel(targetList[targetId], entryRow)
+				modify_pilot_skills_ui:addExistingRelLabel(sourceList[sourceId], entryRow)
+				modify_pilot_skills_ui:addArrowLabel(title == "Skill Exclusions", entryRow)
+				modify_pilot_skills_ui:addExistingRelLabel(targetList[targetId], entryRow)
 
 				-- Remove button
 				local btnRemove = sdlext.buildButton(
@@ -754,11 +754,11 @@ function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTabl
 
 	-- Pilot portrait if its a pilot
 	if sourceLabel == "Pilot" then
-		currentPilotPortrait = modify_pilot_skills_ui.addPilotImage(selectedSource, addRow)
+		currentPilotPortrait = modify_pilot_skills_ui:addPilotImage(selectedSource, addRow)
 	end
 
 	-- Source dropdown
-	modify_pilot_skills_ui.addNewRelDropDown(sourceLabel, listVals, listDisplay,
+	modify_pilot_skills_ui:addNewRelDropDown(sourceLabel, listVals, listDisplay,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedSource = newValue
 
@@ -774,7 +774,7 @@ function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTabl
 
 				-- Add new portrait if not "All"
 				if newValue ~= "All" and newValue ~= "" then
-					local portrait = modify_pilot_skills_ui.getPilotPortrait(newValue)
+					local portrait = modify_pilot_skills_ui:getPilotPortrait(newValue)
 					if portrait then
 						table.insert(currentPilotPortrait.decorations, DecoSurface(portrait))
 					end
@@ -783,10 +783,10 @@ function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTabl
 		end, addRow)
 
 	-- Arrow
-	modify_pilot_skills_ui.addArrowLabel(title == "Skill Exclusions", addRow)
+	modify_pilot_skills_ui:addArrowLabel(title == "Skill Exclusions", addRow)
 
 	-- Target dropdown
-	modify_pilot_skills_ui.addNewRelDropDown(targetLabel, targetListVals, targetListDisplay,
+	modify_pilot_skills_ui:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedTarget = newValue
 		end, addRow)
@@ -881,7 +881,7 @@ function modify_pilot_skills_ui.buildRelationshipEditor(parent, relationshipTabl
 	rebuildRelationshipList()
 end
 
-function modify_pilot_skills_ui.buildRelationships(scrollContent)
+function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	-- Section header
 	Ui()
 		:width(1):heightpx(ROW_HEIGHT)
@@ -893,11 +893,11 @@ function modify_pilot_skills_ui.buildRelationships(scrollContent)
 		:addTo(scrollContent)
 
 	-- Get lists for dropdowns
-	local pilotData = modify_pilot_skills_ui.getPilotsData()
-	local skillData, exlusionSkillData, inclusionSkillData = modify_pilot_skills_ui.getSkillsData()
+	local pilotData = modify_pilot_skills_ui:getPilotsData()
+	local skillData, exlusionSkillData, inclusionSkillData = modify_pilot_skills_ui:getSkillsData()
 
 	-- Pilot Skill Exclusions
-	modify_pilot_skills_ui.buildRelationshipEditor(
+	modify_pilot_skills_ui:buildRelationshipEditor(
 		scrollContent,
 		cplus_plus_ex.config.pilotSkillExclusions,
 		"Pilot Skill Exclusions",
@@ -909,7 +909,7 @@ function modify_pilot_skills_ui.buildRelationships(scrollContent)
 	)
 
 	-- Pilot Skill Inclusions
-	modify_pilot_skills_ui.buildRelationshipEditor(
+	modify_pilot_skills_ui:buildRelationshipEditor(
 		scrollContent,
 		cplus_plus_ex.config.pilotSkillInclusions,
 		"Pilot Skill Inclusions",
@@ -921,7 +921,7 @@ function modify_pilot_skills_ui.buildRelationships(scrollContent)
 	)
 
 	-- Skill Exclusions
-	modify_pilot_skills_ui.buildRelationshipEditor(
+	modify_pilot_skills_ui:buildRelationshipEditor(
 		scrollContent,
 		cplus_plus_ex.config.skillExclusions,
 		"Skill Exclusions",
@@ -933,7 +933,7 @@ function modify_pilot_skills_ui.buildRelationships(scrollContent)
 	)
 
 	-- Skill Dependencies
-	modify_pilot_skills_ui.buildRelationshipEditor(
+	modify_pilot_skills_ui:buildRelationshipEditor(
 		scrollContent,
 		cplus_plus_ex.config.skillDependencies,
 		"Skill Dependencies",
@@ -946,7 +946,7 @@ function modify_pilot_skills_ui.buildRelationships(scrollContent)
 end
 
 -- Builds the main content for the dialog
-function modify_pilot_skills_ui.buildMainContent(scroll)
+function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	weightInputFields = {}
 	percentageLabels = {}
@@ -959,12 +959,12 @@ function modify_pilot_skills_ui.buildMainContent(scroll)
 		:addTo(scroll)
 
 	-- Add the settings
-	modify_pilot_skills_ui.buildGeneralSettings(scrollContent)
-	modify_pilot_skills_ui.buildSkillsList(scrollContent)
-	modify_pilot_skills_ui.buildRelationships(scrollContent)
+	modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
+	modify_pilot_skills_ui:buildSkillsList(scrollContent)
+	modify_pilot_skills_ui:buildRelationships(scrollContent)
 end
 
-function modify_pilot_skills_ui.buildResetConfirmation()
+function modify_pilot_skills_ui:buildResetConfirmation()
 	sdlext.showButtonDialog(
 		"Confirm Reset",
 		"Reset all skill settings to defaults?\n\nThis cannot be undone.",
@@ -984,7 +984,7 @@ function modify_pilot_skills_ui.buildResetConfirmation()
 					adjustedWeightLabels = {}
 					adjustedPercentLabels = {}
 					-- Rebuild the content with fresh values
-					modify_pilot_skills_ui.buildMainContent(parentScroll)
+					modify_pilot_skills_ui:buildMainContent(parentScroll)
 				end
 			end
 		end,
@@ -995,12 +995,12 @@ function modify_pilot_skills_ui.buildResetConfirmation()
 end
 
 -- Builds the button layout for the dialog
-function modify_pilot_skills_ui.buildDialogButtons(buttonLayout)
+function modify_pilot_skills_ui:buildDialogButtons(buttonLayout)
 	-- for now at least only a reset button
 	local btnReset = sdlext.buildButton(
 		"Reset to Defaults",
 		"Reset all settings to their default values",
-		modify_pilot_skills_ui.buildResetConfirmation
+		function() modify_pilot_skills_ui:buildResetConfirmation() end
 	)
 	btnReset:addTo(buttonLayout)
 end
@@ -1016,7 +1016,7 @@ local function onExit()
 end
 
 -- Creates the main modification dialog
-function modify_pilot_skills_ui.createDialog()
+function modify_pilot_skills_ui:createDialog()
 	-- Load configuration before opening dialog
 	cplus_plus_ex:loadConfiguration()
 
@@ -1025,8 +1025,8 @@ function modify_pilot_skills_ui.createDialog()
 
 		local frame = sdlext.buildButtonDialog(
 			"Modify Pilot Skills",
-			modify_pilot_skills_ui.buildMainContent,
-			modify_pilot_skills_ui.buildDialogButtons,
+			function(scroll) modify_pilot_skills_ui:buildMainContent(scroll) end,
+			function(buttonLayout) modify_pilot_skills_ui:buildDialogButtons(buttonLayout) end,
 			{
 				maxW = 0.8 * ScreenSizeX(),
 				maxH = 0.85 * ScreenSizeY(),

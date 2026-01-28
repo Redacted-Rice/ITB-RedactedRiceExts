@@ -4,7 +4,7 @@
 local helper = require("helpers/plus_manager_helper")
 local mocks = require("helpers/mocks")
 local plus_manager = helper.plus_manager
-local skill_state_tracker = helper.plus_manager._modules.skill_state_tracker
+local skill_state_tracker = helper.plus_manager._subobjects.skill_state_tracker
 
 describe("Skill State Tracker", function()
 	before_each(function()
@@ -29,7 +29,7 @@ describe("Skill State Tracker", function()
 
 		it("should fire hook when skill is disabled", function()
 			plus_manager:registerSkill("test", "TestSkill", "Test", "Test Skill", "Description")
-			assert.is_true(skill_state_tracker.isSkillEnabled("TestSkill"))
+			assert.is_true(skill_state_tracker:isSkillEnabled("TestSkill"))
 
 			local hookCalls = {}
 			plus_manager:addSkillEnabledHook(function(skillId, enabled)
@@ -50,7 +50,7 @@ describe("Skill State Tracker", function()
 			plus_manager:registerSkill("test", "Skill2", "S2", "Skill 2", "Test")
 			plus_manager:registerSkill("test", "Skill3", "S3", "Skill 3", "Test")
 
-			local enabledSkills = skill_state_tracker.getSkillsEnabled()
+			local enabledSkills = skill_state_tracker:getSkillsEnabled()
 
 			assert.is_true(enabledSkills["Skill1"])
 			assert.is_true(enabledSkills["Skill2"])
@@ -62,9 +62,9 @@ describe("Skill State Tracker", function()
 		it("should track skill not in run when no pilots", function()
 			plus_manager:registerSkill("test", "TestSkill", "Test", "Test Skill", "Description")
 
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
-			assert.is_false(skill_state_tracker.isSkillInRun("TestSkill"))
+			assert.is_false(skill_state_tracker:isSkillInRun("TestSkill"))
 		end)
 
 		it("should track skill in run when pilot has skill", function()
@@ -76,9 +76,9 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
-			assert.is_true(skill_state_tracker.isSkillInRun("TestSkill"))
+			assert.is_true(skill_state_tracker:isSkillInRun("TestSkill"))
 		end)
 
 		it("should not track skill if pilot level too low", function()
@@ -90,9 +90,9 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
-			assert.is_false(skill_state_tracker.isSkillInRun("TestSkill"))
+			assert.is_false(skill_state_tracker:isSkillInRun("TestSkill"))
 		end)
 
 		it("should fire hook when skill becomes in-run", function()
@@ -115,7 +115,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_true(hookCalls[1].isInRun)
@@ -131,8 +131,8 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateInRunSkills()
-			assert.is_true(skill_state_tracker.isSkillInRun("TestSkill"))
+			skill_state_tracker:updateInRunSkills()
+			assert.is_true(skill_state_tracker:isSkillInRun("TestSkill"))
 
 			local hookCalls = {}
 			plus_manager:addSkillInRunHook(function(skillId, isInRun, pilot, skill)
@@ -146,7 +146,7 @@ describe("Skill State Tracker", function()
 
 			-- Remove pilot from run
 			_G.Game.GetAvailablePilots = function() return {} end
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_false(hookCalls[1].isInRun)
@@ -169,7 +169,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
 			-- Should fire twice - once for each skill instance
 			assert.are.equal(2, #hookCalls)
@@ -191,9 +191,9 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot1, mockPilot2} end
 
-			skill_state_tracker.updateInRunSkills()
+			skill_state_tracker:updateInRunSkills()
 
-			local skillsInRun = skill_state_tracker.getSkillsInRun()
+			local skillsInRun = skill_state_tracker:getSkillsInRun()
 
 			assert.is_not_nil(skillsInRun["Skill1"])
 			assert.is_not_nil(skillsInRun["Skill2"])
@@ -213,9 +213,9 @@ describe("Skill State Tracker", function()
 		it("should track skill not active when no squad pilots", function()
 			plus_manager:registerSkill("test", "TestSkill", "Test", "Test Skill", "Description")
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
-			assert.is_false(skill_state_tracker.isSkillActive("TestSkill"))
+			assert.is_false(skill_state_tracker:isSkillActive("TestSkill"))
 		end)
 
 		it("should track skill active when squad pilot has skill", function()
@@ -235,9 +235,9 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
-			assert.is_true(skill_state_tracker.isSkillActive("TestSkill"))
+			assert.is_true(skill_state_tracker:isSkillActive("TestSkill"))
 		end)
 
 		it("should not track skill if squad pilot level too low", function()
@@ -257,9 +257,9 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
-			assert.is_false(skill_state_tracker.isSkillActive("TestSkill"))
+			assert.is_false(skill_state_tracker:isSkillActive("TestSkill"))
 		end)
 
 		it("should fire hook when skill becomes active", function()
@@ -291,7 +291,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_true(hookCalls[1].isActive)
@@ -316,8 +316,8 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateActiveSkills()
-			assert.is_true(skill_state_tracker.isSkillActive("TestSkill"))
+			skill_state_tracker:updateActiveSkills()
+			assert.is_true(skill_state_tracker:isSkillActive("TestSkill"))
 
 			local hookCalls = {}
 			plus_manager:addSkillActiveHook(function(skillId, isActive, pawnId, pilot, skill)
@@ -333,7 +333,7 @@ describe("Skill State Tracker", function()
 			-- Remove pilot from squad
 			_G.Game.GetSquadPilots = function() return {} end
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_false(hookCalls[1].isActive)
@@ -365,7 +365,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
 			-- Should fire twice - once for each skill instance
 			assert.are.equal(2, #hookCalls)
@@ -398,9 +398,9 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot1, mockPilot2} end
 
-			skill_state_tracker.updateActiveSkills()
+			skill_state_tracker:updateActiveSkills()
 
-			local activeSkills = skill_state_tracker.getSkillsActive()
+			local activeSkills = skill_state_tracker:getSkillsActive()
 
 			assert.is_not_nil(activeSkills["Skill1"])
 			assert.is_not_nil(activeSkills["Skill2"])
@@ -429,7 +429,7 @@ describe("Skill State Tracker", function()
 			mockPilot2:setLvlUpSkill(1, "OtherSkill", "Other", "Other Skill", "Description")
 
 			local pilots = {mockPilot1, mockPilot2}
-			local pilotsWithSkill = skill_state_tracker.getPilotsWithSkill("TestSkill", pilots, true)
+			local pilotsWithSkill = skill_state_tracker:getPilotsWithSkill("TestSkill", pilots, true)
 
 			assert.are.equal(1, #pilotsWithSkill)
 			assert.are.equal(mockPilot1, pilotsWithSkill[1].pilot)
@@ -448,8 +448,8 @@ describe("Skill State Tracker", function()
 
 			local pilots = {mockPilot1, mockPilot2}
 
-			assert.is_true(skill_state_tracker.isSkillOnPilots("TestSkill", pilots, true))
-			assert.is_false(skill_state_tracker.isSkillOnPilots("NonExistent", pilots, true))
+			assert.is_true(skill_state_tracker:isSkillOnPilots("TestSkill", pilots, true))
+			assert.is_false(skill_state_tracker:isSkillOnPilots("NonExistent", pilots, true))
 		end)
 
 		it("should get mechs with specific skill", function()
@@ -467,7 +467,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			local mechsWithSkill = skill_state_tracker.getMechsWithSkill("TestSkill", true)
+			local mechsWithSkill = skill_state_tracker:getMechsWithSkill("TestSkill", true)
 
 			assert.are.equal(1, #mechsWithSkill)
 			assert.are.equal(1, mechsWithSkill[1].pawnId)

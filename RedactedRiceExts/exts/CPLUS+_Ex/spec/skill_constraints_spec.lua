@@ -13,7 +13,7 @@ describe("Skill Constraints Module", function()
 	describe("Constraint Function Registration", function()
 		before_each(function()
 			-- Clear built in constraints for these tests to test registration logic
-			plus_manager._modules.skill_constraints.constraintFunctions = {}
+			plus_manager._subobjects.skill_constraints.constraintFunctions = {}
 		end)
 
 		it("should register a constraint function", function()
@@ -24,7 +24,7 @@ describe("Skill Constraints Module", function()
 				return true
 			end)
 
-			assert.equals(1, #plus_manager._modules.skill_constraints.constraintFunctions)
+			assert.equals(1, #plus_manager._subobjects.skill_constraints.constraintFunctions)
 
 			local pilot = helper.createMockPilot("TestPilot")
 			plus_manager:checkSkillConstraints(pilot, {}, "TestSkill")
@@ -178,7 +178,7 @@ describe("Skill Constraints Module", function()
 				Blacklist = {"Grid"}
 			}, Pilot)
 
-			plus_manager._modules.skill_registry.readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:readPilotExclusionsFromGlobal()
 
 			local exclusionsA = plus_manager.config.pilotSkillExclusions["Pilot_TestA"]
 			assert.is_not_nil(exclusionsA)
@@ -195,7 +195,7 @@ describe("Skill Constraints Module", function()
 				Name = "No Blacklist Pilot"
 			}, Pilot)
 
-			plus_manager._modules.skill_registry.readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:readPilotExclusionsFromGlobal()
 
 			local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_TestNoBlacklist"]
 			assert.is_nil(exclusions)
@@ -204,7 +204,7 @@ describe("Skill Constraints Module", function()
 		it("should not clear registered exclusions", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Manual", {"Health"})
 
-			plus_manager._modules.skill_registry.readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:readPilotExclusionsFromGlobal()
 
 			local manualExclusions = plus_manager.config.pilotSkillExclusions["Pilot_Manual"]
 			assert.is_not_nil(manualExclusions)
@@ -224,7 +224,7 @@ describe("Skill Constraints Module", function()
 		it("should allow reusable skills multiple times", function()
 			local pilot = helper.createMockPilot("TestPilot")
 
-			plus_manager._modules.skill_selection.markPerRunSkillAsUsed("Reusable1")
+			plus_manager._subobjects.skill_selection:markPerRunSkillAsUsed("Reusable1")
 
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Reusable1")
 			assert.is_true(result)
@@ -272,7 +272,7 @@ describe("Skill Constraints Module", function()
 			local pilot1 = helper.createMockPilot("Pilot1")
 			local pilot2 = helper.createMockPilot("Pilot2")
 
-			plus_manager._modules.skill_selection.markPerRunSkillAsUsed("PerRun1")
+			plus_manager._subobjects.skill_selection:markPerRunSkillAsUsed("PerRun1")
 
 			local result = plus_manager:checkSkillConstraints(pilot2, {}, "PerRun1")
 			assert.is_false(result)
@@ -288,12 +288,12 @@ describe("Skill Constraints Module", function()
 		it("should allow per_run skill after clearing run tracking", function()
 			local pilot = helper.createMockPilot("TestPilot")
 
-			plus_manager._modules.skill_selection.markPerRunSkillAsUsed("PerRun1")
+			plus_manager._subobjects.skill_selection:markPerRunSkillAsUsed("PerRun1")
 
 			local result1 = plus_manager:checkSkillConstraints(pilot, {}, "PerRun1")
 			assert.is_false(result1)
 
-			plus_manager._modules.skill_selection.usedSkillsPerRun = {}
+			plus_manager._subobjects.skill_selection.usedSkillsPerRun = {}
 
 			local result2 = plus_manager:checkSkillConstraints(pilot, {}, "PerRun1")
 			assert.is_true(result2)

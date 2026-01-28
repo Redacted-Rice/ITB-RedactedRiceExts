@@ -1,3 +1,4 @@
+-- Create global memhack object
 memhack = memhack or {}
 
 local path = GetParentPath(...)
@@ -45,19 +46,28 @@ function memhack:init(mockDll)
 	require(path.."structs/unknown_obj_1")
 	require(path.."structs/game_map")
 
-	-- Load hooks system
-	self.hooks = require(path.."scripts/hooks"):init(self)
-	self.stateTracker = require(path.."scripts/state_tracker").init()
-	-- Wrap hooks to update state trackers to prevent double firing from state tracking
-	-- Could be wrapped in init but put here so the dependency is obvious
-	self.stateTracker.wrapHooksToUpdateStateTrackers()
-
 	-- Load added functions to existing game classes
 	require(path.."appended_fns/game")
 	require(path.."appended_fns/pawn")
+
+	-- Require all submodules before initializing
+	self._subobjects = {}
+	self._subobjects.hooks = require(path.."scripts/hooks")
+	self._subobjects.stateTracker = require(path.."scripts/state_tracker")
+
+	-- Initialize submodules (they will set their local references here)
+	self._subobjects.hooks:init()
+	self._subobjects.stateTracker:init()
+
+	-- Expose commonly used submodules at root level
+	self.hooks = self._subobjects.hooks
+	self.stateTracker = self._subobjects.stateTracker
+
+	-- Wrap hooks to update state trackers to prevent double firing from state tracking
+	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
 end
 
 function memhack:load()
-	self.hooks:load()
-	self.stateTracker.load()
+	self._subobjects.hooks:load()
+	self._subobjects.stateTracker:load()
 end

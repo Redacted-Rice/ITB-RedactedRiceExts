@@ -19,8 +19,8 @@ describe("Skill Registry Module", function()
 				bonuses = {health = 1}
 			})
 
-			assert.is_not_nil(plus_manager._modules.skill_registry.registeredSkills["TestSkill"])
-			assert.equals("test", plus_manager._modules.skill_registry.registeredSkills["TestSkill"].category)
+			assert.is_not_nil(plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"])
+			assert.equals("test", plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].category)
 		end)
 
 		it("should default reusability to PER_PILOT", function()
@@ -31,25 +31,25 @@ describe("Skill Registry Module", function()
 				description = "Test"
 			})
 
-			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._modules.skill_registry.registeredSkills["TestSkill"].reusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].reusability)
 		end)
 	end)
 
 	describe("SaveVal Validation", function()
 		it("should accept valid boundary saveVal values (0 and 13)", function()
 			plus_manager:registerSkill("test", {id = "Skill0", shortName = "S0", fullName = "Skill0", description = "Test", saveVal = 0})
-			assert.equals(0, plus_manager._modules.skill_registry.registeredSkills["Skill0"].saveVal)
+			assert.equals(0, plus_manager._subobjects.skill_registry.registeredSkills["Skill0"].saveVal)
 
 			plus_manager:registerSkill("test", {id = "Skill13", shortName = "S13", fullName = "Skill13", description = "Test", saveVal = 13})
-			assert.equals(13, plus_manager._modules.skill_registry.registeredSkills["Skill13"].saveVal)
+			assert.equals(13, plus_manager._subobjects.skill_registry.registeredSkills["Skill13"].saveVal)
 		end)
 
 		it("should convert invalid saveVal to -1", function()
 			plus_manager:registerSkill("test", {id = "SkillAbove", shortName = "SA", fullName = "SkillAbove", description = "Test", saveVal = 14})
-			assert.equals(-1, plus_manager._modules.skill_registry.registeredSkills["SkillAbove"].saveVal)
+			assert.equals(-1, plus_manager._subobjects.skill_registry.registeredSkills["SkillAbove"].saveVal)
 
 			plus_manager:registerSkill("test", {id = "SkillBelow", shortName = "SB", fullName = "SkillBelow", description = "Test", saveVal = -2})
-			assert.equals(-1, plus_manager._modules.skill_registry.registeredSkills["SkillBelow"].saveVal)
+			assert.equals(-1, plus_manager._subobjects.skill_registry.registeredSkills["SkillBelow"].saveVal)
 		end)
 	end)
 

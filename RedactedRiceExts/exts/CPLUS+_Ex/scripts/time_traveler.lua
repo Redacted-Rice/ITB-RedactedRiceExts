@@ -1,9 +1,6 @@
 -- Time Traveler Module
 -- Handles time traveler detection and persistent data management
 
--- TODO: Later: Does this correctly assign skills to time traveler on start up in hangar or just when
--- actually starting the game?
-
 local time_traveler = {}
 
 -- Module state
@@ -11,35 +8,67 @@ time_traveler.pilotStructs = nil
 time_traveler.lastSavedPersistentData = nil
 time_traveler.timeTraveler = nil  -- The actual time traveler pilot struct
 
--- Reference to owner (set during init)
-local owner = nil
+-- Local references to other submodules (set during init)
 local utils = nil
 
--- Initialize the module with reference to owner
-function time_traveler.init(ownerRef)
-	owner = ownerRef
-	utils = ownerRef._modules.utils
+-- Initialize the module
+function time_traveler:init()
+	utils = cplus_plus_ex._subobjects.utils
+	
+	-- Subscribe to events
+	modApi.events.onMainMenuEntered:subscribe(function()
+		self:clearGameData()
+	end)
+	modApi.events.onHangarEntered:subscribe(function()
+		self:searchForTimeTraveler()
+	end)
+	
+	return self
+end
+
+function time_traveler:load()
+	modApi:addSaveGameHook(function()
+		self:updateAndSaveSkills()
+	end)
+
+	-- Temporary for testing memhack. Will remove later
+	memhack.hooks:addPilotChangedHook(function(pilot)
+		LOG("HOOKED PILOT CHANGED")
+	end)
+	memhack.hooks:addPilotLvlUpSkillChangedHook(function(pilot, skill)
+		LOG("HOOKED PLUS CHANGED")
+	end)
+
+	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game hooks") end
+end
+
+-- Do all time_traveler operations (refresh, load, apply, save)
+function time_traveler:updateAndSaveSkills()
+	self:refreshGameData()
+	self:loadPersistentDataIfNeeded()
+	cplus_plus_ex:applySkillsToAllPilots()
+	self:savePersistentDataIfChanged()
 end
 
 -- Refresh game data (get all pilots)
-function time_traveler.refreshGameData()
+function time_traveler:refreshGameData()
 	if Game then
 		time_traveler.pilotStructs = Game:GetSquadPilots()
-		if owner.PLUS_DEBUG then LOG("refreshGameData") end
+		if cplus_plus_ex.PLUS_DEBUG then LOG("refreshGameData") end
 	end
 end
 
 -- Clear game data
-function time_traveler.clearGameData()
+function time_traveler:clearGameData()
 	time_traveler.pilotStructs = nil
-	if owner.PLUS_DEBUG then LOG("clearGameData") end
+	if cplus_plus_ex.PLUS_DEBUG then LOG("clearGameData") end
 end
 
 -- Load persistent data if not already loaded
-function time_traveler.loadPersistentDataIfNeeded()
+function time_traveler:loadPersistentDataIfNeeded()
 	if not time_traveler.lastSavedPersistentData then
 		if not modApi:isProfilePath() then return end
-		if owner.PLUS_DEBUG then LOG("Loading persistent data!") end
+		if cplus_plus_ex.PLUS_DEBUG then LOG("Loading persistent data!") end
 		time_traveler.lastSavedPersistentData = {}
 
 		sdlext.config(
@@ -56,7 +85,7 @@ function time_traveler.loadPersistentDataIfNeeded()
 end
 
 -- Refresh last saved persistent data with current pilot state
-function time_traveler.refreshLastSavedPersistentData()
+function time_traveler:refreshLastSavedPersistentData()
 	local pilots = Game and Game:GetSquadPilots() or nil
 	if not pilots then
 		return false
@@ -92,34 +121,33 @@ function time_traveler.refreshLastSavedPersistentData()
 			changed = true
 		end
 	end
-	if owner.PLUS_DEBUG then LOG("refreshLastSavedPersistentData: "..(changed and "true" or "false")) end
+	if cplus_plus_ex.PLUS_DEBUG then LOG("refreshLastSavedPersistentData: "..(changed and "true" or "false")) end
 	return changed
 end
 
 -- Check if persistent data has changed
-function time_traveler.persistentDataChanged()
+function time_traveler:persistentDataChanged()
 	local changed = false
 	if not time_traveler.lastSavedPersistentData then
-		local loaded = time_traveler.loadPersistentDataIfNeeded()
+		local loaded = time_traveler:loadPersistentDataIfNeeded()
 		if not loaded then
-			time_traveler.refreshLastSavedPersistentData()
+			time_traveler:refreshLastSavedPersistentData()
 		end
 		changed = true
 	else
-		changed = time_traveler.refreshLastSavedPersistentData()
+		changed = time_traveler:refreshLastSavedPersistentData()
 	end
 
-	if owner.PLUS_DEBUG then LOG("persistentDataChanged: "..(changed and "true" or "false")) end
+	if cplus_plus_ex.PLUS_DEBUG then LOG("persistentDataChanged: "..(changed and "true" or "false")) end
 	return changed
 end
 
 -- Save persistent data if it has changed
-function time_traveler.savePersistentDataIfChanged()
-	if time_traveler.persistentDataChanged() then
+function time_traveler:savePersistentDataIfChanged()
+	if time_traveler:persistentDataChanged() then
 		if not modApi:isProfilePath() then return end
 
-		-- TODO: Make sure to clear out old data
-		if owner.PLUS_DEBUG then LOG("Saving persistent data!") end
+		if cplus_plus_ex.PLUS_DEBUG then LOG("Saving persistent data!") end
 		sdlext.config(
 			modApi:getCurrentProfilePath().."modcontent.lua",
 			function(readObj)
@@ -135,14 +163,14 @@ function time_traveler.savePersistentDataIfChanged()
 end
 
 -- Scan for time traveler pilot using memory scanning
-function time_traveler.scanForTimeTraveler()
-	time_traveler.loadPersistentDataIfNeeded()
+function time_traveler:scanForTimeTraveler()
+	time_traveler:loadPersistentDataIfNeeded()
 
 	local PilotLayout = memhack.structs.Pilot._layout
 	local scanner = memhack.dll.scanner.new("struct", {checkTiming=true})
 
 	for id, data in pairs(time_traveler.lastSavedPersistentData) do
-		if owner.PLUS_DEBUG then
+		if cplus_plus_ex.PLUS_DEBUG then
 			LOG("traveler search: scanning for pilot "..id..
 				" with timelines == " .. (data.prevTimelines + 1) ..
 				", xp == " .. data.xp .. ", level == " .. data.level)
@@ -156,15 +184,14 @@ function time_traveler.scanForTimeTraveler()
 
 		local results = scanner:firstScan("exact", structDef)
 
-		if owner.PLUS_DEBUG then
+		if cplus_plus_ex.PLUS_DEBUG then
 			LOG("traveler search: found " .. results.resultCount .. " matches")
 		end
 
 		if results.resultCount > 0 then
 			local matches = scanner:getResults({limit = 1})
 			local baseAddr = matches.results[1].address
-			if owner.PLUS_DEBUG then LOG("traveler search: setting to found pilot at " .. string.format("0x%X", baseAddr)) end
-			-- TODO: store time treaveler here
+			if cplus_plus_ex.PLUS_DEBUG then LOG("traveler search: setting to found pilot at " .. string.format("0x%X", baseAddr)) end
 			time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr)
 			break
 		end
@@ -174,20 +201,20 @@ function time_traveler.scanForTimeTraveler()
 end
 
 -- Search for time traveler in current pilot structs
-function time_traveler.searchForTimeTraveler()
+function time_traveler:searchForTimeTraveler()
 	if time_traveler.pilotStructs then
-		if owner.PLUS_DEBUG then LOG("traveler search: Checking cached pilots") end
+		if cplus_plus_ex.PLUS_DEBUG then LOG("traveler search: Checking cached pilots") end
 		for _, pilot in pairs(time_traveler.pilotStructs) do
 			local pilotData = time_traveler.lastSavedPersistentData[pilot:getIdStr()]
-			if owner.PLUS_DEBUG then LOG("traveler search: ".. pilot:getPrevTimelines() .. " - " .. pilotData.prevTimelines + 1) end
+			if cplus_plus_ex.PLUS_DEBUG then LOG("traveler search: ".. pilot:getPrevTimelines() .. " - " .. pilotData.prevTimelines + 1) end
 			if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
 				time_traveler.timeTraveler = pilot
-				if owner.PLUS_DEBUG then LOG("PLUS Ext: Found time traveler! ".. pilot:getIdStr()) end
+				if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Found time traveler! ".. pilot:getIdStr()) end
 			end
 		end
 	else
-		if owner.PLUS_DEBUG then LOG("traveler search: No cached pilots; Scanning for pilot") end
-		time_traveler.scanForTimeTraveler()
+		if cplus_plus_ex.PLUS_DEBUG then LOG("traveler search: No cached pilots; Scanning for pilot") end
+		time_traveler:scanForTimeTraveler()
 	end
 end
 

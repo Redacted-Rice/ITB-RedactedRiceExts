@@ -6,21 +6,26 @@
 
 local skill_registry = {}
 
--- Reference to owner (set during init)
-local owner = nil
+-- Local references to other submodules (set during init)
 local skill_config = nil
 local utils = nil
 
 -- Module state
 skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability}
 
--- Initialize the module with reference to owner
-function skill_registry.init(ownerRef)
-	owner = ownerRef
-	skill_config = ownerRef._modules.skill_config
-	utils = ownerRef._modules.utils
+-- Initialize the module
+function skill_registry:init()
+	skill_config = cplus_plus_ex._subobjects.skill_config
+	utils = cplus_plus_ex._subobjects.utils
 
-	skill_registry.registerVanilla()
+	self:registerVanilla()
+	return self
+end
+
+-- Called after all mods are loaded
+function skill_registry:postModsLoaded()
+	-- Read vanilla pilot exclusions to support vanilla API
+	self:readPilotExclusionsFromGlobal()
 end
 
 -- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
@@ -33,7 +38,7 @@ end
 --   PER_RUN (3) - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
 --			affect the game state in a one time only way
 -- weight optional default weight for the skill
-function skill_registry.registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight)
+function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -73,7 +78,7 @@ function skill_registry.registerSkill(category, idOrTable, shortName, fullName, 
 	if not reusability then
 		LOG("PLUS Ext: Warning: Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) ..
 				"' 1-3 (corresponding to enum values in REUSABLILITY. Defaulting to PER_PILOT")
-		reusability = owner.DEFAULT_REUSABILITY
+		reusability = cplus_plus_ex.DEFAULT_REUSABILITY
 	end
 
 	-- Register the skill with its type and reusability included in the skill data
@@ -84,14 +89,14 @@ function skill_registry.registerSkill(category, idOrTable, shortName, fullName, 
 	}
 
 	-- add a config value
-	skill_config.setSkillConfig(id, {enabled = true, reusability = reusability, set_weight = weight})
+	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, set_weight = weight})
 end
 
 -- Registers all vanilla skills
-function skill_registry.registerVanilla()
+function skill_registry:registerVanilla()
 	-- Register all vanilla skills
-	for _, skill in ipairs(owner.VANILLA_SKILLS) do
-		skill_registry.registerSkill("vanilla", skill)
+	for _, skill in ipairs(cplus_plus_ex.VANILLA_SKILLS) do
+		self:registerSkill("vanilla", skill)
 	end
 end
 
@@ -105,7 +110,7 @@ local function registerPilotSkillRelationship(targetTable, pilotId, skillIds, re
 		-- store with skillId as key so it acts like a set
 		targetTable[pilotId][skillId] = true
 
-		if owner.PLUS_DEBUG then
+		if cplus_plus_ex.PLUS_DEBUG then
 			local action = relationshipType == "exclusion" and "cannot have" or "can have"
 			LOG("PLUS Ext: Registered " .. relationshipType .. " - Pilot " .. pilotId .. " " .. action .. " skill " .. skillId)
 		end
@@ -114,7 +119,7 @@ end
 
 -- Registers pilot skill exclusions
 -- Takes pilot id and list of skill ids to exclude
-function skill_registry.registerPilotSkillExclusions(pilotId, skillIds)
+function skill_registry:registerPilotSkillExclusions(pilotId, skillIds)
 	registerPilotSkillRelationship(skill_config.config.pilotSkillExclusions, pilotId, skillIds, "exclusion")
 end
 
@@ -122,13 +127,13 @@ end
 -- Takes pilot id and list of skill ids to include
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
-function skill_registry.registerPilotSkillInclusions(pilotId, skillIds)
+function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
 	registerPilotSkillRelationship(skill_config.config.pilotSkillInclusions, pilotId, skillIds, "inclusion")
 end
 
 -- Registers a skill to skill exclusion
 -- Takes two skill ids that cannot be selected for the same pilot
-function skill_registry.registerSkillExclusion(skillId, excludedSkillId)
+function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
 	if skill_config.config.skillExclusions[skillId] == nil then
 		skill_config.config.skillExclusions[skillId] = {}
 	end
@@ -140,7 +145,7 @@ function skill_registry.registerSkillExclusion(skillId, excludedSkillId)
 	skill_config.config.skillExclusions[skillId][excludedSkillId] = true
 	skill_config.config.skillExclusions[excludedSkillId][skillId] = true
 
-	if owner.PLUS_DEBUG then
+	if cplus_plus_ex.PLUS_DEBUG then
 		LOG("PLUS Ext: Registered exclusion: " .. skillId .. " <-> " .. excludedSkillId)
 	end
 end
@@ -151,7 +156,7 @@ end
 -- Call multiple times to add multiple dependencies that would work - only one of the
 -- added need to be assigned to satisfy the dependency
 -- Note: Chain dependencies are not allowed - a dependent skill cannot depend on another dependent skill
-function skill_registry.registerSkillDependency(skillId, requiredSkillId)
+function skill_registry:registerSkillDependency(skillId, requiredSkillId)
 	-- Prevent chain dependencies - requiredSkillId cannot itself be a dependent skill
 	if skill_config.config.skillDependencies[requiredSkillId] ~= nil then
 		LOG("PLUS Ext error: Cannot register dependency: " .. skillId .. " -> " .. requiredSkillId ..
@@ -166,7 +171,7 @@ function skill_registry.registerSkillDependency(skillId, requiredSkillId)
 
 	skill_config.config.skillDependencies[skillId][requiredSkillId] = true
 
-	if owner.PLUS_DEBUG then
+	if cplus_plus_ex.PLUS_DEBUG then
 		LOG("PLUS Ext: Registered dependency: " .. skillId .. " requires " .. requiredSkillId)
 	end
 
@@ -176,9 +181,9 @@ end
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
 -- This maintains the vanilla method of defining pilot exclusions to be compatible
 -- without any specific changes for using this extension
-function skill_registry.readPilotExclusionsFromGlobal()
+function skill_registry:readPilotExclusionsFromGlobal()
 	if _G.Pilot == nil then
-		if owner.PLUS_DEBUG then
+		if cplus_plus_ex.PLUS_DEBUG then
 			LOG("PLUS Ext: Error: Pilot class not found, skipping exclusion registration")
 		end
 		return
@@ -197,17 +202,17 @@ function skill_registry.readPilotExclusionsFromGlobal()
 			-- Check if the pilot has a Blacklist array
 			if value.Blacklist ~= nil and type(value.Blacklist) == "table" and #value.Blacklist > 0 then
 				-- Register the blacklist as auto loaded exclusions
-				skill_registry.registerPilotSkillExclusions(key, value.Blacklist)
+				self:registerPilotSkillExclusions(key, value.Blacklist)
 				exclusionCount = exclusionCount + 1
 
-				if owner.PLUS_DEBUG then
+				if cplus_plus_ex.PLUS_DEBUG then
 					LOG("PLUS Ext: Found " .. #value.Blacklist .. " exclusion(s) for pilot " .. key)
 				end
 			end
 		end
 	end
 
-	if owner.PLUS_DEBUG then
+	if cplus_plus_ex.PLUS_DEBUG then
 		LOG("PLUS Ext: Scanned " .. pilotCount .. " pilot(s), registered exclusions for " .. exclusionCount .. " pilot(s)")
 	end
 end
