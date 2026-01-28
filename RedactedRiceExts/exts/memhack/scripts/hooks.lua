@@ -20,8 +20,8 @@ local hooks = {
 	DEBUG = true,
 }
 
-function hooks:init(owner)
-	hooks.addTo(self, owner, self.DEBUG and "Memhack" or nil)
+function hooks:init()
+	hooks.addTo(self, memhack, self.DEBUG and "Memhack" or nil)
 	self:initBroadcastHooks(self)
 	return hooks
 end

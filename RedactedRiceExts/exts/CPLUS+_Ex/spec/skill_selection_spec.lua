@@ -21,7 +21,7 @@ describe("Skill Selection Module", function()
 
 		it("should select the requested number of skills", function()
 			local pilot = helper.createMockPilot("TestPilot")
-			local skills = plus_manager._modules.skill_selection.selectRandomSkills(pilot, 2)
+			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(pilot, 2)
 
 			assert.is_not_nil(skills)
 			assert.equals(2, #skills)
@@ -31,7 +31,7 @@ describe("Skill Selection Module", function()
 			plus_manager:registerPilotSkillExclusions("TestPilot", {"Health", "Move", "Grid"})
 
 			local pilot = helper.createMockPilot("TestPilot")
-			local skills = plus_manager._modules.skill_selection.selectRandomSkills(pilot, 2)
+			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(pilot, 2)
 
 			assert.is_nil(skills)
 		end)
@@ -54,7 +54,7 @@ describe("Skill Selection Module", function()
 			plus_manager:registerPilotSkillInclusions("TestPilot", {"Special1", "Special2"})
 
 			local pilot = helper.createMockPilot("TestPilot")
-			local skills = plus_manager._modules.skill_selection.selectRandomSkills(pilot, 2)
+			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(pilot, 2)
 
 			assert.is_not_nil(skills)
 			assert.equals(2, #skills)
@@ -73,7 +73,7 @@ describe("Skill Selection Module", function()
 			end)
 
 			local pilot = helper.createMockPilot("TestPilot")
-			local skills = plus_manager._modules.skill_selection.selectRandomSkills(pilot, 2)
+			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(pilot, 2)
 
 			assert.is_not_nil(skills)
 			assert.equals(2, #skills)
@@ -100,7 +100,7 @@ describe("Skill Selection Module", function()
 
 		it("should use weighted selection when selecting multiple skills", function()
 			local pilot = helper.createMockPilot("TestPilot")
-			local skills = plus_manager._modules.skill_selection.selectRandomSkills(pilot, 2)
+			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(pilot, 2)
 
 			assert.is_not_nil(skills)
 			assert.equals(2, #skills)
@@ -122,7 +122,7 @@ describe("Skill Selection Module", function()
 		end)
 
 		it("should return nil for empty skill list", function()
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId({})
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({})
 			assert.is_nil(result)
 		end)
 
@@ -136,17 +136,17 @@ describe("Skill Selection Module", function()
 
 			-- Mock random value of 0.3 * 3.0 = 0.9 -> should select Health
 			helper.mockMathRandom({0.1})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Health", result)
 
 			-- Mock random value of 0.5 * 3.0 = 1.5 -> should select Move
 			helper.mockMathRandom({0.5})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Move", result)
 
 			-- Mock random value of 0.9 * 3.0 = 2.7 -> should select Grid
 			helper.mockMathRandom({0.9})
-			result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Grid", result)
 		end)
 	end)
@@ -177,27 +177,27 @@ describe("Skill Selection Module", function()
 
 			-- Test selecting Common (random = 0.2 * 19 = 3.8)
 			helper.mockMathRandom({0.2})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Common", result)
 
 			-- Test selecting Common (random = 0.5 * 19 = 9.5, still in Common range)
 			helper.mockMathRandom({0.5})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Common", result)
 
 			-- Test selecting Uncommon (random = 0.65 * 19 = 12.35)
 			helper.mockMathRandom({0.65})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Uncommon", result)
 
 			-- Test selecting Rare (random = 0.85 * 19 = 16.15)
 			helper.mockMathRandom({0.85})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Rare", result)
 
 			-- Test selecting Epic (random = 0.99 * 19 = 18.81)
 			helper.mockMathRandom({0.99})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Epic", result)
 		end)
 	end)
@@ -226,7 +226,7 @@ describe("Skill Selection Module", function()
 
 			-- Even with very low random, should skip SkillA
 			helper.mockMathRandom({0.01})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.is_not.equals("SkillA", result)
 			assert.is_true(result == "SkillB" or result == "SkillC")
 		end)
@@ -242,7 +242,7 @@ describe("Skill Selection Module", function()
 			-- Total weight = 4.0
 			-- Test exact boundary: 1.0 / 4.0 = 0.25
 			helper.mockMathRandom({0.25})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			-- Should select SkillA (randomValue * 4 = 1.0, which is <= 1.0)
 			assert.equals("SkillA", result)
 		end)
@@ -275,11 +275,11 @@ describe("Skill Selection Module", function()
 			-- Skill4: 2.0 - 6.0
 
 			helper.mockMathRandom({0.2})
-			local result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			local result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Skill2", result)
 
 			helper.mockMathRandom({0.99})
-			result = plus_manager._modules.skill_selection.getWeightedRandomSkillId(availableSkills)
+			result = plus_manager._subobjects.skill_selection:getWeightedRandomSkillId(availableSkills)
 			assert.equals("Skill4", result)
 		end)
 	end)
@@ -294,36 +294,36 @@ describe("Skill Selection Module", function()
 
 		it("should initialize RNG state on first call", function()
 			-- Initial state: localRandomCount should be nil
-			assert.is_nil(plus_manager._modules.skill_selection.localRandomCount)
+			assert.is_nil(plus_manager._subobjects.skill_selection.localRandomCount)
 
 			helper.mockMathRandom({0.5})
-			plus_manager._modules.skill_selection.getWeightedRandomSkillId({"SkillX", "SkillY"})
+			plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({"SkillX", "SkillY"})
 
 			-- After first call, localRandomCount should be initialized
-			assert.is_not_nil(plus_manager._modules.skill_selection.localRandomCount)
-			assert.equals(1, plus_manager._modules.skill_selection.localRandomCount)
+			assert.is_not_nil(plus_manager._subobjects.skill_selection.localRandomCount)
+			assert.equals(1, plus_manager._subobjects.skill_selection.localRandomCount)
 		end)
 
 		it("should increment random count on each call", function()
 			helper.mockMathRandom({0.5, 0.5, 0.5})
 
-			plus_manager._modules.skill_selection.getWeightedRandomSkillId({"SkillX", "SkillY"})
-			assert.equals(1, plus_manager._modules.skill_selection.localRandomCount)
+			plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({"SkillX", "SkillY"})
+			assert.equals(1, plus_manager._subobjects.skill_selection.localRandomCount)
 
-			plus_manager._modules.skill_selection.getWeightedRandomSkillId({"SkillX", "SkillY"})
-			assert.equals(2, plus_manager._modules.skill_selection.localRandomCount)
+			plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({"SkillX", "SkillY"})
+			assert.equals(2, plus_manager._subobjects.skill_selection.localRandomCount)
 
-			plus_manager._modules.skill_selection.getWeightedRandomSkillId({"SkillX", "SkillY"})
-			assert.equals(3, plus_manager._modules.skill_selection.localRandomCount)
+			plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({"SkillX", "SkillY"})
+			assert.equals(3, plus_manager._subobjects.skill_selection.localRandomCount)
 		end)
 
 		it("should sync random count to GAME state", function()
 			helper.mockMathRandom({0.5, 0.5})
 
-			plus_manager._modules.skill_selection.getWeightedRandomSkillId({"SkillX", "SkillY"})
+			plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({"SkillX", "SkillY"})
 			assert.equals(1, GAME.cplus_plus_ex.randomSeedCnt)
 
-			plus_manager._modules.skill_selection.getWeightedRandomSkillId({"SkillX", "SkillY"})
+			plus_manager._subobjects.skill_selection:getWeightedRandomSkillId({"SkillX", "SkillY"})
 			assert.equals(2, GAME.cplus_plus_ex.randomSeedCnt)
 		end)
 	end)

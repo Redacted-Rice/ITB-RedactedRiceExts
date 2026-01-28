@@ -19,8 +19,6 @@ describe("Skill Enabled Hook", function()
 		originalHooks = hooks.skillEnabledHooks
 		-- Create a fresh empty array for tests
 		hooks.skillEnabledHooks = {}
-		-- Rebuild broadcast function to point to the new empty array
-		hooks:initBroadcastHooks(hooks)
 	end)
 
 	after_each(function()

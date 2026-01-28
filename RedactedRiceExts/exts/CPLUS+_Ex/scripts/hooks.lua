@@ -25,15 +25,15 @@ local hooks = {
 	DEBUG = true,
 }
 
-function hooks:init(owner)
-	memhack.hooks.addTo(self, owner, self.DEBUG and "CPLUS+" or nil)
+function hooks:init()
+	memhack.hooks.addTo(self, cplus_plus_ex, self.DEBUG and "CPLUS+" or nil)
 	self:initBroadcastHooks(self)
-	return hooks
+	return self
 end
 
 function hooks:load()
 	memhack.hooks.reload(self, self.DEBUG and "CPLUS+" or nil)
-	return hooks
+	return self
 end
 
 function hooks:initBroadcastHooks(tbl)

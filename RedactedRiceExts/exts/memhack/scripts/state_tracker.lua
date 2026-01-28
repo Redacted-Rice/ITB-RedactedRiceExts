@@ -19,14 +19,14 @@ stateTracker._skillTrackers = {}
 -- Actual memory may contain combined values based on pilot level
 stateTracker._skillSetValues = {}
 
-stateTracker.init = function()
-	stateTracker.registerTriggerEvents()
+function stateTracker:init()
+	self:registerTriggerEvents()
 	-- hooks wrapped explicitly in memhack.lua
-	return stateTracker
+	return self
 end
 
-stateTracker.load = function()
-	stateTracker.registerTriggerHooks()
+function stateTracker:load()
+	self:registerTriggerHooks()
 end
 
 -------------------- State Capture and Comparison --------------------
@@ -206,14 +206,14 @@ function stateTracker.checkForLvlUpSkillChanges(pilot)
 			if skill then
 				local skillAddr = skill:getAddress()
 				local oldState = stateTracker._skillTrackers[skillAddr]
-				local newState = stateTracker.captureState(skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
+				local newState = stateTracker:captureState(skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
 
 				if oldState then
 					-- Compare states and fire hook if changed
-					local changes = stateTracker.compareStates(oldState, newState)
+					local changes = stateTracker:compareStates(oldState, newState)
 					if next(changes) then
 						-- Call into hooks to fire
-						memhack.hooks.firePilotLvlUpSkillChangedHooks(skill, changes)
+						memhack._subobjects.hooks.firePilotLvlUpSkillChangedHooks(skill, changes)
 					end
 				end
 				-- Update tracked state
@@ -233,18 +233,18 @@ function stateTracker.checkForPilotAndLvlUpSkillChanges()
 		local pilotAddr = pilot:getAddress()
 
 		-- First check for skill changes
-		stateTracker.checkForLvlUpSkillChanges(pilot)
+		stateTracker:checkForLvlUpSkillChanges(pilot)
 
 		-- Check pilot changes
 		local oldState = stateTracker._pilotTrackers[pilotAddr]
-		local newState = stateTracker.captureState(pilot, memhack.structs.Pilot.stateDefinition)
+		local newState = stateTracker:captureState(pilot, memhack.structs.Pilot.stateDefinition)
 
 		if oldState then
 			-- Compare states and fire hook if changed
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 			if next(changes) then
 				-- Call into hooks to fire
-				memhack.hooks.firePilotChangedHooks(pilot, changes)
+				memhack._subobjects.hooks.firePilotChangedHooks(pilot, changes)
 			end
 		end
 
@@ -255,7 +255,7 @@ end
 
 -- Check for state changes in pilots and skills (main entry point)
 function stateTracker.checkForStateChanges()
-	stateTracker.checkForPilotAndLvlUpSkillChanges()
+	stateTracker:checkForPilotAndLvlUpSkillChanges()
 end
 
 ------------------ State tracking management -------------------
@@ -267,7 +267,7 @@ function stateTracker.cleanupStaleTrackers()
 		-- No game active, clear all trackers
 		stateTracker._pilotTrackers = {}
 		stateTracker._skillTrackers = {}
-		stateTracker.cleanupStaleSkillSetValues({})
+		stateTracker:cleanupStaleSkillSetValues({})
 		return
 	end
 
@@ -307,7 +307,7 @@ function stateTracker.cleanupStaleTrackers()
 	end
 
 	-- Remove stale skill set value trackers
-	stateTracker.cleanupStaleSkillSetValues(activeSkills)
+	stateTracker:cleanupStaleSkillSetValues(activeSkills)
 end
 
 -- Build a re-entrant wrapper for a hook fire function
@@ -325,7 +325,7 @@ function stateTracker.buildReentrantHookWrapper(hookName, stateDef, tracker)
 	local isExecuting = false
 	local changesPending = false
 	local fireHookName = "fire"..hookName.."Hooks"
-	local rawFireFn = memhack.hooks[fireHookName]
+	local rawFireFn = memhack._subobjects.hooks[fireHookName]
 	-- arbitrary number of iterations to prevent infinite loops
 	local MAX_ITERATIONS = 20
 
@@ -389,44 +389,44 @@ function stateTracker.buildReentrantHookWrapper(hookName, stateDef, tracker)
 	end
 end
 
-function stateTracker.wrapHooksToUpdateStateTrackers()
+function stateTracker:wrapHooksToUpdateStateTrackers()
 	-- Wrap pilot changed hook with re-entrant support
-	memhack.hooks.firePilotChangedHooks = stateTracker.buildReentrantHookWrapper(
+	memhack._subobjects.hooks.firePilotChangedHooks = stateTracker.buildReentrantHookWrapper(
 		"PilotChanged",
 		memhack.structs.Pilot.stateDefinition,
 		stateTracker._pilotTrackers
 	)
 
 	-- Wrap skill changed hook with re-entrant support
-	memhack.hooks.firePilotLvlUpSkillChangedHooks = stateTracker.buildReentrantHookWrapper(
+	memhack._subobjects.hooks.firePilotLvlUpSkillChangedHooks = stateTracker.buildReentrantHookWrapper(
 		"PilotLvlUpSkillChanged",
 		memhack.structs.PilotLvlUpSkill.stateDefinition,
 		stateTracker._skillTrackers
 	)
 end
 
-function stateTracker.registerTriggerHooks()
+function stateTracker:registerTriggerHooks()
 	-- Should cover general level ups and earning of xp
 	modApi:addSaveGameHook(function()
-		stateTracker.checkForStateChanges()
+		stateTracker:checkForStateChanges()
 	end)
 end
 
-function stateTracker.registerTriggerEvents()
+function stateTracker:registerTriggerEvents()
 	-- should cover adding levels/xp via console
 	modApi.events.onConsoleToggled:subscribe(function()
-		stateTracker.checkForStateChanges()
+		stateTracker:checkForStateChanges()
 	end)
 
 	-- Clean up stale trackers when a new game is started or ended
 	modApi.events.onGameEntered:subscribe(function()
-		stateTracker.cleanupStaleTrackers()
+		stateTracker:cleanupStaleTrackers()
 	end)
 	modApi.events.onGameExited:subscribe(function()
-		stateTracker.cleanupStaleTrackers()
+		stateTracker:cleanupStaleTrackers()
 	end)
 	modApi.events.onGameVictory:subscribe(function()
-		stateTracker.cleanupStaleTrackers()
+		stateTracker:cleanupStaleTrackers()
 	end)
 end
 

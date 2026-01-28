@@ -21,6 +21,9 @@ function M.setupGlobals()
 	_G.modApi.events.onPerfectIslandWindowShown = { subscribe = function() end }
 	_G.modApi.events.onGameEntered = { subscribe = function() end }
 	_G.modApi.events.onGameExited = { subscribe = function() end }
+	_G.modApi.events.onMainMenuEntered = { subscribe = function() end }
+	_G.modApi.events.onHangarEntered = { subscribe = function() end }
+	_G.modApi.events.onModsFirstLoaded = { subscribe = function() end }
 	_G.modApi.scheduleHook = function() end
 	_G.modApi.addSaveGameHook = function() end
 
@@ -96,6 +99,7 @@ M.stubMemhack()
 require("cplus_plus_ex")
 M.plus_manager = cplus_plus_ex
 M.plus_manager:initModules()
+M.plus_manager:exposeAPI()
 
 -- Reset all state
 function M.resetState()
@@ -129,12 +133,12 @@ function M.resetState()
 	pm:initModules()
 
 	-- Now access modules after they've been initialized
-	local skill_registry = pm._modules.skill_registry
-	local skill_config_module = pm._modules.skill_config
-	local skill_constraints = pm._modules.skill_constraints
-	local skill_selection = pm._modules.skill_selection
-	local time_traveler = pm._modules.time_traveler
-	local skill_state_tracker = pm._modules.skill_state_tracker
+	local skill_registry = pm._subobjects.skill_registry
+	local skill_config_module = pm._subobjects.skill_config
+	local skill_constraints = pm._subobjects.skill_constraints
+	local skill_selection = pm._subobjects.skill_selection
+	local time_traveler = pm._subobjects.time_traveler
+	local skill_state_tracker = pm._subobjects.skill_state_tracker
 
 	-- Reset skill_registry module state
 	skill_registry.registeredSkills = {}
@@ -146,9 +150,9 @@ function M.resetState()
 	-- Reset skill_constraints module state
 	skill_constraints.constraintFunctions = {}
 	-- Re-register built-in constraint functions after clearing
-	skill_constraints.registerReusabilityConstraintFunction()
-	skill_constraints.registerPlusExclusionInclusionConstraintFunction()
-	skill_constraints.registerSkillExclusionDependencyConstraintFunction()
+	skill_constraints:registerReusabilityConstraintFunction()
+	skill_constraints:registerPlusExclusionInclusionConstraintFunction()
+	skill_constraints:registerSkillExclusionDependencyConstraintFunction()
 
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil
