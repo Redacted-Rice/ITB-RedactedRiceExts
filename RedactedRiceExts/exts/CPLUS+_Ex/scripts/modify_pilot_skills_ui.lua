@@ -5,11 +5,9 @@ local modify_pilot_skills_ui = {}
 local utils = nil
 
 local scrollContent = nil
--- Track UI widjets for updates
+-- Track UI widgets for updates
 local weightInputFields = {}
 local percentageLabels = {}
-local adjustedWeightLabels = {}
-local adjustedPercentLabels = {}
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -43,11 +41,6 @@ function modify_pilot_skills_ui:init()
         "Modify skill weights and configurations"
     )
     return self
-end
-
--- Check if skill is dependent (has dependencies)
-function modify_pilot_skills_ui:isDependentSkill(skillId)
-	return cplus_plus_ex.config.skillDependencies[skillId] ~= nil
 end
 
 function modify_pilot_skills_ui:getPilotsData(pilotIds)
@@ -104,96 +97,6 @@ function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
 	})
 end
 
--- Gets all skills organized by type (dependent vs non-dependent)
-function modify_pilot_skills_ui:getAllSkillsByType()
-	local dependentSkills = {}
-	local nonDependentSkills = {}
-
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
-		if modify_pilot_skills_ui:isDependentSkill(skillId) then
-			table.insert(dependentSkills, skill)
-		else
-			table.insert(nonDependentSkills, skill)
-		end
-	end
-
-	-- Sort by short name
-	table.sort(dependentSkills, function(a, b)
-		return (a.shortName or a.id):lower() < (b.shortName or b.id):lower()
-	end)
-	table.sort(nonDependentSkills, function(a, b)
-		return (a.shortName or a.id):lower() < (b.shortName or b.id):lower()
-	end)
-
-	return nonDependentSkills, dependentSkills
-end
-
--- calculate total weight to use for non-dependent and dependent weights
-function modify_pilot_skills_ui:calculateTotalWeights(adjusted)
-	local totalWeight = 0
-	local totalDepWeight = 0
-	-- Calculate the total of all enabled skills
-	for _, otherSkillId in ipairs(cplus_plus_ex._subobjects.skill_config.enabledSkillsIds) do
-		local skillConfigObj = cplus_plus_ex.config.skillConfigs[otherSkillId]
-		if skillConfigObj and skillConfigObj.enabled then
-			local weight = adjusted and skillConfigObj.adj_weight or skillConfigObj.set_weight
-			-- for non dependent, we exclude dependent skill weights
-			if not modify_pilot_skills_ui:isDependentSkill(otherSkillId) then
-				totalWeight = totalWeight + weight
-			end
-			totalDepWeight = totalDepWeight + weight
-		end
-	end
-
-	return totalWeight, totalDepWeight
-end
-
-function modify_pilot_skills_ui:updateLabelPecentages(adjusted)
-	local nonDepWeight, depWeight = modify_pilot_skills_ui:calculateTotalWeights(adjusted)
-	local labels =  adjusted and adjustedPercentLabels or percentageLabels
-
-	for skillId, label in pairs(labels) do
-
-		local percentage = 0
-		local isDependent = modify_pilot_skills_ui:isDependentSkill(skillId)
-		local totalWeight = isDependent and depWeight  or nonDepWeight
-		local skillConfigObj = cplus_plus_ex.config.skillConfigs[skillId]
-		if skillConfigObj and skillConfigObj.enabled then
-			local skillWeight = useAdjusted and skillConfigObj.adj_weight or skillConfigObj.set_weight
-			percentage = totalWeight > 0 and (skillWeight / totalWeight * 100) or 0
-		end
-
-		for _, deco in ipairs(label.decorations) do
-			if deco.__index and deco.__index:isSubclassOf(DecoText) then
-				deco:setsurface(string.format("%.1f%%", percentage))
-				break
-			end
-		end
-	end
-end
-
--- Update all percentage displays
-function modify_pilot_skills_ui:updateAllPercentages()
-	-- Update set (false) and adjusted (true) percentages
-	modify_pilot_skills_ui:updateLabelPecentages(false)
-	modify_pilot_skills_ui:updateLabelPecentages(true)
-
-	-- Update adjusted weights
-	for skillId, label in pairs(adjustedWeightLabels) do
-		local adj_weight = 0
-		local skillConfigObj = cplus_plus_ex.config.skillConfigs[skillId]
-		if skillConfigObj and skillConfigObj.enabled then
-			adj_weight = skillConfigObj.adj_weight
-		end
-
-		for _, deco in ipairs(label.decorations) do
-			if deco.__index and deco.__index:isSubclassOf(DecoText) then
-				deco:setsurface(string.format("%.2f", adj_weight))
-				break
-			end
-		end
-	end
-end
 
 -- Validate and parse numeric input
 function modify_pilot_skills_ui:validateNumericInput(text)
@@ -342,9 +245,6 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, setW
 		local isValid, value = modify_pilot_skills_ui:validateNumericInput(self.textfield)
 		if isValid and value >= 0 then
 			cplus_plus_ex:setSkillConfig(skill.id, {set_weight = value})
-			if cplus_plus_ex.config.autoAdjustWeights then
-				cplus_plus_ex:setAdjustedWeightsConfigs()
-			end
 			modify_pilot_skills_ui:updateAllPercentages()
 			cplus_plus_ex:saveConfiguration()
 		else
@@ -369,32 +269,6 @@ function modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 		:addTo(entryRow)
 
 	percentageLabels[skill.id] = percentageLabel
-
-	-- Adjusted weight label (13% width, reduced from 15%)
-	local adjustedWeightLabel = Ui()
-		:width(0.25):heightpx(ROW_HEIGHT)
-		:settooltip("TODO")
-		:decorate({
-			DecoFrame(),
-			DecoAlign(0, 2),
-			DecoText("0.00")
-		})
-		:addTo(entryRow)
-
-	adjustedWeightLabels[skill.id] = adjustedWeightLabel
-
-	-- Adjusted percentage label
-	local adjustedPercentLabel = Ui()
-		:width(0.25):heightpx(ROW_HEIGHT)
-		:settooltip("TODO")
-		:decorate({
-			DecoFrame(),
-			DecoAlign(0, 2),
-			DecoText("0.0%")
-		})
-		:addTo(entryRow)
-
-	adjustedPercentLabels[skill.id] = adjustedPercentLabel
 end
 
 -- Builds a single skill entry row
@@ -459,26 +333,6 @@ function modify_pilot_skills_ui:buildHeaderRow(skillLength, resuabilityLength)
 		:settooltip("Percentage chance of selection for first skill")
 		:addTo(headerRow)
 
-	Ui()
-		:width(0.25):heightpx(ROW_HEIGHT)
-		:decorate({
-			DecoFrame(deco.colors.buttonborder),
-			DecoAlign(0, 2),
-			DecoText("Adj.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
-		})
-		:settooltip("Adjusted weight (after auto-adjustment)")
-		:addTo(headerRow)
-
-	Ui()
-		:width(0.25):heightpx(ROW_HEIGHT)
-		:decorate({
-			DecoFrame(deco.colors.buttonborder),
-			DecoAlign(0, 2),
-			DecoText("Adj. %", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
-		})
-		:settooltip("Adjusted percentage chance")
-		:addTo(headerRow)
-
 	return headerRow
 end
 
@@ -508,29 +362,6 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 
 	allowDupsCheckbox.onToggled:subscribe(function(checked)
 		cplus_plus_ex.config.allowReusableSkills = checked
-		cplus_plus_ex:saveConfiguration()
-	end)
-
-	-- Auto-adjust dependent weights checkbox
-	local autoAdjustCheckbox = UiCheckbox()
-		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("Automatically adjust weights for dependent skills based on their dependencies")
-		:decorate({
-			DecoButton(),
-			DecoCheckbox(),
-			DecoAlign(0, 2),
-			DecoText("Auto-Adjust Dependent Skill Weights")
-		})
-		:addTo(scrollContent)
-
-	autoAdjustCheckbox.checked = cplus_plus_ex.config.autoAdjustWeights
-
-	autoAdjustCheckbox.onToggled:subscribe(function(checked)
-		cplus_plus_ex.config.autoAdjustWeights = checked
-		if checked then
-			cplus_plus_ex:setAdjustedWeightsConfigs()
-		end
-		modify_pilot_skills_ui:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
 	end)
 end
@@ -931,18 +762,6 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 		"Skill",
 		true
 	)
-
-	-- Skill Dependencies
-	modify_pilot_skills_ui:buildRelationshipEditor(
-		scrollContent,
-		cplus_plus_ex.config.skillDependencies,
-		"Skill Dependencies",
-		skillData,
-		skillData,
-		"Skill",
-		"Dependent Skill",
-		true
-	)
 end
 
 -- Builds the main content for the dialog
@@ -950,8 +769,6 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	weightInputFields = {}
 	percentageLabels = {}
-	adjustedWeightLabels = {}
-	adjustedPercentLabels = {}
 
 	scrollContent = UiBoxLayout()
 		:vgap(5)
@@ -981,8 +798,6 @@ function modify_pilot_skills_ui:buildResetConfirmation()
 					-- Clear tracking tables before rebuild
 					weightInputFields = {}
 					percentageLabels = {}
-					adjustedWeightLabels = {}
-					adjustedPercentLabels = {}
 					-- Rebuild the content with fresh values
 					modify_pilot_skills_ui:buildMainContent(parentScroll)
 				end
@@ -1011,8 +826,6 @@ local function onExit()
 	scrollContent = nil
 	weightInputFields = {}
 	percentageLabels = {}
-	adjustedWeightLabels = {}
-	adjustedPercentLabels = {}
 end
 
 -- Creates the main modification dialog

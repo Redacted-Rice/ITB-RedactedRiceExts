@@ -37,11 +37,9 @@ end
 -- These are runtime changeable configuration parameters
 skill_config.config = {
 	allowReusableSkills = false, -- will be set on load by options but default to vanilla
-	autoAdjustWeights = true,  -- Auto-adjust weights for dependent skills (default true)
 	pilotSkillExclusions = {}, -- pilotId -> excluded skill ids (set-like table) - auto-loaded from pilot Blacklists
 	pilotSkillInclusions = {}, -- pilotId -> included skill ids (set-like table)
 	skillExclusions = {},  -- skillId -> excluded skill ids (set-like table) - skills that cannot be taken together
-	skillDependencies = {},  -- skillId -> required skill ids (set-like table) - skills that require another skill to be selected
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability
 }
 
@@ -58,9 +56,6 @@ end
 
 -- Called after all mods are loaded
 function skill_config:postModsLoaded()
-	-- Auto-adjust weights for dependencies
-	self:setAdjustedWeightsConfigs()
-
 	-- Set the defaults to our registered/setup values
 	self:captureDefaultConfigs()
 
@@ -200,94 +195,13 @@ function skill_config:_disableSkill_internal(id)
 	if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Skill " .. id .. " disabled") end
 end
 
--- Removes a dependency between skills
-function skill_config:removeSkillDependency(skillId, requiredSkillId)
-	if self.config.skillDependencies[skillId] then
-		self.config.skillDependencies[skillId][requiredSkillId] = nil
-
-		-- If no more dependencies, remove the entry entirely
-		local hasAny = false
-		for _, _ in pairs(self.config.skillDependencies[skillId]) do
-			hasAny = true
-			break
-		end
-
-		if not hasAny then
-			self.config.skillDependencies[skillId] = nil
-		end
-
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Removed dependency: " .. skillId .. " no longer requires " .. requiredSkillId)
-		end
-
-		return true
-	end
-
-	return false
-end
-
--- Auto-adjusts skill weights based on dependencies
--- Only runs if autoAdjustWeights is true
--- Dependent skills get weight = (numEnabledSkills - 2) / numDependencies
--- Dependency skills get weight += 0.5 per dependent
+-- Copy set weights to adjusted weights for all skills
+-- This can be extended in the future if we need weight adjustment logic
 function skill_config:setAdjustedWeightsConfigs()
-	-- first just copy all the set weights to adj weights for all skills
+	-- Copy all the set weights to adj weights for all skills
 	for skillId, _ in pairs(skill_registry.registeredSkills) do
 		local config = self.config.skillConfigs[skillId]
 		config.adj_weight = config.set_weight
-	end
-
-	if not self.config.autoAdjustWeights then
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Auto-adjust disabled, skipping weight adjustment")
-		end
-		return
-	end
-
-	local dependencyUsages = {}
-	local numSkills = #self.enabledSkillsIds
-
-	-- Process all dependent skills
-	for dependentSkillId, dependencies in pairs(self.config.skillDependencies) do
-		-- Only adjust if the skill is enabled
-		if self.enabledSkills[dependentSkillId] then
-			local config = self.config.skillConfigs[dependentSkillId]
-
-			-- Count number of dependencies for this skill
-			local numDependencies = 0
-			for _, _ in pairs(dependencies) do
-				numDependencies = numDependencies + 1
-			end
-
-			-- Calculate new weight multiplier: (total skills - 2) / number of dependencies
-			-- Use -2 to remove the dependent skill but also the already selected dependency skill
-			local newWeightMult = math.max(0, (numSkills - 2) / numDependencies)
-			-- Don't use setSkillWeight here as we want to preserve configured weight separately
-			config.adj_weight = newWeightMult * config.set_weight
-			if cplus_plus_ex.PLUS_DEBUG then
-				LOG("PLUS Ext: Auto-adjusted dependent skill " .. dependentSkillId .. " weight to " .. config.adj_weight ..
-						" (base=" .. config.set_weight .. ", numSkills=" .. numSkills .. ", numDependencies=" .. numDependencies .. ")")
-			end
-		end
-
-		-- Track dependency usage for bumping up the base skill as well
-		for requiredSkillId, _ in pairs(dependencies) do
-			if dependencyUsages[requiredSkillId] == nil then
-				dependencyUsages[requiredSkillId] = 1
-			else
-				dependencyUsages[requiredSkillId] = dependencyUsages[requiredSkillId] + 1
-			end
-		end
-	end
-
-	-- Increase weight of skills that are dependencies for others
-	for skillId, dependencyCount in pairs(dependencyUsages) do
-		local config = self.config.skillConfigs[skillId]
-		config.adj_weight = config.set_weight + (dependencyCount * 0.5)
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Increased dependency skill " .. skillId .. " weight to " .. config.adj_weight ..
-					" (base=" .. config.set_weight .. ", usedBy=" .. dependencyCount .. ")")
-		end
 	end
 end
 
@@ -375,12 +289,9 @@ function skill_config:loadConfiguration()
 				if savedConfig.pilotSkillInclusions then
 					skill_config.config.pilotSkillInclusions = utils.deepcopy(savedConfig.pilotSkillInclusions)
 				end
-				if savedConfig.skillExclusions then
-					skill_config.config.skillExclusions = utils.deepcopy(savedConfig.skillExclusions)
-				end
-				if savedConfig.skillDependencies then
-					skill_config.config.skillDependencies = utils.deepcopy(savedConfig.skillDependencies)
-				end
+			if savedConfig.skillExclusions then
+				skill_config.config.skillExclusions = utils.deepcopy(savedConfig.skillExclusions)
+			end
 
 				-- Merge skillConfigs to update existing skill but preserve new defaults
 				if savedConfig.skillConfigs then

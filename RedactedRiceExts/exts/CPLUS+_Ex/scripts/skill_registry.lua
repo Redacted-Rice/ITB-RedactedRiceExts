@@ -1,8 +1,8 @@
 -- Skill Registration Module
--- Handles registering skills, exclusions, inclusions, and dependencies
--- Registered skills will be default enabled and the registered inclusions,
--- exclusions, and dependencies are default values. These can be changed
--- run time and the values used are stored in skill_config module
+-- Handles registering skills, exclusions, and inclusions
+-- Registered skills will be default enabled and the registered inclusions
+-- and exclusions are default values. These can be changed at
+-- runtime and the values used are stored in skill_config module
 
 local skill_registry = {}
 
@@ -148,34 +148,6 @@ function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
 	if cplus_plus_ex.PLUS_DEBUG then
 		LOG("PLUS Ext: Registered exclusion: " .. skillId .. " <-> " .. excludedSkillId)
 	end
-end
-
--- Registers a skill dependency
--- Takes a skill id and a required skill id
--- The dependent skill can only be selected if the required skill is already selected
--- Call multiple times to add multiple dependencies that would work - only one of the
--- added need to be assigned to satisfy the dependency
--- Note: Chain dependencies are not allowed - a dependent skill cannot depend on another dependent skill
-function skill_registry:registerSkillDependency(skillId, requiredSkillId)
-	-- Prevent chain dependencies - requiredSkillId cannot itself be a dependent skill
-	if skill_config.config.skillDependencies[requiredSkillId] ~= nil then
-		LOG("PLUS Ext error: Cannot register dependency: " .. skillId .. " -> " .. requiredSkillId ..
-				". Chain dependencies are not allowed. The required skill '" .. requiredSkillId ..
-				"' is already a dependent skill.")
-		return false
-	end
-
-	if skill_config.config.skillDependencies[skillId] == nil then
-		skill_config.config.skillDependencies[skillId] = {}
-	end
-
-	skill_config.config.skillDependencies[skillId][requiredSkillId] = true
-
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Registered dependency: " .. skillId .. " requires " .. requiredSkillId)
-	end
-
-	return true
 end
 
 -- Scans global for all pilot definitions and registers their Blacklist exclusions

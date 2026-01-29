@@ -152,7 +152,7 @@ function M.resetState()
 	-- Re-register built-in constraint functions after clearing
 	skill_constraints:registerReusabilityConstraintFunction()
 	skill_constraints:registerPlusExclusionInclusionConstraintFunction()
-	skill_constraints:registerSkillExclusionDependencyConstraintFunction()
+	skill_constraints:registerSkillExclusionConstraintFunction()
 
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil
@@ -178,11 +178,9 @@ function M.resetState()
 
 	-- Reset config structure (owned by skill_config module)
 	pm.config.allowReusableSkills = true
-	pm.config.autoAdjustWeights = true
 	pm.config.pilotSkillExclusions = {}
 	pm.config.pilotSkillInclusions = {}
 	pm.config.skillExclusions = {}
-	pm.config.skillDependencies = {}
 	pm.config.skillConfigs = {}
 
 	-- Clear vanilla skills and enabled skills for test isolation
