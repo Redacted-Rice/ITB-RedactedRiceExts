@@ -79,8 +79,6 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
 	function cplus_plus_ex:enableSkill(...) return skill_config:enableSkill(...) end
 	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
-	function cplus_plus_ex:removeSkillDependency(...) return skill_config:removeSkillDependency(...) end
-	function cplus_plus_ex:setAdjustedWeightsConfigs() return skill_config:setAdjustedWeightsConfigs() end
 	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
 	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
 	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
@@ -93,7 +91,6 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
-	function cplus_plus_ex:registerSkillDependency(...) return skill_registry:registerSkillDependency(...) end
 
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end

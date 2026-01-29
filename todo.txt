@@ -34,3 +34,7 @@ Next release candadites:
 	Mostly just replacing test with GetText and adding a SetText. Can probably try calling GetText to see if it exists first
 3. Re-evaluate mock usage in tests. Is there a simpler way?
 4. consider using bulk reading for state capture to avoid multiple reads near each other as optimization (maybe defer?)
+5. Skill rarities - legendary skills & skill caps
+6. Squad inclusions/exclusions
+7. Categoricial exclusions - e.g. movement, boosted, armor, etc
+8. Add support for multiple pilots with same ID

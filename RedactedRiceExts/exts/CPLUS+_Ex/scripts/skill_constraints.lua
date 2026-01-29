@@ -1,6 +1,6 @@
 -- Skill Constraints Module
 -- Handles constraint definitions and registration which evaluate and modify skill assignment
--- These are not run time modifyiable but always active even if "empty". The actual values
+-- These are not runtime modifiable but always active even if "empty". The actual values
 -- and exclusions used by the constraints are handled in the registry config module
 
 local skill_constraints = {}
@@ -21,7 +21,7 @@ function skill_constraints:init()
 
 	self:registerReusabilityConstraintFunction()
 	self:registerPlusExclusionInclusionConstraintFunction()
-	self:registerSkillExclusionDependencyConstraintFunction()
+	self:registerSkillExclusionConstraintFunction()
 	return self
 end
 
@@ -128,8 +128,8 @@ function skill_constraints:registerReusabilityConstraintFunction()
 	end)
 end
 
--- This enforces skill to skill exclusions and depencencies
-function skill_constraints:registerSkillExclusionDependencyConstraintFunction()
+-- This enforces skill to skill exclusions
+function skill_constraints:registerSkillExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		-- pilot id for logging
 		local pilotId = pilot:getIdStr()
@@ -144,31 +144,6 @@ function skill_constraints:registerSkillExclusionDependencyConstraintFunction()
 					end
 					return false
 				end
-			end
-		end
-
-		-- If candidate has dependencies at least one must be in selectedSkills already
-		if skill_config_module.config.skillDependencies[candidateSkillId] then
-			local hasDependency = false
-
-			for requiredSkillId, _ in pairs(skill_config_module.config.skillDependencies[candidateSkillId]) do
-				for _, selectedSkillId in ipairs(selectedSkills) do
-					if selectedSkillId == requiredSkillId then
-						hasDependency = true
-						break
-					end
-				end
-				if hasDependency then
-					break
-				end
-			end
-
-			if not hasDependency then
-				if cplus_plus_ex.PLUS_DEBUG then
-					LOG("PLUS Ext: Prevented skill " .. candidateSkillId .. " for pilot " .. pilotId ..
-						" (requires one of: " .. utils.setToString(skill_config_module.config.skillDependencies[candidateSkillId]) .. ")")
-				end
-				return false
 			end
 		end
 
