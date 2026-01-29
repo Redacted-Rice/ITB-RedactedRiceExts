@@ -2,6 +2,11 @@
 -- UI for modifying skill weights and configurations
 
 local modify_pilot_skills_ui = {}
+
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "SkillsUI", cplus_plus_ex.DEBUG.UI and cplus_plus_ex.DEBUG.ENABLED)
+
 local utils = nil
 
 local scrollContent = nil
@@ -32,8 +37,8 @@ modify_pilot_skills_ui.unnamedPilotDisplayNames = {
 }
 
 function modify_pilot_skills_ui:init()
-    utils = cplus_plus_ex._subobjects.utils
-    sdlext.addModContent(
+	utils = cplus_plus_ex._subobjects.utils
+	sdlext.addModContent(
         "Modify Pilot Skills",
         function()
             self.createDialog()
@@ -115,7 +120,7 @@ function modify_pilot_skills_ui:getLongestLength(entries)
 	local maxWidth = 0
 	for _, entry in pairs(entries) do
 		local deco = DecoText(entry)
-		LOG("length ".. sdlext.totalWidth(deco.surface).. " for entry :" .. entry)
+		logger.logDebug(SUBMODULE, "Entry width: %d for entry: %s", sdlext.totalWidth(deco.surface), entry)
 		maxWidth = math.max(maxWidth, sdlext.totalWidth(deco.surface))
 	end
 	return maxWidth
@@ -275,7 +280,7 @@ end
 function modify_pilot_skills_ui:buildSkillEntry(skill, isDependent, skillLength, resuabilityLength)
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
-		LOG("PLUS Ext: Warning: No config for skill " .. skill.id)
+		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
 		return Ui():width(1):heightpx(0) -- Return empty element
 	end
 
@@ -401,7 +406,7 @@ local skillsHeader = Ui()
 	else
 		-- I guess this is technically possible if they had more skills,
 		-- configured dependents then uninstalled all the non-dependent skills
-		LOG("Plus Ext: Error: No non-dependent skills! How even?")
+		logger.logError(SUBMODULE, "No skills available for UI display")
 	end
 
 	-- Dependent Skills but only if there are any

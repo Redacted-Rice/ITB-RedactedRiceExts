@@ -4,6 +4,10 @@
 
 local skill_selection = {}
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "SkillSelection", cplus_plus_ex.DEBUG.SELECTION and cplus_plus_ex.DEBUG.ENABLED)
+
 -- Module state
 skill_selection.localRandomCount = nil  -- Track local random count for this session
 skill_selection.usedSkillsPerRun = {}   -- skillId -> true for per_run skills used this run
@@ -18,7 +22,7 @@ function skill_selection:init()
 	skill_constraints = cplus_plus_ex._subobjects.skill_constraints
 	skill_config_module = cplus_plus_ex._subobjects.skill_config
 	utils = cplus_plus_ex._subobjects.utils
-	
+
 	modApi.events.onPodWindowShown:subscribe(function() skill_selection:applySkillToPodPilot() end)
 	modApi.events.onPerfectIslandWindowShown:subscribe(function() skill_selection:applySkillToPerfectIslandPilot() end)
 	return self
@@ -59,7 +63,7 @@ end
 -- availableSkills - array like table of skill IDs to select from
 function skill_selection:getWeightedRandomSkillId(availableSkills)
 	if #availableSkills == 0 then
-		LOG("PLUS Ext error: No skills available in list")
+		logger.logError(SUBMODULE, "No skills available in list")
 		return nil
 	end
 
@@ -81,7 +85,7 @@ function skill_selection:getWeightedRandomSkillId(availableSkills)
 			math.random()
 		end
 		skill_selection.localRandomCount = savedCount
-		if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Initialized RNG with seed " .. seed .. " and fast-forwarded " .. savedCount .. " times") end
+		logger.logDebug(SUBMODULE, "Initialized RNG with seed %d and fast-forwarded %d times", seed, savedCount)
 	end
 
 	-- Weighted random selection
@@ -98,7 +102,7 @@ function skill_selection:getWeightedRandomSkillId(availableSkills)
 	end
 
 	-- Fallback to last skill. We shouldn't get here but just in case
-	LOG("PLUS Ext error: Weighted selection failed! Falling back to last skill")
+	logger.logError(SUBMODULE, "Weighted selection failed! Falling back to last skill")
 	return availableSkills[#availableSkills]
 end
 
@@ -108,7 +112,7 @@ end
 -- like it could be interesting and possible to have pilots with more than two skills
 function skill_selection:selectRandomSkills(pilot, count)
 	if #skill_config_module.enabledSkillsIds == 0 then
-		LOG("PLUS Ext error: No enabled skills available")
+		logger.logError(SUBMODULE, "No enabled skills available")
 		return nil
 	end
 
@@ -147,7 +151,8 @@ function skill_selection:selectRandomSkills(pilot, count)
 
 	-- Check we assigned the expected number of skill
 	if #selectedSkills ~= count then
-		LOG("PLUS Ext error: Failed to select " .. count .. " skills. Selected " .. #selectedSkills .. ". Constraints may be impossible to satisfy with available skills.")
+		logger.logError(SUBMODULE, "Failed to select " .. count .. " skills. Selected " .. #selectedSkills ..
+				". Constraints may be impossible to satisfy with available skills.")
 		return nil
 	end
 	return selectedSkills
@@ -164,7 +169,7 @@ end
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
 function skill_selection:applySkillsToPilot(pilot)
 	if pilot == nil then
-		LOG("PLUS Ext error: Pilot is nil")
+		logger.logError(SUBMODULE, "Pilot is nil in applySkillsToPilot")
 		return
 	end
 
@@ -177,13 +182,13 @@ function skill_selection:applySkillsToPilot(pilot)
 
 	-- If the skills are not stored, we need to assign them
 	if storedSkills ~= nil then
-		if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Read stored skill") end
+		logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilotId)
 	-- if its the time traveler, save the current skills
 	elseif cplus_plus_ex._subobjects.time_traveler.timeTraveler and cplus_plus_ex._subobjects.time_traveler.timeTraveler._address == pilot._address then
 		local lus = cplus_plus_ex._subobjects.time_traveler.timeTraveler:getLvlUpSkills()
 		storedSkills = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
-		if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Read time traveler skills") end
+		logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
 	-- otherwise assign random skills
 	else
 		-- Select 2 random skills that satisfy all registered constraint functions
@@ -199,8 +204,7 @@ function skill_selection:applySkillsToPilot(pilot)
 		skill_selection:markPerRunSkillAsUsed(storedSkills[1])
 		skill_selection:markPerRunSkillAsUsed(storedSkills[2])
 
-		if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Assigning random skills")
-		end
+		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
 	end
 
 	local skill1Id = storedSkills[1]
@@ -213,9 +217,7 @@ function skill_selection:applySkillsToPilot(pilot)
 	local saveVal1 = skill1.saveVal
 	if saveVal1 == -1 then
 		saveVal1 = math.random(0, 13)
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Assigned random saveVal " .. saveVal1 .. " to skill " .. skill1Id .. " for pilot " .. pilotId)
-		end
+		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal1, skill1Id, pilotId)
 	end
 
 	-- Determine saveVal for skill 2
@@ -223,9 +225,7 @@ function skill_selection:applySkillsToPilot(pilot)
 	local saveVal2 = skill2.saveVal
 	if saveVal2 == -1 then
 		saveVal2 = math.random(0, 13)
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Assigned random saveVal " .. saveVal2 .. " to skill " .. skill2Id .. " for pilot " .. pilotId)
-		end
+		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal2, skill2Id, pilotId)
 	end
 
 	-- If both skills have the same saveVal, reassign skill2
@@ -236,14 +236,10 @@ function skill_selection:applySkillsToPilot(pilot)
 		if saveVal2 >= saveVal1 then
 			saveVal2 = saveVal2 + 1
 		end
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: SaveVal conflict detected for pilot " .. pilotId .. ", reassigned skill2 saveVal to " .. saveVal2)
-		end
+		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned skill2 saveVal to %d", pilotId, saveVal2)
 	end
 
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
-	end
+	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
 
 	-- Apply both skills with their determined saveVal
 	pilot:setLvlUpSkill(1, skillDataToTable(
@@ -258,12 +254,13 @@ function skill_selection:applySkillsToAllPilots()
 	skill_selection:initGameSaveData()
 
 	if #skill_config_module.enabledSkillsIds == 0 then
-		if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: No enabled skills, skipping pilot skill assignment") end
+		logger.logWarn(SUBMODULE, "No enabled skills, skipping pilot skill assignment")
 		return
 	end
 
 	-- Assign skills for all squad and storage pilots
 	local pilots = Game:GetAvailablePilots()
+	logger.logDebug(SUBMODULE, "Starting skill assignment for %d pilots", #pilots)
 
 	-- Reset per_run tracking and rebuild it from currently assigned skills
 	skill_selection.usedSkillsPerRun = {}
@@ -284,7 +281,7 @@ function skill_selection:applySkillsToAllPilots()
 		skill_selection:applySkillsToPilot(pilot)
 	end
 
-	if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Applied skills to " .. #pilots .. " pilot(s)") end
+	logger.logInfo(SUBMODULE, "Applied skills to " .. #pilots .. " pilot(s)")
 end
 
 function skill_selection:applySkillToPodPilot()
@@ -314,14 +311,12 @@ function skill_selection:markPerRunSkillAsUsed(skillId)
 	if skill_config_module.config.skillConfigs[skillId].reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 		-- Check if already marked
 		if skill_selection.usedSkillsPerRun[skillId] then
-			LOG("PLUS Ext: Warning: per_run skill " .. skillId .. " already marked as used")
+			logger.logWarn(SUBMODULE, "per_run skill " .. skillId .. " already marked as used")
 		end
 
 		-- Mark skill as used this run
 		skill_selection.usedSkillsPerRun[skillId] = true
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Marked per_run skill " .. skillId .. " as used this run")
-		end
+		logger.logDebug(SUBMODULE, "Marked per_run skill %s as used this run", skillId)
 	end
 	-- reusable and per_pilot skills don't need tracking
 end

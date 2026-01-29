@@ -5,6 +5,10 @@
 
 local skill_constraints = {}
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "SkillConstraints", cplus_plus_ex.DEBUG.CONSTRAINTS and cplus_plus_ex.DEBUG.ENABLED)
+
 -- Local references to other submodules (set during init)
 local skill_config_module = nil
 local skill_selection = nil
@@ -47,9 +51,7 @@ end
 -- used as examples for using constraint functions
 function skill_constraints:registerConstraintFunction(constraintFn)
 	table.insert(self.constraintFunctions, constraintFn)
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Registered constraint function")
-	end
+	logger.logDebug(SUBMODULE, "Registered constraint function")
 end
 
 -- This enforces pilot exclusions (Vanilla blacklist API) and inclusion restrictions
@@ -61,7 +63,7 @@ function skill_constraints:registerPlusExclusionInclusionConstraintFunction()
 		local skill = skill_config_module.enabledSkills[candidateSkillId]
 
 		if skill == nil then
-			LOG("PLUS Ext warning: Skill " .. candidateSkillId .. " not found in enabled skills")
+			logger.logWarn(SUBMODULE, "Skill " .. candidateSkillId .. " not found in enabled skills")
 			return false
 		end
 
@@ -74,15 +76,15 @@ function skill_constraints:registerPlusExclusionInclusionConstraintFunction()
 			local pilotList = skill_config_module.config.pilotSkillInclusions[pilotId]
 			local skillInList = pilotList and pilotList[candidateSkillId]
 			local allowed = skillInList == true
-			if not allowed and cplus_plus_ex.PLUS_DEBUG then
-				LOG("PLUS Ext: Prevented inclusion skill " .. candidateSkillId .. " for pilot " .. pilotId)
+			if not allowed then
+				logger.logDebug(SUBMODULE, "Prevented inclusion skill %s for pilot %s", candidateSkillId, pilotId)
 			end
-			return allowed
+		return allowed
 		else
 			-- Check for an exclusion
 			local hasExclusion = skill_config_module.config.pilotSkillExclusions[pilotId] and skill_config_module.config.pilotSkillExclusions[pilotId][candidateSkillId]
-			if hasExclusion and cplus_plus_ex.PLUS_DEBUG then
-				LOG("PLUS Ext: Prevented exclusion skill " .. candidateSkillId .. " for pilot " .. pilotId)
+			if hasExclusion then
+				logger.logDebug(SUBMODULE, "Prevented exclusion skill %s for pilot %s", candidateSkillId, pilotId)
 			end
 			return not hasExclusion
 		end
@@ -107,7 +109,8 @@ function skill_constraints:registerReusabilityConstraintFunction()
 			for _, skillId in ipairs(selectedSkills) do
 				if skillId == candidateSkillId then
 					if cplus_plus_ex.PLUS_DEBUG then
-						LOG("PLUS Ext: Prevented " .. reusability .. " skill " .. candidateSkillId .. " for pilot " .. pilotId .. " (already selected)")
+						logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
+								reusability, candidateSkillId, pilotId)
 					end
 					return false
 				end
@@ -117,7 +120,8 @@ function skill_constraints:registerReusabilityConstraintFunction()
 			if reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 				if skill_selection.usedSkillsPerRun[candidateSkillId] then
 					if cplus_plus_ex.PLUS_DEBUG then
-						LOG("PLUS Ext: Prevented per_run skill " .. candidateSkillId .. " for pilot " .. pilotId .. " (already used this run)")
+						logger.logDebug(SUBMODULE, "Prevented per_run skill %s for pilot %s (already used this run)",
+								candidateSkillId, pilotId)
 					end
 					return false
 				end
@@ -138,10 +142,8 @@ function skill_constraints:registerSkillExclusionConstraintFunction()
 		if skill_config_module.config.skillExclusions[candidateSkillId] then
 			for _, selectedSkillId in ipairs(selectedSkills) do
 				if skill_config_module.config.skillExclusions[candidateSkillId][selectedSkillId] then
-					if cplus_plus_ex.PLUS_DEBUG then
-						LOG("PLUS Ext: Prevented skill " .. candidateSkillId .. " for pilot " .. pilotId ..
-							" (mutually exclusive with already selected skill " .. selectedSkillId .. ")")
-					end
+					logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (mutually exclusive with already selected skill %s)",
+							candidateSkillId, pilotId, selectedSkillId)
 					return false
 				end
 			end

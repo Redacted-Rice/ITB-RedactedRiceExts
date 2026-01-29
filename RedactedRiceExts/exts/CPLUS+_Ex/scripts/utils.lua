@@ -41,7 +41,7 @@ function utils.deepcopyInPlace(copy, orig)
 		for k, _ in pairs(copy) do
 			copy[k] = nil
 		end
-		
+
 		-- Check if we've already copied this table (circular reference)
 		seen = {}
 		seen[orig] = copy
@@ -98,39 +98,20 @@ function utils.normalizeReusabilityToInt(reusability)
 end
 
 -- Shows an error popup to the user
+-- TODO: There is a simpler way to do this in modAPI alread
 function utils.showErrorPopup(message)
-	if modApi then
-		modApi:scheduleHook(50, function()
-			sdlext.showDialog(
-				function(dialog)
-					local ui = require("ui")
-					local frame = Ui()
-						:widthpx(500):heightpx(200)
-						:caption("PLUS Extension Error")
-
-					frame:addSurface(Ui()
-						:width(1):height(1)
-						:decorate({ DecoSolid(deco.colors.buttonborder) })
-					)
-
-					local scrollarea = UiScrollArea()
-						:width(1):height(1)
-						:padding(10)
-					frame:add(scrollarea)
-
-					local textbox = UiTextBox(message)
-						:width(1)
-					scrollarea:add(textbox)
-
-					return frame
-				end
-			)
-		end)
-	end
+	sdlext.showButtonDialog(
+		"CPLUS+ Ex Error",
+		message,
+		function() end,
+		{"OK"}
+	)
 end
 
 function utils.logAndShowErrorPopup(message)
-	LOG(message)
+	-- Log to console with ERROR level
+	LOG("CPLUS+: ERR: " .. message)
+	-- Show error popup if modApi is available
 	utils.showErrorPopup(message)
 end
 

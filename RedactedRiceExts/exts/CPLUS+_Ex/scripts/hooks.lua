@@ -21,25 +21,27 @@ local hooks = {
 	--  pilot (Pilot) - pilot struct on/was on active mech
 	--  skill (PilotLvlUpSkill) - skill struct
 	"skillActive",
-
-	DEBUG = true,
 }
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "Hooks", cplus_plus_ex.DEBUG.HOOKS and cplus_plus_ex.DEBUG.ENABLED)
+
 function hooks:init()
-	memhack.hooks.addTo(self, cplus_plus_ex, self.DEBUG and "CPLUS+" or nil)
+	memhack.hooks.addTo(self, cplus_plus_ex, SUBMODULE)
 	self:initBroadcastHooks(self)
 	return self
 end
 
 function hooks:load()
-	memhack.hooks.reload(self, self.DEBUG and "CPLUS+" or nil)
+	memhack.hooks.reload(self, SUBMODULE)
 	return self
 end
 
 function hooks:initBroadcastHooks(tbl)
-	tbl["fireSkillEnabledHooks"] = memhack.hooks.buildBroadcastFunc("skillEnabledHooks", tbl, nil, nil, self.DEBUG and "CPLUS+" or nil)
-	tbl["fireSkillInRunHooks"] = memhack.hooks.buildBroadcastFunc("skillInRunHooks", tbl, nil, nil, self.DEBUG and "CPLUS+" or nil)
-	tbl["fireSkillActiveHooks"] = memhack.hooks.buildBroadcastFunc("skillActiveHooks", tbl, nil, nil, self.DEBUG and "CPLUS+" or nil)
+	tbl["fireSkillEnabledHooks"] = memhack.hooks.buildBroadcastFunc("skillEnabledHooks", tbl, nil, nil, SUBMODULE)
+	tbl["fireSkillInRunHooks"] = memhack.hooks.buildBroadcastFunc("skillInRunHooks", tbl, nil, nil, SUBMODULE)
+	tbl["fireSkillActiveHooks"] = memhack.hooks.buildBroadcastFunc("skillActiveHooks", tbl, nil, nil, SUBMODULE)
 end
 
 return hooks

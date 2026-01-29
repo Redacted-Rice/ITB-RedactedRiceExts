@@ -10,17 +10,21 @@
 
 local skill_state_tracker = {}
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "StateTracker", cplus_plus_ex.DEBUG.STATE_TRACKER and cplus_plus_ex.DEBUG.ENABLED)
+
 local hooks = nil
+local utils = nil
 
 -- State tracking tables
 skill_state_tracker._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
 skill_state_tracker._inRunSkills = {}    -- skillId -> {pilotAddr -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
 skill_state_tracker._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
 
-skill_state_tracker.DEBUG = true
-
 function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
+	utils = cplus_plus_ex._subobjects.utils
 	self.addEvents()
 	return self
 end
@@ -157,9 +161,7 @@ function skill_state_tracker:updateEnabledSkills()
 	-- Check for newly enabled skills
 	for skillId in pairs(newEnabledSkills) do
 		if not skill_state_tracker._enabledSkills[skillId] then
-			if skill_state_tracker.DEBUG then
-				LOG("CPLUS+ State Tracker: Skill " .. skillId .. " enabled - Firing hooks...")
-			end
+			logger.logDebug(SUBMODULE, "Skill %s enabled - Firing hooks...", skillId)
 			hooks.fireSkillEnabledHooks(skillId, true)
 		end
 	end
@@ -167,9 +169,7 @@ function skill_state_tracker:updateEnabledSkills()
 	-- Check for newly disabled skills
 	for skillId in pairs(skill_state_tracker._enabledSkills) do
 		if not newEnabledSkills[skillId] then
-			if skill_state_tracker.DEBUG then
-				LOG("CPLUS+ State Tracker: Skill " .. skillId .. " disabled - Firing hooks...")
-			end
+			logger.logDebug(SUBMODULE, "Skill %s disabled - Firing hooks...", skillId)
 			hooks.fireSkillEnabledHooks(skillId, false)
 		end
 	end
@@ -247,9 +247,8 @@ function skill_state_tracker:updateInRunSkills()
 		local oldPilots = skill_state_tracker._inRunSkills[skillId] or {}
 		for pilotAddr, data in pairs(newPilots) do
 			if not oldPilots[pilotAddr] then
-				if skill_state_tracker.DEBUG then
-					LOG(string.format("CPLUS+ State Tracker: Skill in-run added - %s (pilot: %s) - Firing hooks...", skillId, tostring(pilotAddr)))
-				end
+				logger.logDebug(SUBMODULE, "Skill in-run added - %s (pilot: %s) - Firing hooks...",
+						skillId, tostring(pilotAddr))
 				-- Fire hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skill = data.pilot:getLvlUpSkill(skillIndex)
@@ -264,9 +263,8 @@ function skill_state_tracker:updateInRunSkills()
 		local newPilots = newInRunSkills[skillId] or {}
 		for pilotAddr, data in pairs(oldPilots) do
 			if not newPilots[pilotAddr] then
-				if skill_state_tracker.DEBUG then
-					LOG(string.format("CPLUS+ State Tracker: Skill in-run removed - %s (pilot: %s) - Firing hooks...", skillId, tostring(pilotAddr)))
-				end
+				logger.logDebug(SUBMODULE, "Skill in-run removed - %s (pilot: %s) - Firing hooks...",
+						skillId, tostring(pilotAddr))
 				-- Fire hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skill = data.pilot:getLvlUpSkill(skillIndex)
@@ -350,9 +348,8 @@ function skill_state_tracker:updateActiveSkills()
 		local oldMechs = skill_state_tracker._activeSkills[skillId] or {}
 		for pawnId, data in pairs(newMechs) do
 			if not oldMechs[pawnId] then
-				if skill_state_tracker.DEBUG then
-					LOG(string.format("CPLUS+ State Tracker: Skill active added - %s (pawnId: %s) - Firing hooks...", skillId, tostring(pawnId)))
-				end
+				logger.logDebug(SUBMODULE, "Skill active added - %s (pawnId: %s) - Firing hooks...",
+						skillId, tostring(pawnId))
 				-- Fire hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skill = data.pilot:getLvlUpSkill(skillIndex)
@@ -367,9 +364,8 @@ function skill_state_tracker:updateActiveSkills()
 		local newMechs = newActiveSkills[skillId] or {}
 		for pawnId, data in pairs(oldMechs) do
 			if not newMechs[pawnId] then
-				if skill_state_tracker.DEBUG then
-					LOG(string.format("CPLUS+ State Tracker: Skill active removed - %s (pawnId: %s) - Firing hooks...", skillId, tostring(pawnId)))
-				end
+				logger.logDebug(SUBMODULE, "Skill active removed - %s (pawnId: %s) - Firing hooks...",
+						skillId, tostring(pawnId))
 				-- Fire hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skill = data.pilot:getLvlUpSkill(skillIndex)
