@@ -6,9 +6,18 @@ cplus_plus_ex = cplus_plus_ex or {}
 
 local path = GetParentPath(...)
 
--- Extension settings
-cplus_plus_ex.PLUS_DEBUG = true -- eventually default to false
-cplus_plus_ex.PLUS_EXTRA_DEBUG = false
+-- Debugging configuration to enable debugging for modules
+cplus_plus_ex.DEBUG = {
+	ENABLED = true,  -- Disable/enable all debug logging
+	CONFIG = true,
+	REGISTRY = true,
+	SELECTION = true,
+	CONSTRAINTS = true,
+	STATE_TRACKER = true,
+	TIME_TRAVELER = true,
+	HOOKS = true,
+	UI = false,
+}
 
 -- Constants
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
@@ -134,8 +143,6 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onModsFirstLoaded:subscribe(function()
 		cplus_plus_ex:postModsLoaded()
 	end)
-
-	if self.PLUS_DEBUG then LOG("PLUS Ext: Initialized and subscribed to game events") end
 end
 
 function cplus_plus_ex:postModsLoaded()

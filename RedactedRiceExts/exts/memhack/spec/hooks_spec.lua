@@ -9,6 +9,9 @@ local memhack = specHelper.initMemhack()
 local hooks = memhack.hooks
 local stateTracker = memhack.stateTracker
 
+-- Register test module for logging
+local TEST_SUBMODULE = memhack.logger.register("Test", "Hooks", memhack.DEBUG.HOOKS and memhack.DEBUG.ENABLED)
+
 describe("Hooks Module", function()
 	describe("buildBroadcastFunc without parent args", function()
 		local callLog
@@ -23,7 +26,7 @@ describe("Hooks Module", function()
 			hooks.pilotChangedHooks = {}
 
 			-- Build the broadcast function
-			fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, nil)
+			fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, TEST_SUBMODULE)
 		end)
 
 		after_each(function()
@@ -86,7 +89,7 @@ describe("Hooks Module", function()
 			hooks.pilotLvlUpSkillChangedHooks = {}
 
 			-- Build the broadcast function with parent prepending
-			fireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Pilot"}, nil)
+			fireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Pilot"}, TEST_SUBMODULE)
 		end)
 
 		after_each(function()
@@ -116,7 +119,7 @@ describe("Hooks Module", function()
 
 		it("should handle multiple parents", function()
 			-- Create a new fire function with multiple parents
-			local multiParentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Grandparent", "Parent"}, nil)
+			local multiParentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Grandparent", "Parent"}, TEST_SUBMODULE)
 
 			local grandparent = {type = "grandparent"}
 			local parent = {type = "parent"}
@@ -174,7 +177,7 @@ describe("Hooks Module", function()
 
 		it("should preserve argument order with parent first", function()
 			-- Create fire function with single parent
-			local parentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Parent"}, nil)
+			local parentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Parent"}, TEST_SUBMODULE)
 
 			local argOrder = {}
 
@@ -436,7 +439,7 @@ describe("Hooks Module", function()
 				hook2Called = true
 			end
 
-			local fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, nil)
+			local fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, TEST_SUBMODULE)
 
 			-- Should not throw error - hooks module logs errors instead
 			fireFunc()

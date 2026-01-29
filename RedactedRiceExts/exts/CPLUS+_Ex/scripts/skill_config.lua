@@ -4,6 +4,10 @@
 
 local skill_config = {}
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "SkillConfig", cplus_plus_ex.DEBUG.CONFIG and cplus_plus_ex.DEBUG.ENABLED)
+
 -- Local references to other submodules (set during init)
 local skill_registry = nil
 local utils = nil
@@ -57,7 +61,14 @@ end
 -- Called after all mods are loaded
 function skill_config:postModsLoaded()
 	-- Set the defaults to our registered/setup values
+	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
 	self:captureDefaultConfigs()
+
+	-- Log summary of registered skills
+	local enabledCount = #self.enabledSkillsIds
+	local totalCount = 0
+	for _ in pairs(self.config.skillConfigs) do totalCount = totalCount + 1 end
+	logger.logInfo(SUBMODULE, "Configuration loaded: " .. enabledCount .. " enabled / " .. totalCount .. " total skills")
 
 	-- Load any saved configurations
 	self:loadConfiguration()
@@ -104,7 +115,7 @@ function skill_config:setSkillConfig(skillId, config)
 
 	if config.set_weight then
 		if config.set_weight < 0 then
-			LOG("PLUS Ext error: Skill weight must be >= 0, got " .. config.set_weight)
+			logger.logError(SUBMODULE, "Skill weight must be >= 0, got " .. config.set_weight .. " for skill " .. skillId)
 			return
 		end
 		new_config.set_weight = config.set_weight
@@ -112,20 +123,20 @@ function skill_config:setSkillConfig(skillId, config)
 		-- we have a valid value if for some reason we don't call auto-adjust weights (like
 		-- we are doing in some of the tests)
 		new_config.adj_weight = config.set_weight
-		LOG(new_config.set_weight .. " " .. config.set_weight)
+		logger.logDebug(SUBMODULE, "Set skill weight from %f to %f for skill %s", curr_config.set_weight, config.set_weight, skillId)
 	end
 
 	if config.reusability then
 		local normalizeReuse = utils.normalizeReusabilityToInt(config.reusability)
 		if not normalizeReuse then
-			LOG("PLUS Ext: Error: Invalid skill reusability passed: " .. config.reusability)
+			logger.logError(SUBMODULE, "Invalid skill reusability passed: " .. config.reusability .. " for skill " .. skillId)
 			return
 		elseif not self:getAllowedReusability(skillId)[normalizeReuse] then
-			LOG("PLUS Ext: Error: Unallowed skill reusability passed: " .. config.reusability .. "(normalized to ".. normalizeReuse ..")")
+			logger.logError(SUBMODULE, "Unallowed skill reusability passed: " .. config.reusability .. " (normalized to " .. normalizeReuse .. ") for skill " .. skillId)
 			return
 		end
 		new_config.reusability = config.reusability
-		LOG(new_config.reusability .. " " .. config.reusability)
+		logger.logDebug(SUBMODULE, "Set skill reusability from %s to %s for skill %s", curr_config.reusability, config.reusability, skillId)
 	end
 
 	-- If we reached here, its a good config. Apply it
@@ -136,7 +147,7 @@ function skill_config:setSkillConfig(skillId, config)
 		self:_disableSkill_internal(skillId)
 	end
 
-	if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Set config for skill " .. skillId) end
+	logger.logDebug(SUBMODULE, "Set config for skill %s", skillId)
 end
 
 function skill_config:enableSkill(skillId)
@@ -153,36 +164,32 @@ function skill_config:_enableSkill_internal(id)
 
 	-- Check if already enabled
 	if self.enabledSkills[id] ~= nil then
-		LOG("PLUS Ext warning: Skill " .. id .. " already enabled, skipping")
+		logger.logWarn(SUBMODULE, "Skill " .. id .. " already enabled, skipping")
 	else
 		-- Add the skill to enabled list. We don't care at this point if its inclusion type or not
 		self.enabledSkills[id] = skill
 		table.insert(self.enabledSkillsIds, id)
 
-		if cplus_plus_ex.PLUS_DEBUG then
-			local skillType = skill.skillType
-			local reusability = skill.reusability
-			LOG("PLUS Ext: Enabled skill: " .. id .. " (type: " .. skillType .. ", reusability: " .. reusability .. ")")
-		end
+		logger.logDebug(SUBMODULE, "Enabled skill: %s (type: %s, reusability: %s)", id, skill.skillType, skill.reusability)
 
 		-- Trigger state update for enabled skills
 		if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
 			cplus_plus_ex._subobjects.skill_state_tracker:updateEnabledSkills()
 		end
 	end
-	if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Skill " .. id .. " enabled") end
+	logger.logDebug(SUBMODULE, "Skill %s enabled", id)
 end
 
 -- Disable a skill. Should not be called directly
 function skill_config:_disableSkill_internal(id)
 	if self.enabledSkills[id] == nil then
-		LOG("PLUS Ext: Warning: Skill " .. id .. " already disabled, skipping")
+		logger.logWarn(SUBMODULE, "Skill " .. id .. " already disabled, skipping")
 	else
 		self.enabledSkills[id] = nil
 		for idx, skillId in ipairs(self.enabledSkillsIds) do
 			if skillId == id then
 				table.remove(self.enabledSkillsIds, idx)
-				if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Disabled skill: " .. id .. " (idx: " .. idx .. ")") end
+				logger.logDebug(SUBMODULE, "Disabled skill: %s (idx: %d)", id, idx)
 				break
 			end
 		end
@@ -192,7 +199,7 @@ function skill_config:_disableSkill_internal(id)
 			cplus_plus_ex._subobjects.skill_state_tracker:updateEnabledSkills()
 		end
 	end
-	if cplus_plus_ex.PLUS_DEBUG then LOG("PLUS Ext: Skill " .. id .. " disabled") end
+	logger.logDebug(SUBMODULE, "Skill %s disabled", id)
 end
 
 -- Copy set weights to adjusted weights for all skills
@@ -232,18 +239,14 @@ function skill_config:resetToDefaults()
 	end
 
 	-- Note: Saving is handled by the caller (e.g., UI saveConfiguration())
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Reset configuration to defaults")
-	end
+	logger.logDebug(SUBMODULE, "Reset configuration to defaults")
 end
 
 -- Save configuration to modcontent.lua (pattern from time_traveler.lua)
 function skill_config:saveConfiguration()
 	if not modApi:isProfilePath() then return end
 
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Saving skill configuration to modcontent.lua")
-	end
+	logger.logDebug(SUBMODULE, "Saving skill configuration to modcontent.lua")
 
 	sdlext.config(
 		modApi:getCurrentProfilePath().."modcontent.lua",
@@ -260,9 +263,7 @@ end
 function skill_config:loadConfiguration()
 	if not modApi:isProfilePath() then return end
 
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Loading skill configuration from modcontent.lua")
-	end
+	logger.logDebug(SUBMODULE, "Loading skill configuration from modcontent.lua")
 
 	sdlext.config(
 		modApi:getCurrentProfilePath().."modcontent.lua",
@@ -300,18 +301,13 @@ function skill_config:loadConfiguration()
 						if skill_config.config.skillConfigs[skillId] then
 							skill_config.config.skillConfigs[skillId] = utils.deepcopy(savedSkillConfig)
 						else
-							if cplus_plus_ex.PLUS_DEBUG then
-								LOG("PLUS Ext: Ignoring saved config for removed skill: " .. skillId)
-							end
+							logger.logDebug(SUBMODULE, "Ignoring saved config for removed skill: %s", skillId)
 						end
 					end
 				end
 
 				skill_config:rebuildEnabledSkills()
-
-				if cplus_plus_ex.PLUS_DEBUG then
-					LOG("PLUS Ext: Loaded and merged skill configuration")
-				end
+				logger.logDebug(SUBMODULE, "Loaded and merged skill configuration")
 			end
 		end
 	)

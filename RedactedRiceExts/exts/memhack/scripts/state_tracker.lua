@@ -7,6 +7,10 @@
 	3. Managing "set" vs "memory" values for skill bonuses (cores/grid combining)
 --]]
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("Memhack", "StateTracker", memhack.DEBUG.STATE_TRACKER and memhack.DEBUG.ENABLED)
+
 local stateTracker = {}
 
 -- Pilot and skill state trackers

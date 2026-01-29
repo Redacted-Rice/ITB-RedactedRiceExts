@@ -6,6 +6,10 @@
 
 local skill_registry = {}
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "SkillRegistry", cplus_plus_ex.DEBUG.REGISTRY and cplus_plus_ex.DEBUG.ENABLED)
+
 -- Local references to other submodules (set during init)
 local skill_config = nil
 local utils = nil
@@ -54,8 +58,8 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 
 	-- Check if ID is already registered globally
 	if skill_registry.registeredSkills[id] ~= nil then
-		utils.logAndShowErrorPopup("PLUS Ext error: Skill ID '" .. id .. "' in category '" .. category ..
-				"' conflicts with existing skill from category '" .. skill_registry.registeredSkills[id].category .. "'.")
+		logger.logError(SUBMODULE, "Skill ID '" .. id .. "' in category '" .. category .. "' conflicts with existing skill from category '" ..
+				skill_registry.registeredSkills[id].category .. "'.")
 		return
 	end
 
@@ -66,7 +70,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 	-- Convert non-numbers or values outside 0-13 range to -1 (random assignment)
 	if type(saveVal) ~= "number" or saveVal < 0 or saveVal > 13 then
 		if originalSaveVal ~= nil and originalSaveVal ~= -1 then
-			LOG("PLUS Ext: Warning: Skill '" .. id .. "' has invalid saveVal '" .. tostring(originalSaveVal) ..
+			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid saveVal '" .. tostring(originalSaveVal) ..
 					"' (must be 0-13 or -1). Using random assignment (-1) instead.")
 		end
 		saveVal = -1
@@ -76,8 +80,8 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 	-- First handle nil input
 	reusability = utils.normalizeReusabilityToInt(reusability)
 	if not reusability then
-		LOG("PLUS Ext: Warning: Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) ..
-				"' 1-3 (corresponding to enum values in REUSABLILITY. Defaulting to PER_PILOT")
+		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) ..
+				"' 1-3 (corresponding to enum values in REUSABLILITY). Defaulting to PER_PILOT")
 		reusability = cplus_plus_ex.DEFAULT_REUSABILITY
 	end
 
@@ -110,10 +114,8 @@ local function registerPilotSkillRelationship(targetTable, pilotId, skillIds, re
 		-- store with skillId as key so it acts like a set
 		targetTable[pilotId][skillId] = true
 
-		if cplus_plus_ex.PLUS_DEBUG then
-			local action = relationshipType == "exclusion" and "cannot have" or "can have"
-			LOG("PLUS Ext: Registered " .. relationshipType .. " - Pilot " .. pilotId .. " " .. action .. " skill " .. skillId)
-		end
+	logger.logDebug(SUBMODULE, "%s - Pilot %s %s skill %s", relationshipType, pilotId,
+			(relationshipType == "exclusion" and "cannot have" or "can have"), skillId)
 	end
 end
 
@@ -145,9 +147,7 @@ function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
 	skill_config.config.skillExclusions[skillId][excludedSkillId] = true
 	skill_config.config.skillExclusions[excludedSkillId][skillId] = true
 
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Registered exclusion: " .. skillId .. " <-> " .. excludedSkillId)
-	end
+	logger.logDebug(SUBMODULE, "Registered exclusion: %s <-> %s", skillId, excludedSkillId)
 end
 
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
@@ -155,9 +155,7 @@ end
 -- without any specific changes for using this extension
 function skill_registry:readPilotExclusionsFromGlobal()
 	if _G.Pilot == nil then
-		if cplus_plus_ex.PLUS_DEBUG then
-			LOG("PLUS Ext: Error: Pilot class not found, skipping exclusion registration")
-		end
+		logger.logError(SUBMODULE, "Pilot class not found, skipping exclusion registration")
 		return
 	end
 
@@ -177,16 +175,13 @@ function skill_registry:readPilotExclusionsFromGlobal()
 				self:registerPilotSkillExclusions(key, value.Blacklist)
 				exclusionCount = exclusionCount + 1
 
-				if cplus_plus_ex.PLUS_DEBUG then
-					LOG("PLUS Ext: Found " .. #value.Blacklist .. " exclusion(s) for pilot " .. key)
-				end
+				logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #value.Blacklist, key)
 			end
 		end
 	end
 
-	if cplus_plus_ex.PLUS_DEBUG then
-		LOG("PLUS Ext: Scanned " .. pilotCount .. " pilot(s), registered exclusions for " .. exclusionCount .. " pilot(s)")
-	end
+	logger.logInfo(SUBMODULE, "Scanned " .. pilotCount .. " pilot(s), registered exclusions for " ..
+			exclusionCount .. " pilot(s)")
 end
 
 return skill_registry

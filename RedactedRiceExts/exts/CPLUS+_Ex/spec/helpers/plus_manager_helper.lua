@@ -13,6 +13,25 @@ function M.setupGlobals()
 	_G.GetParentPath = _G.GetParentPath or function(modPath)
 		return ""
 	end
+	
+	-- Initialize memhack logging before CPLUS+ modules load
+	if not _G.memhack then
+		_G.memhack = {}
+		_G.memhack.DEBUG = {
+			ENABLED = true,
+			HOOKS = true,
+			STRUCTS = true,
+			STATE_TRACKER = true,
+			SCANNER = false,
+		}
+		-- Load logger from memhack using loadfile
+		local loggingFile = "../memhack/utils/logging.lua"
+		local loggingFunc, err = loadfile(loggingFile)
+		if not loggingFunc then
+			error("Failed to load memhack logger: " .. tostring(err))
+		end
+		_G.memhack.logger = loggingFunc()
+	end
 
 	-- Mock modApi events
 	_G.modApi = _G.modApi or {}
@@ -46,8 +65,14 @@ end
 
 -- Stub memhack with minimal API needed by CPLUS+
 function M.stubMemhack()
+	-- Preserve memhack.logger if it was set up
+	local logger = _G.memhack and _G.memhack.logger
+	local DEBUG = _G.memhack and _G.memhack.DEBUG
+	
 	local Event = _G.Event
 	_G.memhack = {
+		logger = logger,  -- Preserve logger
+		DEBUG = DEBUG,      -- Preserve DEBUG config
 		hooks = {
 			events = {
 				onPilotChanged = Event(),
