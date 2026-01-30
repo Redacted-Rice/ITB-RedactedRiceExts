@@ -13,6 +13,7 @@ local scrollContent = nil
 -- Track UI widgets for updates
 local weightInputFields = {}
 local percentageLabels = {}
+local expandedCollapsables = {}
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -20,9 +21,13 @@ local REUSABLILITY_HEADER = "Reusability"
 local REUSABLILITY_NAMES = { "Reusable", "Per Pilot", "Per Run" }
 local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
 
+local BOARDER_SIZE = 2
+local DEFAULT_VGAP = 5
 local ROW_HEIGHT = 41
 local CHECKBOX_PADDING = 40
 local DROPDOWN_PADDING = 40
+local COLLAPSE_BTN_PADDING = 40
+local COLLAPSE_PADDING = 46
 local PILOT_SIZE = 65
 local RELATIONSHIP_BUTTON_WIDTH = 140
 
@@ -35,6 +40,18 @@ modify_pilot_skills_ui.unnamedPilotDisplayNames = {
 	Pilot_ScarabMech = "Cyborg Scarab",
 	Pilot_BeetleMech = "Cyborg Beetle",
 }
+
+-- Helper to sort skill IDs by name
+local function getSortedIds(skillTable)
+	local sortedIds = {}
+	for id in pairs(skillTable) do
+		table.insert(sortedIds, id)
+	end
+	table.sort(sortedIds, function(a, b)
+		return skillTable[a]:lower() < skillTable[b]:lower()
+	end)
+	return sortedIds
+end
 
 function modify_pilot_skills_ui:init()
 	utils = cplus_plus_ex._subobjects.utils
@@ -63,7 +80,8 @@ function modify_pilot_skills_ui:getPilotsData(pilotIds)
 			end
 		end
 	end
-	return pilotData
+
+	return pilotData, getSortedIds(pilotData)
 end
 
 function modify_pilot_skills_ui:getSkillsData()
@@ -80,7 +98,9 @@ function modify_pilot_skills_ui:getSkillsData()
 			defaultSkills[skillId] = skillName
 		end
 	end
-	return skills, defaultSkills, inclusionSkills
+
+	return skills, defaultSkills, inclusionSkills,
+	       getSortedIds(skills), getSortedIds(defaultSkills), getSortedIds(inclusionSkills)
 end
 
 function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
@@ -102,7 +122,256 @@ function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
 	})
 end
 
+-- Helper to close collapse section
+local function closeCollapsable(self)
+	if not list_contains(expandedCollapsables, self) then
+		return
+	end
 
+	remove_element(expandedCollapsables, self)
+	self.dropdownHolder:hide()
+	self.checked = false
+end
+
+-- Helper to open collapse section
+local function openCollapsable(self)
+	if not list_contains(expandedCollapsables, self) then
+		table.insert(expandedCollapsables, self)
+	end
+	self.dropdownHolder:show()
+end
+
+-- Helper to check if a UI element is a descendant of another
+local function isDescendantOf(child, parent)
+	while child.parent do
+		child = child.parent
+		if child == parent then
+			return true
+		end
+	end
+	return false
+end
+
+-- Click handler for collapse buttons
+local function clickCollapse(self, button)
+	if button == 1 then
+		-- Close any descendant dropdowns when opening/closing
+		if #expandedCollapsables > 0 then
+			for _, dropdown in ipairs(expandedCollapsables) do
+				if dropdown ~= self then
+					if isDescendantOf(dropdown.owner, self.owner) then
+						closeCollapsable(dropdown)
+					end
+				end
+			end
+		end
+
+		if self.checked then
+			openCollapsable(self)
+		else
+			closeCollapsable(self)
+		end
+		return true
+	end
+	return false
+end
+
+function modify_pilot_skills_ui:buildCollapsibleSectionBase(title, parent, vgap, initialVgap, startCollapsed)
+	initialVgap = initialVgap or DEFAULT_VGAP
+	vgap = vgap or DEFAULT_VGAP
+	startCollapsed = startCollapsed or false
+	local sectionBox = UiBoxLayout()
+		:vgap(initialVgap)
+		:width(1)
+		:addTo(parent)
+
+	local headerHolder = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(sectionBox)
+
+	-- Create nested content holder (will be shown/hidden)
+	local contentHolder = UiBoxLayout()
+		:vgap(vgap)
+		:width(1)
+		:addTo(sectionBox)
+		
+	-- Add left padding for nested items
+	contentHolder.padl = COLLAPSE_PADDING
+
+	-- Collapse arrow button
+	local collapse = UiCheckbox()
+		:widthpx(COLLAPSE_BTN_PADDING):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoButton(),
+			DecoCheckbox(
+				deco.surfaces.dropdownOpenRight,
+				deco.surfaces.dropdownClosed,
+				deco.surfaces.dropdownOpenRightHovered,
+				deco.surfaces.dropdownClosedHovered
+			)
+		})
+		:addTo(headerHolder)
+
+	collapse.checked = not startCollapsed
+	collapse.onclicked = clickCollapse
+	collapse.dropdownHolder = contentHolder
+	collapse.owner = sectionBox
+
+	-- Set the starting state
+	if startCollapsed then
+		contentHolder:hide()
+	else
+		openCollapsable(collapse)
+	end
+
+	return collapse, headerHolder
+end
+
+-- Builds a generic collapsible section with title
+-- Returns the content holder and the section box
+function modify_pilot_skills_ui:buildCollapsibleSection(title, parent, vgap, initialVgap, startCollapsed)
+	local collapse, headerHolder = self:buildCollapsibleSectionBase(title, parent, vgap, initialVgap, startCollapsed)
+
+	-- Section title
+	Ui()
+		:width(1):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoText(title, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+		})
+		:addTo(headerHolder)
+
+	return collapse.dropdownHolder
+end
+
+-- Builds a category section with tri checkbox
+-- Returns the content holder and the checkbox for updating checked state
+function modify_pilot_skills_ui:buildCategorySection(category, parent, skillLength, resuabilityLength, startCollapsed)
+	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, nil, nil, startCollapsed)
+	
+	-- Category checkbox (tri-state)
+	local categoryCheckbox = UiTriCheckbox()
+		:widthpx(skillLength):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoButton(),
+			DecoTriCheckbox(),
+			DecoAlign(0, 2),
+			DecoText(category, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+		})
+		:settooltip("Enable/disable all skills in this category")
+		:addTo(headerHolder)
+		
+	Ui()
+		:widthpx(resuabilityLength):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoCAlignedText(REUSABLILITY_HEADER, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+		})
+		:settooltip("How the skill can be reused across pilots and runs")
+		:addTo(headerHolder)
+
+	Ui()
+		:width(0.25):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoCAlignedText("Weight", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+		})
+		:settooltip("How likely the skill will be picked against others")
+		:addTo(headerHolder)
+
+	Ui()
+		:width(0.25):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoCAlignedText("%", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+		})
+		:settooltip("Percentage chance of selection for a skill")
+		:addTo(headerHolder)
+
+	collapse.categoryCheckbox = categoryCheckbox
+
+	return collapse.dropdownHolder, categoryCheckbox
+end
+
+-- Builds a single skill entry row
+function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, onToggleCallback)
+	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
+	if not skillConfigObj then
+		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
+		return Ui():width(1):heightpx(0) -- Return empty element
+	end
+
+	local entryRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+
+	local enableCheckbox = modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+
+	-- Store the enable checkbox for category management
+	entryRow.enableCheckbox = enableCheckbox
+
+	return entryRow
+end
+
+-- Gets all skills organized by category
+-- Returns: table of category -> array like table of skills
+function modify_pilot_skills_ui:getSkillsByCategory()
+	local skillsByCategory = {}
+
+	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+		local category = skill.category or "Other"
+
+		if not skillsByCategory[category] then
+			skillsByCategory[category] = {}
+		end
+		table.insert(skillsByCategory[category], skill)
+	end
+
+	-- Sort skills within each category by short name
+	for category, skills in pairs(skillsByCategory) do
+		table.sort(skills, function(a, b)
+			return (GetText(a.shortName) or a.shortName):lower() < (GetText(b.shortName) or b.shortName):lower()
+		end)
+	end
+
+	return skillsByCategory
+end
+
+-- calculate total weight of all enabled skills
+function modify_pilot_skills_ui:calculateTotalWeight()
+	local totalWeight = 0
+	-- Calculate the total of all enabled skills
+	for _, otherSkillId in ipairs(cplus_plus_ex._subobjects.skill_config.enabledSkillsIds) do
+		local skillConfigObj = cplus_plus_ex.config.skillConfigs[otherSkillId]
+		if skillConfigObj and skillConfigObj.enabled then
+			totalWeight = totalWeight + skillConfigObj.weight
+		end
+	end
+	return totalWeight
+end
+						
+-- Updates the displayed percentages for all skills
+function modify_pilot_skills_ui:updateAllPercentages()
+	local totalWeight = self:calculateTotalWeight()
+	for skillId, label in pairs(percentageLabels) do
+		local percentage = 0
+		local skillConfigObj = cplus_plus_ex.config.skillConfigs[skillId]
+		if skillConfigObj and skillConfigObj.enabled then
+			percentage = totalWeight > 0 and (skillConfigObj.weight / totalWeight * 100) or 0
+		end
+
+		for _, deco in ipairs(label.decorations) do
+			if deco.__index and deco.__index:isSubclassOf(DecoText) then
+				deco:setsurface(string.format("%.1f%%", percentage))
+				break
+			end
+		end
+	end
+end
+	
 -- Validate and parse numeric input
 function modify_pilot_skills_ui:validateNumericInput(text)
 	-- Allow empty string, numbers, and decimal point
@@ -144,14 +413,14 @@ function modify_pilot_skills_ui:determineColumnLengths()
 	return paddedName, paddedReuse
 end
 
-function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, skillLength)
+function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, skillLength, onToggleCallback)
 	local shortName = GetText(skill.shortName)
 	local description = GetText(skill.description)
 	local category = skill.category
 
 	local enabledCheckbox = UiCheckbox()
 		:widthpx(skillLength):heightpx(ROW_HEIGHT)
-		:settooltip("Category: " .. category .. "\n\n" .. description)
+		:settooltip(description)
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
@@ -170,7 +439,14 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 		end
 		modify_pilot_skills_ui:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
+
+		-- Call the callback if provided for category checkbox updates
+		if onToggleCallback then
+			onToggleCallback()
+		end
 	end)
+
+	return enabledCheckbox
 end
 
 function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resuability, resuabilityLength)
@@ -223,7 +499,7 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 	end
 end
 
-function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, setWeight)
+function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weight)
 	local weightInput = UiInputField()
 		:width(0.25):heightpx(ROW_HEIGHT)
 		:settooltip("Enter weight (numeric only, press Enter to apply)")
@@ -240,7 +516,7 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, setW
 
 	-- Set alphabet to numbers and decimal point
 	weightInput:setAlphabet("0123456789.")
-	weightInput.textfield = string.format("%.2f", setWeight)
+	weightInput.textfield = string.format("%.2f", weight)
 
 	-- Store reference for later updates
 	weightInputFields[skill.id] = weightInput
@@ -249,13 +525,13 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, setW
 	weightInput.onEnter = function(self)
 		local isValid, value = modify_pilot_skills_ui:validateNumericInput(self.textfield)
 		if isValid and value >= 0 then
-			cplus_plus_ex:setSkillConfig(skill.id, {set_weight = value})
+			cplus_plus_ex:setSkillConfig(skill.id, {weight = value})
 			modify_pilot_skills_ui:updateAllPercentages()
 			cplus_plus_ex:saveConfiguration()
 		else
 			-- Reset to current value if invalid
 			local currentConfig = cplus_plus_ex.config.skillConfigs[skill.id]
-			self.textfield = string.format("%.2f", setWeight)
+			self.textfield = string.format("%.2f", weight)
 		end
 		return UiInputField.onEnter(self)
 	end
@@ -277,7 +553,7 @@ function modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 end
 
 -- Builds a single skill entry row
-function modify_pilot_skills_ui:buildSkillEntry(skill, isDependent, skillLength, resuabilityLength)
+function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, onToggleCallback)
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
 		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
@@ -288,10 +564,13 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, isDependent, skillLength,
 		:width(1):heightpx(ROW_HEIGHT)
 
 	-- Add values to the row
-	modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength)
+	local enableCheckbox = modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
 	modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
-	modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.set_weight)
+	modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
 	modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
+
+	-- Store the enable checkbox for category management
+	entryRow.enableCheckbox = enableCheckbox
 
 	return entryRow
 end
@@ -342,14 +621,7 @@ function modify_pilot_skills_ui:buildHeaderRow(skillLength, resuabilityLength)
 end
 
 function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
-	local settingsHeader = Ui()
-		:width(1):heightpx(ROW_HEIGHT)
-		:decorate({
-			DecoFrame(deco.colors.buttonborder),
-			DecoAlign(0, 2),
-			DecoText("General Settings", nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
-		})
-		:addTo(scrollContent)
+	local settingsContent = self:buildCollapsibleSection("General Settings", scrollContent)
 
 	-- Allow duplicate skills checkbox
 	local allowDupsCheckbox = UiCheckbox()
@@ -361,7 +633,7 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 			DecoAlign(0, 2),
 			DecoText("Allow Duplicate Skills")
 		})
-		:addTo(scrollContent)
+		:addTo(settingsContent)
 
 	allowDupsCheckbox.checked = cplus_plus_ex.config.allowReusableSkills
 
@@ -372,57 +644,104 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 end
 
 function modify_pilot_skills_ui:buildSkillsList(scrollContent)
-local skillsHeader = Ui()
-		:width(1):heightpx(ROW_HEIGHT)
-		:decorate({
-			DecoFrame(deco.colors.buttonborder),
-			DecoAlign(0, 2),
-			DecoText("Skills Configuration", nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
-		})
-		:addTo(scrollContent)
+	local skillsContent = self:buildCollapsibleSection("Skills Configuration", scrollContent)
 
 	local skillLength, reuseabilityLength = modify_pilot_skills_ui:determineColumnLengths()
 
-	-- Add column headers
-	modify_pilot_skills_ui:buildHeaderRow(skillLength, reuseabilityLength):addTo(scrollContent)
+	-- Get all skills organized by category
+	local skillsByCategory = self:getSkillsByCategory()
 
-	-- Get all skills organized by type
-	local nonDependentSkills, dependentSkills = modify_pilot_skills_ui:getAllSkillsByType()
-
-	-- Non-Dependent Skills
-	if #nonDependentSkills > 0 then
-		local nonDepHeader = Ui()
-			:width(1):heightpx(ROW_HEIGHT)
-			:decorate({
-				DecoFrame(),
-				DecoAlign(0, 2),
-				DecoText("Standard Skills", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
-			})
-			:addTo(scrollContent)
-
-		for _, skill in ipairs(nonDependentSkills) do
-			modify_pilot_skills_ui:buildSkillEntry(skill, false, skillLength, reuseabilityLength):addTo(scrollContent)
-		end
-	else
-		-- I guess this is technically possible if they had more skills,
-		-- configured dependents then uninstalled all the non-dependent skills
-		logger.logError(SUBMODULE, "No skills available for UI display")
+	-- Sort categories alphabetically
+	local sortedCategories = {}
+	for category in pairs(skillsByCategory) do
+		table.insert(sortedCategories, category)
 	end
+	table.sort(sortedCategories)
 
-	-- Dependent Skills but only if there are any
-	if #dependentSkills > 0 then
-		local depHeader = Ui()
-			:width(1):heightpx(ROW_HEIGHT)
-			:decorate({
-				DecoFrame(),
-				DecoAlign(0, 2),
-				DecoText("Dependent Skills (Second+ Pick)", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
-			})
-			:addTo(scrollContent)
+	-- Build each category section
+	for _, category in ipairs(sortedCategories) do
+		local skills = skillsByCategory[category]
+		local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skillLength, reuseabilityLength, false)
 
-		for _, skill in ipairs(dependentSkills) do
-			modify_pilot_skills_ui:buildSkillEntry(skill, true, skillLength, reuseabilityLength):addTo(scrollContent)
+		-- Track checkboxes for this category
+		local categorySkillCheckboxes = {}
+
+		-- Method to update category checkbox state based on children
+		categoryCheckbox.updateCheckedState = function(self)
+			local count = 0
+			local totalCount = #categorySkillCheckboxes
+
+			for i, entry in ipairs(categorySkillCheckboxes) do
+				local skillConfig = cplus_plus_ex.config.skillConfigs[entry.skillId]
+				if skillConfig then
+					if skillConfig.enabled then
+						count = count + 1
+					else
+						count = count - 1
+					end
+
+					-- Early exit optimization
+					if math.abs(count) ~= i then
+						break
+					end
+				end
+			end
+
+			-- Set tri-state based on count
+			if count == totalCount and totalCount > 0 then
+				self.checked = true
+			elseif count == -totalCount then
+				self.checked = false
+			else
+				self.checked = "mixed"
+			end
 		end
+
+		-- Update all child checkboxes
+		categoryCheckbox.updateChildrenCheckedState = function(self)
+			local newState = (self.checked == true)
+
+			for _, entry in ipairs(categorySkillCheckboxes) do
+				if newState then
+					cplus_plus_ex:enableSkill(entry.skillId)
+				else
+					cplus_plus_ex:disableSkill(entry.skillId)
+				end
+				entry.checkbox.checked = newState
+			end
+
+			modify_pilot_skills_ui:updateAllPercentages()
+			cplus_plus_ex:saveConfiguration()
+		end
+
+		-- Build skill entries
+		for _, skill in ipairs(skills) do
+			local onToggleCallback = function()
+				categoryCheckbox:updateCheckedState()
+			end
+
+			local skillEntry = modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, reuseabilityLength, onToggleCallback)
+				:addTo(categoryContent)
+
+			-- Track the skill's enable checkbox for category updates
+			table.insert(categorySkillCheckboxes, {
+				skillId = skill.id,
+				checkbox = skillEntry.enableCheckbox
+			})
+		end
+
+		-- Category checkbox click handler
+		categoryCheckbox.onclicked = function(self, button)
+			if button == 1 then
+				self:updateChildrenCheckedState()
+				self:updateCheckedState()
+				return true
+			end
+			return false
+		end
+
+		-- Initial state
+		categoryCheckbox:updateCheckedState()
 	end
 
 	-- Initial percentage calculation
@@ -431,19 +750,31 @@ end
 
 function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	local pilotUi = Ui()
-		:widthpx(PILOT_SIZE):heightpx(ROW_HEIGHT)
+		:widthpx(PILOT_SIZE - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
-	-- Add potrait if we have one
+	-- Add portrait if we have one, or draw empty frame
 	if pilotId and pilotId ~= "All" and pilotId ~= "" then
 		local portrait = modify_pilot_skills_ui:getPilotPortrait(pilotId)
 		if portrait then
 			pilotUi:decorate({
-					DecoSurface(portrait),
-				})
+				DecoSurface(portrait),
+			})
+		else
+			-- Draw empty frame when portrait not found
+			pilotUi:decorate({
+				DecoFrame(),
+			})
 		end
+	else
+		-- Draw empty frame for "All" or empty selection
+		pilotUi:decorate({
+			DecoFrame(),
+		})
 	end
 
 	pilotUi:addTo(row)
+	-- Add some spacing
+	Ui():widthpx(BOARDER_SIZE * 2):heightpx(ROW_HEIGHT):addTo(row)
 	return pilotUi
 end
 
@@ -487,11 +818,14 @@ function modify_pilot_skills_ui:addArrowLabel(bidirectional, row)
 		:addTo(row)
 end
 
-function modify_pilot_skills_ui:createDropDownItems(dataList)
+function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds)
 	local listDisplay = {"", "All"}
 	local listVals = {"", "All"}
-	local sortedSourceKeys = utils.sortByValue(dataList)
-	for _, k in ipairs(sortedSourceKeys) do
+
+	-- Use presorted IDs if provided, otherwise use utils.sortByValue
+	local keysToUse = sortedIds or utils.sortByValue(dataList)
+
+	for _, k in ipairs(keysToUse) do
 		table.insert(listDisplay, dataList[k])
 		table.insert(listVals, k)
 	end
@@ -499,29 +833,17 @@ function modify_pilot_skills_ui:createDropDownItems(dataList)
 end
 
 -- Builds a relationship editor section
-function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTable, title, sourceList, targetList, sourceLabel, targetLabel, isSameTypeRelation)
-	-- create list values with empty and all
-	local listDisplay, listVals = modify_pilot_skills_ui:createDropDownItems(sourceList)
-	local targetListDisplay, targetListVals = modify_pilot_skills_ui:createDropDownItems(targetList)
-
-	-- Section header
-	Ui()
-		:width(1):heightpx(ROW_HEIGHT)
-		:decorate({
-			DecoFrame(deco.colors.buttonborder),
-			DecoAlign(0, 2),
-			DecoText(title, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
-		})
-		:addTo(parent)
+function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTable, title, sourceList, targetList, sourceLabel, targetLabel, isSameTypeRelation, sourceIdsSorted, targetIdsSorted)
+	-- create list values with empty and all (using sorted IDs)
+	local listDisplay, listVals = modify_pilot_skills_ui:createDropDownItems(sourceList, sourceIdsSorted)
+	local targetListDisplay, targetListVals = modify_pilot_skills_ui:createDropDownItems(targetList, targetIdsSorted)
 
 	-- Container for this section
 	local largestHeight = sourceLabel == "Pilot" and PILOT_SIZE or ROW_HEIGHT
-	local padding = largestHeight - ROW_HEIGHT  + 3
-
-	local sectionContainer = UiBoxLayout()
-		:vgap(padding)
-		:width(1)
-		:addTo(parent)
+	local padding = largestHeight - ROW_HEIGHT  + 3 + DEFAULT_VGAP
+	local initialPadding = padding / 2 + DEFAULT_VGAP
+	
+	local sectionContainer = self:buildCollapsibleSection(title, parent, padding, initialPadding)
 
 	-- State for the add dropdowns
 	local selectedSource = listVals[1]
@@ -581,6 +903,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 					:addTo(entryRow)
 			end
 		end
+		-- Spacer
+		Ui():width(1):heightpx(1):addTo(sectionContainer)
 	end
 
 	-- add row
@@ -681,13 +1005,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 			if selectedSource == "All" then
 				sourcesToAdd = sourceList
 			else
-				sourcesToAdd = {selectedSource = true}
+				sourcesToAdd = {[selectedSource] = true}
 			end
 
 			if selectedTarget == "All" then
 				targetsToAdd = targetList
 			else
-				targetsToAdd = {selectedTarget = true}
+				targetsToAdd = {[selectedTarget] = true}
 			end
 
 			-- Add all combinations
@@ -718,54 +1042,53 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
-	-- Section header
-	Ui()
-		:width(1):heightpx(ROW_HEIGHT)
-		:decorate({
-			DecoFrame(deco.colors.buttonborder),
-			DecoAlign(0, 2),
-			DecoText("Skill Relationships", nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
-		})
-		:addTo(scrollContent)
+	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent)
 
-	-- Get lists for dropdowns
-	local pilotData = modify_pilot_skills_ui:getPilotsData()
-	local skillData, exlusionSkillData, inclusionSkillData = modify_pilot_skills_ui:getSkillsData()
+	-- Get lists for dropdowns (now includes sorted IDs)
+	local pilotData, pilotIdsSorted = modify_pilot_skills_ui:getPilotsData()
+	local skillData, exlusionSkillData, inclusionSkillData,
+	      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = modify_pilot_skills_ui:getSkillsData()
 
 	-- Pilot Skill Exclusions
 	modify_pilot_skills_ui:buildRelationshipEditor(
-		scrollContent,
+		relationshipsContent,
 		cplus_plus_ex.config.pilotSkillExclusions,
 		"Pilot Skill Exclusions",
 		pilotData,
 		exlusionSkillData,
 		"Pilot",
 		"Skill",
-		false
+		false,
+		pilotIdsSorted,
+		exlusionSkillIdsSorted
 	)
 
 	-- Pilot Skill Inclusions
 	modify_pilot_skills_ui:buildRelationshipEditor(
-		scrollContent,
+		relationshipsContent,
 		cplus_plus_ex.config.pilotSkillInclusions,
 		"Pilot Skill Inclusions",
 		pilotData,
 		inclusionSkillData,
 		"Pilot",
 		"Skill",
-		false
+		false,
+		pilotIdsSorted,
+		inclusionSkillIdsSorted
 	)
 
 	-- Skill Exclusions
 	modify_pilot_skills_ui:buildRelationshipEditor(
-		scrollContent,
+		relationshipsContent,
 		cplus_plus_ex.config.skillExclusions,
 		"Skill Exclusions",
 		skillData,
 		skillData,
 		"Skill",
 		"Skill",
-		true
+		true,
+		skillIdsSorted,
+		skillIdsSorted
 	)
 end
 
@@ -831,6 +1154,7 @@ local function onExit()
 	scrollContent = nil
 	weightInputFields = {}
 	percentageLabels = {}
+	expandedCollapsables = {}
 end
 
 -- Creates the main modification dialog

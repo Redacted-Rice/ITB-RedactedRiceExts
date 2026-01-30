@@ -1,5 +1,5 @@
 -- Skill Configuration Module
--- Handles skill configuration, enabling/disabling, and weight adjustments
+-- Handles skill configuration, enabling/disabling, etc.
 -- This is the core, runtime changeable data storage
 
 local skill_config = {}
@@ -16,8 +16,7 @@ local utils = nil
 -- Note: Defaults are set in new() to avoid forward reference issues
 skill_config.SkillConfig = {
 	enabled = false,
-	set_weight = cplus_plus_ex.DEFAULT_WEIGHT,
-	adj_weight = cplus_plus_ex.DEFAULT_WEIGHT,
+	weight = cplus_plus_ex.DEFAULT_WEIGHT,
 	reusability = cplus_plus_ex.DEFAULT_REUSABILITY,
 }
 skill_config.SkillConfig.__index = skill_config.SkillConfig
@@ -113,17 +112,13 @@ function skill_config:setSkillConfig(skillId, config)
 		end
 	end
 
-	if config.set_weight then
-		if config.set_weight < 0 then
-			logger.logError(SUBMODULE, "Skill weight must be >= 0, got " .. config.set_weight .. " for skill " .. skillId)
+	if config.weight then
+		if config.weight < 0 then
+			logger.logError(SUBMODULE, "Skill weight must be >= 0, got " .. config.weight .. " for skill " .. skillId)
 			return
 		end
-		new_config.set_weight = config.set_weight
-		-- Also update adj_weight to match. It may be adjusted later as well but this ensures
-		-- we have a valid value if for some reason we don't call auto-adjust weights (like
-		-- we are doing in some of the tests)
-		new_config.adj_weight = config.set_weight
-		logger.logDebug(SUBMODULE, "Set skill weight from %f to %f for skill %s", curr_config.set_weight, config.set_weight, skillId)
+		new_config.weight = config.weight
+		logger.logDebug(SUBMODULE, "Set skill weight from %f to %f for skill %s", curr_config.weight, config.weight, skillId)
 	end
 
 	if config.reusability then
@@ -202,16 +197,6 @@ function skill_config:_disableSkill_internal(id)
 	logger.logDebug(SUBMODULE, "Skill %s disabled", id)
 end
 
--- Copy set weights to adjusted weights for all skills
--- This can be extended in the future if we need weight adjustment logic
-function skill_config:setAdjustedWeightsConfigs()
-	-- Copy all the set weights to adj weights for all skills
-	for skillId, _ in pairs(skill_registry.registeredSkills) do
-		local config = self.config.skillConfigs[skillId]
-		config.adj_weight = config.set_weight
-	end
-end
-
 function skill_config:captureDefaultConfigs()
 	self.defaultConfig = utils.deepcopy(self.config)
 end
@@ -277,9 +262,6 @@ function skill_config:loadConfiguration()
 				-- Update simple boolean flags
 				if savedConfig.allowReusableSkills ~= nil then
 					skill_config.config.allowReusableSkills = savedConfig.allowReusableSkills
-				end
-				if savedConfig.autoAdjustWeights ~= nil then
-					skill_config.config.autoAdjustWeights = savedConfig.autoAdjustWeights
 				end
 
 				-- Update sparse, saved as added tables
