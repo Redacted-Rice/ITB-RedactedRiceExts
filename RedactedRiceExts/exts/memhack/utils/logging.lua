@@ -40,16 +40,16 @@ end
 
 -- Debug logging with lazy evaluation - format string only constructed if logging enabled
 -- Usage: logger.logDebug(SUBMODULE, "Message") or logger.logDebug(SUBMODULE, "Format %s %d", arg1, arg2)
-function logger.logDebug(submodule, format, ...)
+function logger.logDebug(submodule, fmt, ...)
 	local info = getSubmoduleInfo(submodule)
 	if info.enabled then
 		local message
 		if select('#', ...) > 0 then
 			-- Format string with arguments
-			message = string.format(format, ...)
+			message = string.format(fmt, ...)
 		else
 			-- No arguments, format is the message
-			message = format
+			message = fmt
 		end
 		logger.log(info.extensionName, info.moduleName, nil, message)
 	end
