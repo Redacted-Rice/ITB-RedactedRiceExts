@@ -7,7 +7,7 @@ local Pilot = memhack.structManager.define("Pilot", {
 	id = { offset = 0x78, type = "struct", subType = "ItBString" },
 	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
 	prevTimelines = { offset = 0x27C, type = "int" },
-})
+}, 0x004320d4)
 
 local itbStrGetterName = memhack.structs.ItBString.makeItBStringGetterName
 

@@ -199,10 +199,6 @@ end
 
 -- Check for level up skill changes on a pilot and fire hooks if changes detected
 function stateTracker.checkForLvlUpSkillChanges(pilot)
-	if not memhack.structs.PilotLvlUpSkill or not memhack.structs.PilotLvlUpSkill.stateDefinition then
-		return
-	end
-
 	local lvlUpSkills = pilot:getLvlUpSkills()
 	if lvlUpSkills then
 		for i = 1, 2 do
@@ -210,11 +206,11 @@ function stateTracker.checkForLvlUpSkillChanges(pilot)
 			if skill then
 				local skillAddr = skill:getAddress()
 				local oldState = stateTracker._skillTrackers[skillAddr]
-				local newState = stateTracker:captureState(skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
+				local newState = stateTracker.captureState(skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
 
 				if oldState then
 					-- Compare states and fire hook if changed
-					local changes = stateTracker:compareStates(oldState, newState)
+					local changes = stateTracker.compareStates(oldState, newState)
 					if next(changes) then
 						-- Call into hooks to fire
 						memhack._subobjects.hooks.firePilotLvlUpSkillChangedHooks(skill, changes)
@@ -230,22 +226,20 @@ end
 -- Check for pilot and skill changes and fire hooks if detected
 function stateTracker.checkForPilotAndLvlUpSkillChanges()
 	if not Game then return end
-	if not memhack.structs.Pilot or not memhack.structs.Pilot.stateDefinition then return end
-
 	local pilots = Game:GetSquadPilots()
 	for _, pilot in ipairs(pilots) do
 		local pilotAddr = pilot:getAddress()
 
 		-- First check for skill changes
-		stateTracker:checkForLvlUpSkillChanges(pilot)
+		stateTracker.checkForLvlUpSkillChanges(pilot)
 
 		-- Check pilot changes
 		local oldState = stateTracker._pilotTrackers[pilotAddr]
-		local newState = stateTracker:captureState(pilot, memhack.structs.Pilot.stateDefinition)
+		local newState = stateTracker.captureState(pilot, memhack.structs.Pilot.stateDefinition)
 
 		if oldState then
 			-- Compare states and fire hook if changed
-			local changes = stateTracker:compareStates(oldState, newState)
+			local changes = stateTracker.compareStates(oldState, newState)
 			if next(changes) then
 				-- Call into hooks to fire
 				memhack._subobjects.hooks.firePilotChangedHooks(pilot, changes)
@@ -259,7 +253,7 @@ end
 
 -- Check for state changes in pilots and skills (main entry point)
 function stateTracker.checkForStateChanges()
-	stateTracker:checkForPilotAndLvlUpSkillChanges()
+	stateTracker.checkForPilotAndLvlUpSkillChanges()
 end
 
 ------------------ State tracking management -------------------
@@ -271,7 +265,7 @@ function stateTracker.cleanupStaleTrackers()
 		-- No game active, clear all trackers
 		stateTracker._pilotTrackers = {}
 		stateTracker._skillTrackers = {}
-		stateTracker:cleanupStaleSkillSetValues({})
+		stateTracker.cleanupStaleSkillSetValues({})
 		return
 	end
 
@@ -311,7 +305,7 @@ function stateTracker.cleanupStaleTrackers()
 	end
 
 	-- Remove stale skill set value trackers
-	stateTracker:cleanupStaleSkillSetValues(activeSkills)
+	stateTracker.cleanupStaleSkillSetValues(activeSkills)
 end
 
 -- Build a re-entrant wrapper for a hook fire function

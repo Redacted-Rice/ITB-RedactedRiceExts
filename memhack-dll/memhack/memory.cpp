@@ -322,6 +322,21 @@ int write_byte_array(lua_State* L) {
 	return 0;
 }
 
+// Check if memory is readable
+int is_readable(lua_State* L) {
+	void* addr = (void*)luaL_checkinteger(L, 1);
+	int size = luaL_checkinteger(L, 2);
+	
+	if (size <= 0) {
+		lua_pushboolean(L, false);
+		return 1;
+	}
+	
+	bool readable = SafeMemory::is_access_allowed(addr, size, READ_ONLY);
+	lua_pushboolean(L, readable);
+	return 1;
+}
+
 // Register all memory functions with Lua
 void add_memory_functions(lua_State* L) {
 	if (!lua_istable(L, -1)) {
@@ -412,5 +427,9 @@ void add_memory_functions(lua_State* L) {
 
 	lua_pushstring(L, "writeByteArray");
 	lua_pushcfunction(L, write_byte_array);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "isReadable");
+	lua_pushcfunction(L, is_readable);
 	lua_rawset(L, -3);
 }

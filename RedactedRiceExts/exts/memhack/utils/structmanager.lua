@@ -39,7 +39,22 @@
 	  Use case: pilot exp and level where you would want to increase the level
 	  if the exp crosses a threshold, or to limit it to 0-2.
 
-	See functions/pilot.lua for examples
+	Structure Verification:
+	Structures can optionally include verification to validate memory addresses.
+	Pass a third parameter to define():
+
+	- define(name, layout, vtableAddress)
+	  Verifies that a vtable pointer at offset 0 matches the expected address.
+	  Automatically adds a hidden _vtable field at offset 0
+	  See Pilot for an example
+
+	- define(name, layout, validationFunction)
+	  Custom verification function. Must return (success, errorMessage).
+	  See ItBString for an example
+
+	All verification automatically checks:
+	1. Address is not nil or 0
+	2. Memory at address for full struct size is readable
 --]]
 
 StructManager = {}
@@ -115,17 +130,39 @@ function StructManager.makeStdSelfSetterName()
 end
 
 -- Define a new structure type
-function StructManager.define(name, layout)
+-- validateArg: optional vtable address (number) or validation function (function)
+function StructManager.define(name, layout, validateArg)
 	if not StructManager._dll then
 		error("Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
+		return nil
 	end
 
-	StructManager._validation.validateStructureDefinition(name, layout)
+	-- Store the validation info for later use
+	local vtableAddr = nil
+	local validateFn = nil
+	
+	if validateArg ~= nil then
+		if type(validateArg) == "number" then
+			-- VTable validation
+			vtableAddr = validateArg + StructManager._dll.process.getExeBase()
+			layout.vtable = { offset = 0, type = "int", hideSetter = true }
+		elseif type(validateArg) == "function" then
+			-- Custom validation function
+			validateFn = validateArg
+		else
+			error(string.format("Third parameter to define() must be a number (vtable) or function (validator), got %s", type(validateArg)))
+			return nil
+		end
+	end
+
+	if not StructManager._validation.validateStructureDefinition(name, layout) then
+		return nil
+	end
 
 	local StructType = StructManager._structureCreation.createStructureType(name, layout)
 	StructManager._methodGeneration.buildStructureMethods(StructType, layout)
 	StructManager._structureCreation.addInstanceMethods(StructType, layout)
-	StructManager._structureCreation.addStaticMethods(StructType, name, layout)
+	StructManager._structureCreation.addStaticMethods(StructType, name, layout, vtableAddr, validateFn)
 	StructManager._structureCreation.registerStructure(name, StructType)
 
 	return StructType
@@ -140,10 +177,13 @@ function StructManager.extend(name, additionalFields)
 	local existingStruct = StructManager._structures[name]
 	if not existingStruct then
 		error(string.format("Cannot extend unknown structure: %s", name))
+		return nil
 	end
 
 	local layout = existingStruct._layout
-	validation.validateAndMergeExtensionFields(name, layout, additionalFields)
+	if not validation.validateAndMergeExtensionFields(name, layout, additionalFields) then
+		return nil
+	end
 	StructManager._methodGeneration.buildStructureMethods(existingStruct, layout)
 
 	return existingStruct

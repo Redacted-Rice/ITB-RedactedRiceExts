@@ -93,7 +93,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 	}
 
 	-- add a config value
-	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, set_weight = weight})
+	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, weight = weight})
 end
 
 -- Registers all vanilla skills

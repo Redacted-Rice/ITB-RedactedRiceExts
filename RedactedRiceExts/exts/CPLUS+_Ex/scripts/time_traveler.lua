@@ -185,6 +185,7 @@ function time_traveler:scanForTimeTraveler()
 			id, data.prevTimelines + 1, data.xp, data.level)
 
 		local structDef = memhack.dll.scanner.StructSearch.new(string.byte(id:sub(1,1)), PilotLayout.id.offset)
+		structDef:addField(PilotLayout.vtable.offset, "int", PilotLayout._vtableAddr)
 		structDef:addField(PilotLayout.xp.offset, "int", data.xp)
 		structDef:addField(PilotLayout.level.offset, "int", data.level)
 		structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
@@ -199,9 +200,12 @@ function time_traveler:scanForTimeTraveler()
 		if results.resultCount > 0 then
 			local matches = scanner:getResults({limit = 1})
 			local baseAddr = matches.results[1].address
-			logger.logDebug(SUBMODULE, "Setting to found pilot at 0x%X", baseAddr)
-			time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr)
-			break
+			-- Validate just in case. Really should be fine
+			time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr, true)
+			if time_traveler.timeTraveler then
+				logger.logDebug(SUBMODULE, "Setting to found pilot at 0x%X", baseAddr)
+				break
+			end
 		end
 
 		scanner:reset()

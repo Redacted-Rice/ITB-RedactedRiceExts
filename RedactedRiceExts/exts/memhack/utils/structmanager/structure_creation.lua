@@ -65,11 +65,11 @@ end
 
 -- Helper: Find the field with the maximum offset
 local function findMaxOffsetField(layout)
-	local maxOffset = 0
+	local maxOffset = -1
 	local maxField = nil
 
 	for _, field in pairs(layout) do
-		if field.offset > maxOffset then
+		if field.offset and field.offset > maxOffset then
 			maxOffset = field.offset
 			maxField = field
 		end
@@ -80,9 +80,19 @@ end
 
 -- Add static methods to structure type
 -- Don't use "get..." to avoid conflicting with defined types
-function structureCreation.addStaticMethods(StructType, name, layout)
+function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr, validateFn)
+	-- Store validation info on the StructType for use by validate()
+	StructType._vtableAddr = vtableAddr
+	StructType._validateFn = validateFn
+
 	-- Constructor
-	function StructType.new(address)
+	function StructType.new(address, doValidate)
+		if not address or address == 0 then
+			-- Can't use logger here as it's not available, just return nil
+			error(string.format("Invalid nil address 0 for %s", name))
+			return nil
+		end
+
 		local instance = setmetatable({}, StructType)
 		instance.isMemhackObj = true
 		instance._address = address
@@ -97,11 +107,84 @@ function structureCreation.addStaticMethods(StructType, name, layout)
 			end
 		end
 
+		-- Auto-validate if requested
+		if doValidate then
+			local success, err = instance:validate()
+			if not success then
+				error(string.format("Structure validation failed for %s at 0x%X: %s", name, address, err))
+				return nil
+			end
+		end
+
 		return instance
 	end
 
+	-- Validate structure validity
+	-- Can be called as instance method: instance:validate()
+	-- Or as static method with address: StructType.validate(address)
+	-- Returns: struct or nil (if invalid), errorMessage (string or nil)
+	function StructType:validate(addressArg)
+		-- Determine the address and whether to use an instance
+		local addr, instance
+
+		-- Check if this is a static call (self is a number, the address)
+		-- or instance call (self has _address field)
+		if type(self) == "number" then
+			-- Static call: StructType.validate(address) - self IS the address
+			addr = self
+		elseif addressArg then
+			-- Called with explicit address parameter
+			addr = addressArg
+		else
+			-- Instance call: instance:validate()
+			addr = self._address
+			instance = self
+		end
+
+		-- Check if address is nil or 0
+		if not addr or addr == 0 then
+			return nil, "Address is nil or 0"
+		end
+
+		-- Calculate struct size
+		local structSize = StructType.StructSize()
+		if not structSize then
+			return nil, "Cannot determine structure size"
+		end
+
+		-- Check if memory is readable
+		if not StructManager._dll.memory.isReadable(addr, structSize) then
+			return nil, string.format("Memory at address 0x%X (size %d) is not readable", addr, structSize)
+		end
+
+		-- VTable verification if specified
+		if StructType._vtableAddr then
+			local vtable = StructManager._dll.memory.readPointer(addr)
+			if vtable ~= StructType._vtableAddr then
+				return nil, string.format("VTable mismatch: expected 0x%X, got 0x%X", StructType._vtableAddr, vtable)
+			end
+		end
+
+		-- create an instance if not already provided
+		if not instance then
+			-- don't validate it.. we already are doing that
+			instance =  StructType.new(addr, false)
+		end
+
+		-- Custom validation function if specified
+		if StructType._validateFn then
+			local success, err = StructType._validateFn(instance)
+			if not success then
+				return nil, err or "Custom validation function failed for unspecified reason"
+			end
+		end
+
+		return instance, nil
+	end
+
+
 	-- Calculate structure size
-	function StructType._calcStructSize()
+	function StructType.StructSize()
 		local maxOffset, maxField = findMaxOffsetField(layout)
 		if not maxField then
 			return 0
