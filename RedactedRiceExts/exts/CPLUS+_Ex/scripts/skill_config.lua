@@ -44,6 +44,11 @@ skill_config.config = {
 	pilotSkillInclusions = {}, -- pilotId -> included skill ids (set-like table)
 	skillExclusions = {},  -- skillId -> excluded skill ids (set-like table) - skills that cannot be taken together
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability
+	-- UI sort preferences
+	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Weight/%
+	pilotSkillExclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
+	pilotSkillInclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
+	skillExclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
 }
 
 -- Module state
@@ -131,7 +136,9 @@ function skill_config:setSkillConfig(skillId, config)
 			return
 		end
 		new_config.reusability = config.reusability
-		logger.logDebug(SUBMODULE, "Set skill reusability from %s to %s for skill %s", curr_config.reusability, config.reusability, skillId)
+		logger.logDebug(SUBMODULE, "Set skill reusability from %s to %s for skill %s", 
+				cplus_plus_ex.REUSABLILITY[utils.normalizeReusabilityToInt(curr_config.reusability)], 
+				cplus_plus_ex.REUSABLILITY[normalizeReuse], skillId)
 	end
 
 	-- If we reached here, its a good config. Apply it
@@ -239,6 +246,12 @@ function skill_config:saveConfiguration()
 			obj.cplus_plus_ex = obj.cplus_plus_ex or {}
 			-- reset the whole table on save? Maybe just copy over changes like on load?
 			obj.cplus_plus_ex.skill_config = utils.deepcopy(skill_config.config)
+			
+			-- clear out some unneded fields
+			for id, config in pairs(obj.cplus_plus_ex.skill_config.skillConfigs) do
+				config.__index = nil
+				config.new = nil
+			end
 		end
 	)
 end
@@ -262,6 +275,20 @@ function skill_config:loadConfiguration()
 				-- Update simple boolean flags
 				if savedConfig.allowReusableSkills ~= nil then
 					skill_config.config.allowReusableSkills = savedConfig.allowReusableSkills
+				end
+				
+				-- Update UI sort preferences
+				if savedConfig.skillConfigSortOrder then
+					skill_config.config.skillConfigSortOrder = savedConfig.skillConfigSortOrder
+				end
+				if savedConfig.pilotSkillExclusionsSortOrder then
+					skill_config.config.pilotSkillExclusionsSortOrder = savedConfig.pilotSkillExclusionsSortOrder
+				end
+				if savedConfig.pilotSkillInclusionsSortOrder then
+					skill_config.config.pilotSkillInclusionsSortOrder = savedConfig.pilotSkillInclusionsSortOrder
+				end
+				if savedConfig.skillExclusionsSortOrder then
+					skill_config.config.skillExclusionsSortOrder = savedConfig.skillExclusionsSortOrder
 				end
 
 				-- Update sparse, saved as added tables
