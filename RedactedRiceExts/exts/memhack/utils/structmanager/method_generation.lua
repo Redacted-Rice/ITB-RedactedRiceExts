@@ -36,7 +36,8 @@ local function resolveSubType(subType, ptrValue, fieldDef)
 	if not structType then
 		error(string.format("Unknown structure type: %s", fieldDef.subType))
 	end
-	return structType.new(ptrValue)
+	-- validate returned type
+	return structType.new(ptrValue, true)
 end
 
 -- Helper: Clear method names for a field
@@ -137,7 +138,8 @@ function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
 		local structType = resolveStructType(fieldDef.subType)
-		return structType.new(address)
+		-- validate returned type
+		return structType.new(address, true)
 	end
 end
 

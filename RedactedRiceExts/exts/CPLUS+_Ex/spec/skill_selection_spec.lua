@@ -93,9 +93,9 @@ describe("Skill Selection Module", function()
 				{id = "Rare1", shortName = "R1", fullName = "Rare1", description = "Test", reusability = plus_manager.REUSABLILITY.PER_PILOT},
 			})
 
-			plus_manager:setSkillConfig("Common1", {set_weight = 5.0})
-			plus_manager:setSkillConfig("Common2", {set_weight = 5.0})
-			plus_manager:setSkillConfig("Rare1", {set_weight = 1.0})
+			plus_manager:setSkillConfig("Common1", {weight = 5.0})
+			plus_manager:setSkillConfig("Common2", {weight = 5.0})
+			plus_manager:setSkillConfig("Rare1", {weight = 1.0})
 		end)
 
 		it("should use weighted selection when selecting multiple skills", function()
@@ -128,9 +128,9 @@ describe("Skill Selection Module", function()
 
 		it("should handle equal weights (uniform distribution)", function()
 			-- Set all to same weight
-			plus_manager:setSkillConfig("Health", {set_weight = 1.0})
-			plus_manager:setSkillConfig("Move", {set_weight = 1.0})
-			plus_manager:setSkillConfig("Grid", {set_weight = 1.0})
+			plus_manager:setSkillConfig("Health", {weight = 1.0})
+			plus_manager:setSkillConfig("Move", {weight = 1.0})
+			plus_manager:setSkillConfig("Grid", {weight = 1.0})
 
 			local availableSkills = {"Health", "Move", "Grid"}
 
@@ -162,10 +162,10 @@ describe("Skill Selection Module", function()
 		end)
 
 		it("should respect custom weights (high weight more likely)", function()
-			plus_manager:setSkillConfig("Common", {set_weight = 10.0})
-			plus_manager:setSkillConfig("Uncommon", {set_weight = 5.0})
-			plus_manager:setSkillConfig("Rare", {set_weight = 3.0})
-			plus_manager:setSkillConfig("Epic", {set_weight = 1.0})
+			plus_manager:setSkillConfig("Common", {weight = 10.0})
+			plus_manager:setSkillConfig("Uncommon", {weight = 5.0})
+			plus_manager:setSkillConfig("Rare", {weight = 3.0})
+			plus_manager:setSkillConfig("Epic", {weight = 1.0})
 
 			local availableSkills = {"Common", "Uncommon", "Rare", "Epic"}
 
@@ -213,9 +213,9 @@ describe("Skill Selection Module", function()
 
 		it("should handle zero weight (effectively disabled)", function()
 			-- SkillA has weight 0, SkillB and SkillC have weight 1
-			plus_manager:setSkillConfig("SkillA", {set_weight = 0.0})
-			plus_manager:setSkillConfig("SkillB", {set_weight = 1.0})
-			plus_manager:setSkillConfig("SkillC", {set_weight = 1.0})
+			plus_manager:setSkillConfig("SkillA", {weight = 0.0})
+			plus_manager:setSkillConfig("SkillB", {weight = 1.0})
+			plus_manager:setSkillConfig("SkillC", {weight = 1.0})
 
 			local availableSkills = {"SkillA", "SkillB", "SkillC"}
 
@@ -232,10 +232,10 @@ describe("Skill Selection Module", function()
 		end)
 
 		it("should handle boundary random value at cumulative weight threshold", function()
-			plus_manager:setSkillConfig("SkillA", {set_weight = 1.0})
-			plus_manager:setSkillConfig("SkillB", {set_weight = 1.0})
-			plus_manager:setSkillConfig("SkillC", {set_weight = 1.0})
-			plus_manager:setSkillConfig("SkillD", {set_weight = 1.0})
+			plus_manager:setSkillConfig("SkillA", {weight = 1.0})
+			plus_manager:setSkillConfig("SkillB", {weight = 1.0})
+			plus_manager:setSkillConfig("SkillC", {weight = 1.0})
+			plus_manager:setSkillConfig("SkillD", {weight = 1.0})
 
 			local availableSkills = {"SkillA", "SkillB", "SkillC", "SkillD"}
 
@@ -259,11 +259,11 @@ describe("Skill Selection Module", function()
 				{id = "Skill5", shortName = "S5", fullName = "Skill5", description = "Test"},
 			})
 
-			plus_manager:setSkillConfig("Skill1", {set_weight = 1.0})
-			plus_manager:setSkillConfig("Skill2", {set_weight = 2.0})
-			plus_manager:setSkillConfig("Skill3", {set_weight = 3.0})
-			plus_manager:setSkillConfig("Skill4", {set_weight = 4.0})
-			plus_manager:setSkillConfig("Skill5", {set_weight = 5.0})
+			plus_manager:setSkillConfig("Skill1", {weight = 1.0})
+			plus_manager:setSkillConfig("Skill2", {weight = 2.0})
+			plus_manager:setSkillConfig("Skill3", {weight = 3.0})
+			plus_manager:setSkillConfig("Skill4", {weight = 4.0})
+			plus_manager:setSkillConfig("Skill5", {weight = 5.0})
 		end)
 
 		it("should only consider weights of skills in availableSkills list", function()

@@ -70,7 +70,7 @@ function skill_selection:getWeightedRandomSkillId(availableSkills)
 	-- Calculate total weight for the available skills
 	local totalWeight = 0
 	for _, skillId in ipairs(availableSkills) do
-		totalWeight = totalWeight + skill_config_module.config.skillConfigs[skillId].adj_weight
+		totalWeight = totalWeight + skill_config_module.config.skillConfigs[skillId].weight
 	end
 
 	-- Get seed and count from saved game data
@@ -95,7 +95,7 @@ function skill_selection:getWeightedRandomSkillId(availableSkills)
 
 	local cumulativeWeight = 0
 	for _, skillId in ipairs(availableSkills) do
-		cumulativeWeight = cumulativeWeight + skill_config_module.config.skillConfigs[skillId].adj_weight
+		cumulativeWeight = cumulativeWeight + skill_config_module.config.skillConfigs[skillId].weight
 		if randomValue <= cumulativeWeight then
 			return skillId
 		end

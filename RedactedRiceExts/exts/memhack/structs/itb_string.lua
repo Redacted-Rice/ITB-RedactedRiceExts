@@ -1,3 +1,24 @@
+-- Constants for union types
+local ITB_STRING_LOCAL = 0x0F
+local ITB_STRING_REMOTE = 0x1F
+
+-- Validation function for ItBString structures
+local function validateItBString(itbStr)
+	-- Check that unionType is valid
+	local unionType = itbStr:getUnionType()
+	if unionType ~= ITB_STRING_LOCAL and unionType ~= ITB_STRING_REMOTE then
+		return false, string.format("Invalid unionType: expected 0x0F or 0x1F, got 0x%X", unionType)
+	end
+
+	-- Check that string length is reasonable
+	local len = itbStr:getStrLen()
+	if len < 0 or len >= memhack.dll.memory.MAX_CSTRING_LENGTH then
+		return false, string.format("Invalid ItB string length: %d (must be 0-%d)", len, memhack.dll.memory.MAX_CSTRING_LENGTH)
+	end
+
+	return true
+end
+
 -- This is a union. We hide alot of default getters/setters to
 -- ensure safe accessing and setting of values
 local ItBString = memhack.structManager.define("ItBString", {
@@ -14,10 +35,11 @@ local ItBString = memhack.structManager.define("ItBString", {
 	-- Which one is used. If x0F, it will be treated as strLocal in place. If 0x1F, it will
 	-- be treated as a pointer (strRemote). Not sure if there are any other valid values
 	unionType = { offset = 0x14, type = "int", hideSetter = true },
-})
+}, validateItBString)
 
-ItBString.LOCAL =  0x0F
-ItBString.REMOTE = 0x1F
+-- Set constants on ItBString after it's defined
+ItBString.LOCAL = ITB_STRING_LOCAL
+ItBString.REMOTE = ITB_STRING_REMOTE
 
 local selfGetter = memhack.structManager.makeStdSelfGetterName()
 local selfSetter = memhack.structManager.makeStdSelfSetterName()

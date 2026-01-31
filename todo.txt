@@ -5,8 +5,7 @@ For 1.0 release:
 	3. pilot (in mech)
 	4. storage (very complex)
 2. Hijack AddPilot to avoid searching _G for pilots?
-3. Add structure verification support (vtables or custom funcs)
-4. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
+3. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
 
 Next release:
 1. Look into adding tests on c++ side?
@@ -15,15 +14,8 @@ Next release:
 ---------- PLUS Ex ---------
 
 For 1.0 release:
-1. Continue GUI Cleanup
-	a. Top level percentages
-	b. Always draw pilot square - draw it around 65x65 image? Have a ? pilot image?
-	c. Left align drop downs
-	d. Drop downs show up offset
-	e. Hover skills in relationships shows the description. Hover over add row entry too
-	f. Hover tooltips of relationship editors
-	g. Adding sorting to relationships & sort by either column
-	h. Max dialog width (full screen)
+1. UI Updates
+	a. Remove inclusive relations if there are no inclusive skills defined
 2. Check into removing/hiding/replacing text for AE skills UI checkbox
 	a. Toggle_NewPilotAbilities - "Pilot Abilities"
 	b. TipTitle_New_PilotAbilities	- "Advanced Pilot Abilities"

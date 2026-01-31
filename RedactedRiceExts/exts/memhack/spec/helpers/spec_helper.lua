@@ -63,6 +63,12 @@ local function createMockDll()
 			writeByte = function(addr, value) mockMemory[addr] = value end,
 			readByteArray = function(addr, len) return mockMemory[addr] or string.rep("\0", len) end,
 			writeByteArray = function(addr, value) mockMemory[addr] = value end,
+			
+			-- Memory verification
+			isReadable = function(addr, size)
+				-- Mock: addresses >= 0x1000 are readable
+				return addr >= 0x1000 and size > 0
+			end,
 		},
 
 		process = {

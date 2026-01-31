@@ -4,14 +4,15 @@ local function onGameClassInitialized(GameClass)
 	
 	GameClass.GetMemhackObj = function(self)
 		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
-			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(self))
+			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(self), true)
 		end
 		return self.memhackObj
 	end
 	
 	-- Upper case to align with BoardPawn conventions
 	GameClass.GetReputation = function(self)
-		return self:GetMemhackObj():getReputation()
+		local reputation = self:GetMemhackObj():getReputation()
+		return reputation
 	end
 
 	GameClass.SetReputation = function(self, reputation)
@@ -45,7 +46,8 @@ local function onGameClassInitialized(GameClass)
 
 	-- Doesn't need to be a part of game but it fits logically there
 	GameClass.GetScore = function(self)
-		return memhack.dll.memory.readInt(getScoreAddr())
+		local score = memhack.dll.memory.readInt(getScoreAddr())
+		return score
 	end
 
 	GameClass.SetScore = function(self, score)
@@ -68,7 +70,8 @@ local function onGameClassInitialized(GameClass)
 	-- current pilots and weapons in storage. Write is not currently
 	-- supported due to complexity required and lack of need for it
 	GameClass.GetStorage = function(self)
-		return self:GetMemhackObj():getResearchControl():getStorage()
+		local storage = self:GetMemhackObj():getResearchControl():getStorage()
+		return storage
 	end
 	
 	-- Get all memhack pilot structs for pilots currently in the squad
@@ -89,7 +92,8 @@ local function onGameClassInitialized(GameClass)
 	
 	-- Gets all memhack pilot structs for pilots currently in storage
 	GameClass.GetStoragePilots = function(self)
-		return self:GetStorage():getAllOfType(memhack.structs.StorageObject.TYPE_PILOT)
+		local pilots = self:GetStorage():getAllOfType(memhack.structs.StorageObject.TYPE_PILOT)
+		return pilots
 	end
 	
 	-- Gets all memhack pilot structs for pilots that are available currently

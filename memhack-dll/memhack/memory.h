@@ -38,6 +38,9 @@ int write_cstring(lua_State* L);
 int write_pointer(lua_State* L);
 int write_byte_array(lua_State* L);
 
+// Memory validation functions
+int is_readable(lua_State* L);
+
 // Register all memory functions with Lua
 void add_memory_functions(lua_State* L);
 

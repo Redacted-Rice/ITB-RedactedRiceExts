@@ -9,7 +9,7 @@ function addPawnGetPilotFunc(BoardPawn, pawn)
 		if pilotPtr == nil or pilotPtr == 0 then
 			return nil
 		end
-		return memhack.structs.Pilot.new(pilotPtr)
+		return memhack.structs.Pilot.new(pilotPtr, true)
 	end
 end
 
