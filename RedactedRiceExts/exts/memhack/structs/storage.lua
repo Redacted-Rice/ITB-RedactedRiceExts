@@ -3,7 +3,7 @@
 local MemhackStorage = memhack.structManager.define("Storage", {
 	-- hide getter because we are just custom wrapping the vector to account for the
 	-- extra objects
-	vector = { offset = 0x0, type = "struct", structType = "Vector", hideGetter = true, --[[structs don't define setters]] },
+	vector = { offset = 0x0, type = "struct", subType = "Vector", hideGetter = true, --[[structs don't define setters]] },
 })
 
 function onModsFirstLoaded()
@@ -27,10 +27,21 @@ function onModsFirstLoaded()
 		for _, address in ipairs(addresses) do
 			table.insert(objects, memhack.structs.StorageObject.new(address))
 		end
+		return objects
 	end
 	
 	MemhackStorage.getAll = function(self)
 		return self:getRange(1, self:getSize())
+	end
+	
+	MemhackStorage.getAllOfType = function(self, objType)
+		local ofType = {}
+		for _, storageObj in ipairs(self:getAll()) do
+			if storageObj:isType(objType) then
+				table.insert(ofType, storageObj:getPilot())
+			end
+		end
+		return ofType
 	end
 end
 

@@ -7,7 +7,7 @@ local ItBString = memhack.structManager.define("ItBString", {
 	strLocal = { offset = 0x0, type = "string", maxLength = 16, hideSetter = true, hideGetter = true },
 	-- Same idea as strLocal but a pointer to the value if its too large to fit locally
 	-- May not always be valid - calling getters may be unsafe
-	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true, pointedType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
+	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true, subType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
 	-- Length of the strLocal/string pointed to by strRemote. This is set the same regardless
 	-- of which is used
 	strLen = { offset = 0x10, type = "int", hideSetter = true },
@@ -22,15 +22,25 @@ ItBString.REMOTE = 0x1F
 local selfGetter = memhack.structManager.makeStdSelfGetterName()
 local selfSetter = memhack.structManager.makeStdSelfSetterName()
 
--- Requires function named <STD_SELF_GETTER>
-memhack.structManager.makeItBStringGetterWrapper = function(struct, itbStrName)
-	local internalGetter = memhack.structManager.makeStdGetterName(itbStrName)
-	local getterWrapper = internalGetter .. "Str"
+-- Custom getter for getting the string value from the struct
+function ItBString.makeItBStringGetterName(itbStrName)
+	-- Don't override default struct getter
+	return StructManager.makeStdGetterName(itbStrName) .. "Str"
+end
 
-	struct[getterWrapper] = function(self)
-		local obj = self[internalGetter](self)
-		return obj[selfGetter](obj)
-	end
+-- Custom setter taking string value or ItBString struct
+function ItBString.makeItBStringSetterName(itbStrName)
+	-- No default setter for struct and this handles both struct and string args
+	-- so use the std setter name
+	return StructManager.makeStdSetterName(itbStrName)
+end
+
+-- Creates both the setter and getter wrappers for the ItBString struct
+function ItBString.makeItBStringGetSetWrappers(struct, itbStrName)
+	memhack.structManager._methodGeneration.makeStructGetWrapper(
+			struct, itbStrName, ItBString.makeItBStringGetterName(itbStrName), selfGetter)
+	memhack.structManager._methodGeneration.makeStructSetWrapper(
+			struct, itbStrName, ItBString.makeItBStringSetterName(itbStrName), selfSetter)
 end
 
 function onModsFirstLoaded()

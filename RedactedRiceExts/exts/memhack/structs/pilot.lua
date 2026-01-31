@@ -1,152 +1,262 @@
-local PilotLvlUpSkill = memhack.structManager.define("PilotLvlUpSkill", {
-	-- This is the main value used to determine skill effect in game. Note that the + move, hp, & cores
-	-- skills use the bonus values below instead
-	id = { offset = 0x0, type = "struct", structType = "ItBString" },
-	-- Displayed in the small box in UI
-	shortName = { offset = 0x18, type = "struct", structType = "ItBString" },
-	-- Displayed when hovering over skill
-	fullName = { offset = 0x30, type = "struct", structType = "ItBString" },
-	-- Displayed when hovering over skill
-	description = { offset = 0x48, type = "struct", structType = "ItBString" },
-	coresBonus = { offset = 0x64, type = "int"},
-	healthBonus = { offset = 0x68, type = "int"},
-	moveBonus = { offset = 0x6C, type = "int"},
-	-- Value used in save file. Does not directly change effect. ID does this
-	-- Valid values are between 0-13. Other values will be saved but are clamped
-	-- to this range before the onGameEntered event is fired
-	saveVal = { offset = 0x70, type = "int"},
-})
-
--- Array of two PilotLvlUpSkill structs back to back
--- PilotLvlUpSkill size is 0x74 bytes
-local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArray", {
-	skill1 = { offset = 0x00, type = "struct", structType = "PilotLvlUpSkill" },
-	skill2 = { offset = 0x74, type = "struct", structType = "PilotLvlUpSkill" },
-})
-
 local Pilot = memhack.structManager.define("Pilot", {
-	-- Any other interesting values to pull out?
-	name = { offset = 0x20, type = "struct", structType = "ItBString" },
-	xp = { offset = 0x3C, type = "int", hideSetter = true},
-	levelUpXp = { offset = 0x40, type = "int", hideSetter = true},
-	level = { offset = 0x68, type = "int", hideSetter = true},
-	skill = { offset = 0x6C, type = "struct", structType = "ItBString" },
-	id = { offset = 0x84, type = "struct", structType = "ItBString" },
-	lvlUpSkills = { offset = 0xD8, type = "pointer", pointedType = "PilotLvlUpSkillsArray"},
+	name = { offset = 0x14, type = "struct", subType = "ItBString" },
+	xp = { offset = 0x30, type = "int", hideSetter = true},
+	levelUpXp = { offset = 0x34, type = "int", hideSetter = true},
+	level = { offset = 0x5C, type = "int", hideSetter = true},
+	skill = { offset = 0x60, type = "struct", subType = "ItBString" },
+	id = { offset = 0x78, type = "struct", subType = "ItBString" },
+	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
+	prevTimelines = { offset = 0x27C, type = "int" },
 })
 
-local selfSetter = memhack.structManager.makeStdSelfSetterName()
+local itbStrGetterName = memhack.structs.ItBString.makeItBStringGetterName
 
-function addPawnGetPilotFunc(BoardPawn, pawn)
-	-- Upper case to align with BoardPawn conventions
-	BoardPawn.GetPilot = function(self)
-		-- Pawn contains a double pointer at 0x980 and 0x984 to
-		-- the same memory offset by 12 bytes. Just use the second
-		-- because it points to the lower of the two addresses, presumably
-		-- the wrapper class around pilot - maybe an AE pilot struct?
-		local pilotPtr = memhack.dll.memory.readPointer(memhack.dll.memory.getUserdataAddr(self) + 0x984)
-		-- If no pilot, address will be set to 0
-		if pilotPtr == nil or pilotPtr == 0 then
-			return nil
-		end
-		return memhack.structs.Pilot.new(pilotPtr)
-	end
-end
+-- State definition used for tracking changes to pilots via hooks
+Pilot.stateDefinition = {
+	name = itbStrGetterName("name"),
+	"xp", "levelUpXp", "level",
+	skill = itbStrGetterName("skill"),
+	id = itbStrGetterName("id"),
+	-- lvl up skills specifically excluded - separate trigger for that
+	"prevTimelines",
+}
+
+-- todo: add vftable ref? 0x008320d4
+-- pilot pointer vtable ref 00828790
+-- skill pointer vtable ref 008287a4
+-- Skill has no vtable
+-- Smart pointer - two pointers - struct addr, mem_management addr
+-- TODO: Add a "verify" function generated that checks the struct looks valid?
+-- Checks address is not nil, checks vtable, spot checks fields? e.g. for pilot,
+-- getId, check it looks like a string, check it matches somthing in _G, check
+-- that that looks like a pilot
+
+local methodGen = memhack.structManager._methodGeneration
+local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
 
 function createPilotFuncs()
-	-- TODO: any other functions?
-	-- maybe one to change the pilot type?
+	-- Auto inject parent references into struct getter already defined
+	-- No setters defined for the skills array
+	-- Leave the ptr getters/setters alone
+	methodGen.wrapGetterToPreserveParent(Pilot, "getLvlUpSkills")
+
+	-- Convinience getter and setters for pilot ItBStrings
+	genItBStrGetSetWrappers(Pilot, "name")
+	genItBStrGetSetWrappers(Pilot, "skill")
+	genItBStrGetSetWrappers(Pilot, "id")
+
+	Pilot.calculateLevelUpXp = function(level)
+		return (level + 1) * 25
+	end
+
+	local function applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
+		local newLevelUpXp = self.calculateLevelUpXp(newLevel)
+
+		self:_setXp(0)
+		self:_setLevel(newLevel)
+		self:_setLevelUpXp(newLevelUpXp)
+
+		-- Recombine bonuses based on new level
+		self:combineBonuses()
+
+		-- Build changes table and fire hook
+		-- Hook fire function automatically updates state tracker to prevent double-fire
+		local changes = {
+			level = {old = previousLevel, new = newLevel},
+			xp = {old = previousXp, new = 0},
+			levelUpXp = {old = previousLevelUpXp, new = newLevelUpXp}
+		}
+		memhack.hooks.firePilotChangedHooks(self, changes)
+	end
+
 
 	Pilot.levelUp = function(self)
-		local newLevel = self:getLevel() + 1
+		local previousLevel = self:getLevel()
+		local newLevel = previousLevel + 1
+
 		if newLevel <= 2 then
-			self:_setXp(0)
-			self:_setLevel(newLevel)
-			self:_setLevelUpXp((newLevel + 1) * 25)
+			local previousXp = self:getXp()
+			local previousLevelUpXp = self:getLevelUpXp()
+			applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
 		end
 	end
 
 	Pilot.levelDown = function(self)
-		local newLevel = self:getLevel() - 1
+		local previousLevel = self:getLevel()
+		local newLevel = previousLevel - 1
+
 		if newLevel >= 0 then
-			self:_setXp(0)
-			self:_setLevel(newLevel)
-			self:_setLevelUpXp((newLevel + 1) * 25)
+			local previousXp = self:getXp()
+			local previousLevelUpXp = self:getLevelUpXp()
+			applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
 		end
 	end
-end
 
-function createPilotLvlUpSkillFuncs()
-	-- Convinience wrappers for level up skills
+	Pilot.setLevel = function(self, newLevel)
+		local currentLevel = self:getLevel()
+
+		-- Call levelUp/levelDown as appropriate
+		if newLevel > currentLevel then
+			for i = 1, (newLevel - currentLevel) do
+				self:levelUp()
+			end
+		elseif newLevel < currentLevel then
+			for i = 1, (currentLevel - newLevel) do
+				self:levelDown()
+			end
+		end
+	end
+
+	Pilot.setXp = function(self, newXp)
+		local currentXp = self:getXp()
+		local levelUpXp = self:getLevelUpXp()
+
+		-- Check if we should level up
+		if newXp >= levelUpXp then
+			self:levelUp()
+			return
+		end
+
+		-- Check if we should level down
+		if newXp < 0 then
+			self:levelDown()
+			return
+		end
+
+		-- Xp change without level change
+		if newXp ~= currentXp then
+			self:_setXp(newXp)
+			local changes = {xp = {old = currentXp, new = newXp}}
+			-- Hook fire function automatically updates state tracker
+			memhack.hooks.firePilotChangedHooks(self, changes)
+		end
+	end
+
+	Pilot.addXp = function(self, xpToAdd)
+		self:setXp(self:getXp() + xpToAdd)
+	end
+
+	-- Get the pawn ID (0-2) for this pilot if piloting a mech, nil otherwise
+	Pilot.getPawnId = function(self)
+		if not Game then return nil end
+
+		local pilotAddr = self:getAddress()
+		for pawnId = 0, 2 do
+			local pawn = Game:GetPawn(pawnId)
+			if pawn then
+				local pawnPilot = pawn:GetPilot()
+				if pawnPilot and pawnPilot:getAddress() == pilotAddr then
+					return pawnId
+				end
+			end
+		end
+		return nil
+	end
+
+	-- Check if this pilot is currently piloting a mech
+	Pilot.isPiloting = function(self)
+		return self:getPawnId() ~= nil
+	end
+
+	-- Convenience getter for level up skill by index
 	-- idx is either 1 or 2 for the respective skill
-	-- PilotLvlUpSkill.set for other arg defs
-	Pilot.setLvlUpSkill = function(self, index, idOrStruct, shortName, fullName, description, saveVal, bonuses)
+	-- Parent wrapping is already handled:
+	--   1. getLvlUpSkills() is wrapped (line 74) to inject {Pilot = pilot} into the array
+	--   2. getSkill1/2() are wrapped (lines 200-201) to copy parents and add the array
+	--   Result: returned skill has _parent = {Pilot = pilot, PilotLvlUpSkillsArray = array}
+	Pilot.getLvlUpSkill = function(self, index)
 		if index == 1 then
-			self:getLvlUpSkills():setSkill1Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
+			return self:getLvlUpSkills():getSkill1()
 		elseif index == 2 then
-			self:getLvlUpSkills():setSkill2Obj(idOrStruct, shortName, fullName, description, saveVal, bonuses)
+			return self:getLvlUpSkills():getSkill2()
 		else
 			error(string.format("Unexpected index %d. Should be 1 or 2", index))
 		end
 	end
 
-	-- Convinience wrappers for level up skills array values
-	-- See PilotLvlUpSkill.set for arg defs
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill1")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkillsArray, "skill2")
+	-- Convenience setter for level up skills
+	-- idx is either 1 or 2 for the respective skill
+	-- PilotLvlUpSkill.set for other arg defs
+	Pilot.setLvlUpSkill = function(self, index, structOrNewVals)
+		if index == 1 then
+			self:getLvlUpSkills():setSkill1(structOrNewVals)
+		elseif index == 2 then
+			self:getLvlUpSkills():setSkill2(structOrNewVals)
+		else
+			error(string.format("Unexpected index %d. Should be 1 or 2", index))
+		end
+	end
 
-	-- Convinience wrappers for lvl up skills ItBStrings
-	-- Setter wrappers: setXxxObj(...) calls getXxx():set(...)
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "id")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "shortName")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "fullName")
-	memhack.structManager.makeSetterWrapper(PilotLvlUpSkill, "description")
-	-- Getter wrappers: getXxxStr() calls getXxx():get()
-	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "id")
-	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "shortName")
-	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "fullName")
-	memhack.structManager.makeItBStringGetterWrapper(PilotLvlUpSkill, "description")
+	-- Combine skill bonuses from both skills into skill1 when appropriate
+	-- This handles the cores and grid bonus combining based on pilot level
+	-- Called automatically when pilot level changes or skills are modified.
+	--
+	-- This should all be done transparently to external code. They should use
+	-- typical getters and setters and they should behave as you would expect if
+	-- they were as straight forward as health and move
+	--
+	-- Uses "Set" Values in state_tracker
+	-- - "Set values" are what external code sees when accessing cores/gridBonus
+	-- - "Memory values" are what's actually stored in game memory
+	-- - When pilot level >= 2 and both skills have non-zero bonuses, we combine them:
+	--   * Memory: skill1 gets sum, skill2 gets 0
+	--   * Set: both skills keep their original values
+	-- - This makes combining transparent to external code
+	-- - External code always sees and sets the "base" values
+	-- - Memhack handles combining automatically based on pilot level and setting
+	--   memory to ther correct values
+	Pilot.combineBonuses = function(self)
+		local skill1 = self:getLvlUpSkill(1)
+		local skill2 = self:getLvlUpSkill(2)
 
-	-- Whole object setter for PilotLvlUpSkill
-	-- Takes either another PilotLvlUpSkill to (deep) copy or the individual values
-	-- to create the skill
-	-- bonuses is an optional table that can optionally define "cores", "health", and "move"
-	-- Any not included will default to 0
-
-	PilotLvlUpSkill[selfSetter] = function(self, idOrStruct, shortName, fullName, description, saveVal, bonuses)
-		local coresBonus = bonuses and bonuses.cores or 0
-		local healthBonus = bonuses and bonuses.health or 0
-		local moveBonus = bonuses and bonuses.move or 0
-		local id = idOrStruct
-
-		if type(idOrStruct) == "table" and getmetatable(idOrStruct) == PilotLvlUpSkill then
-			id = idOrStruct:getIdStr()
-			shortName = idOrStruct:getShortNameStr()
-			fullName = idOrStruct:getFullNameStr()
-			description = idOrStruct:getDescriptionStr()
-			saveVal = idOrStruct:getSaveVal()
-
-			coresBonus = idOrStruct:getCoresBonus()
-			healthBonus = idOrStruct:getHealthBonus()
-			moveBonus = idOrStruct:getMoveBonus()
+		if not skill1 or not skill2 then
+			return
 		end
 
-		self:setId(id)
-		self:setShortName(shortName)
-		self:setFullName(fullName)
-		self:setDescription(description)
-		self:setSaveVal(saveVal)
+		local pilotLevel = self:getLevel()
 
-		self:setCoresBonus(coresBonus)
-		self:setHealthBonus(healthBonus)
-		self:setMoveBonus(moveBonus)
+		-- Get set values for both skills. This will return default values
+		-- if not yet set
+		local skill1Set = memhack.stateTracker.getSkillSetValues(skill1)
+		local skill2Set = memhack.stateTracker.getSkillSetValues(skill2)
+
+		-- If level <= 1, restore to base (set) values
+		if pilotLevel <= 1 then
+			-- Set memory to set values (no combining)
+			skill1:_setCoresBonus(skill1Set.coresBonus)
+			skill1:_setGridBonus(skill1Set.gridBonus)
+			skill2:_setCoresBonus(skill2Set.coresBonus)
+			skill2:_setGridBonus(skill2Set.gridBonus)
+		else
+			-- Level >= 2: combine bonuses when both have non-zero values
+
+			-- Handle cores
+			if skill1Set.coresBonus > 0 and skill2Set.coresBonus > 0 then
+				-- Both have cores - combine into skill1, zero skill2
+				skill1:_setCoresBonus(skill1Set.coresBonus + skill2Set.coresBonus)
+				skill2:_setCoresBonus(0) -- not strictly needed but just in case
+			else
+				-- At least one is zero - use set values as-is
+				skill1:_setCoresBonus(skill1Set.coresBonus)
+				skill2:_setCoresBonus(skill2Set.coresBonus)
+			end
+
+			-- Handle grid (same logic as cores)
+			if skill1Set.gridBonus > 0 and skill2Set.gridBonus > 0 then
+				-- Both have grid - combine into skill1, zero skill2
+				skill1:_setGridBonus(skill1Set.gridBonus + skill2Set.gridBonus)
+				skill2:_setGridBonus(0) -- not strictly needed but just in case
+			else
+				-- At least one is zero - use set values as-is
+				skill1:_setGridBonus(skill1Set.gridBonus)
+				skill2:_setGridBonus(skill2Set.gridBonus)
+			end
+		end
 	end
 end
 
 function onModsFirstLoaded()
 	createPilotFuncs()
-	createPilotLvlUpSkillFuncs()
 end
 
 modApi.events.onModsFirstLoaded:subscribe(onModsFirstLoaded)
-modApi.events.onPawnClassInitialized:subscribe(addPawnGetPilotFunc)

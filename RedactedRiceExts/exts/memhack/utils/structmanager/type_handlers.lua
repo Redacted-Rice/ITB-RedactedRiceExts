@@ -92,14 +92,14 @@ local typeHandlers = {
 	},
 
 	struct = {
-		read = function(address, structType)
+		read = function(address, subType)
 			-- This function is not directly used; getters handle struct wrapping
-			if not structType then
-				error("struct type requires a 'structType' field")
+			if not subType then
+				error("struct type requires a 'subType' field")
 			end
 			return address  -- Return the address for wrapping
 		end,
-		write = function(address, value, structType)
+		write = function(address, value, subType)
 			error("Cannot write entire struct directly. Modify individual fields instead.")
 		end,
 		size = nil  -- Size determined by the struct definition

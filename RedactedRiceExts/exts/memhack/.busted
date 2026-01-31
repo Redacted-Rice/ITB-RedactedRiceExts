@@ -1,0 +1,16 @@
+-- Busted configuration for memhack extension
+-- Run from memhack folder with: busted
+return {
+  _all = {
+    lua = "lua",
+    verbose = true,
+    coverage = false,
+    output = "plainTerminal",
+    helper = "spec/clear_coverage.lua",
+    lpath = "scripts/?.lua;scripts/?/init.lua;structs/?.lua;utils/?.lua;spec/?.lua;spec/?/init.lua"
+  },
+  default = {
+    ROOT = {"spec"},
+    pattern = "_spec",
+  }
+}

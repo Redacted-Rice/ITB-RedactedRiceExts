@@ -15,7 +15,7 @@
 	  - getXxx() / setXxx() - read/write the value
 	- pointer: 32 bit pointer
 	  - getXxxPtr() / setXxxPtr() - read/write the raw pointer value
-	  - getXxx() - get wrapped object at pointed address (if pointedType specified)
+	  - getXxx() - get wrapped object at pointed address (if subType specified)
 	- struct: Inline struct (not a pointer)
 	  - getXxx() - get wrapped struct at this field's address
 	  - No setter - modify individual fields on the returned object instead
@@ -23,9 +23,9 @@
 	Supported Types:
 	- int, bool, double, float, byte: Basic types, no additional params
 	- pointer: 32 bit pointer
-	  - optional: pointedType for automatic wrapping of the pointed type
+	  - optional: subType for automatic wrapping of the pointed type
 	- struct: Inline struct (not a pointer)
-	  - required: structType
+	  - required: subType
 	- string: C style null terminated string
 	  - required: maxLength (including null terminator)
 	- bytearray: Array of bytes
@@ -170,18 +170,15 @@ function StructManager.array(structType, baseAddress, count, stride)
 	return arr
 end
 
--- Defines a <STD_SETTER> function that
--- wraps a <STD_GETTER>:<STD_SELF_SETTER>(...) fn.
--- FieldName must be a struct type that defines a set function
--- fieldName does not need to be capitalized
-function StructManager.makeSetterWrapper(struct, fieldName)
-	local funcName = StructManager.makeStdSetterName(fieldName)
-	local getterName = StructManager.makeStdGetterName(fieldName)
-
-	struct[funcName] = function(self, ...)
-	    local obj = self[getterName](self)
-		return obj[StructManager.makeStdSelfSetterName()](obj, ...)
+-- Helper to get parent of specific type from _parent map
+-- structTypeName: The struct type name to look up (e.g., "Pilot", "PilotLvlUpSkillsArray")
+-- Returns the parent of that type, or nil if not found
+function StructManager.getParentOfType(struct, structTypeName)
+	if not struct._parent then
+		return nil
 	end
+
+	return struct._parent[structTypeName]
 end
 
 return StructManager

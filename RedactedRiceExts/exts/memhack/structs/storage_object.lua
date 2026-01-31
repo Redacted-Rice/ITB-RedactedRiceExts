@@ -9,12 +9,14 @@ local MemhackStorageObj = memhack.structManager.define("StorageObject", {
 	-- Its a Skill but haven't had a reason to define Skill yet so leave it untyped
 	skill = { offset = 0x114, type = "pointer", hideSetter = true },
 	-- Smart pointer ("double" reference - dont try to set)
-	-- TODO: Right now expects first pointer. Changed this in later branch
-	pilot = { offset = 0x120, type = "pointer", pointedType = "Pilot", hideSetter = true },
+	pilot = { offset = 0x11C, type = "pointer", subType = "Pilot", hideSetter = true },
 })
 
 
 function onModsFirstLoaded()
+	MemhackStorageObj.TYPE_PILOT = "Pilot"
+	MemhackStorageObj.TYPE_SKILL = "Skill"
+
 	MemhackStorageObj.isPilot = function(self)
 		return self:getPilotPtr() ~= 0
 	end
@@ -22,12 +24,16 @@ function onModsFirstLoaded()
 	MemhackStorageObj.isSkill = function(self)
 		return self:getSkillPtr() ~= 0
 	end
+	
+	MemhackStorageObj.isType = function(self, objType)
+		return self:getType() == objType
+	end
 
 	MemhackStorageObj.getType = function(self)
 		if self:isPilot() then
-			return "Pilot"
+			return MemhackStorageObj.TYPE_PILOT
 		elseif self:isSkill() then
-			return "Skill"
+			return MemhackStorageObj.TYPE_SKILL
 		end
 		-- There shouldn't be anything else...
 		return "Unknown"

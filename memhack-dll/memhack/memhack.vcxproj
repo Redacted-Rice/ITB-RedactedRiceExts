@@ -200,6 +200,7 @@
     <ClCompile Include="scanner\scanner_basic.cpp" />
     <ClCompile Include="scanner\scanner_basic_avx2.cpp" />
     <ClCompile Include="scanner\scanner_sequence.cpp" />
+    <ClCompile Include="scanner\scanner_struct.cpp" />
     <ClCompile Include="scanner\scanner_heap.cpp" />
     <ClCompile Include="scanner\scanner_lua.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -221,6 +222,7 @@
     <ClInclude Include="scanner\scanner_basic_avx2.h" />
     <ClInclude Include="scanner\scanner.h" />
     <ClInclude Include="scanner\scanner_sequence.h" />
+    <ClInclude Include="scanner\scanner_struct.h" />
     <ClInclude Include="scanner\scanner_heap.h" />
     <ClInclude Include="scanner\scanner_lua.h" />
     <ClInclude Include="stdafx.h" />

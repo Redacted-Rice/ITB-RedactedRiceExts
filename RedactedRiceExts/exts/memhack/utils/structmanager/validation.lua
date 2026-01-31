@@ -30,8 +30,8 @@ function validation.validateField(name, field)
 		error(string.format("Field '%s' with type 'string' must have a 'maxLength' (including null terminator)", name))
 	end
 
-	if field.type == "struct" and not field.structType then
-		error(string.format("Field '%s' with type 'struct' must have a 'structType'", name))
+	if field.type == "struct" and not field.subType then
+		error(string.format("Field '%s' with type 'struct' must have a 'subType'", name))
 	end
 end
 
