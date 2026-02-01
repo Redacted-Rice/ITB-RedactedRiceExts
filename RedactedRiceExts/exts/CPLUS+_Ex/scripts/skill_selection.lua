@@ -106,18 +106,7 @@ function skill_selection:getWeightedRandomSkillId(availableSkills)
 	return availableSkills[#availableSkills]
 end
 
--- Selects random level up skills based on count and configured constraints
--- Returns a array like table of skill IDs that satisfy the constraints
--- I pass count even though its currently only expected to be 2 just because I feel
--- like it could be interesting and possible to have pilots with more than two skills
-function skill_selection:selectRandomSkills(pilot, count)
-	if #skill_config_module.enabledSkillsIds == 0 then
-		logger.logError(SUBMODULE, "No enabled skills available")
-		return nil
-	end
-
-	local selectedSkills = {}
-
+function skill_selection:createAvailableSkills()
 	-- Create a copy of all available skill IDs as an array. This will be our
 	-- base list and we will narrow it down as we go if we try to assign
 	-- an unallowed skill
@@ -125,19 +114,22 @@ function skill_selection:selectRandomSkills(pilot, count)
 	for _, skillId in ipairs(skill_config_module.enabledSkillsIds) do
 		table.insert(availableSkills, skillId)
 	end
+	return availableSkills
+end
 
-	-- Keep selecting until we have enough skills or run out of options
-	while #selectedSkills < count and #availableSkills > 0 do
+function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selectedSkills)
+	while true do
 		-- Get a weighted random skill from the available pool
 		local candidateSkillId = skill_selection:getWeightedRandomSkillId(availableSkills)
 		if candidateSkillId == nil then
-			return nil
+			break
 		end
 
 		if skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId) then
 			-- If valid, add to the selected but do not remove yet
 			-- Allows for potential duplicates in the future
-			table.insert(selectedSkills, candidateSkillId)
+			selectedSkills[idx] = candidateSkillId
+			return candidateSkillId
 		else
 			-- If the skill is invalid, remove it from the pool
 			for i, skillId in ipairs(availableSkills) do
@@ -146,6 +138,26 @@ function skill_selection:selectRandomSkills(pilot, count)
 					break
 				end
 			end
+		end
+	end
+	return false
+end
+
+-- Selects random level up skills based on count and configured constraints
+-- Returns a array like table of skill IDs that satisfy the constraints
+-- I pass count even though its currently only expected to be 2 just because I feel
+-- like it could be interesting and possible to have pilots with more than two skills
+function skill_selection:selectRandomSkills(availableSkills, pilot, count)
+	if #skill_config_module.enabledSkillsIds == 0 then
+		logger.logError(SUBMODULE, "No enabled skills available")
+		return nil
+	end
+
+	local selectedSkills = {}
+
+	for idx = 1, count do
+		if not self:selectRandomSkill(availableSkills, pilot, idx, selectedSkills) then
+			return nil
 		end
 	end
 
@@ -172,6 +184,8 @@ function skill_selection:applySkillsToPilot(pilot)
 		logger.logError(SUBMODULE, "Pilot is nil in applySkillsToPilot")
 		return
 	end
+	
+	local availableSkills = self:createAvailableSkills()
 
 	-- Use pilot ID as the key for storing skills for now. Multiple pilots with same ID is
 	-- technically possible but not allowed by vanilla so this may change later
@@ -192,7 +206,7 @@ function skill_selection:applySkillsToPilot(pilot)
 	-- otherwise assign random skills
 	else
 		-- Select 2 random skills that satisfy all registered constraint functions
-		storedSkills = skill_selection:selectRandomSkills(pilot, 2)
+		storedSkills = skill_selection:selectRandomSkills(availableSkills, pilot, 2)
 		if storedSkills == nil then
 			return
 		end
@@ -211,6 +225,25 @@ function skill_selection:applySkillsToPilot(pilot)
 	local skill2Id = storedSkills[2]
 	local skill1 = skill_config_module.enabledSkills[skill1Id]
 	local skill2 = skill_config_module.enabledSkills[skill2Id]
+	
+	if not skill2 then
+		storedSkills[2] = nil
+	end
+	if not skill1 then
+		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id .. 
+				" is disabled, assigning new one")
+		storedSkills[1] = nil
+		skill1Id = self:selectRandomSkill(availableSkills, pilot, 1, storedSkills)
+		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = skill1Id
+		skill1 = skill_config_module.enabledSkills[skill1Id]
+	end
+	if not skill2 then
+		logger.logWarn(SUBMODULE, "Pilot %s skill 2 %s is disabled, assigning new one", pilotId, skill2Id)
+		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, storedSkills)
+		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = skill2Id
+		skill2 = skill_config_module.enabledSkills[skill2Id]
+	end
+	
 
 	-- Determine saveVal for skill 1
 	-- If skill has saveVal = -1, assign random value (0-13)
