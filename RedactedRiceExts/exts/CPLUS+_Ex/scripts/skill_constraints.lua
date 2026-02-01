@@ -106,7 +106,7 @@ function skill_constraints:registerReusabilityConstraintFunction()
 		if reusability == cplus_plus_ex.REUSABLILITY.PER_PILOT or reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 			-- Check if this pilot already has this skill in their selected slots
 			-- This applies to both per_pilot and per_run (per_run is stricter and includes this check)
-			for _, skillId in ipairs(selectedSkills) do
+			for _, skillId in pairs(selectedSkills) do
 				if skillId == candidateSkillId then
 					if cplus_plus_ex.PLUS_DEBUG then
 						logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
@@ -140,7 +140,7 @@ function skill_constraints:registerSkillExclusionConstraintFunction()
 
 		-- Check if candidate is excluded by any already selected skill
 		if skill_config_module.config.skillExclusions[candidateSkillId] then
-			for _, selectedSkillId in ipairs(selectedSkills) do
+			for _, selectedSkillId in pairs(selectedSkills) do
 				if skill_config_module.config.skillExclusions[candidateSkillId][selectedSkillId] then
 					logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (mutually exclusive with already selected skill %s)",
 							candidateSkillId, pilotId, selectedSkillId)

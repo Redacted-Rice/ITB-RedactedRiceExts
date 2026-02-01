@@ -15,11 +15,6 @@ Next release:
 For 1.0 release:
 1. UI Updates
 	a. Remove inclusive relations if there are no inclusive skills defined
-2. Check into removing/hiding/replacing text for AE skills UI checkbox
-	a. Toggle_NewPilotAbilities - "Pilot Abilities"
-	b. TipTitle_New_PilotAbilities	- "Advanced Pilot Abilities"
-	c. TipTitle_New_PilotAbilities	- "Enable advanced pilot abilities. Pilots will gain new skills as they level up.\n\nRecommended for anyone who has a good grasp of the core game."
-
 
 Next release candadites:
 1. Move to GetText to be consistent/allow localization
