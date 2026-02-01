@@ -123,12 +123,22 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:getTimeTraveler() return time_traveler.timeTraveler end
 end
 
+function cplus_plus_ex:overwriteAeSkillsUiText()
+	modApi.modLoaderDictionary["Toggle_NewPilotAbilities"] = "Abilities Overriden"
+	modApi.modLoaderDictionary["TipTitle_New_PilotAbilities"] = "CPLUS+ Controls Abilities"
+	modApi.modLoaderDictionary["TipText_New_PilotAbilities"] = "You can click this all you want but it won't do anything "..
+		"other than change a few pixels.\n\nTo change what skills are enabled, probabilities and relationships, go to the "..
+		"main menu, click the \"Mod Content\" button then the \"Modify Pilot Abilities\" button"
+end
+
 function cplus_plus_ex:init()
 	self:initModules()
 	self:exposeAPI()
 
 	-- Add events
 	self:addEvents()
+	
+	self:overwriteAeSkillsUiText()	
 end
 
 function cplus_plus_ex:load(options)

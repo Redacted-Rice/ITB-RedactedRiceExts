@@ -4,8 +4,7 @@ For 1.0 release:
 	2. Rep
 	3. pilot (in mech)
 	4. storage (very complex)
-2. Hijack AddPilot to avoid searching _G for pilots?
-3. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
+2. Test added stacktrace calls, add to modloader and modutils (test events & hooks for both)
 
 Next release:
 1. Look into adding tests on c++ side?
@@ -32,3 +31,4 @@ Next release candadites:
 6. Squad inclusions/exclusions
 7. Categoricial exclusions - e.g. movement, boosted, armor, etc
 8. Add support for multiple pilots with same ID
+9. Hijack AddPilot to avoid searching _G for pilots?
