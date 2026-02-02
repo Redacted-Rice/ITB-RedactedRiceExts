@@ -41,7 +41,7 @@ local RELATIONSHIP_BUTTON_WIDTH = 140
 local SORT_WIDTH = 350
 
 -- Dialog sizing
-local DIALOG_WIDTH_PREFERRED_PCT = 0.8
+local DIALOG_WIDTH_PREFERRED_PCT = 0.85
 local DIALOG_HEIGHT_PREFERRED_PCT = 0.85
 local DIALOG_MAX_WIDTH_PX = 1400
 
@@ -70,7 +70,7 @@ end
 function modify_pilot_skills_ui:init()
 	utils = cplus_plus_ex._subobjects.utils
 	sdlext.addModContent(
-        "Modify Pilot Skills",
+        "Modify Pilot Abilities",
         function()
             self.createDialog()
         end,
@@ -1378,7 +1378,7 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	modify_pilot_skills_ui:buildRelationshipEditor(
 		relationshipsContent,
 		cplus_plus_ex.config.pilotSkillExclusions,
-		"Pilot Skill Exclusions",
+		"Exclusions: Pilot → Skill",
 		pilotData,
 		exlusionSkillData,
 		"Pilot",
@@ -1389,28 +1389,30 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 		"Prevent specific pilots from receiving certain skills",
 		"pilotSkillExclusionsSortOrder"
 	)
-
-	-- Pilot Skill Inclusions
-	modify_pilot_skills_ui:buildRelationshipEditor(
-		relationshipsContent,
-		cplus_plus_ex.config.pilotSkillInclusions,
-		"Pilot Skill Inclusions",
-		pilotData,
-		inclusionSkillData,
-		"Pilot",
-		"Skill",
-		false,
-		pilotIdsSorted,
-		inclusionSkillIdsSorted,
-		"Allow specific pilots to receive the skill",
-		"pilotSkillInclusionsSortOrder"
-	)
+	
+	if #inclusionSkillData > 0 then
+		-- Pilot Skill Inclusions
+		modify_pilot_skills_ui:buildRelationshipEditor(
+			relationshipsContent,
+			cplus_plus_ex.config.pilotSkillInclusions,
+			"Inclusions: Pilot → Skill ",
+			pilotData,
+			inclusionSkillData,
+			"Pilot",
+			"Skill",
+			false,
+			pilotIdsSorted,
+			inclusionSkillIdsSorted,
+			"Allow specific pilots to receive the skill",
+			"pilotSkillInclusionsSortOrder"
+		)
+	end
 
 	-- Skill Exclusions
 	modify_pilot_skills_ui:buildRelationshipEditor(
 		relationshipsContent,
 		cplus_plus_ex.config.skillExclusions,
-		"Skill Exclusions",
+		"Exclusions: Skill ↔ Skill",
 		skillData,
 		skillData,
 		"Skill",
@@ -1497,7 +1499,7 @@ function modify_pilot_skills_ui:createDialog()
 		ui.onDialogExit = onExit
 
 		local frame = sdlext.buildButtonDialog(
-			"Modify Pilot Skills",
+			"Modify Pilot Level Up Skills",
 			function(scroll) modify_pilot_skills_ui:buildMainContent(scroll) end,
 			function(buttonLayout) modify_pilot_skills_ui:buildDialogButtons(buttonLayout) end,
 			{
