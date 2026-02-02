@@ -178,7 +178,7 @@ function time_traveler:scanForTimeTraveler()
 	time_traveler:loadPersistentDataIfNeeded()
 
 	local PilotLayout = memhack.structs.Pilot._layout
-	local scanner = memhack.dll.scanner.new("struct", {checkTiming=true})
+	local scanner = memhack.dll.scanner.new("struct", {checkTiming = cplus_plus_ex.DEBUG.TIME_TRAVELER})
 
 	for id, data in pairs(time_traveler.lastSavedPersistentData) do
 		logger.logDebug(SUBMODULE, "Scanning for pilot %s with timelines == %d, xp == %d, level == %d",
