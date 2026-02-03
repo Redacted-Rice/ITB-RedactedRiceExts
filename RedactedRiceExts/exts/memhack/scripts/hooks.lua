@@ -102,7 +102,7 @@ end
 
 function hooks.handleFailure(errorOrResult, creator, caller)
 	errorOrResult = errorOrResult or "<unspecified error>"
-	local message = Event.buildErrorMessage("An event callback failed: ", errorOrResult, 
+	local message = Event.buildErrorMessage("An event callback failed: ", errorOrResult,
 			nil, creator, caller)
 	if Event.isStackOverflowError(errorOrResult) then
 		error(message)
@@ -171,7 +171,7 @@ function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, d
 				end,
 				errfunc
 			)
-			
+
 			if not ok then
 				hooks.handleFailure(errorOrResult, hookTbl.creator, caller)
 			end
