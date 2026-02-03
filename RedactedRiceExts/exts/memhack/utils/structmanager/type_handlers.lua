@@ -4,7 +4,8 @@
 local typeHandlers = {
 	byte = {
 		read = function(address)
-			return StructManager._dll.memory.readByte(address)
+			local result = StructManager._dll.memory.readByte(address)
+			return result
 		end,
 		write = function(address, value)
 			StructManager._dll.memory.writeByte(address, value)
@@ -14,7 +15,8 @@ local typeHandlers = {
 
 	int = {
 		read = function(address)
-			return StructManager._dll.memory.readInt(address)
+			local result = StructManager._dll.memory.readInt(address)
+			return result
 		end,
 		write = function(address, value)
 			StructManager._dll.memory.writeInt(address, value)
@@ -24,7 +26,8 @@ local typeHandlers = {
 
 	bool = {
 		read = function(address)
-			return StructManager._dll.memory.readBool(address)
+			local result = StructManager._dll.memory.readBool(address)
+			return result
 		end,
 		write = function(address, value)
 			StructManager._dll.memory.writeBool(address, value)
@@ -34,7 +37,8 @@ local typeHandlers = {
 
 	double = {
 		read = function(address)
-			return StructManager._dll.memory.readDouble(address)
+			local result = StructManager._dll.memory.readDouble(address)
+			return result
 		end,
 		write = function(address, value)
 			StructManager._dll.memory.writeDouble(address, value)
@@ -44,7 +48,8 @@ local typeHandlers = {
 
 	float = {
 		read = function(address)
-			return StructManager._dll.memory.readFloat(address)
+			local result = StructManager._dll.memory.readFloat(address)
+			return result
 		end,
 		write = function(address, value)
 			StructManager._dll.memory.writeFloat(address, value)
@@ -57,7 +62,8 @@ local typeHandlers = {
 			if not maxLength then
 				error("string type requires a 'maxLength' field (including null terminator)")
 			end
-			return StructManager._dll.memory.readCString(address, maxLength)
+			local result = StructManager._dll.memory.readCString(address, maxLength)
+			return result
 		end,
 		write = function(address, value, maxLength)
 			if not maxLength then
@@ -70,7 +76,8 @@ local typeHandlers = {
 
 	pointer = {
 		read = function(address)
-			return StructManager._dll.memory.readPointer(address)
+			local result = StructManager._dll.memory.readPointer(address)
+			return result
 		end,
 		write = function(address, value)
 			StructManager._dll.memory.writePointer(address, value)
@@ -83,7 +90,8 @@ local typeHandlers = {
 			if not length then
 				error("bytearray type requires a 'length' field")
 			end
-			return StructManager._dll.memory.readByteArray(address, length)
+			local result = StructManager._dll.memory.readByteArray(address, length)
+			return result
 		end,
 		write = function(address, value, length)
 			StructManager._dll.memory.writeByteArray(address, value)

@@ -66,7 +66,8 @@ function utils.setToString(setTable)
 	for key, _ in pairs(setTable) do
 		table.insert(items, key)
 	end
-	return table.concat(items, ", ")
+	local result = table.concat(items, ", ")
+	return result
 end
 
 -- Normalize reusability value to integer constant

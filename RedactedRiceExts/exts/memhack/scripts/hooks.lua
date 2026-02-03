@@ -80,7 +80,8 @@ function hooks.addTo(hookTbl, owner, debugId)
 		-- Add the add hook function to the owner if provided
 		if owner then
 			owner[addHook] = function(self, fn)
-				return hookTbl[addHook](hookTbl, fn)
+				local result = hookTbl[addHook](hookTbl, fn)
+				return result
 			end
 			owner.events = events
 		end
@@ -122,7 +123,8 @@ function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, d
 		-- Capture and return the stack trace of the xpcall
 		-- 2 makes it start a frame higher so it doesn't include
 		-- this error handling fn
-		return debug.traceback(tostring(e), 2)
+		local trace = debug.traceback(tostring(e), 2)
+		return trace
 	end
 
 	logger.logDebug(debugId, "Build fire...Hooks Fn for hook %s", hooksField)

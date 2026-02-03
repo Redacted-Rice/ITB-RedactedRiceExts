@@ -95,7 +95,8 @@ function modify_pilot_skills_ui:getPilotsData()
 		end
 	end
 
-	return pilotData, getSortedIds(pilotData)
+	local ids = getSortedIds(pilotData)
+	return pilotData, ids
 end
 
 function modify_pilot_skills_ui:getSkillsData()
@@ -357,7 +358,8 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
 		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
-		return Ui():width(1):heightpx(0) -- Return empty element
+		local result = Ui():width(1):heightpx(0) -- Return empty element
+		return result
 	end
 
 	local entryRow = UiWeightLayout()
@@ -616,7 +618,8 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weig
 	-- Handle Enter key
 	weightInput.onEnter = function(self)
 		applyWeightChange(self)
-		return UiInputField.onEnter(self)
+		local result = UiInputField.onEnter(self)
+		return result
 	end
 
 	-- Handle focus loss
@@ -648,7 +651,8 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
 		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
-		return Ui():width(1):heightpx(0) -- Return empty element
+		local result = Ui():width(1):heightpx(0) -- Return empty element
+		return result
 	end
 
 	local entryRow = UiWeightLayout()

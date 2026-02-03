@@ -47,14 +47,16 @@ local selfSetter = memhack.structManager.makeStdSelfSetterName()
 -- Custom getter for getting the string value from the struct
 function ItBString.makeItBStringGetterName(itbStrName)
 	-- Don't override default struct getter
-	return StructManager.makeStdGetterName(itbStrName) .. "Str"
+	local result = StructManager.makeStdGetterName(itbStrName) .. "Str"
+	return result
 end
 
 -- Custom setter taking string value or ItBString struct
 function ItBString.makeItBStringSetterName(itbStrName)
 	-- No default setter for struct and this handles both struct and string args
 	-- so use the std setter name
-	return StructManager.makeStdSetterName(itbStrName)
+	local result = StructManager.makeStdSetterName(itbStrName)
+	return result
 end
 
 -- Creates both the setter and getter wrappers for the ItBString struct
@@ -71,9 +73,11 @@ function onModsFirstLoaded()
 	ItBString[selfGetter] = function(self)
 		local uType = self:getUnionType()
 		if uType == ItBString.LOCAL then
-			return self:_getStrLocal()
+			local result = self:_getStrLocal()
+			return result
 		elseif uType == ItBString.REMOTE then
-			return self:_getStrRemote()
+			local result = self:_getStrRemote()
+			return result
 		end
 		error(string.format("UnionType was unexepected value: %d", uType))
 		return nil
@@ -105,7 +109,8 @@ function onModsFirstLoaded()
 
 	-- Override tostring as pointer may not always be valid
 	ItBString.__tostring = function(self)
-		return self[selfGetter](self)
+		local result = self[selfGetter](self)
+		return result
 	end
 end
 

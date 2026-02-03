@@ -21,15 +21,18 @@ function Debug.hexToInt(hexstr)
     end
 
     if string.sub(hexstr, 1, 2) == "0x" or string.sub(hexstr, 1, 2) == "0X" then
-        return tonumber(hexstr)  -- Lua understands "0x.." prefix
+        local result = tonumber(hexstr)  -- Lua understands "0x.." prefix
+        return result
     else
-        return tonumber(hexstr, 16)
+        local result = tonumber(hexstr, 16)
+        return result
     end
 end
 
 -- Convert an integer to a hex string (like 26 -> "0x1A")
 function Debug.intToHex(num)
-    return string.format("0x%X", num)
+    local result = string.format("0x%X", num)
+    return result
 end
 
 -- Convert a byte array to a hex string representation
@@ -62,7 +65,8 @@ function Debug.bytesToHex(bytes, bytesPerGroup)
 			table.insert(groups, table.concat(currentGroup, ""))
 		end
 	end
-    return table.concat(groups, " ")
+    local result = table.concat(groups, " ")
+    return result
 end
 
 -- Convert hex string to bytes
@@ -82,7 +86,8 @@ function Debug.hexToBytes(hexStr)
 		local byteVal = tonumber(byteStr, 16)
 		table.insert(bytes, string.char(byteVal))
 	end
-	return table.concat(bytes)
+	local result = table.concat(bytes)
+	return result
 end
 
 -- Log memory contents from a given address for a specified number of bytes

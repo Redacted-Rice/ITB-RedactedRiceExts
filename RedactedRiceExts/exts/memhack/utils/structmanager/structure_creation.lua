@@ -244,11 +244,13 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 			table.insert(lines, string.format("%s(%s): {%s}", fieldName, valType, tostring(val)))
 		end
 		-- LOG doesn't like newlines...
-		return table.concat(lines, ", ")
+		local result = table.concat(lines, ", ")
+		return result
 	end
 
 	function StructType:__tostring()
-		return self:_toDebugString()
+		local result = self:_toDebugString()
+		return result
 	end
 end
 
