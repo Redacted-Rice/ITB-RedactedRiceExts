@@ -67,18 +67,22 @@ function hooks.addTo(hookTbl, owner, debugId)
 		local eventId = "on"..Name
 		local addHook = "add"..Name.."Hook"
 
-		events[eventId] = Event()
+		events[eventId] = Event({ eventName = eventId })
 
 		hookTbl[hookId] = {}
 		hookTbl[addHook] = function(self, fn)
 			assert(type(fn) == "function")
-			table.insert(self[hookId], fn)
+			table.insert(self[hookId], {
+				fn = fn,
+				creator = debug.traceback("", 3)
+			})
 		end
 		-- Add the add hook function to the owner if provided
 		if owner then
 			owner[addHook] = function(self, fn)
 				return hookTbl[addHook](hookTbl, fn)
 			end
+			owner.events = events
 		end
 		logger.logDebug(debugId, "Added functions for hook %s", name)
 	end
@@ -96,6 +100,17 @@ function hooks.clearHooks(hookTbl, debugId)
 	end
 end
 
+function hooks.handleFailure(errorOrResult, creator, caller)
+	errorOrResult = errorOrResult or "<unspecified error>"
+	local message = Event.buildErrorMessage("An event callback failed: ", errorOrResult, 
+			nil, creator, caller)
+	if Event.isStackOverflowError(errorOrResult) then
+		error(message)
+	else
+		LOG(message)
+	end
+end
+
 -- Reusable: Build a broadcast function that fires all registered hooks
 -- hooksField: name of the hooks field (e.g., "pilotChangedHooks")
 -- tbl: table containing the hooks
@@ -104,16 +119,17 @@ end
 -- debugId: debug SUBMODULE ID from logger.register() for logging
 function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, debugId)
 	local errfunc = function(e)
-		return debug.traceback(
-			string.format("A '%s' callback has failed:\n%s", hooksField, tostring(e)),
-			2
-		)
+		-- Capture and return the stack trace of the xpcall
+		-- 2 makes it start a frame higher so it doesn't include
+		-- this error handling fn
+		return debug.traceback(tostring(e), 2)
 	end
 
 	logger.logDebug(debugId, "Build fire...Hooks Fn for hook %s", hooksField)
 	return function(...)
 		local args = {...}
 		local argCount = select('#', ...)
+		local caller = debug.traceback("")
 
 		if argCount == 0 then
 			-- We didn't receive arguments directly. Fall back to the argument function.
@@ -143,21 +159,21 @@ function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, d
 		argCount = prependCount + argCount
 
 		logger.logDebug(debugId, "Executing hooks for %s", hooksField)
-		for j, hook in ipairs(tbl[hooksField] or {}) do
+		for j, hookTbl in ipairs(tbl[hooksField] or {}) do
 			-- invoke the hook in a xpcall for proper error reporting
-			local ok, err = xpcall(
+			local ok, errorOrResult = xpcall(
 				function()
 					if argCount > 0 then
-						hook(unpack(argsPrepended, 1, argCount))
+						hookTbl.fn(unpack(argsPrepended, 1, argCount))
 					else
-						hook()
+						hookTbl.fn()
 					end
 				end,
 				errfunc
 			)
-
+			
 			if not ok then
-				logger.logError(debugId, err)
+				hooks.handleFailure(errorOrResult, hookTbl.creator, caller)
 			end
 		end
 	end
