@@ -55,11 +55,13 @@ function createPilotLvlUpSkillFuncs()
 
 	-- Public getters return set values from state tracker
 	PilotLvlUpSkill.getCoresBonus = function(self)
-		return memhack.stateTracker.getSkillSetValue(self, "coresBonus")
+		local result = memhack.stateTracker.getSkillSetValue(self, "coresBonus")
+		return result
 	end
 
 	PilotLvlUpSkill.getGridBonus = function(self)
-		return memhack.stateTracker.getSkillSetValue(self, "gridBonus")
+		local result = memhack.stateTracker.getSkillSetValue(self, "gridBonus")
+		return result
 	end
 
 	-- Public setters track set values and trigger combining

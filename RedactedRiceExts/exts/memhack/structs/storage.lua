@@ -16,7 +16,8 @@ function onModsFirstLoaded()
 	-- 1 indexed
 	MemhackStorage.getAt = function(self, idx)
 		local idxAddress = self:_getVector():getPtrAt(idx + self.UNUSABLE_ENTRIES)
-		return memhack.structs.StorageObject.new(idxAddress)
+		local result = memhack.structs.StorageObject.new(idxAddress)
+		return result
 	end
 	
 	-- 1 indexed
@@ -31,7 +32,8 @@ function onModsFirstLoaded()
 	end
 	
 	MemhackStorage.getAll = function(self)
-		return self:getRange(1, self:getSize())
+		local result = self:getRange(1, self:getSize())
+		return result
 	end
 	
 	MemhackStorage.getAllOfType = function(self, objType)

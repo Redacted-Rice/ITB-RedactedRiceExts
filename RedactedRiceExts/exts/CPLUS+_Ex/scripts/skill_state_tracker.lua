@@ -41,7 +41,8 @@ end
 -- Check if a pilot is high enough level for the skill at the given index to be earned
 local function hasPilotEarnedSkillIndex(pilot, skillIndex)
 	if not pilot then return false end
-	return pilot:getLevel() >= skillIndex
+	local result = pilot:getLevel() >= skillIndex
+	return result
 end
 
 local function getPilotEarnedSkillIndexes(pilot)
@@ -183,7 +184,8 @@ end
 -- Check if a skill is in run at all (on available pilots, any level)
 function skill_state_tracker:isSkillInRun(skillId)
 	local inRun = skill_state_tracker._inRunSkills[skillId]
-	return inRun ~= nil and next(inRun) ~= nil
+	local result = inRun ~= nil and next(inRun) ~= nil
+	return result
 end
 
 -- Get skills in run (user-friendly format)
@@ -283,7 +285,8 @@ end
 -- Check if a skill is currently active (on one of the 3 active mechs)
 function skill_state_tracker:isSkillActive(skillId)
 	local active = skill_state_tracker._activeSkills[skillId]
-	return active ~= nil and next(active) ~= nil
+	local result = active ~= nil and next(active) ~= nil
+	return result
 end
 
 -- Get active skills (user-friendly format)

@@ -49,14 +49,16 @@ function stateTracker.captureValue(obj, valOrGetter)
 
 	-- Check if it's a function name or field name
 	if type(obj[valOrGetter]) == "function" then
-		return obj[valOrGetter](obj)
+		local result = obj[valOrGetter](obj)
+		return result
 	else
 		-- Assume it's a field name, use standard getter
 		local getterName = StructManager.makeStdGetterName(valOrGetter)
 		if type(obj[getterName]) ~= "function" then
 			error(string.format("Getter '%s' not found on object for field '%s'", getterName, valOrGetter))
 		end
-		return obj[getterName](obj)
+		local result = obj[getterName](obj)
+		return result
 	end
 end
 

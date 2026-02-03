@@ -17,12 +17,14 @@ function onModsFirstLoaded()
 	MemhackVector.PTR_SIZE = 4
 	
 	MemhackVector.getSize = function(self)
-		return (self:getNextPtr() - self:getHeadPtr()) / self.PTR_SIZE
+		local result = (self:getNextPtr() - self:getHeadPtr()) / self.PTR_SIZE
+		return result
 	end
 	
 	-- 1 indexed
 	MemhackVector.getPtrAt = function(self, idx)
-		return memhack.dll.memory.readPointer(self:getHeadPtr() + (idx - 1) * self.PTR_SIZE)
+		local result = memhack.dll.memory.readPointer(self:getHeadPtr() + (idx - 1) * self.PTR_SIZE)
+		return result
 	end
 	
 	-- 1 indexed
@@ -35,7 +37,8 @@ function onModsFirstLoaded()
 	end
 	
 	MemhackVector.getPtrsAll = function(self)
-		return self:getPtrsRange(1, self:getSize())
+		local result = self:getPtrsRange(1, self:getSize())
+		return result
 	end
 end
 

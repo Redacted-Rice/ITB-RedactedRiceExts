@@ -23,12 +23,14 @@ local function resolveSubType(subType, ptrValue, fieldDef)
 		if fieldDef.pointedSize == nil then
 			error(string.format("subType '%s' requires pointedSize", subType))
 		end
-		return TYPE_HANDLERS[subType].read(ptrValue, fieldDef.pointedSize)
+		local result = TYPE_HANDLERS[subType].read(ptrValue, fieldDef.pointedSize)
+		return result
 	end
 
 	-- Native types like int, bool, etc
 	if TYPE_HANDLERS[subType] ~= nil then
-		return TYPE_HANDLERS[subType].read(ptrValue)
+		local result = TYPE_HANDLERS[subType].read(ptrValue)
+		return result
 	end
 
 	-- Defined struct
@@ -37,7 +39,8 @@ local function resolveSubType(subType, ptrValue, fieldDef)
 		error(string.format("Unknown structure type: %s", fieldDef.subType))
 	end
 	-- validate returned type
-	return structType.new(ptrValue, true)
+	local result = structType.new(ptrValue, true)
+	return result
 end
 
 -- Helper: Clear method names for a field
@@ -60,7 +63,8 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 	local ptrGetterName = StructManager.makeStdPtrGetterName(fieldName, fieldDef.hideGetter)
 	StructType[ptrGetterName] = function(self)
 		local address = self._address + fieldDef.offset
-		return handler.read(address)
+		local result = handler.read(address)
+		return result
 	end
 
 	-- Typed wrapper getter (getXxx or _getXxx) if subType specified
@@ -75,7 +79,8 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 				return nil
 			end
 
-			return resolveSubType(fieldDef.subType, ptrValue, fieldDef)
+			local result = resolveSubType(fieldDef.subType, ptrValue, fieldDef)
+			return result
 		end
 	end
 end
@@ -95,11 +100,14 @@ function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef
 		local address = self._address + fieldDef.offset
 
 		if fieldDef.type == "bytearray" then
-			return handler.read(address, fieldDef.length)
+			local result = handler.read(address, fieldDef.length)
+			return result
 		elseif fieldDef.type == "string" and fieldDef.maxLength then
-			return handler.read(address, fieldDef.maxLength)
+			local result = handler.read(address, fieldDef.maxLength)
+			return result
 		else
-			return handler.read(address)
+			local result = handler.read(address)
+			return result
 		end
 	end
 end
@@ -139,7 +147,8 @@ function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, 
 		local address = self._address + fieldDef.offset
 		local structType = resolveStructType(fieldDef.subType)
 		-- validate returned type
-		return structType.new(address, true)
+		local result = structType.new(address, true)
+		return result
 	end
 end
 
@@ -189,7 +198,8 @@ function methodGeneration.makeStructGetWrapper(struct, fieldName, newGetterName,
 
 	struct[newGetterName] = function(self)
 		local obj = self[getterName](self)
-		return obj[selfGetterName](obj)
+		local result = obj[selfGetterName](obj)
+		return result
 	end
 end
 
@@ -205,7 +215,8 @@ function methodGeneration.makeStructSetWrapper(struct, fieldName, newSetterName,
 
 	struct[newSetterName] = function(self, ...)
 		local obj = self[getterName](self)
-		return obj[selfSetterName](obj, ...)
+		local result = obj[selfSetterName](obj, ...)
+		return result
 	end
 end
 

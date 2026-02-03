@@ -46,7 +46,8 @@ function createPilotFuncs()
 	genItBStrGetSetWrappers(Pilot, "id")
 
 	Pilot.calculateLevelUpXp = function(level)
-		return (level + 1) * 25
+		local result = (level + 1) * 25
+		return result
 	end
 
 	local function applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
@@ -166,9 +167,11 @@ function createPilotFuncs()
 	--   Result: returned skill has _parent = {Pilot = pilot, PilotLvlUpSkillsArray = array}
 	Pilot.getLvlUpSkill = function(self, index)
 		if index == 1 then
-			return self:getLvlUpSkills():getSkill1()
+			local result = self:getLvlUpSkills():getSkill1()
+			return result
 		elseif index == 2 then
-			return self:getLvlUpSkills():getSkill2()
+			local result = self:getLvlUpSkills():getSkill2()
+			return result
 		else
 			error(string.format("Unexpected index %d. Should be 1 or 2", index))
 		end
