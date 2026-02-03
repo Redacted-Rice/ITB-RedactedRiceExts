@@ -36,9 +36,12 @@ describe("Hooks Module", function()
 		end)
 
 		it("should fire hook with original arguments", function()
-			hooks.pilotChangedHooks[1] = function(pilot, changes)
-				table.insert(callLog, {pilot = pilot, changes = changes})
-			end
+			hooks.pilotChangedHooks[1] = {
+				fn = function(pilot, changes)
+					table.insert(callLog, {pilot = pilot, changes = changes})
+				end,
+				creator = ""
+			}
 
 			local mockPilot = {id = "TestPilot"}
 			local changes = {level = {old = 1, new = 2}}
@@ -54,8 +57,8 @@ describe("Hooks Module", function()
 			local hook1Called = false
 			local hook2Called = false
 
-			hooks.pilotChangedHooks[1] = function() hook1Called = true end
-			hooks.pilotChangedHooks[2] = function() hook2Called = true end
+			hooks.pilotChangedHooks[1] = {fn = function() hook1Called = true end, creator = ""}
+			hooks.pilotChangedHooks[2] = {fn = function() hook2Called = true end, creator = ""}
 
 			fireFunc()
 
@@ -66,9 +69,12 @@ describe("Hooks Module", function()
 		it("should handle hooks with no arguments", function()
 			local called = false
 
-			hooks.pilotChangedHooks[1] = function()
-				called = true
-			end
+			hooks.pilotChangedHooks[1] = {
+				fn = function()
+					called = true
+				end,
+				creator = ""
+			}
 
 			fireFunc()
 
@@ -99,9 +105,12 @@ describe("Hooks Module", function()
 		end)
 
 		it("should prepend single parent to arguments", function()
-			hooks.pilotLvlUpSkillChangedHooks[1] = function(pilot, skill, changes)
-				table.insert(callLog, {pilot = pilot, skill = skill, changes = changes})
-			end
+			hooks.pilotLvlUpSkillChangedHooks[1] = {
+				fn = function(pilot, skill, changes)
+					table.insert(callLog, {pilot = pilot, skill = skill, changes = changes})
+				end,
+				creator = ""
+			}
 
 			local mockPilot = mocks.createMockPilot("TestPilot")
 			local mockSkill = mocks.createMockSkill({skillId = "TestSkill"})
@@ -124,9 +133,12 @@ describe("Hooks Module", function()
 			local grandparent = {type = "grandparent"}
 			local parent = {type = "parent"}
 
-			hooks.pilotLvlUpSkillChangedHooks[1] = function(gp, p, obj, data)
-				table.insert(callLog, {gp = gp, p = p, obj = obj, data = data})
-			end
+			hooks.pilotLvlUpSkillChangedHooks[1] = {
+				fn = function(gp, p, obj, data)
+					table.insert(callLog, {gp = gp, p = p, obj = obj, data = data})
+				end,
+				creator = ""
+			}
 
 			local obj = {
 				value = 42,
@@ -151,11 +163,14 @@ describe("Hooks Module", function()
 			local argCount = 0
 			local hookCalled = false
 
-			hooks.pilotLvlUpSkillChangedHooks[1] = function(...)
-				hookCalled = true
-				argCount = select('#', ...)
-				arg1, arg2, arg3 = ...
-			end
+			hooks.pilotLvlUpSkillChangedHooks[1] = {
+				fn = function(...)
+					hookCalled = true
+					argCount = select('#', ...)
+					arg1, arg2, arg3 = ...
+				end,
+				creator = ""
+			}
 
 			-- Skill without parent (no _parent table at all)
 			local mockSkill = {
@@ -181,14 +196,17 @@ describe("Hooks Module", function()
 
 			local argOrder = {}
 
-			hooks.pilotLvlUpSkillChangedHooks[1] = function(...)
-				local args = {...}
-				for i, arg in ipairs(args) do
-					if arg then
-						table.insert(argOrder, {index = i, type = arg.type})
+			hooks.pilotLvlUpSkillChangedHooks[1] = {
+				fn = function(...)
+					local args = {...}
+					for i, arg in ipairs(args) do
+						if arg then
+							table.insert(argOrder, {index = i, type = arg.type})
+						end
 					end
-				end
-			end
+				end,
+				creator = ""
+			}
 
 			local obj = {
 				type = "object",
@@ -432,12 +450,18 @@ describe("Hooks Module", function()
 			hooks.pilotChangedHooks = {}
 
 			local hook2Called = false
-			hooks.pilotChangedHooks[1] = function()
-				error("Test error in hook")
-			end
-			hooks.pilotChangedHooks[2] = function()
-				hook2Called = true
-			end
+			hooks.pilotChangedHooks[1] = {
+				fn = function()
+					error("Test error in hook")
+				end,
+				creator = ""
+			}
+			hooks.pilotChangedHooks[2] = {
+				fn = function()
+					hook2Called = true
+				end,
+				creator = ""
+			}
 
 			local fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, TEST_SUBMODULE)
 

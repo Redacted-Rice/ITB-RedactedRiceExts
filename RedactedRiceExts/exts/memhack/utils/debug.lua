@@ -33,19 +33,21 @@ function Debug.intToHex(num)
 end
 
 -- Convert a byte array to a hex string representation
--- bytes array (table) of bytes
+-- bytes string containing binary data
 -- bytesPerGroup optional, number of bytes before space separator (default: 0, no grouping)
 function Debug.bytesToHex(bytes, bytesPerGroup)
     local groups = {}
 	if not bytesPerGroup or bytesPerGroup == 0 then
 		-- No grouping, space between each byte
-		for i, byte in ipairs(bytes) do
+		for i = 1, #bytes do
+			local byte = string.byte(bytes, i)
 			table.insert(groups, string.format("%02X", byte))
 		end
 	else
 		-- Group bytes with spaces between groups
 		local currentGroup = {}
-		for i, byte in ipairs(bytes) do
+		for i = 1, #bytes do
+			local byte = string.byte(bytes, i)
 			table.insert(currentGroup, string.format("%02X", byte))
 
 			-- If we've reached the group size, add to groups and start new group
@@ -65,7 +67,7 @@ end
 
 -- Convert hex string to bytes
 -- hexStr Handles spaces "01020304", "01 0203 04", etc.
--- Returns array(table) of byte values
+-- Returns string containing binary data
 function Debug.hexToBytes(hexStr)
 	-- Remove spaces and 0x prefix if present
 	hexStr = hexStr:gsub("%s+", ""):gsub("^0[xX]", "")
@@ -77,9 +79,10 @@ function Debug.hexToBytes(hexStr)
 	local bytes = {}
 	for i = 1, #hexStr, 2 do
 		local byteStr = hexStr:sub(i, i + 1)
-		bytes[#bytes + 1] = tonumber(byteStr, 16)
+		local byteVal = tonumber(byteStr, 16)
+		table.insert(bytes, string.char(byteVal))
 	end
-	return bytes
+	return table.concat(bytes)
 end
 
 -- Log memory contents from a given address for a specified number of bytes
@@ -112,14 +115,9 @@ function Debug.logFromMemory(address, numBytes, bytesPerLine, bytesPerGroup)
 
 	-- Log each line individually. LOG does not seem to like newline
 	for i = 1, numBytes, bytesPerLine do
-		-- Extract bytes for this line
-		local lineBytes = {}
-		for j = 0, bytesPerLine - 1 do
-			local byteIndex = i + j
-			if byteIndex <= numBytes then
-				table.insert(lineBytes, bytes[byteIndex])
-			end
-		end
+		-- Extract bytes for this line as a substring
+		local endIndex = math.min(i + bytesPerLine - 1, numBytes)
+		local lineBytes = string.sub(bytes, i, endIndex)
 
 		-- Log address and the bytes for that line
 		local hexPart = Debug.bytesToHex(lineBytes, bytesPerGroup)

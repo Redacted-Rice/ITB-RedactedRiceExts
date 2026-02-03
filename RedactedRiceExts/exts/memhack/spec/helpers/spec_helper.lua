@@ -112,7 +112,20 @@ function M.setupGlobals()
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
 	_G.modApi.addSaveGameHook = function() end
 
-	_G.Event = _G.Event or function() return {dispatch = function() end} end
+	_G.Event = _G.Event or setmetatable({
+		buildErrorMessage = function(prefix, error, ...) 
+			return prefix .. tostring(error)
+		end,
+		isStackOverflowError = function(error)
+			return type(error) == "string" and error:match("stack overflow")
+		end
+	}, {
+		__call = function(self, config)
+			return {
+				dispatch = function() end
+			}
+		end
+	})
 	_G.Game = _G.Game or {}
 end
 

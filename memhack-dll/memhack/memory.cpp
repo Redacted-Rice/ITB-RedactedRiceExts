@@ -171,16 +171,9 @@ int read_byte_array(lua_State* L) {
 		return 0;
 	}
 
-	unsigned char* bytes = (unsigned char*)addr;
-
-	// Create a Lua table to hold the bytes
-	lua_createtable(L, length, 0);
-
-	for (int i = 0; i < length; i++) {
-		lua_pushinteger(L, i + 1);  // Lua tables are 1-indexed
-		lua_pushinteger(L, bytes[i]);
-		lua_rawset(L, -3);
-	}
+	// Return as Lua string (can handle non-null terminated binary data)
+	const char* bytes = (const char*)addr;
+	lua_pushlstring(L, bytes, length);
 
 	return 1;
 }
@@ -286,38 +279,28 @@ int write_pointer(lua_State* L) {
 
 int write_byte_array(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
-	luaL_checktype(L, 2, LUA_TTABLE);
+	
+	// Accept string for byte array
+	if (!lua_isstring(L, 2)) {
+		luaL_error(L, "write_byte_array failed: expected string for byte array data");
+		return -1;
+	}
 
-	// Get the length of the table
-	int length = lua_objlen(L, 2);
+	size_t length;
+	const char* data = lua_tolstring(L, 2, &length);
 
 	if (length < 0) {
 		luaL_error(L, "write_byte_array failed: length must be non-negative");
 		return -1;
 	}
 
-	if (!SafeMemory::is_access_allowed(addr, length, READ_WRITE)) {
-		luaL_error(L, "write_byte_array failed: write to address 0x%p (len %d) not allowed", addr, length);
+	if (!SafeMemory::is_access_allowed(addr, (int)length, READ_WRITE)) {
+		luaL_error(L, "write_byte_array failed: write to address 0x%p (len %zu) not allowed", addr, length);
 		return -1;
 	}
 
-	unsigned char* bytes = (unsigned char*)addr;
-
-	// Write each byte from the table
-	for (int i = 1; i <= length; i++) {
-		lua_pushinteger(L, i);
-		lua_gettable(L, 2);
-
-		if (lua_isnumber(L, -1)) {
-			int byte_value = lua_tointeger(L, -1);
-			// Clamp to byte range (0-255)
-			if (byte_value < 0) byte_value = 0;
-			if (byte_value > 255) byte_value = 255;
-			bytes[i - 1] = (unsigned char)byte_value;
-		}
-
-		lua_pop(L, 1);
-	}
+	// Copy the string data to memory
+	memcpy(addr, data, length);
 
 	return 0;
 }

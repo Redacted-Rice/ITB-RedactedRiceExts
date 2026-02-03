@@ -207,36 +207,24 @@ bool parseSequenceValue(lua_State* L, int valueIndex, SequenceScanner::DataType 
 
 		case SequenceScanner::DataType::BYTE_ARRAY:
 		{
-			if (!lua_istable(L, valueIndex)) {
-				luaL_error(L, "Expected table for BYTE_ARRAY data type");
+			if (!lua_isstring(L, valueIndex)) {
+				luaL_error(L, "Expected string for BYTE_ARRAY data type");
 				return false;
 			}
-			// Read bytes from table
-			bytesBuffer.clear();
-			size_t tableLen = lua_objlen(L, valueIndex);
-
-			for (size_t i = 1; i <= tableLen; i++) {
-				lua_rawgeti(L, valueIndex, (lua_Integer)i);
-				if (!lua_isnumber(L, -1)) {
-					luaL_error(L, "BYTE_ARRAY table must contain only numbers");
-					return false;
-				}
-				int byte = lua_tointeger(L, -1);
-				if (byte < 0 || byte > 255) {
-					luaL_error(L, "BYTE_ARRAY values must be 0-255, got: %d", byte);
-					return false;
-				}
-				bytesBuffer.push_back((uint8_t)byte);
-				lua_pop(L, 1);
-			}
-
-			if (bytesBuffer.empty()) {
+			// Read bytes from string (Lua strings can contain binary data)
+			const char* str = lua_tolstring(L, valueIndex, &outSize);
+			
+			if (outSize == 0) {
 				luaL_error(L, "Sequence cannot be empty");
 				return false;
 			}
 
+			// Copy to buffer to ensure persistence
+			bytesBuffer.clear();
+			bytesBuffer.resize(outSize);
+			memcpy(bytesBuffer.data(), str, outSize);
+
 			outData = bytesBuffer.data();
-			outSize = bytesBuffer.size();
 			return true;
 		}
 		default:
