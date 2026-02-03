@@ -230,6 +230,7 @@ function skill_selection:applySkillsToPilot(pilot)
 		storedSkills[2] = nil
 	end
 	if not skill1 then
+		skill1Id = skill1Id or "<unknown>" 
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id .. 
 				" is disabled, assigning new one")
 		storedSkills[1] = nil
@@ -238,6 +239,7 @@ function skill_selection:applySkillsToPilot(pilot)
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
 	if not skill2 then
+		skill2Id = skill2Id or "<unknown>" 
 		logger.logWarn(SUBMODULE, "Pilot %s skill 2 %s is disabled, assigning new one", pilotId, skill2Id)
 		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, storedSkills)
 		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = skill2Id
