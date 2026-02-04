@@ -19,6 +19,8 @@ local function validateItBString(itbStr)
 	return true
 end
 
+-- TODO: Custom writter/handler for string that will limit to strLen instead of max length
+
 -- This is a union. We hide alot of default getters/setters to
 -- ensure safe accessing and setting of values
 local ItBString = memhack.structManager.define("ItBString", {

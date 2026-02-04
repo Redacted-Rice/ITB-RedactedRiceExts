@@ -176,6 +176,8 @@ local function skillDataToTable(id, shortName, fullName, description, saveVal, b
 		moveBonus = bonuses.move, saveVal = saveVal}
 end
 
+-- TODO: Removing pilots in between seems to cause issues
+
 -- Main function to apply level up skills to a pilot (handles both skill slots)
 -- Takes a memhack pilot struct and applies both skill slots (1 and 2)
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
@@ -283,6 +285,8 @@ function skill_selection:applySkillsToPilot(pilot)
 			skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 end
 
+
+-- TODO: MOve to time traveler?
 -- Apply skills to all pilots in the squad
 function skill_selection:applySkillsToAllPilots()
 	-- ensure game data is initialized

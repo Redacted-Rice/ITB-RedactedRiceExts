@@ -113,6 +113,11 @@ int read_float(lua_State* L) {
 	return 1;
 }
 
+// TODO: This is causing issues if max string is way longer than needed and passes into other memory
+// We should handle this somehow. We can also handle this in ItBString but it seems less desireable/
+// generally useful to do it only there. Maybe do both
+// Mabye we can modify is_access_allowed to retunr the end of the chunk if its partially in a chunk?
+// that seems like it should work
 int read_cstring(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	int max_length = luaL_checkinteger(L, 2);
@@ -136,6 +141,7 @@ int read_cstring(lua_State* L) {
 	// Pre-allocate reasonable size. Most strings should be short
 	result.reserve(128);
 	
+	// TODO: Can we read string instead?
 	// Read until we hit null terminator or max_length
 	unsigned char* bytes = (unsigned char*)addr;
 	for (int i = 0; i < max_length; i++) {

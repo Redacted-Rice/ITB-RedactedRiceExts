@@ -46,6 +46,7 @@ function time_traveler:load()
 	logger.logDebug(SUBMODULE, "Initialized and subscribed to game hooks")
 end
 
+-- TODO: Pull this out of time traveler or rename to squad_pilot_tracker or something?
 -- Do all time_traveler operations (refresh, load, apply, save)
 function time_traveler:updateAndSaveSkills()
 	self:refreshGameData()
