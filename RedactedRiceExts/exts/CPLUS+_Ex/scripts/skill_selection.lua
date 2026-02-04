@@ -286,8 +286,7 @@ function skill_selection:applySkillsToPilot(pilot)
 end
 
 
--- TODO: MOve to time traveler?
--- Apply skills to all pilots in the squad
+-- Apply skills to all pilots - both squad and storage
 function skill_selection:applySkillsToAllPilots()
 	-- ensure game data is initialized
 	skill_selection:initGameSaveData()
@@ -313,6 +312,8 @@ function skill_selection:applySkillsToAllPilots()
 				for _, skillId in ipairs(storedSkills) do
 					skill_selection:markPerRunSkillAsUsed(skillId)
 				end
+			else
+				logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
 			end
 		else
 			logger.logWarn(SUBMODULE, "Pilot %s is nil in applySkillsToAllPilots - skipping", idx)

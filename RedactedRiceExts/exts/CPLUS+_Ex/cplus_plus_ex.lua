@@ -123,6 +123,17 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:getTimeTraveler() return time_traveler.timeTraveler end
 end
 
+-- Orchestrates skill assignment and persistent data saving workflow
+function cplus_plus_ex:updateAndSaveSkills()
+	-- TODO: I think these first two can be removed
+	time_traveler:refreshGameData()
+	time_traveler:loadPersistentDataIfNeeded()
+	-- These are done here instead of delegating to lower level files becuase we have a specific order
+	-- we want these to happen in and they are dependent on each other
+	self:applySkillsToAllPilots()
+	time_traveler:savePersistentDataIfChanged()
+end
+
 function cplus_plus_ex:overwriteAeSkillsUiText()
 	modApi.modLoaderDictionary["Toggle_NewPilotAbilities"] = "Abilities Overriden"
 	modApi.modLoaderDictionary["TipTitle_New_PilotAbilities"] = "CPLUS+ Controls Abilities"
@@ -137,8 +148,8 @@ function cplus_plus_ex:init()
 
 	-- Add events
 	self:addEvents()
-	
-	self:overwriteAeSkillsUiText()	
+
+	self:overwriteAeSkillsUiText()
 end
 
 function cplus_plus_ex:load(options)
@@ -146,6 +157,11 @@ function cplus_plus_ex:load(options)
 	hooks:load()
 	skill_state_tracker:load()
 	time_traveler:load()
+
+	-- Add save game hook
+	modApi:addSaveGameHook(function()
+		self:updateAndSaveSkills()
+	end)
 end
 
 function cplus_plus_ex:addEvents()

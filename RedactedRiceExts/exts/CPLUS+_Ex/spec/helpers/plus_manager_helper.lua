@@ -13,7 +13,7 @@ function M.setupGlobals()
 	_G.GetParentPath = _G.GetParentPath or function(modPath)
 		return ""
 	end
-	
+
 	-- Initialize memhack logging before CPLUS+ modules load
 	if not _G.memhack then
 		_G.memhack = {}
@@ -68,7 +68,7 @@ function M.stubMemhack()
 	-- Preserve memhack.logger if it was set up
 	local logger = _G.memhack and _G.memhack.logger
 	local DEBUG = _G.memhack and _G.memhack.DEBUG
-	
+
 	local Event = _G.Event
 	_G.memhack = {
 		logger = logger,  -- Preserve logger
@@ -184,7 +184,7 @@ function M.resetState()
 	skill_selection.usedSkillsPerRun = {}
 
 	-- Reset time_traveler module state
-	time_traveler.pilotStructs = nil
+	time_traveler.squadPilots = nil
 	time_traveler.lastSavedPersistentData = nil
 	time_traveler.timeTraveler = nil
 
@@ -264,10 +264,10 @@ function M.cleanupGlobals()
 	_G.sdlext = nil
 	_G.LOG = nil
 	_G.GetParentPath = nil
-	
+
 	-- Remove memhack stub (critical for memhack tests to work)
 	_G.memhack = nil
-	
+
 	-- Clear package.loaded for CPLUS+ modules to ensure fresh load next time
 	for key in pairs(package.loaded) do
 		if type(key) == "string" and (
