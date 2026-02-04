@@ -63,7 +63,7 @@ local function createMockDll()
 			writeByte = function(addr, value) mockMemory[addr] = value end,
 			readByteArray = function(addr, len) return mockMemory[addr] or string.rep("\0", len) end,
 			writeByteArray = function(addr, value) mockMemory[addr] = value end,
-			
+
 			-- Memory verification
 			isAccessAllowed = function(addr, size, write)
 				-- Mock: addresses >= 0x1000 are readable
@@ -113,7 +113,7 @@ function M.setupGlobals()
 	_G.modApi.addSaveGameHook = function() end
 
 	_G.Event = _G.Event or setmetatable({
-		buildErrorMessage = function(prefix, error, ...) 
+		buildErrorMessage = function(prefix, error, ...)
 			return prefix .. tostring(error)
 		end,
 		isStackOverflowError = function(error)

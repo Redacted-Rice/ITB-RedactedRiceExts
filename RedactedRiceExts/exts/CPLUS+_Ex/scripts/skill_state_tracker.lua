@@ -66,15 +66,22 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 
 	if checkEarned == nil then checkEarned = true end
 	for _, pilot in ipairs(pilots) do
-		for skillIndex = 1, 2 do
-			local skill = pilot:getLvlUpSkill(skillIndex)
-			if skill and skill:getIdStr() == skillId then
-				if not checkEarned then
-					return true
-				elseif hasPilotEarnedSkillIndex(pilot, skillIndex) then
-					return true
+		if pilot then
+			for skillIndex = 1, 2 do
+				local skill = pilot:getLvlUpSkill(skillIndex)
+				if skill then
+					local currentSkillId = skill:getIdStr()
+					if currentSkillId == skillId then
+						if not checkEarned then
+							return true
+						elseif hasPilotEarnedSkillIndex(pilot, skillIndex) then
+							return true
+						end
+					end
 				end
 			end
+		else
+			logger.logWarn(SUBMODULE, "Pilot %s is nil in isSkillOnPilots - skipping", idx)
 		end
 	end
 	return false
@@ -95,26 +102,33 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 
 	if checkEarned == nil then checkEarned = true end
 	for _, pilot in ipairs(pilots) do
-		local skillIndices = {}
+		if pilot then
+			local skillIndices = {}
 
-		for skillIndex = 1, 2 do
-			local skill = pilot:getLvlUpSkill(skillIndex)
+			for skillIndex = 1, 2 do
+				local skill = pilot:getLvlUpSkill(skillIndex)
 
-			if skill and skill:getIdStr() == skillId then
-				if not checkEarned then
-					table.insert(skillIndices, skillIndex)
-				elseif hasPilotEarnedSkillIndex(pilot, skillIndex) then
-					table.insert(skillIndices, skillIndex)
+				if skill then
+					local currentSkillId = skill:getIdStr()
+					if currentSkillId == skillId then
+						if not checkEarned then
+							table.insert(skillIndices, skillIndex)
+						elseif hasPilotEarnedSkillIndex(pilot, skillIndex) then
+							table.insert(skillIndices, skillIndex)
+						end
+					end
 				end
 			end
-		end
 
-		-- If we found any, add them
-		if #skillIndices > 0 then
-			table.insert(result, {
-				pilot = pilot,
-				skillIndices = skillIndices
-			})
+			-- If we found any, add them
+			if #skillIndices > 0 then
+				table.insert(result, {
+					pilot = pilot,
+					skillIndices = skillIndices
+				})
+			end
+		else
+			logger.logWarn(SUBMODULE, "Pilot %s is nil in getPilotsWithSkill - skipping", idx)
 		end
 	end
 	return result
@@ -130,6 +144,7 @@ function skill_state_tracker:getMechsWithSkill(skillId, checkEarned)
 	if checkEarned == nil then checkEarned = true end
 	local pilots = skill_state_tracker:getPilotsWithSkill(skillId, Game:GetSquadPilots(), checkEarned)
 	for _, pilotData in ipairs(pilots) do
+		-- Data will be non-nil - getPilotsWithSkill handles this already
 		local pawnId = pilotData.pilot:getPawnId()
 		if pawnId then
 			table.insert(mechs, {
@@ -216,20 +231,22 @@ function skill_state_tracker:determineInRunSkillsState()
 		local pilotAddr = pilot:getAddress()
 		-- Check each skill slot
 		for _, skillIndex in ipairs(getPilotEarnedSkillIndexes(pilot)) do
-			local skillId = pilot:getLvlUpSkill(skillIndex):getIdStr()
-			if not result[skillId] then
-				result[skillId] = {}
+			local skill = pilot:getLvlUpSkill(skillIndex)
+			if skill then
+				local skillId = skill:getIdStr()
+				if not result[skillId] then
+					result[skillId] = {}
+				end
+				if not result[skillId][pilotAddr] then
+					result[skillId][pilotAddr] = {
+						pilot = pilot,
+						skillIndices = {},
+					}
+				end
+				table.insert(result[skillId][pilotAddr].skillIndices, skillIndex)
 			end
-			if not result[skillId][pilotAddr] then
-				result[skillId][pilotAddr] = {
-					pilot = pilot,
-					skillIndices = {},
-				}
-			end
-			table.insert(result[skillId][pilotAddr].skillIndices, skillIndex)
 		end
 	end
-
 	return result
 end
 
@@ -267,7 +284,7 @@ function skill_state_tracker:updateInRunSkills()
 			if not newPilots[pilotAddr] then
 				logger.logDebug(SUBMODULE, "Skill in-run removed - %s (pilot: %s) - Firing hooks...",
 						skillId, tostring(pilotAddr))
-				-- Fire hook for each skill instance
+				-- Fire hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skill = data.pilot:getLvlUpSkill(skillIndex)
 					hooks.fireSkillInRunHooks(skillId, false, data.pilot, skill)
@@ -318,17 +335,20 @@ function skill_state_tracker:determineActiveSkillsState()
 		local pawnId = pilot:getPawnId()
 		-- Check each skill slot
 		for _, skillIndex in ipairs(getPilotEarnedSkillIndexes(pilot)) do
-			local skillId = pilot:getLvlUpSkill(skillIndex):getIdStr()
-			if not result[skillId] then
-				result[skillId] = {}
+			local skill = pilot:getLvlUpSkill(skillIndex)
+			if skill then
+				local skillId = skill:getIdStr()
+				if not result[skillId] then
+					result[skillId] = {}
+				end
+				if not result[skillId][pawnId] then
+					result[skillId][pawnId] = {
+						pilot = pilot,
+						skillIndices = {},
+					}
+				end
+				table.insert(result[skillId][pawnId].skillIndices, skillIndex)
 			end
-			if not result[skillId][pawnId] then
-				result[skillId][pawnId] = {
-					pilot = pilot,
-					skillIndices = {},
-				}
-			end
-			table.insert(result[skillId][pawnId].skillIndices, skillIndex)
 		end
 	end
 
@@ -369,7 +389,7 @@ function skill_state_tracker:updateActiveSkills()
 			if not newMechs[pawnId] then
 				logger.logDebug(SUBMODULE, "Skill active removed - %s (pawnId: %s) - Firing hooks...",
 						skillId, tostring(pawnId))
-				-- Fire hook for each skill instance
+				-- Fire hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skill = data.pilot:getLvlUpSkill(skillIndex)
 					hooks.fireSkillActiveHooks(skillId, false, pawnId, data.pilot, skill)
@@ -398,8 +418,10 @@ function skill_state_tracker:addEvents()
 	modApi.events.onGameEntered:subscribe(function()
 		skill_state_tracker:updateAllStates()
 	end)
-
 	modApi.events.onGameExited:subscribe(function()
+		skill_state_tracker:updateAllStates()
+	end)
+	modApi.events.onGameVictory:subscribe(function()
 		skill_state_tracker:updateAllStates()
 	end)
 end

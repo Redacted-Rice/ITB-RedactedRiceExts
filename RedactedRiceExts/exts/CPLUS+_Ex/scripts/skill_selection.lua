@@ -303,20 +303,16 @@ function skill_selection:applySkillsToAllPilots()
 	-- Reset per_run tracking and rebuild it from currently assigned skills
 	skill_selection.usedSkillsPerRun = {}
 	for idx, pilot in pairs(pilots) do
-		if pilot ~= nil then
-			local pilotId = pilot:getIdStr()
-			local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+		local pilotId = pilot:getIdStr()
+		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
 
-			if storedSkills ~= nil then
-				-- This pilot has assigned skills, mark them as used for per_run tracking
-				for _, skillId in ipairs(storedSkills) do
-					skill_selection:markPerRunSkillAsUsed(skillId)
-				end
-			else
-				logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
+		if storedSkills ~= nil then
+			-- This pilot has assigned skills, mark them as used for per_run tracking
+			for _, skillId in ipairs(storedSkills) do
+				skill_selection:markPerRunSkillAsUsed(skillId)
 			end
 		else
-			logger.logWarn(SUBMODULE, "Pilot %s is nil in applySkillsToAllPilots - skipping", idx)
+			logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
 		end
 	end
 

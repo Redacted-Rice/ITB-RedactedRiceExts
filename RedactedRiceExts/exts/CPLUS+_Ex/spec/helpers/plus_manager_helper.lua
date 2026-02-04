@@ -40,6 +40,7 @@ function M.setupGlobals()
 	_G.modApi.events.onPerfectIslandWindowShown = { subscribe = function() end }
 	_G.modApi.events.onGameEntered = { subscribe = function() end }
 	_G.modApi.events.onGameExited = { subscribe = function() end }
+	_G.modApi.events.onGameVictory = { subscribe = function() end }
 	_G.modApi.events.onMainMenuEntered = { subscribe = function() end }
 	_G.modApi.events.onHangarEntered = { subscribe = function() end }
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function() end }
