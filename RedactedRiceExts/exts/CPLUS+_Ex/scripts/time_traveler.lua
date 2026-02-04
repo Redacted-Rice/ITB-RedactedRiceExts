@@ -92,33 +92,31 @@ function time_traveler:refreshLastSavedPersistentData()
 	local changed = false
 	time_traveler.lastSavedPersistentData = time_traveler.lastSavedPersistentData or {}
 	for _, pilot in pairs(pilots) do
-		if pilot ~= nil then
-			local id = pilot:getIdStr()
-			time_traveler.lastSavedPersistentData[id] = time_traveler.lastSavedPersistentData[id] or {}
-			if time_traveler.lastSavedPersistentData[id].name ~= pilot:getNameStr() then
-				time_traveler.lastSavedPersistentData[id].name = pilot:getNameStr()
-				changed = true
-			end
-			if time_traveler.lastSavedPersistentData[id].xp ~= pilot:getXp() then
-				time_traveler.lastSavedPersistentData[id].xp = pilot:getXp()
-				changed = true
-			end
-			if time_traveler.lastSavedPersistentData[id].level ~= pilot:getLevel() then
-				time_traveler.lastSavedPersistentData[id].level = pilot:getLevel()
-				changed = true
-			end
-			if time_traveler.lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
-				time_traveler.lastSavedPersistentData[id].skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
-				changed = true
-			end
-			if time_traveler.lastSavedPersistentData[id].skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
-				time_traveler.lastSavedPersistentData[id].skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
-				changed = true
-			end
-			if time_traveler.lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then
-				time_traveler.lastSavedPersistentData[id].prevTimelines = pilot:getPrevTimelines()
-				changed = true
-			end
+		local id = pilot:getIdStr()
+		time_traveler.lastSavedPersistentData[id] = time_traveler.lastSavedPersistentData[id] or {}
+		if time_traveler.lastSavedPersistentData[id].name ~= pilot:getNameStr() then
+			time_traveler.lastSavedPersistentData[id].name = pilot:getNameStr()
+			changed = true
+		end
+		if time_traveler.lastSavedPersistentData[id].xp ~= pilot:getXp() then
+			time_traveler.lastSavedPersistentData[id].xp = pilot:getXp()
+			changed = true
+		end
+		if time_traveler.lastSavedPersistentData[id].level ~= pilot:getLevel() then
+			time_traveler.lastSavedPersistentData[id].level = pilot:getLevel()
+			changed = true
+		end
+		if time_traveler.lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
+			time_traveler.lastSavedPersistentData[id].skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
+			changed = true
+		end
+		if time_traveler.lastSavedPersistentData[id].skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
+			time_traveler.lastSavedPersistentData[id].skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
+			changed = true
+		end
+		if time_traveler.lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then
+			time_traveler.lastSavedPersistentData[id].prevTimelines = pilot:getPrevTimelines()
+			changed = true
 		end
 	end
 	logger.logDebug(SUBMODULE, "Refreshed last saved persistent data: %s",
@@ -152,18 +150,15 @@ function time_traveler:savePersistentDataIfChanged()
 		end
 
 		logger.logDebug(SUBMODULE, "Saving persistent data")
-		sdlext.config(
-			modApi:getCurrentProfilePath().."modcontent.lua",
-			function(readObj)
-				readObj.cplus_plus_ex = {}
-				readObj.cplus_plus_ex.last_run_pilots = {}
-				for _, pilot in pairs(Game:GetSquadPilots()) do
-					if pilot ~= nil then
+		sdlext.config(modApi:getCurrentProfilePath().."modcontent.lua",
+				function(readObj)
+					readObj.cplus_plus_ex = {}
+					readObj.cplus_plus_ex.last_run_pilots = {}
+					for _, pilot in pairs(Game:GetSquadPilots()) do
 						local id = pilot:getIdStr()
 						readObj.cplus_plus_ex.last_run_pilots[id] = time_traveler.lastSavedPersistentData[id]
 					end
 				end
-			end
 		)
 	end
 end
@@ -212,20 +207,16 @@ function time_traveler:searchForTimeTraveler()
 	if time_traveler.squadPilots then
 		logger.logDebug(SUBMODULE, "Checking squad pilots for time traveler")
 		for idx, pilot in pairs(time_traveler.squadPilots) do
-			if pilot ~= nil then
-				local pilotData = time_traveler.lastSavedPersistentData[pilot:getIdStr()]
-				if pilotData then
-					logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",
-							pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
-					if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
-						time_traveler.timeTraveler = pilot
-						logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
-					end
-				else
-					logger.logWarn(SUBMODULE, "pilotData %s is nil in searchForTimeTraveler - skipping", idx)
+			local pilotData = time_traveler.lastSavedPersistentData[pilot:getIdStr()]
+			if pilotData then
+				logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",
+						pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
+				if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
+					time_traveler.timeTraveler = pilot
+					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
 				end
 			else
-				logger.logWarn(SUBMODULE, "Pilot %s is nil in searchForTimeTraveler - skipping", idx)
+				logger.logWarn(SUBMODULE, "pilotData %s is nil in searchForTimeTraveler - skipping", idx)
 			end
 		end
 	else

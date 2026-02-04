@@ -77,6 +77,7 @@ local function onGameClassInitialized(GameClass)
 	-- Get all memhack pilot structs for pilots currently in the squad
 	-- Returns array of Pilot structs (up to 3, some mechs may not have pilots)
 	-- Order/alignment to pawnId is not guaranteed
+	-- All returned pilots will be non-nil
 	GameClass.GetSquadPilots = function(self)
 		local pilots = {}
 		for i = 0, 2 do
@@ -94,8 +95,16 @@ local function onGameClassInitialized(GameClass)
 	end
 
 	-- Gets all memhack pilot structs for pilots currently in storage
+	-- All returned pilots will be non-nil
 	GameClass.GetStoragePilots = function(self)
-		local pilots = self:GetStorage():getAllOfType(memhack.structs.StorageObject.TYPE_PILOT)
+		local allPilots = self:GetStorage():getAllOfType(memhack.structs.StorageObject.TYPE_PILOT)
+		-- Filter out any nil pilots. I don't think this should happen but just in case
+		local pilots = {}
+		for _, pilot in ipairs(allPilots) do
+			if pilot then
+				table.insert(pilots, pilot)
+			end
+		end
 		return pilots
 	end
 
@@ -103,7 +112,9 @@ local function onGameClassInitialized(GameClass)
 	-- This is the squad pilots and storage pilots. This does not include pod
 	-- rewards or perfect island rewards that are displayed and have not been
 	-- claimed yet
+	-- All returned pilots will be non-nil
 	GameClass.GetAvailablePilots = function(self)
+		-- Both of this already handle/remove nil pilots so we don't need to do that here
 		local pilots = self:GetSquadPilots()
 		for _, pilot in ipairs(self:GetStoragePilots()) do
 			table.insert(pilots, pilot)
@@ -119,6 +130,10 @@ local function onGameClassInitialized(GameClass)
 		return pilot
 	end
 
+	-- Returns the pilot for perfect island rewards before they are claimed to
+	-- your storage. If there is no pilot or the perfect reward UI is not open, will
+	-- return nil
+	-- Actually not sure if this will still work if the reward UI is "minimized" or not
 	GameClass.GetPerfectIslandRewardPilot = function(self)
 		local pilot = self:GetMemhackObj():getUnknownObj1():getPerfectIslandRewardPilot()
 		return pilot
