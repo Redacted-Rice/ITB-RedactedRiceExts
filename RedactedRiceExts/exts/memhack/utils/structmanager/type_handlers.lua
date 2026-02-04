@@ -62,14 +62,14 @@ local typeHandlers = {
 			if not maxLength then
 				error("string type requires a 'maxLength' field (including null terminator)")
 			end
-			local result = StructManager._dll.memory.readCString(address, maxLength)
+			local result = StructManager._dll.memory.readNullTermString(address, maxLength)
 			return result
 		end,
 		write = function(address, value, maxLength)
 			if not maxLength then
 				error("string type requires a 'maxLength' field (including null terminator)")
 			end
-			StructManager._dll.memory.writeCString(address, value, maxLength)
+			StructManager._dll.memory.writeNullTermString(address, value, maxLength)
 		end,
 		size = nil  -- Variable size
 	},

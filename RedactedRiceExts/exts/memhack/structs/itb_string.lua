@@ -19,18 +19,26 @@ local function validateItBString(itbStr)
 	return true
 end
 
--- TODO: Custom writter/handler for string that will limit to strLen instead of max length
-
 -- This is a union. We hide alot of default getters/setters to
 -- ensure safe accessing and setting of values
 local ItBString = memhack.structManager.define("ItBString", {
 	-- If present in global text table, the text idx to display. Otherwise displays directly.
 	-- Can only be used if size < 16. Otherwise it has to be stored with strPtr
 	-- May not always be valid - calling getters may be unsafe
-	strLocal = { offset = 0x0, type = "string", maxLength = 16, hideSetter = true, hideGetter = true },
+	-- Uses lengthFn to read only the actual string length instead of max buffer size
+	strLocal = { offset = 0x0, type = "string", maxLength = 16, 
+		lengthFn = function(self) return self:getStrLen() end, 
+		hideSetter = true, hideGetter = true },
 	-- Same idea as strLocal but a pointer to the value if its too large to fit locally
 	-- May not always be valid - calling getters may be unsafe
-	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true, subType = "string", pointedSize = memhack.dll.memory.MAX_CSTRING_LENGTH },
+	-- Uses lengthFn to get actual string length instead of max length
+	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true,
+		subType = {
+			type = "string",
+			maxLength = memhack.dll.memory.MAX_CSTRING_LENGTH,
+			lengthFn = function(self) return self:getStrLen() end
+		}
+	},
 	-- Length of the strLocal/string pointed to by strRemote. This is set the same regardless
 	-- of which is used
 	strLen = { offset = 0x10, type = "int", hideSetter = true },

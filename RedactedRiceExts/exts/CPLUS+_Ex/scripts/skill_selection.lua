@@ -183,10 +183,10 @@ end
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
 function skill_selection:applySkillsToPilot(pilot)
 	if pilot == nil then
-		logger.logError(SUBMODULE, "Pilot is nil in applySkillsToPilot")
+		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillsToPilot - skipping")
 		return
 	end
-	
+
 	local availableSkills = self:createAvailableSkills()
 
 	-- Use pilot ID as the key for storing skills for now. Multiple pilots with same ID is
@@ -227,13 +227,13 @@ function skill_selection:applySkillsToPilot(pilot)
 	local skill2Id = storedSkills[2]
 	local skill1 = skill_config_module.enabledSkills[skill1Id]
 	local skill2 = skill_config_module.enabledSkills[skill2Id]
-	
+
 	if not skill2 then
 		storedSkills[2] = nil
 	end
 	if not skill1 then
-		skill1Id = skill1Id or "<unknown>" 
-		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id .. 
+		skill1Id = skill1Id or "<unknown>"
+		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
 				" is disabled, assigning new one")
 		storedSkills[1] = nil
 		skill1Id = self:selectRandomSkill(availableSkills, pilot, 1, storedSkills)
@@ -241,13 +241,13 @@ function skill_selection:applySkillsToPilot(pilot)
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
 	if not skill2 then
-		skill2Id = skill2Id or "<unknown>" 
+		skill2Id = skill2Id or "<unknown>"
 		logger.logWarn(SUBMODULE, "Pilot %s skill 2 %s is disabled, assigning new one", pilotId, skill2Id)
 		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, storedSkills)
 		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = skill2Id
 		skill2 = skill_config_module.enabledSkills[skill2Id]
 	end
-	
+
 
 	-- Determine saveVal for skill 1
 	-- If skill has saveVal = -1, assign random value (0-13)
@@ -303,15 +303,19 @@ function skill_selection:applySkillsToAllPilots()
 
 	-- Reset per_run tracking and rebuild it from currently assigned skills
 	skill_selection.usedSkillsPerRun = {}
-	for _, pilot in pairs(pilots) do
-		local pilotId = pilot:getIdStr()
-		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+	for idx, pilot in pairs(pilots) do
+		if pilot ~= nil then
+			local pilotId = pilot:getIdStr()
+			local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
 
-		if storedSkills ~= nil then
-			-- This pilot has assigned skills, mark them as used for per_run tracking
-			for _, skillId in ipairs(storedSkills) do
-				skill_selection:markPerRunSkillAsUsed(skillId)
+			if storedSkills ~= nil then
+				-- This pilot has assigned skills, mark them as used for per_run tracking
+				for _, skillId in ipairs(storedSkills) do
+					skill_selection:markPerRunSkillAsUsed(skillId)
+				end
 			end
+		else
+			logger.logWarn(SUBMODULE, "Pilot %s is nil in applySkillsToAllPilots - skipping", idx)
 		end
 	end
 
@@ -326,17 +330,13 @@ end
 function skill_selection:applySkillToPodPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPodRewardPilot()
-	if pilot and pilot:getAddress() ~= 0 then
-		skill_selection:applySkillsToPilot(pilot)
-	end
+	skill_selection:applySkillsToPilot(pilot)
 end
 
 function skill_selection:applySkillToPerfectIslandPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPerfectIslandRewardPilot()
-	if pilot and pilot:getAddress() ~= 0 then
-		skill_selection:applySkillsToPilot(pilot)
-	end
+	skill_selection:applySkillsToPilot(pilot)
 end
 
 -- Marks a per_run skill as used for this run

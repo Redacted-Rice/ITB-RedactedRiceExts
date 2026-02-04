@@ -153,7 +153,7 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 		end
 
 		-- Check if memory is readable
-		if not StructManager._dll.memory.isReadable(addr, structSize) then
+		if not StructManager._dll.memory.isAccessAllowed(addr, structSize, false) then
 			return nil, string.format("Memory at address 0x%X (size %d) is not readable", addr, structSize)
 		end
 
