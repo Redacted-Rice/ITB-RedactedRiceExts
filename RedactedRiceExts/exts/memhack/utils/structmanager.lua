@@ -140,7 +140,7 @@ function StructManager.define(name, layout, validateArg)
 	-- Store the validation info for later use
 	local vtableAddr = nil
 	local validateFn = nil
-	
+
 	if validateArg ~= nil then
 		if type(validateArg) == "number" then
 			-- VTable validation

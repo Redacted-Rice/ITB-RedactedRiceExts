@@ -24,7 +24,7 @@ int read_int(lua_State* L);
 int read_bool(lua_State* L);
 int read_double(lua_State* L);
 int read_float(lua_State* L);
-int read_cstring(lua_State* L);
+int read_null_term_string(lua_State* L);
 int read_pointer(lua_State* L);
 int read_byte_array(lua_State* L);
 
@@ -34,12 +34,13 @@ int write_int(lua_State* L);
 int write_bool(lua_State* L);
 int write_double(lua_State* L);
 int write_float(lua_State* L);
-int write_cstring(lua_State* L);
+int write_null_term_string(lua_State* L);
 int write_pointer(lua_State* L);
 int write_byte_array(lua_State* L);
 
-// Memory validation functions
-int is_readable(lua_State* L);
+// Safe memory functions
+int safe_is_access_allowed(lua_State* L);
+int safe_get_accessible_size(lua_State* L);
 
 // Register all memory functions with Lua
 void add_memory_functions(lua_State* L);

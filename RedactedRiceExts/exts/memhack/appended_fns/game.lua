@@ -1,14 +1,14 @@
 local function onGameClassInitialized(GameClass)
 	-- persistent pointer. This won't change and stays even between runs
 	-- and going to the main menu
-	
+
 	GameClass.GetMemhackObj = function(self)
 		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
 			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(self), true)
 		end
 		return self.memhackObj
 	end
-	
+
 	-- Upper case to align with BoardPawn conventions
 	GameClass.GetReputation = function(self)
 		local reputation = self:GetMemhackObj():getReputation()
@@ -65,7 +65,7 @@ local function onGameClassInitialized(GameClass)
 		local current = self:GetScore()
 		self:SetScore(current + amount)
 	end
-	
+
 	-- Gets the memhack storage struct which can be used to read the
 	-- current pilots and weapons in storage. Write is not currently
 	-- supported due to complexity required and lack of need for it
@@ -73,9 +73,10 @@ local function onGameClassInitialized(GameClass)
 		local storage = self:GetMemhackObj():getResearchControl():getStorage()
 		return storage
 	end
-	
+
 	-- Get all memhack pilot structs for pilots currently in the squad
 	-- Returns array of Pilot structs (up to 3, some mechs may not have pilots)
+	-- Order/alignment to pawnId is not guaranteed
 	GameClass.GetSquadPilots = function(self)
 		local pilots = {}
 		for i = 0, 2 do
@@ -84,21 +85,23 @@ local function onGameClassInitialized(GameClass)
 				local pilot = pawn:GetPilot()
 				if pilot then
 					table.insert(pilots, pilot)
+				else
+					logger.logDebug(SUBMODULE, "Pawn %d has no pilot", i)
 				end
 			end
 		end
 		return pilots
 	end
-	
+
 	-- Gets all memhack pilot structs for pilots currently in storage
 	GameClass.GetStoragePilots = function(self)
 		local pilots = self:GetStorage():getAllOfType(memhack.structs.StorageObject.TYPE_PILOT)
 		return pilots
 	end
-	
+
 	-- Gets all memhack pilot structs for pilots that are available currently
 	-- This is the squad pilots and storage pilots. This does not include pod
-	-- rewards or perfect island rewards that are displayed and have not been 
+	-- rewards or perfect island rewards that are displayed and have not been
 	-- claimed yet
 	GameClass.GetAvailablePilots = function(self)
 		local pilots = self:GetSquadPilots()
@@ -107,7 +110,7 @@ local function onGameClassInitialized(GameClass)
 		end
 		return pilots
 	end
-	
+
 	-- Returns the pilot for time pod rewards before they are claimed to
 	-- your storage. If there is no pilot or the pod UI is not open, will
 	-- return nil
@@ -115,7 +118,7 @@ local function onGameClassInitialized(GameClass)
 		local pilot = self:GetMemhackObj():getVictoryScreen():getPodRewardPilot()
 		return pilot
 	end
-	
+
 	GameClass.GetPerfectIslandRewardPilot = function(self)
 		local pilot = self:GetMemhackObj():getUnknownObj1():getPerfectIslandRewardPilot()
 		return pilot

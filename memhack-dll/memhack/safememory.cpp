@@ -35,6 +35,30 @@ namespace SafeMemory {
         return true;
     }
 
+    size_t get_accessible_size(void* addr, size_t requested_size, bool write) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery(addr, &mbi, sizeof(mbi)) != sizeof(mbi)) {
+            return 0;
+        }
+
+        if (!is_mbi_safe(mbi, write)) {
+            return 0;
+        }
+
+        // Calculate how many bytes are accessible from addr to end of region
+        BYTE* region_end = (BYTE*)mbi.BaseAddress + mbi.RegionSize;
+        BYTE* addr_bytes = (BYTE*)addr;
+
+        // If addr is beyond region, return 0
+        if (addr_bytes >= region_end) {
+            return 0;
+        }
+        size_t available = region_end - addr_bytes;
+
+        // Return the smaller of requested_size or available
+        return (requested_size < available) ? requested_size : available;
+    }
+
     std::vector<Region> get_heap_regions(bool write) {
         std::vector<Region> out;
         SYSTEM_INFO si;

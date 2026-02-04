@@ -8,35 +8,61 @@ local HIDE_PREFIX = StructManager.HIDE_PREFIX
 local TYPE_HANDLERS = StructManager.TYPE_HANDLERS
 
 -- Helper: Resolve sub type and read value
-local function resolveSubType(subType, ptrValue, fieldDef)
-	if type(subType) ~= "string" then
-		error(string.format("Unknown structure type: %s", fieldDef.subType))
+-- Supports table subType format: { type = "string", maxLength = X, lengthFn = fn }
+-- For non-string/bytearray types, subType can be a string (struct name or native type)
+function methodGeneration:_resolveSubType(subType, ptrValue, fieldDef)
+	local actualSubType = subType
+	local lengthFn = nil
+	local sizeToRead = nil
+
+	if type(subType) == "table" then
+		-- Table format for string/bytearray with size/length info
+		actualSubType = subType.type
+		lengthFn = subType.lengthFn
+		sizeToRead = subType.maxLength
+	elseif type(subType) == "string" then
+		-- String subType is valid for struct names and native types (not string/bytearray)
+		actualSubType = subType
+	else
+		error(string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
 	end
 
 	-- Check for unsupported types
-	if subType == "pointer" or subType == "struct" then
-		error(string.format("structure type '%s' not supported", subType))
+	if actualSubType == "pointer" or actualSubType == "struct" then
+		error(string.format("structure type '%s' not supported", actualSubType))
 	end
 
-	-- Types that need size
-	if subType == "string" or subType == "bytearray" then
-		if fieldDef.pointedSize == nil then
-			error(string.format("subType '%s' requires pointedSize", subType))
+	-- Types that need size - must use table format with maxLength
+	if actualSubType == "string" or actualSubType == "bytearray" then
+		if sizeToRead == nil then
+			error(string.format("subType '%s' requires table format with maxLength: { type = '%s', maxLength = <size> }",
+				actualSubType, actualSubType))
 		end
-		local result = TYPE_HANDLERS[subType].read(ptrValue, fieldDef.pointedSize)
+
+		-- Use lengthFn if provided, otherwise use sizeToRead
+		local actualLength = sizeToRead
+		if lengthFn then
+			actualLength = lengthFn(self)
+			-- Add 1 for null terminator if reading a string
+			if actualSubType == "string" then
+				actualLength = actualLength + 1
+			end
+		end
+
+		local result = TYPE_HANDLERS[actualSubType].read(ptrValue, actualLength)
 		return result
 	end
 
 	-- Native types like int, bool, etc
-	if TYPE_HANDLERS[subType] ~= nil then
-		local result = TYPE_HANDLERS[subType].read(ptrValue)
+	if TYPE_HANDLERS[actualSubType] ~= nil then
+		local result = TYPE_HANDLERS[actualSubType].read(ptrValue)
 		return result
 	end
 
 	-- Defined struct
-	local structType = StructManager._structures[subType]
+	local structType = StructManager._structures[actualSubType]
 	if not structType then
-		error(string.format("Unknown structure type: %s", fieldDef.subType))
+		error(string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
 	end
 	-- validate returned type
 	local result = structType.new(ptrValue, true)
@@ -44,7 +70,7 @@ local function resolveSubType(subType, ptrValue, fieldDef)
 end
 
 -- Helper: Clear method names for a field
-local function clearFieldMethods(StructType, fieldName)
+function methodGeneration._clearFieldMethods(StructType, fieldName)
 	-- Clear exposed prefixes
 	StructType[StructManager.makeStdGetterName(fieldName, false)] = nil
 	StructType[StructManager.makeStdSetterName(fieldName, false)] = nil
@@ -79,7 +105,8 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 				return nil
 			end
 
-			local result = resolveSubType(fieldDef.subType, ptrValue, fieldDef)
+			-- Pass self (parent struct) for lengthFn support
+			local result = self:_resolveSubType(fieldDef.subType, ptrValue, fieldDef)
 			return result
 		end
 	end
@@ -93,9 +120,6 @@ function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef,
 	end
 end
 
--- TODO: Maybe check if there is a length function defined and if so use that instead
--- of max?
-
 function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
 	local getterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
 
@@ -103,10 +127,20 @@ function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef
 		local address = self._address + fieldDef.offset
 
 		if fieldDef.type == "bytearray" then
-			local result = handler.read(address, fieldDef.length)
+			local length = fieldDef.length
+			-- Use lengthFn if provided
+			if fieldDef.lengthFn then
+				length = fieldDef.lengthFn(self)
+			end
+			local result = handler.read(address, length)
 			return result
 		elseif fieldDef.type == "string" and fieldDef.maxLength then
-			local result = handler.read(address, fieldDef.maxLength)
+			local maxLen = fieldDef.maxLength
+			-- Use lengthFn if provided (add 1 for null terminator)
+			if fieldDef.lengthFn then
+				maxLen = fieldDef.lengthFn(self) + 1
+			end
+			local result = handler.read(address, maxLen)
 			return result
 		else
 			local result = handler.read(address)
@@ -132,7 +166,7 @@ function methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef
 end
 
 -- Helper: Resolve struct type from string or return as-is
-local function resolveStructType(subType)
+function methodGeneration._resolveStructType(subType)
 	if type(subType) == "string" then
 		local resolved = StructManager._structures[subType]
 		if not resolved then
@@ -148,7 +182,7 @@ function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, 
 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
-		local structType = resolveStructType(fieldDef.subType)
+		local structType = methodGeneration._resolveStructType(fieldDef.subType)
 		-- validate returned type
 		local result = structType.new(address, true)
 		return result
@@ -159,7 +193,7 @@ end
 function methodGeneration.buildStructureMethods(StructType, layout)
 	-- Clear existing generated methods
 	for fieldName, fieldDef in pairs(layout) do
-		clearFieldMethods(StructType, fieldName)
+		methodGeneration._clearFieldMethods(StructType, fieldName)
 	end
 
 	-- Generate getter and setter methods for each field
@@ -302,7 +336,7 @@ end
 -- This allows child structs to maintain references to their parents by type
 --
 -- struct: "self" struct to wrap the fn of
--- getterName: The name of the getter method to wrap 
+-- getterName: The name of the getter method to wrap
 --
 -- The wrapped getter will:
 -- 1. Call the original getter to get the child object

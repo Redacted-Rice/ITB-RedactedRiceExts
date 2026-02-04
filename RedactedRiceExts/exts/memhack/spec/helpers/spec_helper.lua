@@ -48,7 +48,7 @@ local function createMockDll()
 			end,
 
 			-- Read string at address
-			readCString = function(addr, maxLen)
+			readNullTermString = function(addr, maxLen)
 				return mockMemory[addr] or ""
 			end,
 
@@ -65,7 +65,7 @@ local function createMockDll()
 			writeByteArray = function(addr, value) mockMemory[addr] = value end,
 			
 			-- Memory verification
-			isReadable = function(addr, size)
+			isAccessAllowed = function(addr, size, write)
 				-- Mock: addresses >= 0x1000 are readable
 				return addr >= 0x1000 and size > 0
 			end,
