@@ -93,6 +93,9 @@ function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef,
 	end
 end
 
+-- TODO: Maybe check if there is a length function defined and if so use that instead
+-- of max?
+
 function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
 	local getterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
 

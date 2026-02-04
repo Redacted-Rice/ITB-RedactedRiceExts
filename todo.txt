@@ -4,6 +4,7 @@ For 1.0 release:
 	2. Rep
 	3. pilot (in mech)
 	4. storage (very complex)
+2. Add memory analyzer
 
 Next release:
 1. Look into adding tests on c++ side?
@@ -13,7 +14,8 @@ Next release:
 ---------- PLUS Ex ---------
 
 For 1.0 release:
-1. Testing!!!
+1. Removing pilot from mech seems to cause issues. Probably need to check for nil for squad pilots or something
+2. Continue testing
 
 Next release candadites:
 	Major Features:
