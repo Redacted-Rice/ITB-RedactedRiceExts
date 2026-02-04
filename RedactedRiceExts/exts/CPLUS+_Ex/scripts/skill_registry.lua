@@ -109,6 +109,10 @@ local function registerPilotSkillRelationship(targetTable, pilotId, skillIds, re
 	if targetTable[pilotId] == nil then
 		targetTable[pilotId] = {}
 	end
+	
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
 
 	for _, skillId in ipairs(skillIds) do
 		-- store with skillId as key so it acts like a set
