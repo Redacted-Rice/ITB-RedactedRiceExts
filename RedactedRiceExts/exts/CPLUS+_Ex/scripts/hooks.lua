@@ -11,7 +11,7 @@ local hooks = {
 	--  skillId (string) - the skill ID
 	--  isInRun (boolean) - true if added to run, false if removed
 	--  pilot (Pilot) - pilot struct that has/had this skill
-	--  skill (PilotLvlUpSkill) - skill struct
+	--  skillStruct (PilotLvlUpSkill) - skill struct
 	"skillInRun",
 
 	-- args:
@@ -19,7 +19,7 @@ local hooks = {
 	--  isActive (boolean) - true if became active, false if became inactive
 	--  pawnId (number) - which mech (0-2)
 	--  pilot (Pilot) - pilot struct on/was on active mech
-	--  skill (PilotLvlUpSkill) - skill struct
+	--  skillStruct (PilotLvlUpSkill) - skill struct
 	"skillActive",
 }
 
