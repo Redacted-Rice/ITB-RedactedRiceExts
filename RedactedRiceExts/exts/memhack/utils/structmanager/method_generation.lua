@@ -106,7 +106,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 			end
 
 			-- Pass self (parent struct) for lengthFn support
-			local result = self:_resolveSubType(fieldDef.subType, ptrValue, fieldDef)
+			local result = methodGeneration._resolveSubType(self, fieldDef.subType, ptrValue, fieldDef)
 			return result
 		end
 	end
