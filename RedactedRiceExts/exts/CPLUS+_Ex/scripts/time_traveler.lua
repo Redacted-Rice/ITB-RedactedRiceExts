@@ -1,8 +1,11 @@
 -- Time Traveler Module
 -- Handles time traveler detection and persistent data management
--- This will update and save the current run pilot data in the mod loader config file
+-- This will update and save the current run pilot data in the modcontent.lua file
 -- so that we have the info to use for the potential time travelers to search for
--- and apply as appropriate
+-- and apply as appropriate.
+-- I ended up needing to track all pilots because any could be a time traveler. This is now
+-- redundant with the data saved in saveData but it seems more intuitive to use that data 
+-- primarily so I will keep it as is.
 
 local time_traveler = {}
 
@@ -11,7 +14,7 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "TimeTraveler", cplus_plus_ex.DEBUG.TIME_TRAVELER and cplus_plus_ex.DEBUG.ENABLED)
 
 -- Module state
-time_traveler.squadPilots = nil
+time_traveler.allPilots = nil
 time_traveler.lastSavedPersistentData = nil
 time_traveler.timeTraveler = nil  -- The actual time traveler pilot struct
 
@@ -48,14 +51,14 @@ end
 -- Refresh cached squad pilot data
 function time_traveler:refreshGameData()
 	if Game then
-		time_traveler.squadPilots = Game:GetSquadPilots()
+		time_traveler.allPilots = Game:GetAvailablePilots()
 		logger.logDebug(SUBMODULE, "Refreshing game data")
 	end
 end
 
 -- Clear cached game data
 function time_traveler:clearGameData()
-	time_traveler.squadPilots = nil
+	time_traveler.allPilots = nil
 	logger.logDebug(SUBMODULE, "Clearing game data")
 end
 
@@ -84,7 +87,7 @@ end
 
 -- Refresh last saved persistent data with current pilot state
 function time_traveler:refreshLastSavedPersistentData()
-	local pilots = Game and Game:GetSquadPilots() or nil
+	local pilots = Game and Game:GetAvailablePilots() or nil
 	if not pilots then
 		return false
 	end
@@ -154,7 +157,7 @@ function time_traveler:savePersistentDataIfChanged()
 				function(readObj)
 					readObj.cplus_plus_ex = {}
 					readObj.cplus_plus_ex.last_run_pilots = {}
-					for _, pilot in pairs(Game:GetSquadPilots()) do
+					for _, pilot in pairs(Game:GetAvailablePilots()) do
 						local id = pilot:getIdStr()
 						readObj.cplus_plus_ex.last_run_pilots[id] = time_traveler.lastSavedPersistentData[id]
 					end
@@ -204,9 +207,9 @@ end
 
 -- Search for time traveler in squad pilots
 function time_traveler:searchForTimeTraveler()
-	if time_traveler.squadPilots then
+	if time_traveler.allPilots then
 		logger.logDebug(SUBMODULE, "Checking squad pilots for time traveler")
-		for idx, pilot in pairs(time_traveler.squadPilots) do
+		for idx, pilot in pairs(time_traveler.allPilots) do
 			local pilotData = time_traveler.lastSavedPersistentData[pilot:getIdStr()]
 			if pilotData then
 				logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",

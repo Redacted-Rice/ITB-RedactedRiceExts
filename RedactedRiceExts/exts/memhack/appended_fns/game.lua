@@ -86,8 +86,6 @@ local function onGameClassInitialized(GameClass)
 				local pilot = pawn:GetPilot()
 				if pilot then
 					table.insert(pilots, pilot)
-				else
-					logger.logDebug(SUBMODULE, "Pawn %d has no pilot", i)
 				end
 			end
 		end

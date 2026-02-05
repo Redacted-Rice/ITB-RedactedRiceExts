@@ -14,8 +14,7 @@ Next release:
 ---------- PLUS Ex ---------
 
 For 1.0 release:
-1. Removing pilot from mech seems to cause issues. Probably need to check for nil for squad pilots or something
-2. Continue testing
+1. Continue testing
 
 Next release candadites:
 	Major Features:
