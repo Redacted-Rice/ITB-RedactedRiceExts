@@ -54,6 +54,10 @@ local function getPilotEarnedSkillIndexes(pilot)
 	return result
 end
 
+function skill_state_tracker:isSkillOnPilot(skillId, pilot, checkEarned)
+	return self:isSkillOnPilots(skillId, {pilot}, checkEarned)
+end
+
 -- Check if a skill is on any pilot in the given list
 -- pilots: list of pilots to check (defaults to all available pilots)
 -- checkEarned: if true, only check earned skills (defaults to true)
@@ -173,25 +177,30 @@ end
 -- Update enabled skills state and fire hooks for changes
 function skill_state_tracker:updateEnabledSkills()
 	local newEnabledSkills = cplus_plus_ex._subobjects.skill_config:getEnabledSkillsSet()
+	local hooksToFire = {}
 
 	-- Check for newly enabled skills
 	for skillId in pairs(newEnabledSkills) do
 		if not skill_state_tracker._enabledSkills[skillId] then
-			logger.logDebug(SUBMODULE, "Skill %s enabled - Firing hooks...", skillId)
-			hooks.fireSkillEnabledHooks(skillId, true)
+			table.insert(hooksToFire, {skillId = skillId, enabled = true})
 		end
 	end
 
 	-- Check for newly disabled skills
 	for skillId in pairs(skill_state_tracker._enabledSkills) do
 		if not newEnabledSkills[skillId] then
-			logger.logDebug(SUBMODULE, "Skill %s disabled - Firing hooks...", skillId)
-			hooks.fireSkillEnabledHooks(skillId, false)
+			table.insert(hooksToFire, {skillId = skillId, enabled = false})
 		end
 	end
 
 	-- Update state
 	skill_state_tracker._enabledSkills = newEnabledSkills
+
+	-- Fire all queued hooks in order
+	for _, hook in ipairs(hooksToFire) do
+		logger.logDebug(SUBMODULE, "Skill Enabled: %s, %s - Firing hooks...", hook.skillId, hook.enabled)
+		hooks.fireSkillEnabledHooks(hook.skillId, hook.enabled)
+	end
 end
 
 -------------------- InRun Tracking --------------------
@@ -260,18 +269,17 @@ function skill_state_tracker:updateInRunSkills()
 
 	-- Determine new in-run skills state (already in internal format)
 	local newInRunSkills = skill_state_tracker:determineInRunSkillsState()
+	local hooksToFire = {}
 
 	-- Check for newly added pilots with skills
 	for skillId, newPilots in pairs(newInRunSkills) do
 		local oldPilots = skill_state_tracker._inRunSkills[skillId] or {}
 		for pilotAddr, data in pairs(newPilots) do
 			if not oldPilots[pilotAddr] then
-				logger.logDebug(SUBMODULE, "Skill in-run added - %s (pilot: %s) - Firing hooks...",
-						skillId, tostring(pilotAddr))
-				-- Fire hook for each skill instance
+				-- Queue hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skill = data.pilot:getLvlUpSkill(skillIndex)
-					hooks.fireSkillInRunHooks(skillId, true, data.pilot, skill)
+					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					table.insert(hooksToFire, {skillId = skillId, isInRun = true, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
 		end
@@ -282,12 +290,10 @@ function skill_state_tracker:updateInRunSkills()
 		local newPilots = newInRunSkills[skillId] or {}
 		for pilotAddr, data in pairs(oldPilots) do
 			if not newPilots[pilotAddr] then
-				logger.logDebug(SUBMODULE, "Skill in-run removed - %s (pilot: %s) - Firing hooks...",
-						skillId, tostring(pilotAddr))
-				-- Fire hook for each skill instance. Skill may be nil if pilot was removed
+				-- Queue hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skill = data.pilot:getLvlUpSkill(skillIndex)
-					hooks.fireSkillInRunHooks(skillId, false, data.pilot, skill)
+					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					table.insert(hooksToFire, {skillId = skillId, isInRun = false, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
 		end
@@ -295,6 +301,13 @@ function skill_state_tracker:updateInRunSkills()
 
 	-- Update state
 	skill_state_tracker._inRunSkills = newInRunSkills
+
+	-- Fire all queued hooks in order
+	for _, hook in ipairs(hooksToFire) do
+		logger.logDebug(SUBMODULE, "Skill In Run: %s, %s - Queueing hooks...",
+				hook.skillId, hook.isInRun)
+		hooks.fireSkillInRunHooks(hook.skillId, hook.isInRun, hook.pilot, hook.skillStruct)
+	end
 end
 
 -------------------- Active/Inactive Tracking --------------------
@@ -365,18 +378,17 @@ function skill_state_tracker:updateActiveSkills()
 
 	-- Determine new active skills state (already in internal format)
 	local newActiveSkills = skill_state_tracker:determineActiveSkillsState()
+	local hooksToFire = {}
 
 	-- Check for newly active skills
 	for skillId, newMechs in pairs(newActiveSkills) do
 		local oldMechs = skill_state_tracker._activeSkills[skillId] or {}
 		for pawnId, data in pairs(newMechs) do
 			if not oldMechs[pawnId] then
-				logger.logDebug(SUBMODULE, "Skill active added - %s (pawnId: %s) - Firing hooks...",
-						skillId, tostring(pawnId))
-				-- Fire hook for each skill instance
+				-- Queue hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skill = data.pilot:getLvlUpSkill(skillIndex)
-					hooks.fireSkillActiveHooks(skillId, true, pawnId, data.pilot, skill)
+					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					table.insert(hooksToFire, {skillId = skillId, isActive = true, pawnId = pawnId, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
 		end
@@ -387,12 +399,10 @@ function skill_state_tracker:updateActiveSkills()
 		local newMechs = newActiveSkills[skillId] or {}
 		for pawnId, data in pairs(oldMechs) do
 			if not newMechs[pawnId] then
-				logger.logDebug(SUBMODULE, "Skill active removed - %s (pawnId: %s) - Firing hooks...",
-						skillId, tostring(pawnId))
-				-- Fire hook for each skill instance. Skill may be nil if pilot was removed
+				-- Queue hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skill = data.pilot:getLvlUpSkill(skillIndex)
-					hooks.fireSkillActiveHooks(skillId, false, pawnId, data.pilot, skill)
+					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					table.insert(hooksToFire, {skillId = skillId, isActive = false, pawnId = pawnId, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
 		end
@@ -400,6 +410,13 @@ function skill_state_tracker:updateActiveSkills()
 
 	-- Update state
 	skill_state_tracker._activeSkills = newActiveSkills
+
+	-- Fire all queued hooks in order
+	for _, hook in ipairs(hooksToFire) do
+		logger.logDebug(SUBMODULE, "Skill Active: %s, %s - Queueing hooks...",
+				hook.skillId, hook.isActive)
+		hooks.fireSkillActiveHooks(hook.skillId, hook.isActive, hook.pawnId, hook.pilot, hook.skillStruct)
+	end
 end
 
 -------------------- State Update Orchestration --------------------

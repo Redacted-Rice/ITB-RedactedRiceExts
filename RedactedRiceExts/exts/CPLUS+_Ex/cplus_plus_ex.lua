@@ -108,6 +108,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:isSkillEnabled(...) return skill_state_tracker:isSkillEnabled(...) end
 	function cplus_plus_ex:isSkillInRun(...) return skill_state_tracker:isSkillInRun(...) end
 	function cplus_plus_ex:isSkillActive(...) return skill_state_tracker:isSkillActive(...) end
+	function cplus_plus_ex:isSkillOnPilot(...) return skill_state_tracker:isSkillOnPilot(...) end
 	function cplus_plus_ex:isSkillOnPilots(...) return skill_state_tracker:isSkillOnPilots(...) end
 
 	-- Get pilots/mechs with skills
