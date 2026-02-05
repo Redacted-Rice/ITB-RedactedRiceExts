@@ -7,15 +7,6 @@ static bool READ_ONLY = false;
 static bool READ_WRITE = true;
 
 
-int max_cstring_length(lua_State* L) {
-	lua_pushinteger(L, MAX_CSTRING_LENGTH);
-	return 1;
-}
-
-int max_byte_array_length(lua_State* L) {
-	return 1;
-}
-
 // Misc memory functions
 int get_userdata_addr(lua_State* L) {
 	luaL_checktype(L, 1, LUA_TUSERDATA);
