@@ -147,5 +147,7 @@ MemoryAnalyzer.buildChangeRanges = analysis.buildChangeRanges
 MemoryAnalyzer.compareChanges = analysis.compareChanges
 MemoryAnalyzer.getChangedData = analysis.getChangedData
 MemoryAnalyzer.logChanges = analysis.logChanges
+MemoryAnalyzer.crossCheckOffsets = analysis.crossCheckOffsets
+MemoryAnalyzer.compareValuesByOffset = analysis.compareValuesByOffset
 
 return MemoryAnalyzer
