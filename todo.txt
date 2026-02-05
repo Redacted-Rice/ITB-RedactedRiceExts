@@ -4,7 +4,6 @@ For 1.0 release:
 	2. Rep
 	3. pilot (in mech)
 	4. storage (very complex)
-2. Add memory analyzer
 
 Next release:
 1. Look into adding tests on c++ side?
