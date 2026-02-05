@@ -112,4 +112,159 @@ function Dataset:getChanges(n, includeData)
 	return result
 end
 
+-- Reads the value from data at offset with specified type
+-- Supports byte, int, and pointer types for value comparison
+function Dataset._getValueAtOffset(data, offset, valueType, typeLength)
+	local byteIdx = offset + 1
+
+	if valueType == "byte" then
+		return string.byte(data, byteIdx)
+	elseif valueType == "int" or valueType == "pointer" then
+		if byteIdx + 3 > #data then return nil end
+		local b1, b2, b3, b4 = string.byte(data, byteIdx, byteIdx + 3)
+		-- Interpret as little-endian
+		local value = b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
+		-- For int, treat as signed; for pointer, treat as unsigned
+		if valueType == "int" and value >= 0x80000000 then
+			value = value - 0x100000000
+		end
+		return value
+	else
+		error(string.format("_getValueAtOffset only supports 'byte', 'int', and 'pointer' types, got '%s'", valueType))
+	end
+end
+
+-- Compare values based on passed operator string
+function Dataset._compareValues(value, operator, target)
+	if operator == "==" then
+		return value == target
+	elseif operator == "~=" then
+		return value ~= target
+	elseif operator == "<" then
+		return value < target
+	elseif operator == "<=" then
+		return value <= target
+	elseif operator == ">" then
+		return value > target
+	elseif operator == ">=" then
+		return value >= target
+	else
+		error(string.format("Unsupported operator: %s (use Lua syntax: ==, ~=, <, <=, >, >=)", operator))
+	end
+end
+
+-- Get type size in bytes
+function Dataset._getTypeSize(valueType, targetValue)
+	if valueType == "byte" then
+		return 1
+	elseif valueType == "int" or valueType == "pointer" then
+		return 4
+	elseif valueType == "bytearray" then
+		-- For byte arrays, size is the length of the target value
+		if type(targetValue) == "string" then
+			return #targetValue
+		else
+			error("bytearray type requires target value to be a string")
+		end
+	elseif valueType == "string" then
+		-- For strings, size is the length of the target value + 1 (for null terminator)
+		if type(targetValue) == "string" then
+			return #targetValue + 1
+		else
+			error("string type requires target value to be a string")
+		end
+	else
+		error(string.format("Unsupported type '%s'. Supported types: byte, int, pointer, string, bytearray", valueType))
+	end
+end
+
+-- Find offsets where values match a condition
+-- Uses analyzer's alignment setting to determine which offsets to check
+-- Supported operators by type:
+--   byte/int/pointer: ==, ~=, <, <=, >, >=  (full comparison support)
+--   string/bytearray: ==, ~=  (equality only, raw byte comparison)
+-- Returns an array of offsets (0-based) that match across all captures
+function Dataset:findOffsets(operator, targetValue, valueType)
+	if #self.captures == 0 then
+		error("No captures available in dataset")
+	end
+
+	-- Validate operator for type
+	local comparisonOps = {"<", "<=", ">", ">="}
+	local isComparisonOp = false
+	for _, op in ipairs(comparisonOps) do
+		if operator == op then
+			isComparisonOp = true
+			break
+		end
+	end
+
+	if isComparisonOp and valueType ~= "int" and valueType ~= "byte" and valueType ~= "pointer" then
+		error(string.format("Operator '%s' only supported for 'int', 'byte', and 'pointer' types. Type '%s' only supports '==' and '~='", operator, valueType))
+	end
+
+	local size = self._analyzer.size
+	local alignment = self._analyzer.alignment
+
+	-- Handle hex string conversion for bytearray
+	if valueType == "bytearray" and type(targetValue) == "string" then
+		targetValue = memhack.debug.hexToBytes(targetValue)
+	end
+
+	local typeSize = Dataset._getTypeSize(valueType, targetValue)
+	local matchingOffsets = {}
+
+	-- For byte/int/pointer types, use typed value comparison
+	if valueType == "byte" or valueType == "int" or valueType == "pointer" then
+		for offset = 0, size - typeSize, alignment do
+			local allMatch = true
+			for _, capture in ipairs(self.captures) do
+				local value = Dataset._getValueAtOffset(capture.data, offset, valueType, nil)
+				if not value or not Dataset._compareValues(value, operator, targetValue) then
+					allMatch = false
+					break
+				end
+			end
+			if allMatch then
+				table.insert(matchingOffsets, offset)
+			end
+		end
+	elseif valueType == "string" or valueType == "bytearray" then
+		-- For string/bytearray, compare raw bytes (only == and ~= supported)
+		if operator ~= "==" and operator ~= "~=" then
+			error(string.format("Type '%s' only supports '==' and '~=' operators", valueType))
+		end
+
+		local targetBytes
+		if valueType == "string" then
+			targetBytes = targetValue .. "\0"
+		elseif valueType == "bytearray" then
+			targetBytes = targetValue
+		end
+
+		-- Compare byte sequences
+		for offset = 0, size - typeSize, alignment do
+			local allMatch = true
+			for _, capture in ipairs(self.captures) do
+				local dataBytes = string.sub(capture.data, offset + 1, offset + typeSize)
+				local matches = (dataBytes == targetBytes)
+				if operator == "~=" then
+					matches = not matches
+				end
+				if not matches then
+					allMatch = false
+					break
+				end
+			end
+			if allMatch then
+				table.insert(matchingOffsets, offset)
+			end
+		end
+	else
+		error(string.format("Unsupported type '%s' for findOffsets. Supported types: byte, int, pointer, string, bytearray", valueType))
+	end
+
+	return matchingOffsets
+end
+
 return Dataset
