@@ -275,6 +275,12 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, fireFn, s
 
 	local fieldOrGetter = getterName or field
 
+	-- Preserve original as _noFire version so we can use it internally like for
+	-- a set all fields setter without extra triggers of the hook. E.g. in
+	-- generateStructSetterToFireOnAnyValueChange generate functions
+	local noFireName = setterName .. "_noFire"
+	struct[noFireName] = originalSetter
+
 	struct[setterName] = function(self, newVal)
 		local prevVal = memhack.stateTracker.captureValue(self, fieldOrGetter)
 		originalSetter(self, newVal)
@@ -314,7 +320,13 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, ful
 					settersTable[field](self, newVal)
 				else
 					local setter = StructManager.makeStdSetterName(field)
-					self[setter](self, newVal)
+					-- Use _noFire version if available to avoid double firing hooks
+					local noFireSetter = setter .. "_noFire"
+					if self[noFireSetter] then
+						self[noFireSetter](self, newVal)
+					else
+						self[setter](self, newVal)
+					end
 				end
 				-- Lua doesn't make any gaurantees about removing while iterating
 				-- so instead make a new table for changed new fields
