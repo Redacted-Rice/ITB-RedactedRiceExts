@@ -68,7 +68,7 @@ describe("Skill Registry Module", function()
 				{id = "SkillDefined2", shortName = "SD2", fullName = "SkillDefined2", description = "Test", saveVal = 7},
 			})
 
-			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {"SkillDefined1", "SkillDefined2"}
+			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {{id = "SkillDefined1"}, {id = "SkillDefined2"}}
 
 			plus_manager:applySkillsToPilot(mockPilot)
 
@@ -82,7 +82,7 @@ describe("Skill Registry Module", function()
 				{id = "SkillRandom2", shortName = "SR2", fullName = "SkillRandom2", description = "Test", saveVal = -1},
 			})
 
-			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {"SkillRandom1", "SkillRandom2"}
+			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {{id = "SkillRandom1"}, {id = "SkillRandom2"}}
 
 			plus_manager:applySkillsToPilot(mockPilot)
 
@@ -100,7 +100,7 @@ describe("Skill Registry Module", function()
 				{id = "SkillConflict2", shortName = "SC2", fullName = "SkillConflict2", description = "Test", saveVal = 6},
 			})
 
-			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {"SkillConflict1", "SkillConflict2"}
+			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {{id = "SkillConflict1"}, {id = "SkillConflict2"}}
 
 			plus_manager:applySkillsToPilot(mockPilot)
 

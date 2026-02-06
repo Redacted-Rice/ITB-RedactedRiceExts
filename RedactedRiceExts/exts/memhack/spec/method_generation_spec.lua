@@ -285,6 +285,34 @@ describe("Method Generation Module", function()
 			assert.is_false(success)
 			assert.is_not_nil(err:match("Setter 'nonexistentSetter' not found"))
 		end)
+
+		it("should create _noFire version of wrapped setter", function()
+			local struct = {
+				_value = 10,
+				getValue = function(self) return self._value end,
+				setValue = function(self, val) self._value = val end
+			}
+
+			local fireCount = 0
+			local fireFn = function(obj, changes)
+				fireCount = fireCount + 1
+			end
+
+			-- Wrap the setter
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "value", fireFn)
+
+			-- Verify _noFire version was created
+			assert.is_function(struct.setValue_noFire, "setValue_noFire should be created")
+
+			-- Verify _noFire version doesn't fire hook
+			struct:setValue_noFire(20)
+			assert.are.equal(0, fireCount, "_noFire version should not fire hook")
+			assert.are.equal(20, struct._value, "_noFire version should still set the value")
+
+			-- Verify wrapped version fires hook
+			struct:setValue(30)
+			assert.are.equal(1, fireCount, "Wrapped version should fire hook")
+		end)
 	end)
 
 	describe("generateStructSetterToFireOnAnyValueChange", function()
@@ -394,6 +422,106 @@ describe("Method Generation Module", function()
 
 			-- Restore original
 			memhack.stateTracker.captureState = originalCaptureState
+		end)
+
+		it("should use _noFire versions when available to avoid double-firing", function()
+			local struct = {
+				_field1 = 0,
+				_field2 = 0,
+				getField1 = function(self) return self._field1 end,
+				getField2 = function(self) return self._field2 end,
+				setField1 = function(self, val) self._field1 = val end,
+				setField2 = function(self, val) self._field2 = val end
+			}
+
+			local individualFireCount = 0
+			local fullSetterFireCount = 0
+
+			local individualFireFn = function(obj, changes)
+				individualFireCount = individualFireCount + 1
+			end
+
+			local fullSetterFireFn = function(obj, changedNew, changedOld)
+				fullSetterFireCount = fullSetterFireCount + 1
+			end
+
+			-- Wrap individual setters
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "field1", individualFireFn)
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "field2", individualFireFn)
+
+			-- Create full setter
+			local stateDefinition = {"field1", "field2"}
+			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(
+				fullSetterFireFn, stateDefinition, nil)
+
+			-- Call full setter
+			struct:set({field1 = 10, field2 = 20})
+
+			-- Individual setters should NOT fire because full setter uses _noFire versions
+			assert.are.equal(0, individualFireCount, "Individual setters should not fire when called via full setter")
+
+			-- Full setter should fire once
+			assert.are.equal(1, fullSetterFireCount, "Full setter should fire once")
+
+			-- Values should be set correctly
+			assert.are.equal(10, struct._field1)
+			assert.are.equal(20, struct._field2)
+		end)
+
+		it("should fall back to regular setter if _noFire version doesn't exist", function()
+			local struct = {
+				_field1 = 0,
+				getField1 = function(self) return self._field1 end,
+				setField1 = function(self, val) self._field1 = val end
+			}
+
+			local fireCount = 0
+			local fireFn = function(obj, changedNew, changedOld)
+				fireCount = fireCount + 1
+			end
+
+			-- Create full setter WITHOUT wrapping individual setter first
+			-- so there's no _noFire version
+			local stateDefinition = {"field1"}
+			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(
+				fireFn, stateDefinition, nil)
+
+			-- Should still work using regular setter
+			struct:set({field1 = 10})
+
+			assert.are.equal(1, fireCount)
+			assert.are.equal(10, struct._field1)
+		end)
+
+		it("should NOT fire when set() called with all same values", function()
+			local struct = {
+				_id = "Test",
+				_saveVal = 5,
+				_healthBonus = 2,
+				getId = function(self) return self._id end,
+				getSaveVal = function(self) return self._saveVal end,
+				getHealthBonus = function(self) return self._healthBonus end,
+				setId = function(self, val) self._id = val end,
+				setSaveVal = function(self, val) self._saveVal = val end,
+				setHealthBonus = function(self, val) self._healthBonus = val end,
+				getAddress = function(self) return 12345 end,
+				isMemhackObj = true
+			}
+
+			local fireCount = 0
+			local fireFn = function(obj, changes)
+				fireCount = fireCount + 1
+			end
+
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "id", fireFn, nil, "getId")
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "saveVal", fireFn)
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "healthBonus", fireFn)
+
+			local stateDefinition = {id = "getId", "saveVal", "healthBonus"}
+			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, stateDefinition, nil)
+
+			struct:set({id = "Test", saveVal = 5, healthBonus = 2})  -- All same
+			assert.are.equal(0, fireCount)
 		end)
 	end)
 

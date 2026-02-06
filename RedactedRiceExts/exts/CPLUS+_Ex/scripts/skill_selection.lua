@@ -176,7 +176,44 @@ local function skillDataToTable(id, shortName, fullName, description, saveVal, b
 		moveBonus = bonuses.move, saveVal = saveVal}
 end
 
--- TODO: Removing pilots in between seems to cause issues
+-- Generate a random saveVal (0-13), optionally excluding a specific value
+-- If excludeVal is provided, generates 0-12 and increments if >= excludeVal
+-- This ensures the returned value is different from excludeVal
+function skill_selection:generateSaveVal(excludeVal)
+	if excludeVal == nil then
+		return math.random(0, 13)
+	else
+		local val = math.random(0, 12)
+		if val >= excludeVal then
+			val = val + 1
+		end
+		return val
+	end
+end
+
+-- Assign or get saveVal for a skill, ensuring it's different from excludeVal
+function skill_selection:getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, excludeVal)
+	-- Check if we have a stored saveVal first
+	if storedSkill.saveVal ~= nil then
+		logger.logDebug(SUBMODULE, "Using stored saveVal %d for skill %s for pilot %s", storedSkill.saveVal, skillId, pilotId)
+		return storedSkill.saveVal
+	end
+
+	-- Use registered skill's default or generate random
+	local saveVal = registeredSkill.saveVal
+	if saveVal == -1 then
+		saveVal = self:generateSaveVal(excludeVal)
+		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal, skillId, pilotId)
+	elseif excludeVal ~= nil and saveVal == excludeVal then
+		-- Conflict with excludeVal, generate different one
+		saveVal = self:generateSaveVal(excludeVal)
+		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned saveVal to %d", pilotId, saveVal)
+	end
+
+	-- Store the assigned saveVal
+	storedSkill.saveVal = saveVal
+	return saveVal
+end
 
 -- Main function to apply level up skills to a pilot (handles both skill slots)
 -- Takes a memhack pilot struct and applies both skill slots (1 and 2)
@@ -195,88 +232,67 @@ function skill_selection:applySkillsToPilot(pilot)
 
 	-- Try to get stored skills
 	local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+	local skillIds = {}
 
 	-- If the skills are not stored, we need to assign them
 	if storedSkills ~= nil then
 		logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilotId)
+		skillIds = {storedSkills[1].id, storedSkills[2].id}
 	-- if its the time traveler, save the current skills
 	elseif cplus_plus_ex._subobjects.time_traveler.timeTraveler and cplus_plus_ex._subobjects.time_traveler.timeTraveler._address == pilot._address then
 		local lus = cplus_plus_ex._subobjects.time_traveler.timeTraveler:getLvlUpSkills()
-		storedSkills = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
+		skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
+		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 		logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
 	-- otherwise assign random skills
 	else
 		-- Select 2 random skills that satisfy all registered constraint functions
-		storedSkills = skill_selection:selectRandomSkills(availableSkills, pilot, 2)
-		if storedSkills == nil then
+		skillIds = skill_selection:selectRandomSkills(availableSkills, pilot, 2)
+		if skillIds == nil then
 			return
 		end
-
-		-- Store the skills in GAME
+		-- Convert to table format so we can associat saveVals and update in game state
+		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 		-- Track newly assigned skills for per_run constraints
-		skill_selection:markPerRunSkillAsUsed(storedSkills[1])
-		skill_selection:markPerRunSkillAsUsed(storedSkills[2])
+		skill_selection:markPerRunSkillAsUsed(skillIds[1])
+		skill_selection:markPerRunSkillAsUsed(skillIds[2])
 
 		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
 	end
 
-	local skill1Id = storedSkills[1]
-	local skill2Id = storedSkills[2]
+	local skill1Id = skillIds[1] or "<unknown>"
+	local skill2Id = skillIds[2] or "<unknown>"
 	local skill1 = skill_config_module.enabledSkills[skill1Id]
 	local skill2 = skill_config_module.enabledSkills[skill2Id]
 
 	if not skill2 then
-		storedSkills[2] = nil
+		skillIds[2] = nil
 	end
 	if not skill1 then
-		skill1Id = skill1Id or "<unknown>"
-		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
-				" is disabled, assigning new one")
-		storedSkills[1] = nil
-		skill1Id = self:selectRandomSkill(availableSkills, pilot, 1, storedSkills)
-		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = skill1Id
+		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id .. " is disabled, assigning new one")
+		skillIds[1] = nil
+		skill1Id = self:selectRandomSkill(availableSkills, pilot, 1, skillIds)
+		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = {id = skill1Id}
+		storedSkills[1] = {id = skill1Id}
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
 	if not skill2 then
-		skill2Id = skill2Id or "<unknown>"
-		logger.logWarn(SUBMODULE, "Pilot %s skill 2 %s is disabled, assigning new one", pilotId, skill2Id)
-		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, storedSkills)
-		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = skill2Id
+		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id .. " is disabled, assigning new one")
+		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, skillIds)
+		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = {id = skill2Id}
+		storedSkills[2] = {id = skill2Id}
 		skill2 = skill_config_module.enabledSkills[skill2Id]
 	end
 
 
-	-- Determine saveVal for skill 1
-	-- If skill has saveVal = -1, assign random value (0-13)
-	local saveVal1 = skill1.saveVal
-	if saveVal1 == -1 then
-		saveVal1 = math.random(0, 13)
-		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal1, skill1Id, pilotId)
-	end
+	-- Assign saveVals, ensuring they're different
+	local saveVal1 = self:getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, nil)
+	local saveVal2 = self:getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, saveVal1)
 
-	-- Determine saveVal for skill 2
-	-- If skill has saveVal = -1, assign random value (0-13)
-	local saveVal2 = skill2.saveVal
-	if saveVal2 == -1 then
-		saveVal2 = math.random(0, 13)
-		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal2, skill2Id, pilotId)
-	end
-
-	-- If both skills have the same saveVal, reassign skill2
-	if saveVal1 == saveVal2 then
-		-- Generate from 0-12, increment if >= saveVal1 to exclude skill1's value
-		-- This guarantees a different value
-		saveVal2 = math.random(0, 12)
-		if saveVal2 >= saveVal1 then
-			saveVal2 = saveVal2 + 1
-		end
-		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned skill2 saveVal to %d", pilotId, saveVal2)
-	end
-
-	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1] .. ", " .. storedSkills[2] .. "]")
+	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
 	-- Apply both skills with their determined saveVal
 	pilot:setLvlUpSkill(1, skillDataToTable(
@@ -308,8 +324,8 @@ function skill_selection:applySkillsToAllPilots()
 
 		if storedSkills ~= nil then
 			-- This pilot has assigned skills, mark them as used for per_run tracking
-			for _, skillId in ipairs(storedSkills) do
-				skill_selection:markPerRunSkillAsUsed(skillId)
+			for _, skillData in ipairs(storedSkills) do
+				skill_selection:markPerRunSkillAsUsed(skillData.id)
 			end
 		else
 			logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
