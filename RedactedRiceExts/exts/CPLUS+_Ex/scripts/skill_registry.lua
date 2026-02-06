@@ -100,7 +100,7 @@ end
 function skill_registry:registerVanilla()
 	-- Register all vanilla skills
 	for _, skill in ipairs(cplus_plus_ex.VANILLA_SKILLS) do
-		self:registerSkill("vanilla", skill)
+		self:registerSkill("Vanilla", skill)
 	end
 end
 

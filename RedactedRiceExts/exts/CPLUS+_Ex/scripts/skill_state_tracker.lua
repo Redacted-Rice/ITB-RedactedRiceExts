@@ -198,7 +198,8 @@ function skill_state_tracker:updateEnabledSkills()
 
 	-- Fire all queued hooks in order
 	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill Enabled: %s, %s - Firing hooks...", hook.skillId, hook.enabled)
+		logger.logDebug(SUBMODULE, "Skill Enabled: %s is %s - Firing hooks...", hook.skillId, 
+				(hook.enabled and "enabled" or "disabled"))
 		hooks.fireSkillEnabledHooks(hook.skillId, hook.enabled)
 	end
 end
@@ -304,8 +305,8 @@ function skill_state_tracker:updateInRunSkills()
 
 	-- Fire all queued hooks in order
 	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill In Run: %s, %s - Queueing hooks...",
-				hook.skillId, hook.isInRun)
+		logger.logDebug(SUBMODULE, "Skill In Run: %s %s - Queueing hooks...", hook.skillId,
+				(hook.isInRun and "in run" or "no longer in run"))
 		hooks.fireSkillInRunHooks(hook.skillId, hook.isInRun, hook.pilot, hook.skillStruct)
 	end
 end
@@ -413,8 +414,8 @@ function skill_state_tracker:updateActiveSkills()
 
 	-- Fire all queued hooks in order
 	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill Active: %s, %s - Queueing hooks...",
-				hook.skillId, hook.isActive)
+		logger.logDebug(SUBMODULE, "Skill Active: %s %s - Queueing hooks...", hook.skillId, 
+				(hook.isActive and "is active" or "no longer is active"))
 		hooks.fireSkillActiveHooks(hook.skillId, hook.isActive, hook.pawnId, hook.pilot, hook.skillStruct)
 	end
 end
