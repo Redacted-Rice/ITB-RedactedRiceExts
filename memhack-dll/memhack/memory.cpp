@@ -8,25 +8,27 @@ static bool READ_WRITE = true;
 
 
 // Misc memory functions
-int get_userdata_addr(lua_State* L) {
+int get_userdata_addr(lua_State * L) {
 	luaL_checktype(L, 1, LUA_TUSERDATA);
 	void*** userdata = (void***)lua_touserdata(L, 1);
-
+	
 	if (userdata == NULL) {
 		luaL_error(L, "invalid userdata");
+		
 	}
-
+	
 	size_t addr = (size_t)userdata[0][2];
 	lua_pushinteger(L, addr);
 	return 1;
+	
 }
 
-int alloc_cstring(lua_State* L) {
+int alloc_null_term_string(lua_State* L) {
 	size_t len;
 	const char* src = luaL_checklstring(L, 1, &len);
 
-	if (len + 1 > MAX_CSTRING_LENGTH) {
-		luaL_error(L, "alloc_cstring failed: max_length cannot exceed %d (including null terminator), got %d", MAX_CSTRING_LENGTH, len + 1);
+	if (len + 1 > MAX_NULL_TERM_STRING_LENGTH) {
+		luaL_error(L, "alloc_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, len + 1);
 		return 0;
 	}
 
@@ -34,23 +36,8 @@ int alloc_cstring(lua_State* L) {
 	std::memcpy(raw, src, len);
 	raw[len] = '\0';
 
-	auto* owner = new Owner<char[]>(raw);
-	return push_itb_userdata(L, owner, "UserdataMemhackCString");
-}
-
-int alloc_byte_array(lua_State* L) {
-	int length = luaL_checkinteger(L, 1);
-
-	if (length > MAX_BYTE_ARRAY_LENGTH) {
-		luaL_error(L, "alloc_byte_array failed: max_length cannot exceed %d, got %d", MAX_BYTE_ARRAY_LENGTH, length);
-		return 0;
-	}
-
-	unsigned char* raw = new unsigned char[length + 1];
-	std::memset(raw, 0, length);
-
-	auto* owner = new Owner<unsigned char[]>(raw);
-	return push_itb_userdata(L, owner, "UserdataMemhackByteArray");
+	lua_pushinteger(L, (size_t) raw);
+	return 1;
 }
 
 // Read functions - return the value at the given address
@@ -114,8 +101,8 @@ int read_null_term_string(lua_State* L) {
 	if (max_length <= 0) {
 		luaL_error(L, "read_null_term_string failed: max_length must be positive");
 		return 0;
-	} else if (max_length > MAX_CSTRING_LENGTH) {
-		luaL_error(L, "read_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_CSTRING_LENGTH, max_length);
+	} else if (max_length > MAX_NULL_TERM_STRING_LENGTH) {
+		luaL_error(L, "read_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, max_length);
 		return 0;
 	}
 
@@ -152,6 +139,9 @@ int read_byte_array(lua_State* L) {
 
 	if (length < 0) {
 		luaL_error(L, "read_byte_array failed: length must be non-negative");
+		return 0;
+	} else if (length > MAX_BYTE_ARRAY_LENGTH) {
+		luaL_error(L, "read_byte_array failed: length cannot exceed %d (including null terminator), got %d", MAX_BYTE_ARRAY_LENGTH, length);
 		return 0;
 	}
 
@@ -237,8 +227,8 @@ int write_null_term_string(lua_State* L) {
 	if (max_length <= 0) {
 		luaL_error(L, "write_null_term_string failed: max_length must be positive");
 		return -1;
-	} else if (max_length > MAX_CSTRING_LENGTH) {
-		luaL_error(L, "write_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_CSTRING_LENGTH, max_length);
+	} else if (max_length > MAX_NULL_TERM_STRING_LENGTH) {
+		luaL_error(L, "write_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, max_length);
 		return -1;
 	}
 
@@ -281,6 +271,9 @@ int write_byte_array(lua_State* L) {
 	if (length < 0) {
 		luaL_error(L, "write_byte_array failed: length must be non-negative");
 		return -1;
+	} else if (length > MAX_BYTE_ARRAY_LENGTH) {
+		luaL_error(L, "write_byte_array failed: length cannot exceed %d (including null terminator), got %d", MAX_BYTE_ARRAY_LENGTH, length);
+		return 0;
 	}
 
 	if (!SafeMemory::is_access_allowed(addr, (int)length, READ_WRITE)) {
@@ -331,8 +324,8 @@ void add_memory_functions(lua_State* L) {
 		luaL_error(L, "add_memory_functions failed: parent table does not exist");
 	}
 
-	lua_pushstring(L, "MAX_CSTRING_LENGTH");
-	lua_pushinteger(L, MAX_CSTRING_LENGTH);
+	lua_pushstring(L, "MAX_NULL_TERM_STRING_LENGTH");
+	lua_pushinteger(L, MAX_NULL_TERM_STRING_LENGTH);
 	lua_rawset(L, -3);
 
 	lua_pushstring(L, "MAX_BYTE_ARRAY_LENGTH");
@@ -343,12 +336,8 @@ void add_memory_functions(lua_State* L) {
 	lua_pushcfunction(L, get_userdata_addr);
 	lua_rawset(L, -3);
 
-	lua_pushstring(L, "getUserdataAddr");
-	lua_pushcfunction(L, get_userdata_addr);
-	lua_rawset(L, -3);
-
-	lua_pushstring(L, "allocCString");
-	lua_pushcfunction(L, alloc_cstring);
+	lua_pushstring(L, "allocNullTermString");
+	lua_pushcfunction(L, alloc_null_term_string);
 	lua_rawset(L, -3);
 
 	// Read functions
