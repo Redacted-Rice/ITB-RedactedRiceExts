@@ -2,7 +2,6 @@
 #define MEMORY_H
 
 #include "lua.hpp"
-#include "itb_userdata.h"
 
 /*
 	Simple memory read/write API
@@ -11,12 +10,11 @@
 */
 
 // Maximum length for C string operations (including null terminator)
-const int MAX_CSTRING_LENGTH = 2048;
+const int MAX_NULL_TERM_STRING_LENGTH = 2048;
 const int MAX_BYTE_ARRAY_LENGTH = 8192;
 
 int get_userdata_addr(lua_State* L);
 int alloc_cstring(lua_State* L);
-int alloc_byte_array(lua_State* L);
 
 // Read functions - return the value at the given address
 int read_byte(lua_State* L);

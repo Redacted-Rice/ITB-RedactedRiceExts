@@ -12,8 +12,8 @@ local function validateItBString(itbStr)
 
 	-- Check that string length is reasonable
 	local len = itbStr:getStrLen()
-	if len < 0 or len >= memhack.dll.memory.MAX_CSTRING_LENGTH then
-		return false, string.format("Invalid ItB string length: %d (must be 0-%d)", len, memhack.dll.memory.MAX_CSTRING_LENGTH)
+	if len < 0 or len >= memhack.dll.memory.MAX_NULL_TERM_STRING_LENGTH then
+		return false, string.format("Invalid ItB string length: %d (must be 0-%d)", len, memhack.dll.memory.MAX_NULL_TERM_STRING_LENGTH)
 	end
 
 	return true
@@ -35,7 +35,7 @@ local ItBString = memhack.structManager.define("ItBString", {
 	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true,
 		subType = {
 			type = "string",
-			maxLength = memhack.dll.memory.MAX_CSTRING_LENGTH,
+			maxLength = memhack.dll.memory.MAX_NULL_TERM_STRING_LENGTH,
 			lengthFn = function(self) return self:getStrLen() end
 		}
 	},
@@ -78,8 +78,6 @@ function ItBString.makeItBStringGetSetWrappers(struct, itbStrName)
 end
 
 function onModsFirstLoaded()
-	ItBString.strings = {}
-
 	ItBString[selfGetter] = function(self)
 		local uType = self:getUnionType()
 		if uType == ItBString.LOCAL then
@@ -107,11 +105,12 @@ function onModsFirstLoaded()
 			self:_setStrLocal(str)
 			self:_setUnionType(ItBString.LOCAL)
 		else
-			-- if we don't have a str idx already, create one
-			if ItBString.strings[str] == nil then
-				ItBString.strings[str] = memhack.dll.memory.allocCString(str)
-			end
-			self:_setStrRemotePtr(memhack.dll.memory.getUserdataAddr(ItBString.strings[str]))
+			-- We create the memory and pass it to the Game's struct
+			-- it will then manage its lifecyle (i.e. deleting it)
+			-- Originally I tried to make and maintain the lifecycle
+			-- in Lua but the game thought it was its memory and would
+			-- deallocate it on going to the main menu
+			self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str))
 			self:_setUnionType(ItBString.REMOTE)
 		end
 		self:_setStrLen(length)
