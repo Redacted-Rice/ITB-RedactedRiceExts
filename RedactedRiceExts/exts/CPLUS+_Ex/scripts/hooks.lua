@@ -21,6 +21,23 @@ local hooks = {
 	--  pilot (Pilot) - pilot struct on/was on active mech
 	--  skillStruct (PilotLvlUpSkill) - skill struct
 	"skillActive",
+
+	-- args: none
+	-- Fired before skills are assigned to pilots when entering a run or when
+	-- new pilots are acquired
+	"preAssigningLvlUpSkills",
+
+	-- args: none
+	-- Fired after skills are assigned to pilots when entering a run or when
+	-- new pilots are acquired
+	"postAssigningLvlUpSkills",
+
+	-- args:
+	--  pilot (Pilot) - pilot struct that will have skills selected
+	--  skillId1 (string) - first skill ID selected
+	--  skillId2 (string) - second skill ID selected
+	-- Fired for each pilot BEFORE their skills are applied to memory
+	"skillsSelected",
 }
 
 -- Register with logging system
@@ -42,6 +59,9 @@ function hooks:initBroadcastHooks(tbl)
 	tbl["fireSkillEnabledHooks"] = memhack.hooks.buildBroadcastFunc("skillEnabledHooks", tbl, nil, nil, SUBMODULE)
 	tbl["fireSkillInRunHooks"] = memhack.hooks.buildBroadcastFunc("skillInRunHooks", tbl, nil, nil, SUBMODULE)
 	tbl["fireSkillActiveHooks"] = memhack.hooks.buildBroadcastFunc("skillActiveHooks", tbl, nil, nil, SUBMODULE)
+	tbl["firePreAssigningLvlUpSkillsHooks"] = memhack.hooks.buildBroadcastFunc("preAssigningLvlUpSkillsHooks", tbl, nil, nil, SUBMODULE)
+	tbl["firePostAssigningLvlUpSkillsHooks"] = memhack.hooks.buildBroadcastFunc("postAssigningLvlUpSkillsHooks", tbl, nil, nil, SUBMODULE)
+	tbl["fireSkillsSelectedHooks"] = memhack.hooks.buildBroadcastFunc("skillsSelectedHooks", tbl, nil, nil, SUBMODULE)
 end
 
 return hooks

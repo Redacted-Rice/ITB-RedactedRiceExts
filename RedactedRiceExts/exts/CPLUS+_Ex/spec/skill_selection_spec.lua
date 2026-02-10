@@ -8,6 +8,11 @@ describe("Skill Selection Module", function()
 	before_each(function()
 		helper.resetState()
 	end)
+	
+	after_each(function()
+		-- Restore math.random after each test to prevent pollution
+		helper.restoreMathRandom()
+	end)
 
 	describe("Random Skill Selection", function()
 		before_each(function()

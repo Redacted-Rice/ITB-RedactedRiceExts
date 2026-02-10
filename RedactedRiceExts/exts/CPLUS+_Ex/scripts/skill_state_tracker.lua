@@ -18,9 +18,13 @@ local hooks = nil
 local utils = nil
 
 -- State tracking tables
-skill_state_tracker._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
-skill_state_tracker._inRunSkills = {}    -- skillId -> {pilotAddr -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
-skill_state_tracker._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
+function skill_state_tracker:resetAllTrackers()
+	self._hasAppliedSkill = false
+	self._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
+	self._inRunSkills = {}    -- skillId -> {pilotAddr -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
+	self._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
+end
+skill_state_tracker:resetAllTrackers()
 
 function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
@@ -30,10 +34,10 @@ function skill_state_tracker:init()
 end
 
 function skill_state_tracker:load()
-	skill_state_tracker:addHooks()
+	self:addHooks()
 
-	-- Perform initial state update
-	skill_state_tracker:updateAllStates()
+	-- Don't perform initial state update here - wait until onGameEntered
+	-- This prevents hooks from firing before entering a run
 end
 
 ------------------ Helper functions ------------------
@@ -146,7 +150,7 @@ function skill_state_tracker:getMechsWithSkill(skillId, checkEarned)
 	if not Game then return mechs end
 
 	if checkEarned == nil then checkEarned = true end
-	local pilots = skill_state_tracker:getPilotsWithSkill(skillId, Game:GetSquadPilots(), checkEarned)
+	local pilots = self:getPilotsWithSkill(skillId, Game:GetSquadPilots(), checkEarned)
 	for _, pilotData in ipairs(pilots) do
 		-- Data will be non-nil - getPilotsWithSkill handles this already
 		local pawnId = pilotData.pilot:getPawnId()
@@ -165,40 +169,47 @@ end
 
 -- Check if a skill is currently enabled in config
 function skill_state_tracker:isSkillEnabled(skillId)
-	return skill_state_tracker._enabledSkills[skillId] == true
+	return self._enabledSkills[skillId] == true
 end
 
 -- Get all enabled skills
 -- Returns: {skillId = true, ...}
 function skill_state_tracker:getSkillsEnabled()
-	return skill_state_tracker._enabledSkills
+	return self._enabledSkills
 end
 
 -- Update enabled skills state and fire hooks for changes
+-- Only fires hooks if we're in a game
 function skill_state_tracker:updateEnabledSkills()
+	if not Game then
+		-- No game active, clear all enabled skills
+		self._enabledSkills = {}
+		return
+	end
+
 	local newEnabledSkills = cplus_plus_ex._subobjects.skill_config:getEnabledSkillsSet()
 	local hooksToFire = {}
 
 	-- Check for newly enabled skills
 	for skillId in pairs(newEnabledSkills) do
-		if not skill_state_tracker._enabledSkills[skillId] then
+		if not self._enabledSkills[skillId] then
 			table.insert(hooksToFire, {skillId = skillId, enabled = true})
 		end
 	end
 
 	-- Check for newly disabled skills
-	for skillId in pairs(skill_state_tracker._enabledSkills) do
+	for skillId in pairs(self._enabledSkills) do
 		if not newEnabledSkills[skillId] then
 			table.insert(hooksToFire, {skillId = skillId, enabled = false})
 		end
 	end
 
 	-- Update state
-	skill_state_tracker._enabledSkills = newEnabledSkills
+	self._enabledSkills = newEnabledSkills
 
 	-- Fire all queued hooks in order
 	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill Enabled: %s is %s - Firing hooks...", hook.skillId, 
+		logger.logDebug(SUBMODULE, "Skill Enabled: %s is %s - Firing hooks...", hook.skillId,
 				(hook.enabled and "enabled" or "disabled"))
 		hooks.fireSkillEnabledHooks(hook.skillId, hook.enabled)
 	end
@@ -208,7 +219,7 @@ end
 
 -- Check if a skill is in run at all (on available pilots, any level)
 function skill_state_tracker:isSkillInRun(skillId)
-	local inRun = skill_state_tracker._inRunSkills[skillId]
+	local inRun = self._inRunSkills[skillId]
 	local result = inRun ~= nil and next(inRun) ~= nil
 	return result
 end
@@ -217,7 +228,7 @@ end
 -- Returns: {skillId -> [{pilot, skillIndices}, ...], ...}
 function skill_state_tracker:getSkillsInRun()
 	local result = {}
-	for skillId, pilots in pairs(skill_state_tracker._inRunSkills) do
+	for skillId, pilots in pairs(self._inRunSkills) do
 		result[skillId] = {}
 		for _, data in pairs(pilots) do
 			table.insert(result[skillId], {
@@ -261,20 +272,21 @@ function skill_state_tracker:determineInRunSkillsState()
 end
 
 -- Update in-run skills state and fire hooks for changes
+-- Only fires hooks if we're in a game
 function skill_state_tracker:updateInRunSkills()
 	if not Game then
 		-- No game active, clear all in-run skills
-		skill_state_tracker._inRunSkills = {}
+		self._inRunSkills = {}
 		return
 	end
 
 	-- Determine new in-run skills state (already in internal format)
-	local newInRunSkills = skill_state_tracker:determineInRunSkillsState()
+	local newInRunSkills = self:determineInRunSkillsState()
 	local hooksToFire = {}
 
 	-- Check for newly added pilots with skills
 	for skillId, newPilots in pairs(newInRunSkills) do
-		local oldPilots = skill_state_tracker._inRunSkills[skillId] or {}
+		local oldPilots = self._inRunSkills[skillId] or {}
 		for pilotAddr, data in pairs(newPilots) do
 			if not oldPilots[pilotAddr] then
 				-- Queue hook for each skill instance
@@ -287,7 +299,7 @@ function skill_state_tracker:updateInRunSkills()
 	end
 
 	-- Check for removed pilots with skills
-	for skillId, oldPilots in pairs(skill_state_tracker._inRunSkills) do
+	for skillId, oldPilots in pairs(self._inRunSkills) do
 		local newPilots = newInRunSkills[skillId] or {}
 		for pilotAddr, data in pairs(oldPilots) do
 			if not newPilots[pilotAddr] then
@@ -301,11 +313,11 @@ function skill_state_tracker:updateInRunSkills()
 	end
 
 	-- Update state
-	skill_state_tracker._inRunSkills = newInRunSkills
+	self._inRunSkills = newInRunSkills
 
 	-- Fire all queued hooks in order
 	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill In Run: %s %s - Queueing hooks...", hook.skillId,
+		logger.logDebug(SUBMODULE, "Skill In Run: %s %s - Firing hooks...", hook.skillId,
 				(hook.isInRun and "in run" or "no longer in run"))
 		hooks.fireSkillInRunHooks(hook.skillId, hook.isInRun, hook.pilot, hook.skillStruct)
 	end
@@ -315,16 +327,15 @@ end
 
 -- Check if a skill is currently active (on one of the 3 active mechs)
 function skill_state_tracker:isSkillActive(skillId)
-	local active = skill_state_tracker._activeSkills[skillId]
-	local result = active ~= nil and next(active) ~= nil
-	return result
+	local active = self._activeSkills[skillId]
+	return active ~= nil
 end
 
 -- Get active skills (user-friendly format)
 -- Returns: {skillId -> [{pawnId, pilot, skillIndices}, ...], ...}
 function skill_state_tracker:getSkillsActive()
 	local result = {}
-	for skillId, mechs in pairs(skill_state_tracker._activeSkills) do
+	for skillId, mechs in pairs(self._activeSkills) do
 		result[skillId] = {}
 		for pawnId, data in pairs(mechs) do
 			table.insert(result[skillId], {
@@ -370,20 +381,21 @@ function skill_state_tracker:determineActiveSkillsState()
 end
 
 -- Update active skills state and fire hooks for changes
+-- Only fires hooks if we're in a game
 function skill_state_tracker:updateActiveSkills()
 	if not Game or not Board then
 		-- No game active or no board, clear all active skills
-		skill_state_tracker._activeSkills = {}
+		self._activeSkills = {}
 		return
 	end
 
 	-- Determine new active skills state (already in internal format)
-	local newActiveSkills = skill_state_tracker:determineActiveSkillsState()
+	local newActiveSkills = self:determineActiveSkillsState()
 	local hooksToFire = {}
 
 	-- Check for newly active skills
 	for skillId, newMechs in pairs(newActiveSkills) do
-		local oldMechs = skill_state_tracker._activeSkills[skillId] or {}
+		local oldMechs = self._activeSkills[skillId] or {}
 		for pawnId, data in pairs(newMechs) do
 			if not oldMechs[pawnId] then
 				-- Queue hook for each skill instance
@@ -396,7 +408,7 @@ function skill_state_tracker:updateActiveSkills()
 	end
 
 	-- Check for newly inactive skills
-	for skillId, oldMechs in pairs(skill_state_tracker._activeSkills) do
+	for skillId, oldMechs in pairs(self._activeSkills) do
 		local newMechs = newActiveSkills[skillId] or {}
 		for pawnId, data in pairs(oldMechs) do
 			if not newMechs[pawnId] then
@@ -410,11 +422,11 @@ function skill_state_tracker:updateActiveSkills()
 	end
 
 	-- Update state
-	skill_state_tracker._activeSkills = newActiveSkills
+	self._activeSkills = newActiveSkills
 
 	-- Fire all queued hooks in order
 	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill Active: %s %s - Queueing hooks...", hook.skillId, 
+		logger.logDebug(SUBMODULE, "Skill Active: %s %s - Firing hooks...", hook.skillId,
 				(hook.isActive and "is active" or "no longer is active"))
 		hooks.fireSkillActiveHooks(hook.skillId, hook.isActive, hook.pawnId, hook.pilot, hook.skillStruct)
 	end
@@ -424,18 +436,29 @@ end
 
 -- Update all skill states (called from various triggers)
 function skill_state_tracker:updateAllStates()
-	skill_state_tracker:updateEnabledSkills()
-	skill_state_tracker:updateInRunSkills()
-	skill_state_tracker:updateActiveSkills()
+	self:updateEnabledSkills()
+	if self._hasAppliedSkill then
+		self:updateInRunSkills()
+		self:updateActiveSkills()
+	else
+		logger.logDebug(SUBMODULE, "Update all states: skipping In Run and Active")
+	end
 end
 
 -------------------- Event and Hook Registration --------------------
 
 function skill_state_tracker:addEvents()
-	-- Update when entering/exiting game (clean up state)
+	-- Update when entering game
 	modApi.events.onGameEntered:subscribe(function()
+		skill_state_tracker:resetAllTrackers()
 		skill_state_tracker:updateAllStates()
 	end)
+	
+	modApi.events.onModsLoaded:subscribe(function()
+		skill_state_tracker:resetAllTrackers()
+	end)
+
+	-- Clean up state when exiting/winning a game
 	modApi.events.onGameExited:subscribe(function()
 		skill_state_tracker:updateAllStates()
 	end)
@@ -444,6 +467,8 @@ function skill_state_tracker:addEvents()
 	end)
 end
 
+-- TODO: Switch to events?
+-- TODO: Move to top level to orchestrate?
 function skill_state_tracker:addHooks()
 	-- Update when game is saved (covers level ups, xp gains)
 	modApi:addSaveGameHook(function()
@@ -460,6 +485,14 @@ function skill_state_tracker:addHooks()
 
 	-- When a skill changes, update in-run and active states
 	memhack:addPilotLvlUpSkillChangedHook(function(pilot, skill, changes)
+		skill_state_tracker:updateAllStates()
+	end)
+	
+	hooks:addPostAssigningLvlUpSkillsHook(function()
+		logger.logDebug(SUBMODULE, "Post-assignment: updating in-run and active skill states")
+		skill_state_tracker._hasAppliedSkill = true
+		-- Update in-run and active states after skills have been assigned to triggers
+		-- any changes
 		skill_state_tracker:updateAllStates()
 	end)
 end
