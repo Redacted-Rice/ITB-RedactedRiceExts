@@ -5,9 +5,3 @@ local MemhackResearchControl = memhack.structManager.define("ResearchControl", {
 	-- of wrapping it. Maybe just a special vector to account for the 3? StorageVector?
 	storage = { offset = 0x68, type = "struct", subType = "Storage", --[[structs don't define setters]] },
 })
-
-function onModsFirstLoaded()
-	-- nothing special to do here for now at least
-end
-
-modApi.events.onModsFirstLoaded:subscribe(onModsFirstLoaded)

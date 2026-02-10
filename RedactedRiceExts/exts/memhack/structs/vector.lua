@@ -13,33 +13,29 @@ local MemhackVector = memhack.structManager.define("Vector", {
 })
 -- TODO: have a way to create templated type?
 
-function onModsFirstLoaded()
-	MemhackVector.PTR_SIZE = 4
-	
-	MemhackVector.getSize = function(self)
-		local result = (self:getNextPtr() - self:getHeadPtr()) / self.PTR_SIZE
-		return result
-	end
-	
-	-- 1 indexed
-	MemhackVector.getPtrAt = function(self, idx)
-		local result = memhack.dll.memory.readPointer(self:getHeadPtr() + (idx - 1) * self.PTR_SIZE)
-		return result
-	end
-	
-	-- 1 indexed
-	MemhackVector.getPtrsRange = function(self, startIdx, endIdx)
-		local ptrs = {}
-		for idx = startIdx, endIdx do
-			table.insert(ptrs, self:getPtrAt(idx))
-		end
-		return ptrs
-	end
-	
-	MemhackVector.getPtrsAll = function(self)
-		local result = self:getPtrsRange(1, self:getSize())
-		return result
-	end
+MemhackVector.PTR_SIZE = 4
+
+MemhackVector.getSize = function(self)
+	local result = (self:getNextPtr() - self:getHeadPtr()) / self.PTR_SIZE
+	return result
 end
 
-modApi.events.onModsFirstLoaded:subscribe(onModsFirstLoaded)
+-- 1 indexed
+MemhackVector.getPtrAt = function(self, idx)
+	local result = memhack.dll.memory.readPointer(self:getHeadPtr() + (idx - 1) * self.PTR_SIZE)
+	return result
+end
+
+-- 1 indexed
+MemhackVector.getPtrsRange = function(self, startIdx, endIdx)
+	local ptrs = {}
+	for idx = startIdx, endIdx do
+		table.insert(ptrs, self:getPtrAt(idx))
+	end
+	return ptrs
+end
+
+MemhackVector.getPtrsAll = function(self)
+	local result = self:getPtrsRange(1, self:getSize())
+	return result
+end

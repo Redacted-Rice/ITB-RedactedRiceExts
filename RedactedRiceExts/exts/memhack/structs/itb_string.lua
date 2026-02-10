@@ -26,8 +26,8 @@ local ItBString = memhack.structManager.define("ItBString", {
 	-- Can only be used if size < 16. Otherwise it has to be stored with strPtr
 	-- May not always be valid - calling getters may be unsafe
 	-- Uses lengthFn to read only the actual string length instead of max buffer size
-	strLocal = { offset = 0x0, type = "string", maxLength = 16, 
-		lengthFn = function(self) return self:getStrLen() end, 
+	strLocal = { offset = 0x0, type = "string", maxLength = 16,
+		lengthFn = function(self) return self:getStrLen() end,
 		hideSetter = true, hideGetter = true },
 	-- Same idea as strLocal but a pointer to the value if its too large to fit locally
 	-- May not always be valid - calling getters may be unsafe
@@ -77,50 +77,46 @@ function ItBString.makeItBStringGetSetWrappers(struct, itbStrName)
 			struct, itbStrName, ItBString.makeItBStringSetterName(itbStrName), selfSetter)
 end
 
-function onModsFirstLoaded()
-	ItBString[selfGetter] = function(self)
-		local uType = self:getUnionType()
-		if uType == ItBString.LOCAL then
-			local result = self:_getStrLocal()
-			return result
-		elseif uType == ItBString.REMOTE then
-			local result = self:_getStrRemote()
-			return result
-		end
-		error(string.format("UnionType was unexepected value: %d", uType))
-		return nil
-	end
-
-	ItBString[selfSetter] = function(self, strOrStruct)
-		local str = strOrStruct
-		if type(strOrStruct) == "table" and getmetatable(strOrStruct) == ItBString then
-			-- for simplicity and to prevent coupling, just get the current string
-			-- value and use that
-			str = strOrStruct:get()
-		end
-
-		local length = #str
-		if length < 16 then -- < 16 for room for null term
-			-- If its less than 16, we can store it locally
-			self:_setStrLocal(str)
-			self:_setUnionType(ItBString.LOCAL)
-		else
-			-- We create the memory and pass it to the Game's struct
-			-- it will then manage its lifecyle (i.e. deleting it)
-			-- Originally I tried to make and maintain the lifecycle
-			-- in Lua but the game thought it was its memory and would
-			-- deallocate it on going to the main menu
-			self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str))
-			self:_setUnionType(ItBString.REMOTE)
-		end
-		self:_setStrLen(length)
-	end
-
-	-- Override tostring as pointer may not always be valid
-	ItBString.__tostring = function(self)
-		local result = self[selfGetter](self)
+ItBString[selfGetter] = function(self)
+	local uType = self:getUnionType()
+	if uType == ItBString.LOCAL then
+		local result = self:_getStrLocal()
+		return result
+	elseif uType == ItBString.REMOTE then
+		local result = self:_getStrRemote()
 		return result
 	end
+	error(string.format("UnionType was unexepected value: %d", uType))
+	return nil
 end
 
-modApi.events.onModsFirstLoaded:subscribe(onModsFirstLoaded)
+ItBString[selfSetter] = function(self, strOrStruct)
+	local str = strOrStruct
+	if type(strOrStruct) == "table" and getmetatable(strOrStruct) == ItBString then
+		-- for simplicity and to prevent coupling, just get the current string
+		-- value and use that
+		str = strOrStruct:get()
+	end
+
+	local length = #str
+	if length < 16 then -- < 16 for room for null term
+		-- If its less than 16, we can store it locally
+		self:_setStrLocal(str)
+		self:_setUnionType(ItBString.LOCAL)
+	else
+		-- We create the memory and pass it to the Game's struct
+		-- it will then manage its lifecyle (i.e. deleting it)
+		-- Originally I tried to make and maintain the lifecycle
+		-- in Lua but the game thought it was its memory and would
+		-- deallocate it on going to the main menu
+		self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str))
+		self:_setUnionType(ItBString.REMOTE)
+	end
+	self:_setStrLen(length)
+end
+
+-- Override tostring as pointer may not always be valid
+ItBString.__tostring = function(self)
+	local result = self[selfGetter](self)
+	return result
+end
