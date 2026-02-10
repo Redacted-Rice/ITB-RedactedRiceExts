@@ -102,6 +102,7 @@ function M.setupGlobals()
 	-- Mock modApi events
 	_G.modApi = _G.modApi or {}
 	_G.modApi.events = _G.modApi.events or {}
+	_G.modApi.events.onSaveGame = { subscribe = function() end }
 	_G.modApi.events.onConsoleToggled = { subscribe = function() end }
 	_G.modApi.events.onGameEntered = { subscribe = function() end }
 	_G.modApi.events.onGameExited = { subscribe = function() end }
@@ -110,7 +111,6 @@ function M.setupGlobals()
 	_G.modApi.events.onPawnClassInitialized = { subscribe = function() end }
 	-- onModsFirstLoaded fires immediately to initialize structs
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
-	_G.modApi.addSaveGameHook = function() end
 
 	_G.Event = _G.Event or setmetatable({
 		buildErrorMessage = function(prefix, error, ...)

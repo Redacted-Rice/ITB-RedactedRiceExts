@@ -36,6 +36,7 @@ function M.setupGlobals()
 	-- Mock modApi events
 	_G.modApi = _G.modApi or {}
 	_G.modApi.events = _G.modApi.events or {}
+	_G.modApi.events.onSaveGame = { subscribe = function() end }
 	_G.modApi.events.onPodWindowShown = { subscribe = function() end }
 	_G.modApi.events.onPerfectIslandWindowShown = { subscribe = function() end }
 	_G.modApi.events.onGameEntered = { subscribe = function() end }
@@ -46,7 +47,6 @@ function M.setupGlobals()
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function() end }
 	_G.modApi.events.onModsLoaded = { subscribe = function() end }
 	_G.modApi.scheduleHook = function() end
-	_G.modApi.addSaveGameHook = function() end
 
 	_G.Event = _G.Event or function() return {dispatch = function() end} end
 	_G.Game = _G.Game or {}

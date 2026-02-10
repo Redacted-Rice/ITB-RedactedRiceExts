@@ -88,20 +88,14 @@ end
 
 function memhack:load()
 	self._subobjects.hooks:load()
-
-	-- Register hooks
-	self:addHooks()
-end
-
-function memhack:addHooks()
-	-- Save game hook for state change detection
-	-- Save game current is only a hook
-	modApi:addSaveGameHook(function()
-		stateTracker:checkForStateChanges()
-	end)
 end
 
 function memhack:addEvents()
+	-- Save game event for state change detection
+	modApi.events.onSaveGame:subscribe(function()
+		stateTracker:checkForStateChanges()
+	end)
+
 	-- Console toggle event for state change detection
 	modApi.events.onConsoleToggled:subscribe(function()
 		stateTracker:checkForStateChanges()
