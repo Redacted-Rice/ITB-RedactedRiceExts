@@ -155,8 +155,7 @@ function M.resetState()
 	end
 
 	-- Re-initialize modules (registers constraints, vanilla skills, etc.)
-	-- Note: This calls skill_state_tracker:load() which calls updateAllStates()
-	-- so Game/Board MUST be reset before this
+	-- Game/Board MUST be reset before this
 	pm:initModules()
 
 	-- Now access modules after they've been initialized

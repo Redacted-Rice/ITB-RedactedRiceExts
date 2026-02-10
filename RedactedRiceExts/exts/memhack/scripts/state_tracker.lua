@@ -23,16 +23,6 @@ stateTracker._skillTrackers = {}
 -- Actual memory may contain combined values based on pilot level
 stateTracker._skillSetValues = {}
 
-function stateTracker:init()
-	self:registerTriggerEvents()
-	-- hooks wrapped explicitly in memhack.lua
-	return self
-end
-
-function stateTracker:load()
-	self:registerTriggerHooks()
-end
-
 -------------------- State Capture and Comparison --------------------
 
 -- Capture a single value from an object using either:
@@ -403,31 +393,6 @@ function stateTracker:wrapHooksToUpdateStateTrackers()
 		memhack.structs.PilotLvlUpSkill.stateDefinition,
 		stateTracker._skillTrackers
 	)
-end
-
-function stateTracker:registerTriggerHooks()
-	-- Should cover general level ups and earning of xp
-	modApi:addSaveGameHook(function()
-		stateTracker:checkForStateChanges()
-	end)
-end
-
-function stateTracker:registerTriggerEvents()
-	-- should cover adding levels/xp via console
-	modApi.events.onConsoleToggled:subscribe(function()
-		stateTracker:checkForStateChanges()
-	end)
-
-	-- Clean up stale trackers when a new game is started or ended
-	modApi.events.onGameEntered:subscribe(function()
-		stateTracker:cleanupStaleTrackers()
-	end)
-	modApi.events.onGameExited:subscribe(function()
-		stateTracker:cleanupStaleTrackers()
-	end)
-	modApi.events.onGameVictory:subscribe(function()
-		stateTracker:cleanupStaleTrackers()
-	end)
 end
 
 return stateTracker
