@@ -44,6 +44,7 @@ function M.setupGlobals()
 	_G.modApi.events.onMainMenuEntered = { subscribe = function() end }
 	_G.modApi.events.onHangarEntered = { subscribe = function() end }
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function() end }
+	_G.modApi.events.onModsLoaded = { subscribe = function() end }
 	_G.modApi.scheduleHook = function() end
 	_G.modApi.addSaveGameHook = function() end
 
@@ -195,11 +196,19 @@ function M.resetState()
 	skill_state_tracker._inRunSkills = {}
 	skill_state_tracker._activeSkills = {}
 
+	-- Reset skill_selection assignment tracking
+	skill_selection._pilotsAssignedThisRun = {}
+	skill_selection.usedSkillsPerRun = {}
+	skill_selection.localRandomCount = nil
+
 	-- Reset hooks module state to clear any added during tests
 	local hooks_module = pm.hooks
 	hooks_module.skillEnabledHooks = {}
 	hooks_module.skillInRunHooks = {}
 	hooks_module.skillActiveHooks = {}
+	hooks_module.preAssigningLvlUpSkillsHooks = {}
+	hooks_module.postAssigningLvlUpSkillsHooks = {}
+	hooks_module.skillsSelectedHooks = {}
 	hooks_module:initBroadcastHooks(hooks_module)
 
 	-- Reset config structure (owned by skill_config module)

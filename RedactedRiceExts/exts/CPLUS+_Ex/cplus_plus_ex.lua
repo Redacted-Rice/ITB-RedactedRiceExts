@@ -126,12 +126,9 @@ end
 
 -- Orchestrates skill assignment and persistent data saving workflow
 function cplus_plus_ex:updateAndSaveSkills()
-	-- TODO: I think these first two can be removed
-	time_traveler:refreshGameData()
-	time_traveler:loadPersistentDataIfNeeded()
-	-- These are done here instead of delegating to lower level files becuase we have a specific order
+	-- These are done here instead of delegating to lower level files because we have a specific order
 	-- we want these to happen in and they are dependent on each other
-	self:applySkillsToAllPilots()
+	skill_selection:applySkillsToAllPilots()
 	time_traveler:savePersistentDataIfChanged()
 end
 
