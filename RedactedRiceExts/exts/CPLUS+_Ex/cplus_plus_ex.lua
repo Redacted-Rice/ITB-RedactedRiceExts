@@ -154,21 +154,15 @@ function cplus_plus_ex:load(options)
 	-- Load submodules that need loading
 	hooks:load()
 	time_traveler:load()
-
-	-- Register hooks
-	self:addHooks()
-end
-
-function cplus_plus_ex:addHooks()
-	-- Save game hook
-	-- There currently isn't an event equivalent
-	modApi:addSaveGameHook(function()
-		self:updateAndSaveSkills()
-		skill_state_tracker:updateAllStates()
-	end)
 end
 
 function cplus_plus_ex:addEvents()
+	-- Save game event
+	modApi.events.onSaveGame:subscribe(function()
+		self:updateAndSaveSkills()
+		skill_state_tracker:updateAllStates()
+	end)
+
 	-- Subscribe to modApi events
 	modApi.events.onModsFirstLoaded:subscribe(function()
 		skill_registry:postModsLoaded()
