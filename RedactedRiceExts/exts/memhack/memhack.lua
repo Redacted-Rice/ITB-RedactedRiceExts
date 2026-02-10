@@ -42,11 +42,17 @@ function memhack:init(mockDll)
 	-- Initialize utility modules
 	self.debug = require(path.."utils/debug").init(self.dll)
 
+	-- Initialize hooks first and expose it
+	self._subobjects = {}
+	self._subobjects.hooks = require(path.."scripts/hooks")
+	self._subobjects.hooks:init()
+	self.hooks = self._subobjects.hooks
+
 	-- Initialize structure system
 	self.structManager = require(path.."utils/structmanager")
 	self.structs = self.structManager.init(self.dll)
 
-	-- Load structs
+	-- Load all the structs
 	require(path.."structs/itb_string")
 	require(path.."structs/vector")
 
@@ -66,22 +72,13 @@ function memhack:init(mockDll)
 	require(path.."appended_fns/game")
 	require(path.."appended_fns/pawn")
 
-	-- Require all submodules before initializing
-	self._subobjects = {}
-	self._subobjects.hooks = require(path.."scripts/hooks")
+	-- Now initialize state tracker which references the structs
+	-- Wrap hooks to update state trackers to prevent double firing from state tracking
 	self._subobjects.stateTracker = require(path.."scripts/state_tracker")
-
-	-- Initialize submodules (they will set their local references here)
-	self._subobjects.hooks:init()
-
-	-- Expose commonly used submodules at root level
-	self.hooks = self._subobjects.hooks
 	self.stateTracker = self._subobjects.stateTracker
 	stateTracker = self._subobjects.stateTracker
-
-	-- Wrap hooks to update state trackers to prevent double firing from state tracking
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
-
+	
 	-- Register events
 	self:addEvents()
 end
