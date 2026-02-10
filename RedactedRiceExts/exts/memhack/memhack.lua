@@ -20,6 +20,8 @@ memhack.logger = require(path.."utils/logging")
 local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "Core", memhack.DEBUG.ENABLED)
 
+local stateTracker = nil
+
 function memhack:init(mockDll)
 	-- Allow injecting a mock DLL for testing
 	if mockDll then
@@ -71,17 +73,50 @@ function memhack:init(mockDll)
 
 	-- Initialize submodules (they will set their local references here)
 	self._subobjects.hooks:init()
-	self._subobjects.stateTracker:init()
 
 	-- Expose commonly used submodules at root level
 	self.hooks = self._subobjects.hooks
 	self.stateTracker = self._subobjects.stateTracker
+	stateTracker = self._subobjects.stateTracker
 
 	-- Wrap hooks to update state trackers to prevent double firing from state tracking
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
+
+	-- Register events
+	self:addEvents()
 end
 
 function memhack:load()
 	self._subobjects.hooks:load()
-	self._subobjects.stateTracker:load()
+
+	-- Register hooks
+	self:addHooks()
+end
+
+function memhack:addHooks()
+	-- Save game hook for state change detection
+	-- Save game current is only a hook
+	modApi:addSaveGameHook(function()
+		stateTracker:checkForStateChanges()
+	end)
+end
+
+function memhack:addEvents()
+	-- Console toggle event for state change detection
+	modApi.events.onConsoleToggled:subscribe(function()
+		stateTracker:checkForStateChanges()
+	end)
+
+	-- Clean up stale trackers when a new game is started or ended
+	modApi.events.onGameEntered:subscribe(function()
+		stateTracker:cleanupStaleTrackers()
+	end)
+
+	modApi.events.onGameExited:subscribe(function()
+		stateTracker:cleanupStaleTrackers()
+	end)
+
+	modApi.events.onGameVictory:subscribe(function()
+		stateTracker:cleanupStaleTrackers()
+	end)
 end

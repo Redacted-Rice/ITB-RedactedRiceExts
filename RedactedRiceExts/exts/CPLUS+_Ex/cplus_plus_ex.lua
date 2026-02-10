@@ -153,7 +153,6 @@ end
 function cplus_plus_ex:load(options)
 	-- Load submodules that need loading
 	hooks:load()
-	skill_state_tracker:load()
 	time_traveler:load()
 
 	-- Register hooks
