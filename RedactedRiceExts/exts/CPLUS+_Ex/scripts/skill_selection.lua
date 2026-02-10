@@ -26,24 +26,12 @@ function skill_selection:init()
 	utils = cplus_plus_ex._subobjects.utils
 	hooks = cplus_plus_ex._subobjects.hooks
 
-	modApi.events.onPodWindowShown:subscribe(function() skill_selection:applySkillToPodPilot() end)
-	modApi.events.onPerfectIslandWindowShown:subscribe(function() skill_selection:applySkillToPerfectIslandPilot() end)
-
-	-- Clear pilot assignment tracking when entering/exiting runs
-	modApi.events.onGameEntered:subscribe(function()
-		skill_selection._pilotsAssignedThisRun = {}
-	end)
-	modApi.events.onModsLoaded:subscribe(function()
-		skill_selection._pilotsAssignedThisRun = {}
-	end)
-	modApi.events.onGameExited:subscribe(function()
-		skill_selection._pilotsAssignedThisRun = {}
-	end)
-	modApi.events.onGameVictory:subscribe(function()
-		skill_selection._pilotsAssignedThisRun = {}
-	end)
-
 	return self
+end
+
+-- Clear pilot assignment tracking used on reset/enter/exit events
+function skill_selection:clearPilotTracking()
+	self._pilotsAssignedThisRun = {}
 end
 
 -- Initialize game save data for skills
@@ -307,7 +295,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		storedSkills[2] = {id = skill2Id}
 		skill2 = skill_config_module.enabledSkills[skill2Id]
 	end
-	
+
 	-- Fire skillsSelected hook after selecting but before applying skills
 	-- The other inRun/Active hooks will be called after they are set
 	-- and the level up skills will also trigger if it changed
@@ -381,9 +369,9 @@ function skill_selection:applySkillsToAllPilots()
 	for _, pilot in pairs(pilots) do
 		local pilotId = pilot:getIdStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
-		
+
 		skill_selection:applySkillsToPilot(pilot, isNewPilot)
-		
+
 		-- Mark pilot as assigned this run
 		if isNewPilot then
 			skill_selection._pilotsAssignedThisRun[pilotId] = true
@@ -402,19 +390,19 @@ function skill_selection:applySkillToPodPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPodRewardPilot()
 	if not pilot then return end
-	
+
 	local pilotId = pilot:getIdStr()
 	-- It should always be a new pilot
 	local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
-	
+
 	if isNewPilot then
 		-- Fire pre hook
 		hooks.firePreAssigningLvlUpSkillsHooks()
 	end
-	
+
 	-- Apply skills with hooks
 	skill_selection:applySkillsToPilot(pilot, isNewPilot)
-	
+
 	if isNewPilot then
 		skill_selection._pilotsAssignedThisRun[pilotId] = true
 		hooks.firePostAssigningLvlUpSkillsHooks()
@@ -425,22 +413,22 @@ function skill_selection:applySkillToPerfectIslandPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPerfectIslandRewardPilot()
 	if not pilot then return end
-	
+
 	local pilotId = pilot:getIdStr()
 	-- It may not be "new" if they minimized the menu and brought it back up
 	local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
-	
+
 	if isNewPilot then
 		-- Fire pre hook
 		hooks.firePreAssigningLvlUpSkillsHooks()
 	end
-	
+
 	-- Apply skills with hooks
 	skill_selection:applySkillsToPilot(pilot, isNewPilot)
-	
+
 	if isNewPilot then
 		skill_selection._pilotsAssignedThisRun[pilotId] = true
-		
+
 		-- Fire post hook and immediately update states
 		hooks.firePostAssigningLvlUpSkillsHooks()
 	end
