@@ -286,7 +286,7 @@ describe("Method Generation Module", function()
 			assert.is_not_nil(err:match("Setter 'nonexistentSetter' not found"))
 		end)
 
-		it("should create _noFire version of wrapped setter", function()
+		it("should create private _noFire version of wrapped setter", function()
 			local struct = {
 				_value = 10,
 				getValue = function(self) return self._value end,
@@ -301,11 +301,11 @@ describe("Method Generation Module", function()
 			-- Wrap the setter
 			methodGeneration.wrapSetterToFireOnValueChange(struct, "value", fireFn)
 
-			-- Verify _noFire version was created
-			assert.is_function(struct.setValue_noFire, "setValue_noFire should be created")
+			-- Verify private _noFire version was created
+			assert.is_function(struct._setValue_noFire, "_setValue_noFire should be created")
 
 			-- Verify _noFire version doesn't fire hook
-			struct:setValue_noFire(20)
+			struct:_setValue_noFire(20)
 			assert.are.equal(0, fireCount, "_noFire version should not fire hook")
 			assert.are.equal(20, struct._value, "_noFire version should still set the value")
 
