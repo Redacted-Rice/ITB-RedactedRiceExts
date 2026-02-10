@@ -70,7 +70,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(2, mockSkill1._coresBonus)
 			assert.are.equal(3, mockSkill2._coresBonus)
@@ -80,7 +80,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(1, mockSkill1._gridBonus)
 			assert.are.equal(2, mockSkill2._gridBonus)
@@ -96,7 +96,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(2, mockSkill1._coresBonus)
 			assert.are.equal(3, mockSkill2._coresBonus)
@@ -106,7 +106,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(1, mockSkill1._gridBonus)
 			assert.are.equal(2, mockSkill2._gridBonus)
@@ -122,7 +122,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(5, mockSkill1._coresBonus)
 			assert.are.equal(0, mockSkill2._coresBonus)
@@ -132,7 +132,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(3, mockSkill1._gridBonus)
 			assert.are.equal(0, mockSkill2._gridBonus)
@@ -142,7 +142,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 0)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(0, mockSkill1._coresBonus)
 			assert.are.equal(3, mockSkill2._coresBonus)
@@ -152,7 +152,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 0)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			assert.are.equal(0, mockSkill1._gridBonus)
 			assert.are.equal(2, mockSkill2._gridBonus)
@@ -167,7 +167,7 @@ describe("Pilot Bonus Combining", function()
 		memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 0)
 		memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 1)
 
-		mockPilot:combineBonuses()
+		mockPilot:_combineBonuses()
 
 		-- Cores combined into skill1
 		assert.are.equal(5, mockSkill1._coresBonus)
@@ -185,7 +185,7 @@ describe("Pilot Bonus Combining", function()
 		memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
 		memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-		mockPilot:combineBonuses()
+		mockPilot:_combineBonuses()
 
 		-- Memory shows combined values (both skills have bonuses, so they combine)
 		assert.are.equal(5, mockSkill1._coresBonus)
@@ -210,7 +210,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 			assert.are.equal(5, mockSkill1._coresBonus)
 			assert.are.equal(0, mockSkill2._coresBonus)
 			assert.are.equal(3, mockSkill1._gridBonus)
@@ -218,7 +218,7 @@ describe("Pilot Bonus Combining", function()
 
 			-- Level down
 			mockPilot._level = 1
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			-- Should restore to set values
 			assert.are.equal(2, mockSkill1._coresBonus)
@@ -235,7 +235,7 @@ describe("Pilot Bonus Combining", function()
 			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
 			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
 
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 			assert.are.equal(2, mockSkill1._coresBonus)
 			assert.are.equal(3, mockSkill2._coresBonus)
 			assert.are.equal(1, mockSkill1._gridBonus)
@@ -243,7 +243,7 @@ describe("Pilot Bonus Combining", function()
 
 			-- Level up
 			mockPilot._level = 2
-			mockPilot:combineBonuses()
+			mockPilot:_combineBonuses()
 
 			-- Should combine
 			assert.are.equal(5, mockSkill1._coresBonus)

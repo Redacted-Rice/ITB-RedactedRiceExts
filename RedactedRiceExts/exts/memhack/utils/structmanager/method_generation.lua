@@ -278,7 +278,8 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, fireFn, s
 	-- Preserve original as _noFire version so we can use it internally like for
 	-- a set all fields setter without extra triggers of the hook. E.g. in
 	-- generateStructSetterToFireOnAnyValueChange generate functions
-	local noFireName = setterName .. "_noFire"
+	-- Make it private by prefixing with _
+	local noFireName = "_" .. setterName .. "_noFire"
 	struct[noFireName] = originalSetter
 
 	struct[setterName] = function(self, newVal)
@@ -320,8 +321,8 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, ful
 					settersTable[field](self, newVal)
 				else
 					local setter = StructManager.makeStdSetterName(field)
-					-- Use _noFire version if available to avoid double firing hooks
-					local noFireSetter = setter .. "_noFire"
+					-- Use private _noFire version if available to avoid double firing hooks
+					local noFireSetter = "_" .. setter .. "_noFire"
 					if self[noFireSetter] then
 						self[noFireSetter](self, newVal)
 					else

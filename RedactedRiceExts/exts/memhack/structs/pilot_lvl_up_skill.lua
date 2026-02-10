@@ -72,7 +72,7 @@ PilotLvlUpSkill.setCoresBonus = function(self, value)
 	local pilot = self:getParentPilot()
 	if pilot then
 		-- combine will set memory values
-		pilot:combineBonuses()
+		pilot:_combineBonuses()
 	else
 		self:_setCoresBonus(value)
 	end
@@ -86,7 +86,7 @@ PilotLvlUpSkill.setGridBonus = function(self, value)
 	local pilot = self:getParentPilot()
 	if pilot then
 		-- combine will set memory values
-		pilot:combineBonuses()
+		pilot:_combineBonuses()
 	else
 		self:_setGridBonus(value)
 	end

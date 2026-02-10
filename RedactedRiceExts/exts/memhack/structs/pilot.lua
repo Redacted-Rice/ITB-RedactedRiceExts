@@ -44,20 +44,20 @@ genItBStrGetSetWrappers(Pilot, "name")
 genItBStrGetSetWrappers(Pilot, "skill")
 genItBStrGetSetWrappers(Pilot, "id")
 
-Pilot.calculateLevelUpXp = function(level)
+Pilot._calculateLevelUpXp = function(level)
 	local result = (level + 1) * 25
 	return result
 end
 
 local function applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
-	local newLevelUpXp = self.calculateLevelUpXp(newLevel)
+	local newLevelUpXp = self._calculateLevelUpXp(newLevel)
 
 	self:_setXp(0)
 	self:_setLevel(newLevel)
 	self:_setLevelUpXp(newLevelUpXp)
 
 	-- Recombine bonuses based on new level
-	self:combineBonuses()
+	self:_combineBonuses()
 
 	-- Build changes table and fire hook
 	-- Hook fire function automatically updates state tracker to prevent double-fire
@@ -207,7 +207,7 @@ end
 -- - External code always sees and sets the "base" values
 -- - Memhack handles combining automatically based on pilot level and setting
 --   memory to ther correct values
-Pilot.combineBonuses = function(self)
+Pilot._combineBonuses = function(self)
 	local skill1 = self:getLvlUpSkill(1)
 	local skill2 = self:getLvlUpSkill(2)
 
