@@ -1,6 +1,5 @@
 -- FWIW I found two ways so far to get GameMap other than Game in lua
 
-
 local MemhackGameMap = memhack.structManager.define("GameMap", {
 	researchControl = { offset = 0x5674, type = "struct", subType = "ResearchControl", --[[structs don't define setters]] },
 	-- This could be a memedit scan but instead did here as its more annoying
@@ -9,9 +8,3 @@ local MemhackGameMap = memhack.structManager.define("GameMap", {
 	unknownObj1 = { offset = 0x90C8, type = "pointer", subType = "UnknownObj1" },
 	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen" },
 })
-
-function onModsFirstLoaded()
-	-- nothing special to do here for now at least
-end
-
-modApi.events.onModsFirstLoaded:subscribe(onModsFirstLoaded)

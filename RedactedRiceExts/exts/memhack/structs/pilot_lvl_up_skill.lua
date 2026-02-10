@@ -38,82 +38,74 @@ local selfSetter = memhack.structManager.makeStdSelfSetterName()
 local methodGen = memhack.structManager._methodGeneration
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
 
-function createPilotLvlUpSkillFuncs()
-	-- Convinience wrappers for lvl up skills ItBStrings
-	genItBStrGetSetWrappers(PilotLvlUpSkill, "id")
-	genItBStrGetSetWrappers(PilotLvlUpSkill, "shortName")
-	genItBStrGetSetWrappers(PilotLvlUpSkill, "fullName")
-	genItBStrGetSetWrappers(PilotLvlUpSkill, "description")
+-- Convinience wrappers for lvl up skills ItBStrings
+genItBStrGetSetWrappers(PilotLvlUpSkill, "id")
+genItBStrGetSetWrappers(PilotLvlUpSkill, "shortName")
+genItBStrGetSetWrappers(PilotLvlUpSkill, "fullName")
+genItBStrGetSetWrappers(PilotLvlUpSkill, "description")
 
-	-- Add convenience parent getter methods
-	methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "Pilot")
-	methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "PilotLvlUpSkillsArray")
+-- Add convenience parent getter methods
+methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "Pilot")
+methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "PilotLvlUpSkillsArray")
 
-	-- Create public getters/setters for cores/grid that handle set value tracking
-	-- The raw memory getters/setters are hidden (prefixed with _) by the struct definition
-	-- and will be set by combineBonuses
+-- Create public getters/setters for cores/grid that handle set value tracking
+-- The raw memory getters/setters are hidden (prefixed with _) by the struct definition
+-- and will be set by combineBonuses
 
-	-- Public getters return set values from state tracker
-	PilotLvlUpSkill.getCoresBonus = function(self)
-		local result = memhack.stateTracker.getSkillSetValue(self, "coresBonus")
-		return result
-	end
-
-	PilotLvlUpSkill.getGridBonus = function(self)
-		local result = memhack.stateTracker.getSkillSetValue(self, "gridBonus")
-		return result
-	end
-
-	-- Public setters track set values and trigger combining
-	PilotLvlUpSkill.setCoresBonus = function(self, value)
-		-- Store new set value
-		memhack.stateTracker.setSkillSetValue(self, "coresBonus", value)
-
-		-- Trigger combining logic on parent pilot
-		local pilot = self:getParentPilot()
-		if pilot then
-			-- combine will set memory values
-			pilot:combineBonuses()
-		else
-			self:_setCoresBonus(value)
-		end
-	end
-
-	PilotLvlUpSkill.setGridBonus = function(self, value)
-		-- Store new set value
-		memhack.stateTracker.setSkillSetValue(self, "gridBonus", value)
-
-		-- Trigger combining logic on parent pilot
-		local pilot = self:getParentPilot()
-		if pilot then
-			-- combine will set memory values
-			pilot:combineBonuses()
-		else
-			self:_setGridBonus(value)
-		end
-	end
-
-	-- Wrap setters to trigger skill changed hooks on change
-	local fireFn = memhack.hooks.firePilotLvlUpSkillChangedHooks
-	local defaultSetter = nil -- Means use default name convention for setter
-	-- For ItBString fields, pass nil for setterName and custom getter name as 5th arg
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "id", fireFn, defaultSetter, itbStrGetterName("id"))
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "shortName", fireFn, defaultSetter, itbStrGetterName("shortName"))
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "fullName", fireFn, defaultSetter, itbStrGetterName("fullName"))
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "description", fireFn, defaultSetter, itbStrGetterName("description"))
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "healthBonus", fireFn)
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "coresBonus", fireFn)
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "gridBonus", fireFn)
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "moveBonus", fireFn)
-	methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "saveVal", fireFn)
-
-	-- generate full setter that triggers on change of any value
-	PilotLvlUpSkill[selfSetter] = methodGen.generateStructSetterToFireOnAnyValueChange(
-			fireFn, PilotLvlUpSkill.stateDefinition)
+-- Public getters return set values from state tracker
+PilotLvlUpSkill.getCoresBonus = function(self)
+	local result = memhack.stateTracker.getSkillSetValue(self, "coresBonus")
+	return result
 end
 
-function onModsFirstLoaded()
-	createPilotLvlUpSkillFuncs()
+PilotLvlUpSkill.getGridBonus = function(self)
+	local result = memhack.stateTracker.getSkillSetValue(self, "gridBonus")
+	return result
 end
 
-modApi.events.onModsFirstLoaded:subscribe(onModsFirstLoaded)
+-- Public setters track set values and trigger combining
+PilotLvlUpSkill.setCoresBonus = function(self, value)
+	-- Store new set value
+	memhack.stateTracker.setSkillSetValue(self, "coresBonus", value)
+
+	-- Trigger combining logic on parent pilot
+	local pilot = self:getParentPilot()
+	if pilot then
+		-- combine will set memory values
+		pilot:combineBonuses()
+	else
+		self:_setCoresBonus(value)
+	end
+end
+
+PilotLvlUpSkill.setGridBonus = function(self, value)
+	-- Store new set value
+	memhack.stateTracker.setSkillSetValue(self, "gridBonus", value)
+
+	-- Trigger combining logic on parent pilot
+	local pilot = self:getParentPilot()
+	if pilot then
+		-- combine will set memory values
+		pilot:combineBonuses()
+	else
+		self:_setGridBonus(value)
+	end
+end
+
+-- Wrap setters to trigger skill changed hooks on change
+local fireFn = memhack.hooks.firePilotLvlUpSkillChangedHooks
+local defaultSetter = nil -- Means use default name convention for setter
+-- For ItBString fields, pass nil for setterName and custom getter name as 5th arg
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "id", fireFn, defaultSetter, itbStrGetterName("id"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "shortName", fireFn, defaultSetter, itbStrGetterName("shortName"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "fullName", fireFn, defaultSetter, itbStrGetterName("fullName"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "description", fireFn, defaultSetter, itbStrGetterName("description"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "healthBonus", fireFn)
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "coresBonus", fireFn)
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "gridBonus", fireFn)
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "moveBonus", fireFn)
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "saveVal", fireFn)
+
+-- generate full setter that triggers on change of any value
+PilotLvlUpSkill[selfSetter] = methodGen.generateStructSetterToFireOnAnyValueChange(
+		fireFn, PilotLvlUpSkill.stateDefinition)
