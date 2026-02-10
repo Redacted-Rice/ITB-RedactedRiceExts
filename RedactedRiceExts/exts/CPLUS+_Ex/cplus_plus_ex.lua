@@ -156,21 +156,74 @@ function cplus_plus_ex:load(options)
 	skill_state_tracker:load()
 	time_traveler:load()
 
-	-- Add save game hook
+	-- Register hooks
+	self:addHooks()
+end
+
+function cplus_plus_ex:addHooks()
+	-- Save game hook
+	-- There currently isn't an event equivalent
 	modApi:addSaveGameHook(function()
 		self:updateAndSaveSkills()
+		skill_state_tracker:updateAllStates()
 	end)
 end
 
 function cplus_plus_ex:addEvents()
-	-- Subscribe to top-level events
+	-- Subscribe to modApi events
 	modApi.events.onModsFirstLoaded:subscribe(function()
-		cplus_plus_ex:postModsLoaded()
+		skill_registry:postModsLoaded()
+		skill_config:postModsLoaded()
 	end)
-end
 
-function cplus_plus_ex:postModsLoaded()
-	-- post load on modules that need it
-	skill_registry:postModsLoaded()
-	skill_config:postModsLoaded()
+	modApi.events.onPodWindowShown:subscribe(function()
+		skill_selection:applySkillToPodPilot()
+	end)
+
+	modApi.events.onPerfectIslandWindowShown:subscribe(function()
+		skill_selection:applySkillToPerfectIslandPilot()
+	end)
+
+	modApi.events.onGameEntered:subscribe(function()
+		skill_selection:clearPilotTracking()
+		skill_state_tracker:resetAllTrackers()
+		skill_state_tracker:updateAllStates()
+	end)
+
+	modApi.events.onModsLoaded:subscribe(function()
+		skill_selection:clearPilotTracking()
+		skill_state_tracker:resetAllTrackers()
+	end)
+
+	modApi.events.onGameExited:subscribe(function()
+		skill_selection:clearPilotTracking()
+		skill_state_tracker:updateAllStates()
+	end)
+
+	modApi.events.onGameVictory:subscribe(function()
+		skill_selection:clearPilotTracking()
+		skill_state_tracker:updateAllStates()
+	end)
+
+	modApi.events.onMainMenuEntered:subscribe(function()
+		time_traveler:clearGameData()
+	end)
+
+	modApi.events.onHangarEntered:subscribe(function()
+		time_traveler:searchForTimeTraveler()
+	end)
+
+	-- Memhack events for skill state tracking
+	memhack.events.onPilotChanged:subscribe(function(pilot, changes)
+		skill_state_tracker:updateStatesIfNeeded(pilot, changes)
+	end)
+
+	memhack.events.onPilotLvlUpSkillChanged:subscribe(function(pilot, skill, changes)
+		skill_state_tracker:updateAllStates()
+	end)
+
+	-- Subscribe to our own events for skill state tracking as well
+	hooks.events.onPostAssigningLvlUpSkills:subscribe(function()
+		skill_state_tracker:updateAfterAssignment()
+	end)
 end

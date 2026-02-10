@@ -24,15 +24,6 @@ local utils = nil
 -- Initialize the module
 function time_traveler:init()
 	utils = cplus_plus_ex._subobjects.utils
-
-	-- Subscribe to events
-	modApi.events.onMainMenuEntered:subscribe(function()
-		self:clearGameData()
-	end)
-	modApi.events.onHangarEntered:subscribe(function()
-		self:searchForTimeTraveler()
-	end)
-
 	return self
 end
 

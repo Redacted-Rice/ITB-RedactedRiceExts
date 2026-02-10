@@ -29,15 +29,24 @@ skill_state_tracker:resetAllTrackers()
 function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
 	utils = cplus_plus_ex._subobjects.utils
-	self.addEvents()
 	return self
 end
 
-function skill_state_tracker:load()
-	self:addHooks()
+-- Mark that skills have been applied (called by main module after assignment)
+function skill_state_tracker:updateAfterAssignment()
+	logger.logDebug(SUBMODULE, "Post-assignment: updating in-run and active skill states")
+	self._hasAppliedSkill = true
+	-- Update in-run and active states after skills have been assigned to triggers
+	-- any changes
+	self:updateAllStates()
+end
 
-	-- Don't perform initial state update here - wait until onGameEntered
-	-- This prevents hooks from firing before entering a run
+-- Update states only if pilot level changed (called on pilot changed event)
+function skill_state_tracker:updateStatesIfNeeded(pilot, changes)
+	-- Check if level changed. This is the only change that will affect skill availability
+	if changes.level then
+		self:updateAllStates()
+	end
 end
 
 ------------------ Helper functions ------------------
@@ -443,58 +452,6 @@ function skill_state_tracker:updateAllStates()
 	else
 		logger.logDebug(SUBMODULE, "Update all states: skipping In Run and Active")
 	end
-end
-
--------------------- Event and Hook Registration --------------------
-
-function skill_state_tracker:addEvents()
-	-- Update when entering game
-	modApi.events.onGameEntered:subscribe(function()
-		skill_state_tracker:resetAllTrackers()
-		skill_state_tracker:updateAllStates()
-	end)
-	
-	modApi.events.onModsLoaded:subscribe(function()
-		skill_state_tracker:resetAllTrackers()
-	end)
-
-	-- Clean up state when exiting/winning a game
-	modApi.events.onGameExited:subscribe(function()
-		skill_state_tracker:updateAllStates()
-	end)
-	modApi.events.onGameVictory:subscribe(function()
-		skill_state_tracker:updateAllStates()
-	end)
-end
-
--- TODO: Switch to events?
--- TODO: Move to top level to orchestrate?
-function skill_state_tracker:addHooks()
-	-- Update when game is saved (covers level ups, xp gains)
-	modApi:addSaveGameHook(function()
-		skill_state_tracker:updateAllStates()
-	end)
-
-	-- When pilot changes, check if skills became in-run or active/inactive
-	memhack:addPilotChangedHook(function(pilot, changes)
-		-- Check if level changed. This is the only change that will affect skill availability
-		if changes.level then
-			skill_state_tracker:updateAllStates()
-		end
-	end)
-
-	-- When a skill changes, update in-run and active states
-	memhack:addPilotLvlUpSkillChangedHook(function(pilot, skill, changes)
-		skill_state_tracker:updateAllStates()
-	end)
-	
-	hooks:addPostAssigningLvlUpSkillsHook(function()
-		logger.logDebug(SUBMODULE, "Post-assignment: updating in-run and active skill states")
-		skill_state_tracker._hasAppliedSkill = true
-		-- Update in-run and active states after skills have been assigned to triggers
-		-- any changes
-		skill_state_tracker:updateAllStates()
-	end)
 end
 
 return skill_state_tracker
