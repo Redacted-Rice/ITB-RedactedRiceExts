@@ -6,10 +6,10 @@
 local MemhackVector = memhack.structManager.define("Vector", {
 	-- These point to pointer of a type. They are type "pointer" themselves
 	-- which is currently not allowed
-	head = { offset = 0x0, type = "pointer", hideSetter = true },
-	next = { offset = 0x4, type = "pointer", hideSetter = true },
+	head = { offset = 0x0, type = "pointer", noSetter = true },
+	next = { offset = 0x4, type = "pointer", noSetter = true },
 	-- No type on capacity
-	capacity = { offset = 0x8, type = "pointer", hideSetter = true },
+	capacity = { offset = 0x8, type = "pointer", noSetter = true },
 })
 -- TODO: have a way to create templated type?
 

@@ -57,8 +57,8 @@ describe("Pilot Bonus Combining", function()
 			end,
 		}
 
-		-- Use the ACTUAL combineBonuses function from pilot.lua
-		mockPilot.combineBonuses = Pilot.combineBonuses
+		-- Use the ACTUAL _combineBonuses function from pilot.lua
+		mockPilot._combineBonuses = Pilot._combineBonuses
 	end)
 
 	describe("Level 0 (no combining)", function()

@@ -567,4 +567,47 @@ describe("Method Generation Module", function()
 			assert.are.equal(grandparent, retrievedChild:getParentGrandparent())
 		end)
 	end)
+
+	describe("noSetter option", function()
+		local TestStructWithNoSetter
+
+		before_each(function()
+			-- Create a test struct with noSetter fields
+			TestStructWithNoSetter = memhack.structManager.define("TestStructWithNoSetter", {
+				readWriteField = { offset = 0x00, type = "int" },
+				readOnlyField = { offset = 0x04, type = "int", noSetter = true },
+				readWritePtr = { offset = 0x08, type = "pointer", subType = "int" },
+				readOnlyPtr = { offset = 0x0C, type = "pointer", noSetter = true }
+			})
+		end)
+
+		after_each(function()
+			-- Clean up test struct from registry
+			memhack.structs.TestStructWithNoSetter = nil
+		end)
+
+		it("should generate getter but not a setter for field with noSetter", function()
+			-- Verify getter exists and setter does not exist
+			assert.is_function(TestStructWithNoSetter.getReadOnlyField)
+			assert.is_nil(TestStructWithNoSetter.setReadOnlyField)
+		end)
+
+		it("should generate both getter and setter for normal field", function()
+			-- Verify both exist for normal field
+			assert.is_function(TestStructWithNoSetter.getReadWriteField)
+			assert.is_function(TestStructWithNoSetter.setReadWriteField)
+		end)
+
+		it("should generate pointer getter but not setter for pointer with noSetter", function()
+			-- Verify pointer getter exists and setter does not exist
+			assert.is_function(TestStructWithNoSetter.getReadOnlyPtrPtr)
+			assert.is_nil(TestStructWithNoSetter.setReadOnlyPtrPtr)
+		end)
+
+		it("should generate both pointer getter and setter for normal pointer", function()
+			-- Verify both exist for normal pointer
+			assert.is_function(TestStructWithNoSetter.getReadWritePtrPtr)
+			assert.is_function(TestStructWithNoSetter.setReadWritePtrPtr)
+		end)
+	end)
 end)

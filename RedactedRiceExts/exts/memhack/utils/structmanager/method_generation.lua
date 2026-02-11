@@ -203,13 +203,19 @@ function methodGeneration.buildStructureMethods(StructType, layout)
 
 		if fieldDef.type == "pointer" then
 			methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
-			methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+			-- Only generate setter if noSetter is not true
+			if not fieldDef.noSetter then
+				methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+			end
 		elseif fieldDef.type == "struct" then
 			methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
 			-- No setter for struct fields - modify individual fields instead
 		else
 			methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-			methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+			-- Only generate setter if noSetter is not true
+			if not fieldDef.noSetter then
+				methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
+			end
 		end
 	end
 end
