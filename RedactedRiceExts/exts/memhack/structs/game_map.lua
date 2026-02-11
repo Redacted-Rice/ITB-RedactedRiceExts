@@ -5,6 +5,6 @@ local MemhackGameMap = memhack.structManager.define("GameMap", {
 	-- This could be a memedit scan but instead did here as its more annoying
 	-- to calibrate than most scans
 	reputation = { offset = 0x848C, type = "int" },
-	unknownObj1 = { offset = 0x90C8, type = "pointer", subType = "UnknownObj1" },
-	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen" },
+	unknownObj1 = { offset = 0x90C8, type = "pointer", subType = "UnknownObj1", noSetter = true },
+	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen", noSetter = true },
 })
