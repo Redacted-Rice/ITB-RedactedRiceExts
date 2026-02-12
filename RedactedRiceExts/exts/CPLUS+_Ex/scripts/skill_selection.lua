@@ -67,7 +67,7 @@ end
 -- Uses the stored seed and sequential access count to ensure deterministic random values
 -- The RNG is seeded once per session, then we fast forward to the saved count
 -- availableSkills - array like table of skill IDs to select from
-function skill_selection:getWeightedRandomSkillId(availableSkills)
+function skill_selection:_getWeightedRandomSkillId(availableSkills)
 	if #availableSkills == 0 then
 		logger.logError(SUBMODULE, "No skills available in list")
 		return nil
@@ -112,7 +112,7 @@ function skill_selection:getWeightedRandomSkillId(availableSkills)
 	return availableSkills[#availableSkills]
 end
 
-function skill_selection:createAvailableSkills()
+function skill_selection:_createAvailableSkills()
 	-- Create a copy of all available skill IDs as an array. This will be our
 	-- base list and we will narrow it down as we go if we try to assign
 	-- an unallowed skill
@@ -126,7 +126,7 @@ end
 function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selectedSkills)
 	while true do
 		-- Get a weighted random skill from the available pool
-		local candidateSkillId = skill_selection:getWeightedRandomSkillId(availableSkills)
+		local candidateSkillId = skill_selection:_getWeightedRandomSkillId(availableSkills)
 		if candidateSkillId == nil then
 			break
 		end
@@ -185,7 +185,7 @@ end
 -- Generate a random saveVal (0-13), optionally excluding a specific value
 -- If excludeVal is provided, generates 0-12 and increments if >= excludeVal
 -- This ensures the returned value is different from excludeVal
-function skill_selection:generateSaveVal(excludeVal)
+function skill_selection:_generateSaveVal(excludeVal)
 	if excludeVal == nil then
 		return math.random(0, 13)
 	else
@@ -198,7 +198,7 @@ function skill_selection:generateSaveVal(excludeVal)
 end
 
 -- Assign or get saveVal for a skill, ensuring it's different from excludeVal
-function skill_selection:getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, excludeVal)
+function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, excludeVal)
 	-- Check if we have a stored saveVal first
 	if storedSkill.saveVal ~= nil then
 		logger.logDebug(SUBMODULE, "Using stored saveVal %d for skill %s for pilot %s", storedSkill.saveVal, skillId, pilotId)
@@ -208,11 +208,11 @@ function skill_selection:getOrAssignSaveVal(storedSkill, registeredSkill, pilotI
 	-- Use registered skill's default or generate random
 	local saveVal = registeredSkill.saveVal
 	if saveVal == -1 then
-		saveVal = self:generateSaveVal(excludeVal)
+		saveVal = self:_generateSaveVal(excludeVal)
 		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal, skillId, pilotId)
 	elseif excludeVal ~= nil and saveVal == excludeVal then
 		-- Conflict with excludeVal, generate different one
-		saveVal = self:generateSaveVal(excludeVal)
+		saveVal = self:_generateSaveVal(excludeVal)
 		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned saveVal to %d", pilotId, saveVal)
 	end
 
@@ -233,7 +233,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 	if fireHooks == nil then fireHooks = false end
 
-	local availableSkills = self:createAvailableSkills()
+	local availableSkills = self:_createAvailableSkills()
 
 	-- Use pilot ID as the key for storing skills for now. Multiple pilots with same ID is
 	-- technically possible but not allowed by vanilla so this may change later
@@ -266,8 +266,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 		-- Track newly assigned skills for per_run constraints
-		skill_selection:markPerRunSkillAsUsed(skillIds[1])
-		skill_selection:markPerRunSkillAsUsed(skillIds[2])
+		skill_selection:_markPerRunSkillAsUsed(skillIds[1])
+		skill_selection:_markPerRunSkillAsUsed(skillIds[2])
 
 		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
 	end
@@ -304,8 +304,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	end
 
 	-- Assign saveVals, ensuring they're different
-	local saveVal1 = self:getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, nil)
-	local saveVal2 = self:getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, saveVal1)
+	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, nil)
+	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, saveVal1)
 
 	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
@@ -358,7 +358,7 @@ function skill_selection:applySkillsToAllPilots()
 		if storedSkills ~= nil then
 			-- This pilot has assigned skills, mark them as used for per_run tracking
 			for _, skillData in ipairs(storedSkills) do
-				skill_selection:markPerRunSkillAsUsed(skillData.id)
+				skill_selection:_markPerRunSkillAsUsed(skillData.id)
 			end
 		else
 			logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
@@ -436,7 +436,7 @@ end
 
 -- Marks a per_run skill as used for this run
 -- Only per_run skills need global tracking - per_pilot is handled by constraint checking selectedSkills
-function skill_selection:markPerRunSkillAsUsed(skillId)
+function skill_selection:_markPerRunSkillAsUsed(skillId)
 	local skill = skill_config_module.enabledSkills[skillId]
 	if skill == nil then
 		return
