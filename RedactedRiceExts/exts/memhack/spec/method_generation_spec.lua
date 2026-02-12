@@ -227,13 +227,15 @@ describe("Method Generation Module", function()
 			}
 
 			local fireCalls = {}
-			local fireFn = function(obj, changes)
-				table.insert(fireCalls, changes)
-			end
+			local mockHooks = {
+				testFireFn = function(obj, changes)
+					table.insert(fireCalls, changes)
+				end
+			}
 
 			-- Create wrapper with custom getter
 			methodGeneration.wrapSetterToFireOnValueChange(
-				struct, "value", fireFn, nil, "customGetValue")
+				struct, "value", mockHooks, "testFireFn", nil, "customGetValue")
 
 			-- setValue should now be wrapped
 			assert.is_function(struct.setValue)
@@ -259,12 +261,14 @@ describe("Method Generation Module", function()
 			}
 
 			local fireCalls = {}
-			local fireFn = function(obj, changes)
-				table.insert(fireCalls, changes)
-			end
+			local mockHooks = {
+				testFireFn = function(obj, changes)
+					table.insert(fireCalls, changes)
+				end
+			}
 
 			methodGeneration.wrapSetterToFireOnValueChange(
-				struct, "value", fireFn)
+				struct, "value", mockHooks, "testFireFn")
 
 			-- Set to same value
 			struct:setValue(10)
@@ -275,11 +279,11 @@ describe("Method Generation Module", function()
 
 		it("should error if setter not found", function()
 			local struct = {}
-			local fireFn = function() end
+			local mockHooks = { testFireFn = function() end }
 
 			local success, err = pcall(function()
 				methodGeneration.wrapSetterToFireOnValueChange(
-					struct, "value", fireFn, "nonexistentSetter", "value")
+					struct, "value", mockHooks, "testFireFn", "nonexistentSetter", "value")
 			end)
 
 			assert.is_false(success)
@@ -294,12 +298,14 @@ describe("Method Generation Module", function()
 			}
 
 			local fireCount = 0
-			local fireFn = function(obj, changes)
-				fireCount = fireCount + 1
-			end
+			local mockHooks = {
+				testFireFn = function(obj, changes)
+					fireCount = fireCount + 1
+				end
+			}
 
 			-- Wrap the setter
-			methodGeneration.wrapSetterToFireOnValueChange(struct, "value", fireFn)
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "value", mockHooks, "testFireFn")
 
 			-- Verify private _noFire version was created
 			assert.is_function(struct._setValue_noFire, "_setValue_noFire should be created")
@@ -319,13 +325,15 @@ describe("Method Generation Module", function()
 
 		it("should detect memhack structs by isMemhackObj field", function()
 			local fireCalls = {}
-			local fireFn = function(self, changedNew, changedOld)
-				table.insert(fireCalls, {changedNew = changedNew, changedOld = changedOld})
-			end
+			local mockHooks = {
+				testFireFn = function(self, changes)
+					table.insert(fireCalls, changes)
+				end
+			}
 
 			local stateDefinition = {"field1", "field2"}
 			local setter = methodGeneration.generateStructSetterToFireOnAnyValueChange(
-				fireFn, stateDefinition, nil)
+				mockHooks, "testFireFn", stateDefinition, nil)
 
 			-- Create a source struct with isMemhackObj (like a real memhack struct)
 			local sourceStruct = {
@@ -353,19 +361,25 @@ describe("Method Generation Module", function()
 			assert.are.equal(100, targetStruct.field1)
 			assert.are.equal(200, targetStruct.field2)
 
-			-- Verify hook was fired
+			-- Verify hook was fired with correct format
 			assert.are.equal(1, #fireCalls)
+			assert.are.equal(0, fireCalls[1].field1.old)
+			assert.are.equal(100, fireCalls[1].field1.new)
+			assert.are.equal(0, fireCalls[1].field2.old)
+			assert.are.equal(200, fireCalls[1].field2.new)
 		end)
 
 		it("should work with plain tables without isMemhackObj", function()
 			local fireCalls = {}
-			local fireFn = function(self, changedNew, changedOld)
-				table.insert(fireCalls, {changedNew = changedNew, changedOld = changedOld})
-			end
+			local mockHooks = {
+				testFireFn = function(self, changes)
+					table.insert(fireCalls, changes)
+				end
+			}
 
 			local stateDefinition = {"field1"}
 			local setter = methodGeneration.generateStructSetterToFireOnAnyValueChange(
-				fireFn, stateDefinition, nil)
+				mockHooks, "testFireFn", stateDefinition, nil)
 
 			local targetStruct = {
 				field1 = 0,
@@ -378,6 +392,8 @@ describe("Method Generation Module", function()
 
 			assert.are.equal(50, targetStruct.field1)
 			assert.are.equal(1, #fireCalls)
+			assert.are.equal(0, fireCalls[1].field1.old)
+			assert.are.equal(50, fireCalls[1].field1.new)
 		end)
 
 		it("should distinguish memhack structs from plain tables", function()
@@ -390,10 +406,10 @@ describe("Method Generation Module", function()
 				return originalCaptureState(...)
 			end
 
-			local fireFn = function() end
+			local mockHooks = { testFireFn = function() end }
 			local stateDefinition = {"field1"}
 			local setter = methodGeneration.generateStructSetterToFireOnAnyValueChange(
-				fireFn, stateDefinition, nil)
+				mockHooks, "testFireFn", stateDefinition, nil)
 
 			local targetStruct = {
 				field1 = 0,
@@ -437,22 +453,26 @@ describe("Method Generation Module", function()
 			local individualFireCount = 0
 			local fullSetterFireCount = 0
 
-			local individualFireFn = function(obj, changes)
-				individualFireCount = individualFireCount + 1
-			end
+			local individualHooks = {
+				testFireFn = function(obj, changes)
+					individualFireCount = individualFireCount + 1
+				end
+			}
 
-			local fullSetterFireFn = function(obj, changedNew, changedOld)
-				fullSetterFireCount = fullSetterFireCount + 1
-			end
+			local fullSetterHooks = {
+				testFireFn = function(obj, changes)
+					fullSetterFireCount = fullSetterFireCount + 1
+				end
+			}
 
 			-- Wrap individual setters
-			methodGeneration.wrapSetterToFireOnValueChange(struct, "field1", individualFireFn)
-			methodGeneration.wrapSetterToFireOnValueChange(struct, "field2", individualFireFn)
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "field1", individualHooks, "testFireFn")
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "field2", individualHooks, "testFireFn")
 
 			-- Create full setter
 			local stateDefinition = {"field1", "field2"}
 			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(
-				fullSetterFireFn, stateDefinition, nil)
+				fullSetterHooks, "testFireFn", stateDefinition, nil)
 
 			-- Call full setter
 			struct:set({field1 = 10, field2 = 20})
@@ -476,15 +496,17 @@ describe("Method Generation Module", function()
 			}
 
 			local fireCount = 0
-			local fireFn = function(obj, changedNew, changedOld)
-				fireCount = fireCount + 1
-			end
+			local mockHooks = {
+				testFireFn = function(obj, changes)
+					fireCount = fireCount + 1
+				end
+			}
 
 			-- Create full setter WITHOUT wrapping individual setter first
 			-- so there's no _noFire version
 			local stateDefinition = {"field1"}
 			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(
-				fireFn, stateDefinition, nil)
+				mockHooks, "testFireFn", stateDefinition, nil)
 
 			-- Should still work using regular setter
 			struct:set({field1 = 10})
@@ -509,16 +531,18 @@ describe("Method Generation Module", function()
 			}
 
 			local fireCount = 0
-			local fireFn = function(obj, changes)
-				fireCount = fireCount + 1
-			end
+			local mockHooks = {
+				testFireFn = function(obj, changes)
+					fireCount = fireCount + 1
+				end
+			}
 
-			methodGeneration.wrapSetterToFireOnValueChange(struct, "id", fireFn, nil, "getId")
-			methodGeneration.wrapSetterToFireOnValueChange(struct, "saveVal", fireFn)
-			methodGeneration.wrapSetterToFireOnValueChange(struct, "healthBonus", fireFn)
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "id", mockHooks, "testFireFn", nil, "getId")
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "saveVal", mockHooks, "testFireFn")
+			methodGeneration.wrapSetterToFireOnValueChange(struct, "healthBonus", mockHooks, "testFireFn")
 
 			local stateDefinition = {id = "getId", "saveVal", "healthBonus"}
-			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, stateDefinition, nil)
+			struct.set = methodGeneration.generateStructSetterToFireOnAnyValueChange(mockHooks, "testFireFn", stateDefinition, nil)
 
 			struct:set({id = "Test", saveVal = 5, healthBonus = 2})  -- All same
 			assert.are.equal(0, fireCount)

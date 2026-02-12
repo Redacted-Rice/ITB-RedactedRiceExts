@@ -93,19 +93,18 @@ PilotLvlUpSkill.setGridBonus = function(self, value)
 end
 
 -- Wrap setters to trigger skill changed hooks on change
-local fireFn = memhack.hooks.firePilotLvlUpSkillChangedHooks
+-- For ItBString fields, pass nil for setterName and custom getter name as 6th arg
 local defaultSetter = nil -- Means use default name convention for setter
--- For ItBString fields, pass nil for setterName and custom getter name as 5th arg
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "id", fireFn, defaultSetter, itbStrGetterName("id"))
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "shortName", fireFn, defaultSetter, itbStrGetterName("shortName"))
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "fullName", fireFn, defaultSetter, itbStrGetterName("fullName"))
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "description", fireFn, defaultSetter, itbStrGetterName("description"))
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "healthBonus", fireFn)
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "coresBonus", fireFn)
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "gridBonus", fireFn)
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "moveBonus", fireFn)
-methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "saveVal", fireFn)
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "id", memhack.hooks, "firePilotLvlUpSkillChangedHooks", defaultSetter, itbStrGetterName("id"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "shortName", memhack.hooks, "firePilotLvlUpSkillChangedHooks", defaultSetter, itbStrGetterName("shortName"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "fullName", memhack.hooks, "firePilotLvlUpSkillChangedHooks", defaultSetter, itbStrGetterName("fullName"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "description", memhack.hooks, "firePilotLvlUpSkillChangedHooks", defaultSetter, itbStrGetterName("description"))
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "healthBonus", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "coresBonus", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "gridBonus", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "moveBonus", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
+methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "saveVal", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
 
 -- generate full setter that triggers on change of any value
 PilotLvlUpSkill[selfSetter] = methodGen.generateStructSetterToFireOnAnyValueChange(
-		fireFn, PilotLvlUpSkill.stateDefinition)
+		memhack.hooks, "firePilotLvlUpSkillChangedHooks", PilotLvlUpSkill.stateDefinition)

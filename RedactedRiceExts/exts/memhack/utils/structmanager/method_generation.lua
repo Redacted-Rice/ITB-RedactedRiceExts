@@ -267,10 +267,11 @@ end
 -- using that setter
 -- struct - self object
 -- field - fieldName used to generate setters/getters not passed and for the fire hook structure
--- fireFn - broadcast hook/fire hook function to call on change
+-- hooksObj - the hooks object (e.g., memhack.hooks) that contains the fire function
+-- fireFnName - name of the fire function on hooksObj (e.g., "firePilotChangedHooks")
 -- selfSetterName - name of setter to wrap. If nil uses standard setter name for <field>
 -- selfGetterName - name of Getter to use to get initial state. If nil uses standard getter name for <field>
-function methodGeneration.wrapSetterToFireOnValueChange(struct, field, fireFn, setterName, getterName)
+function methodGeneration.wrapSetterToFireOnValueChange(struct, field, hooksObj, fireFnName, setterName, getterName)
 	if not setterName then
 		setterName = StructManager.makeStdSetterName(field)
 	end
@@ -294,20 +295,23 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, fireFn, s
 		if newVal ~= prevVal then
 			local changes = {}
 			changes[field] = {old = prevVal, new = newVal}
-			fireFn(self, changes)
+			-- Dynamic lookup of fire function. We do this instead of passing a function reference because we
+			-- may wrap the function in a re-entrant wrapper and we don't want a stale reference
+			hooksObj[fireFnName](self, changes)
 		end
 	end
 end
 
 -- Generates a setter fn that takes struct or table of vals to detect changes and fire hook if any changed
--- fireFn: hook to fire on change
+-- hooksObj: the hooks object (e.g., memhack.hooks) that contains the fire function
+-- fireFnName: name of the fire function on hooksObj (e.g., "firePilotLvlUpSkillChangedHooks")
 -- fullStateTable: table that defines what consititues the state for this setter -
 -- 			i.e. what to check for changes
 --			Array like entries (num -> field) will use default getters
 --			Map entries (field -> getter) will use the passed getter name instead
 -- settersTable: table that defines setters for the values in the state table. Use
 --     		default setters table or value for field in table is nil
-function methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, fullStateTable, settersTable)
+function methodGeneration.generateStructSetterToFireOnAnyValueChange(hooksObj, fireFnName, fullStateTable, settersTable)
 	-- if struct, others are not used
 	-- Otherwise sets only the vals in the table (nils skipped)
 	return function(self, structOrNewVals)
@@ -320,7 +324,7 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, ful
 		local currentState = memhack.stateTracker.captureState(self, fullStateTable, newVals)
 
 		local anyChanged = false
-		local changedNew = {}
+		local changes = {}
 		for field, newVal in pairs(newVals) do
 			if newVal ~= currentState[field] then
 				if settersTable and settersTable[field] then
@@ -335,18 +339,15 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(fireFn, ful
 						self[setter](self, newVal)
 					end
 				end
-				-- Lua doesn't make any gaurantees about removing while iterating
-				-- so instead make a new table for changed new fields
-				changedNew[field] = newVal
+				-- Build changes table with old and new values
+				changes[field] = {old = currentState[field], new = newVal}
 				anyChanged = true
-			else
-				-- Remove any non-changed current values
-				currentState[field] = nil
 			end
 		end
 
 		if anyChanged then
-			fireFn(self, changedNew, currentState)
+			-- Dynamic lookup of fire function
+			hooksObj[fireFnName](self, changes)
 		end
 	end
 end
