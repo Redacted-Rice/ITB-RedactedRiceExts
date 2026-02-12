@@ -15,7 +15,7 @@ describe("State Tracker Module", function()
 				getValue = function(self) return self._value end
 			}
 
-			local captured = stateTracker.captureValue(obj, "value")
+			local captured = stateTracker:captureValue(obj, "value")
 			assert.are.equal(42, captured)
 		end)
 
@@ -25,7 +25,7 @@ describe("State Tracker Module", function()
 				customGetData = function(self) return self._data end
 			}
 
-			local captured = stateTracker.captureValue(obj, "customGetData")
+			local captured = stateTracker:captureValue(obj, "customGetData")
 			assert.are.equal("test", captured)
 		end)
 	end)
@@ -50,7 +50,7 @@ describe("State Tracker Module", function()
 		it("should capture state using array style field names", function()
 			local stateDefinition = {"name", "level", "xp"}
 
-			local capturedState = stateTracker.captureState(mockObj, stateDefinition)
+			local capturedState = stateTracker:captureState(mockObj, stateDefinition)
 
 			assert.are.equal("TestName", capturedState.name)
 			assert.are.equal(5, capturedState.level)
@@ -65,7 +65,7 @@ describe("State Tracker Module", function()
 				level = "getLevel"
 			}
 
-			local capturedState = stateTracker.captureState(mockObj, stateDefinition)
+			local capturedState = stateTracker:captureState(mockObj, stateDefinition)
 
 			assert.are.equal("Custom: TestName", capturedState.name)
 			assert.are.equal(5, capturedState.level)
@@ -82,7 +82,7 @@ describe("State Tracker Module", function()
 				"score"
 			}
 
-			local capturedState = stateTracker.captureState(mockObj, stateDefinition)
+			local capturedState = stateTracker:captureState(mockObj, stateDefinition)
 
 			assert.are.equal("Custom: TestName", capturedState.name)
 			assert.are.equal(5, capturedState.level)
@@ -94,7 +94,7 @@ describe("State Tracker Module", function()
 			local stateDefinition = {"name", "level", "xp", "score"}
 			local valsToCheck = {name = true, xp = true}
 
-			local capturedState = stateTracker.captureState(mockObj, stateDefinition, valsToCheck)
+			local capturedState = stateTracker:captureState(mockObj, stateDefinition, valsToCheck)
 
 			assert.are.equal("TestName", capturedState.name)
 			assert.are.equal(100, capturedState.xp)
@@ -118,7 +118,7 @@ describe("State Tracker Module", function()
 				xp = 50
 			}
 
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 
 			assert.is_not_nil(changes.name)
 			assert.are.equal("OldName", changes.name.old)
@@ -144,7 +144,7 @@ describe("State Tracker Module", function()
 				xp = 100
 			}
 
-			local changes = stateTracker.compareStates(state1, state2)
+			local changes = stateTracker:compareStates(state1, state2)
 
 			-- Not an array return so we have to iterate to count...
 			assert.is_table(changes)
@@ -168,7 +168,7 @@ describe("State Tracker Module", function()
 				tbl = {a = 2}
 			}
 
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 			-- All should report changes
 			assert.is_not_nil(changes.str)
 			assert.is_not_nil(changes.num)
@@ -188,7 +188,7 @@ describe("State Tracker Module", function()
 				tbl = {a = 1}  -- Same content, different table instance
 			}
 
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 
 			-- Should detect change because it's a different table reference
 			assert.is_not_nil(changes.tbl)
@@ -206,7 +206,7 @@ describe("State Tracker Module", function()
 				tbl = tbl  -- Same table reference
 			}
 
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 
 			-- Should not detect change because it's the same table reference
 			assert.is_nil(changes.tbl)
@@ -221,7 +221,7 @@ describe("State Tracker Module", function()
 				value = 42
 			}
 
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 
 			assert.is_not_nil(changes.value)
 			assert.is_nil(changes.value.old)
@@ -232,7 +232,7 @@ describe("State Tracker Module", function()
 			local oldState = {field1 = 10, field2 = "old", field3 = 30}
 			local newState = {field1 = 10, field2 = "old"}
 
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = stateTracker:compareStates(oldState, newState)
 
 			-- field3 was removed and should be in changes (default behavior)
 			assert.is_not_nil(changes.field3)
@@ -244,7 +244,7 @@ describe("State Tracker Module", function()
 			local oldState = {field1 = 10, field2 = "old", field3 = 30}
 			local newState = {field1 = 10, field2 = "old"}
 
-			local changes = stateTracker.compareStates(oldState, newState, true)
+			local changes = stateTracker:compareStates(oldState, newState, true)
 
 			-- field3 was removed and should be in changes
 			assert.is_not_nil(changes.field3)
@@ -256,7 +256,7 @@ describe("State Tracker Module", function()
 			local oldState = {field1 = 10, field2 = "old", field3 = 30}
 			local newState = {field1 = 20, field2 = "old"}
 
-			local changes = stateTracker.compareStates(oldState, newState, true)
+			local changes = stateTracker:compareStates(oldState, newState, true)
 
 			-- field1 changed
 			assert.is_not_nil(changes.field1)
@@ -276,7 +276,7 @@ describe("State Tracker Module", function()
 			local oldState = {field1 = 10, field2 = "removed"}
 			local newState = {field1 = 10}
 
-			local changes = stateTracker.compareStates(oldState, newState, false)
+			local changes = stateTracker:compareStates(oldState, newState, false)
 
 			-- field2 removed but checkRemoved=false so shouldn't be detected
 			assert.is_nil(changes.field2)
@@ -287,7 +287,7 @@ describe("State Tracker Module", function()
 			local oldState = {f1 = 1, f2 = 2, f3 = 3, f4 = 4}
 			local newState = {f1 = 1}
 
-			local changes = stateTracker.compareStates(oldState, newState, true)
+			local changes = stateTracker:compareStates(oldState, newState, true)
 
 			-- f2, f3, f4 all removed
 			assert.is_not_nil(changes.f2)

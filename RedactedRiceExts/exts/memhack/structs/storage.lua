@@ -1,6 +1,6 @@
 -- A std C++ vector but with a particularity so I made it its own class
 -- For some reason it always has at least 3 entries
-local MemhackStorage = memhack.structManager.define("Storage", {
+local MemhackStorage = memhack.structManager:define("Storage", {
 	-- hide getter because we are just custom wrapping the vector to account for the
 	-- extra objects
 	vector = { offset = 0x0, type = "struct", subType = "Vector", hideGetter = true, --[[structs don't define setters]] },

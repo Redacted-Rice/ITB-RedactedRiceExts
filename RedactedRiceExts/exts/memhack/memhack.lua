@@ -50,7 +50,7 @@ function memhack:init(mockDll)
 
 	-- Initialize structure system
 	self.structManager = require(path.."utils/structmanager")
-	self.structs = self.structManager.init(self.dll)
+	self.structs = self.structManager:init(self.dll)
 
 	-- Load all the structs
 	require(path.."structs/itb_string")

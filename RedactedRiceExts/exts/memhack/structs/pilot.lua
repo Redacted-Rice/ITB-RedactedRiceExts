@@ -1,4 +1,4 @@
-local Pilot = memhack.structManager.define("Pilot", {
+local Pilot = memhack.structManager:define("Pilot", {
 	name = { offset = 0x14, type = "struct", subType = "ItBString" },
 	xp = { offset = 0x30, type = "int", hideSetter = true},
 	levelUpXp = { offset = 0x34, type = "int", hideSetter = true},
@@ -31,7 +31,7 @@ Pilot.stateDefinition = {
 -- getId, check it looks like a string, check it matches somthing in _G, check
 -- that that looks like a pilot
 
-local selfSetter = memhack.structManager.makeStdSelfSetterName()
+local selfSetter = memhack.structManager:makeStdSelfSetterName()
 local methodGen = memhack.structManager._methodGeneration
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
 
@@ -220,8 +220,8 @@ Pilot._combineBonuses = function(self)
 
 	-- Get set values for both skills. This will return default values
 	-- if not yet set
-	local skill1Set = memhack.stateTracker.getSkillSetValues(skill1)
-	local skill2Set = memhack.stateTracker.getSkillSetValues(skill2)
+	local skill1Set = memhack.stateTracker:getSkillSetValues(skill1)
+	local skill2Set = memhack.stateTracker:getSkillSetValues(skill2)
 
 	-- If level <= 1, restore to base (set) values
 	if pilotLevel <= 1 then

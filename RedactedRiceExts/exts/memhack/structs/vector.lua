@@ -3,7 +3,7 @@
 -- now so just make it read only. I imagine up to capacity it would
 -- work fine but not sure how to reallocate or if it would do it
 -- automatically or not
-local MemhackVector = memhack.structManager.define("Vector", {
+local MemhackVector = memhack.structManager:define("Vector", {
 	-- These point to pointer of a type. They are type "pointer" themselves
 	-- which is currently not allowed
 	head = { offset = 0x0, type = "pointer", noSetter = true },

@@ -81,14 +81,14 @@ StructManager._structureCreation = require(path.."structmanager/structure_creati
 -- dll: The memhack DLL instance
 -- structs: The table where structures will be registered (memhack.structs). Optional
 -- returns the structs table (passed one or internally generated one)
-function StructManager.init(dll, structs)
-	StructManager._dll = dll
-	StructManager._structures = structs or {}
-	return StructManager._structures
+function StructManager:init(dll, structs)
+	self._dll = dll
+	self._structures = structs or {}
+	return self._structures
 end
 
 -- Capitalize first letter of a string
-function StructManager.capitalize(str)
+function StructManager:capitalize(str)
 	return str:sub(1, 1):upper() .. str:sub(2)
 end
 
@@ -96,43 +96,43 @@ end
 -- These ensure consistent naming across the codebase
 
 -- Create a standard getter name: "getXxx" or "_getXxx"
-function StructManager.makeStdGetterName(fieldName, hideGetter)
-	local capitalized = StructManager.capitalize(fieldName)
-	local prefix = hideGetter and StructManager.HIDE_PREFIX .. StructManager.GETTER_PREFIX or StructManager.GETTER_PREFIX
+function StructManager:makeStdGetterName(fieldName, hideGetter)
+	local capitalized = self:capitalize(fieldName)
+	local prefix = hideGetter and self.HIDE_PREFIX .. self.GETTER_PREFIX or self.GETTER_PREFIX
 	return prefix .. capitalized
 end
 
 -- Create a standard setter name: "setXxx" or "_setXxx"
-function StructManager.makeStdSetterName(fieldName, hideSetter)
-	local capitalized = StructManager.capitalize(fieldName)
-	local prefix = hideSetter and StructManager.HIDE_PREFIX .. StructManager.SETTER_PREFIX or StructManager.SETTER_PREFIX
+function StructManager:makeStdSetterName(fieldName, hideSetter)
+	local capitalized = self:capitalize(fieldName)
+	local prefix = hideSetter and self.HIDE_PREFIX .. self.SETTER_PREFIX or self.SETTER_PREFIX
 	return prefix .. capitalized
 end
 
 -- Create a pointer getter name: "getXxxPtr" or "_getXxxPtr"
-function StructManager.makeStdPtrGetterName(fieldName, hideGetter)
-	return StructManager.makeStdGetterName(fieldName, hideGetter) .. "Ptr"
+function StructManager:makeStdPtrGetterName(fieldName, hideGetter)
+	return self:makeStdGetterName(fieldName, hideGetter) .. "Ptr"
 end
 
 -- Create a pointer setter name: "setXxxPtr" or "_setXxxPtr"
-function StructManager.makeStdPtrSetterName(fieldName, hideSetter)
-	return StructManager.makeStdSetterName(fieldName, hideSetter) .. "Ptr"
+function StructManager:makeStdPtrSetterName(fieldName, hideSetter)
+	return self:makeStdSetterName(fieldName, hideSetter) .. "Ptr"
 end
 
 -- Create the name for a setter for an object: "get"
-function StructManager.makeStdSelfGetterName()
-	return StructManager.GETTER_PREFIX
+function StructManager:makeStdSelfGetterName()
+	return self.GETTER_PREFIX
 end
 
 -- Create the name for a setter for an object: "set"
-function StructManager.makeStdSelfSetterName()
-	return StructManager.SETTER_PREFIX
+function StructManager:makeStdSelfSetterName()
+	return self.SETTER_PREFIX
 end
 
 -- Define a new structure type
 -- validateArg: optional vtable address (number) or validation function (function)
-function StructManager.define(name, layout, validateArg)
-	if not StructManager._dll then
+function StructManager:define(name, layout, validateArg)
+	if not self._dll then
 		error("Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
 		return nil
 	end
@@ -144,7 +144,7 @@ function StructManager.define(name, layout, validateArg)
 	if validateArg ~= nil then
 		if type(validateArg) == "number" then
 			-- VTable validation
-			vtableAddr = validateArg + StructManager._dll.process.getExeBase()
+			vtableAddr = validateArg + self._dll.process.getExeBase()
 			layout.vtable = { offset = 0, type = "int", hideSetter = true }
 		elseif type(validateArg) == "function" then
 			-- Custom validation function
@@ -155,42 +155,42 @@ function StructManager.define(name, layout, validateArg)
 		end
 	end
 
-	if not StructManager._validation.validateStructureDefinition(name, layout) then
+	if not self._validation.validateStructureDefinition(name, layout) then
 		return nil
 	end
 
-	local StructType = StructManager._structureCreation.createStructureType(name, layout)
-	StructManager._methodGeneration.buildStructureMethods(StructType, layout)
-	StructManager._structureCreation.addInstanceMethods(StructType, layout)
-	StructManager._structureCreation.addStaticMethods(StructType, name, layout, vtableAddr, validateFn)
-	StructManager._structureCreation.registerStructure(name, StructType)
+	local StructType = self._structureCreation.createStructureType(name, layout)
+	self._methodGeneration.buildStructureMethods(StructType, layout)
+	self._structureCreation.addInstanceMethods(StructType, layout)
+	self._structureCreation.addStaticMethods(StructType, name, layout, vtableAddr, validateFn)
+	self._structureCreation.registerStructure(name, StructType)
 
 	return StructType
 end
 
 -- Extend an existing structure with additional fields
-function StructManager.extend(name, additionalFields)
-	if not StructManager._dll then
+function StructManager:extend(name, additionalFields)
+	if not self._dll then
 		error("Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
 	end
 
-	local existingStruct = StructManager._structures[name]
+	local existingStruct = self._structures[name]
 	if not existingStruct then
 		error(string.format("Cannot extend unknown structure: %s", name))
 		return nil
 	end
 
 	local layout = existingStruct._layout
-	if not validation.validateAndMergeExtensionFields(name, layout, additionalFields) then
+	if not self._validation.validateAndMergeExtensionFields(name, layout, additionalFields) then
 		return nil
 	end
-	StructManager._methodGeneration.buildStructureMethods(existingStruct, layout)
+	self._methodGeneration.buildStructureMethods(existingStruct, layout)
 
 	return existingStruct
 end
 
 -- Helper function to create an array of structures
-function StructManager.array(structType, baseAddress, count, stride)
+function StructManager:array(structType, baseAddress, count, stride)
 	local arr = {}
 
 	local structSize = stride or structType.StructSize()
@@ -213,7 +213,7 @@ end
 -- Helper to get parent of specific type from _parent map
 -- structTypeName: The struct type name to look up (e.g., "Pilot", "PilotLvlUpSkillsArray")
 -- Returns the parent of that type, or nil if not found
-function StructManager.getParentOfType(struct, structTypeName)
+function StructManager:getParentOfType(struct, structTypeName)
 	if not struct._parent then
 		return nil
 	end

@@ -42,7 +42,7 @@ describe("Structure Verification", function()
 
 	describe("vtable Verification", function()
 		it("should pass verification when vtable matches", function()
-			local TestStruct = structManager.define("TestStruct1", {
+			local TestStruct = structManager:define("TestStruct1", {
 				value = { offset = 0x10, type = "int" },
 			}, 0x00000042)  -- vtable as second parameter
 
@@ -54,7 +54,7 @@ describe("Structure Verification", function()
 		end)
 
 		it("should fail verification when vtable doesn't match", function()
-			local TestStruct = structManager.define("TestStruct2", {
+			local TestStruct = structManager:define("TestStruct2", {
 				value = { offset = 0x10, type = "int" },
 			}, 0x00000042)  -- vtable as second parameter
 
@@ -67,7 +67,7 @@ describe("Structure Verification", function()
 		end)
 
 		it("should automatically add vtable field at offset 0", function()
-			local TestStruct = structManager.define("TestStruct3", {
+			local TestStruct = structManager:define("TestStruct3", {
 				value = { offset = 0x10, type = "int" },
 			}, 0x00000042)  -- vtable as second parameter
 
@@ -78,7 +78,7 @@ describe("Structure Verification", function()
 		end)
 
 		it("should throw error on auto verify failure", function()
-			local TestStruct = structManager.define("TestStruct4", {
+			local TestStruct = structManager:define("TestStruct4", {
 				value = { offset = 0x10, type = "int" },
 			}, 0x00000042)  -- vtable as second parameter
 
@@ -98,7 +98,7 @@ describe("Structure Verification", function()
 				return false, "Value out of range"
 			end
 			
-			local TestStruct = structManager.define("TestStruct5", {
+			local TestStruct = structManager:define("TestStruct5", {
 				value = { offset = 0x10, type = "int" },
 			}, validateFunc)  -- validation function as second parameter
 
@@ -118,7 +118,7 @@ describe("Structure Verification", function()
 				return false, "Value out of range: " .. val
 			end
 			
-			local TestStruct = structManager.define("TestStruct6", {
+			local TestStruct = structManager:define("TestStruct6", {
 				value = { offset = 0x10, type = "int" },
 			}, validateFunc)  -- validation function as second parameter
 
@@ -133,7 +133,7 @@ describe("Structure Verification", function()
 
 	describe("Basic Verification Checks", function()
 		it("should validate with just an address", function()
-			local TestStruct = structManager.define("TestStruct7", {
+			local TestStruct = structManager:define("TestStruct7", {
 				value = { offset = 0x10, type = "int" },
 			})
 
@@ -148,7 +148,7 @@ describe("Structure Verification", function()
 		end)
 		
 		it("should fail verification when address is 0", function()
-			local TestStruct = structManager.define("TestStruct8", {
+			local TestStruct = structManager:define("TestStruct8", {
 				value = { offset = 0x10, type = "int" },
 			})
 
@@ -160,7 +160,7 @@ describe("Structure Verification", function()
 		end)
 
 		it("should fail verification when memory is not readable", function()
-			local TestStruct = structManager.define("TestStruct9", {
+			local TestStruct = structManager:define("TestStruct9", {
 				value = { offset = 0x10, type = "int" },
 			})
 
@@ -175,7 +175,7 @@ describe("Structure Verification", function()
 	describe("Validation Errors", function()
 		it("should error when verify arg is not a number or function", function()
 			assert.has_error(function()
-				structManager.define("TestStruct10", {
+				structManager:define("TestStruct10", {
 					value = { offset = 0x10, type = "int" },
 				}, "not a number or function")
 			end)

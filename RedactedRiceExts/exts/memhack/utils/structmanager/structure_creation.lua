@@ -211,8 +211,8 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 			if fieldDef.hideGetter then
 				val = "<no safe getter>"
 			else
-				local getterName = StructManager.makeStdGetterName(fieldName, false)
-				local ptrGetterName = StructManager.makeStdPtrGetterName(fieldName, false)
+				local getterName = StructManager:makeStdGetterName(fieldName, false)
+				local ptrGetterName = StructManager:makeStdPtrGetterName(fieldName, false)
 
 				-- Try to call the appropriate getter based on field type
 				-- pcall is lua's try/catch equivalent - this protects against

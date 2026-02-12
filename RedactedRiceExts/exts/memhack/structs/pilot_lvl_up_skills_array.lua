@@ -1,6 +1,6 @@
 -- Array of two PilotLvlUpSkill structs back to back
 -- PilotLvlUpSkill size is 0x74 bytes
-local PilotLvlUpSkillsArray = memhack.structManager.define("PilotLvlUpSkillsArray", {
+local PilotLvlUpSkillsArray = memhack.structManager:define("PilotLvlUpSkillsArray", {
 	skill1 = { offset = 0x00, type = "struct", subType = "PilotLvlUpSkill" },
 	skill2 = { offset = 0x74, type = "struct", subType = "PilotLvlUpSkill" },
 })
