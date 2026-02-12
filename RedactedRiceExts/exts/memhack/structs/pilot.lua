@@ -31,6 +31,7 @@ Pilot.stateDefinition = {
 -- getId, check it looks like a string, check it matches somthing in _G, check
 -- that that looks like a pilot
 
+local selfSetter = memhack.structManager.makeStdSelfSetterName()
 local methodGen = memhack.structManager._methodGeneration
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
 
@@ -255,3 +256,15 @@ Pilot._combineBonuses = function(self)
 		end
 	end
 end
+
+-- Wrap non-custom setters to fire pilot changed hooks. Custom ones already explicitly call on change
+-- For ItBString fields, pass nil for setterName and custom getter name as 6th arg
+local defaultSetter = nil -- Means use default name convention for setter
+methodGen.wrapSetterToFireOnValueChange(Pilot, "name", memhack.hooks, "firePilotChangedHooks", defaultSetter, itbStrGetterName("name"))
+methodGen.wrapSetterToFireOnValueChange(Pilot, "skill", memhack.hooks, "firePilotChangedHooks", defaultSetter, itbStrGetterName("skill"))
+methodGen.wrapSetterToFireOnValueChange(Pilot, "id", memhack.hooks, "firePilotChangedHooks", defaultSetter, itbStrGetterName("id"))
+methodGen.wrapSetterToFireOnValueChange(Pilot, "prevTimelines", memhack.hooks, "firePilotChangedHooks")
+
+-- generate full setter that triggers on change of any value
+Pilot[selfSetter] = methodGen.generateStructSetterToFireOnAnyValueChange(
+		memhack.hooks, "firePilotChangedHooks", Pilot.stateDefinition)
