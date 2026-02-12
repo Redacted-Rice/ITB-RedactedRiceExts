@@ -122,13 +122,13 @@ end
 function time_traveler:persistentDataChanged()
 	local changed = false
 	if not time_traveler.lastSavedPersistentData then
-		local loaded = time_traveler:loadPersistentDataIfNeeded()
+		local loaded = self:loadPersistentDataIfNeeded()
 		if not loaded then
-			time_traveler:refreshLastSavedPersistentData()
+			self:refreshLastSavedPersistentData()
 		end
 		changed = true
 	else
-		changed = time_traveler:refreshLastSavedPersistentData()
+		changed = self:refreshLastSavedPersistentData()
 	end
 
 	logger.logDebug(SUBMODULE, "Persistent data changed: %s", changed and "yes" or "no")
@@ -137,7 +137,7 @@ end
 
 -- Save persistent data if it has changed
 function time_traveler:savePersistentDataIfChanged()
-	if time_traveler:persistentDataChanged() then
+	if self:persistentDataChanged() then
 		if not modApi:isProfilePath() then
 			logger.logDebug(SUBMODULE, "Skipping persistent data save: not in profile path")
 			return
@@ -159,7 +159,7 @@ end
 
 -- Scan for time traveler pilot using memory scanning
 function time_traveler:scanForTimeTraveler()
-	time_traveler:loadPersistentDataIfNeeded()
+	self:loadPersistentDataIfNeeded()
 
 	local PilotLayout = memhack.structs.Pilot._layout
 	local scanner = memhack.dll.scanner.new("struct", {checkTiming = cplus_plus_ex.DEBUG.TIME_TRAVELER})
@@ -215,7 +215,7 @@ function time_traveler:searchForTimeTraveler()
 		end
 	else
 		logger.logDebug(SUBMODULE, "No cached pilots; Scanning for pilot")
-		time_traveler:scanForTimeTraveler()
+		self:scanForTimeTraveler()
 	end
 end
 
