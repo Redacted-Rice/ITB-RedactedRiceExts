@@ -24,42 +24,47 @@ local hooks = {
 }
 
 function hooks:init()
-	hooks.addTo(self, memhack, SUBMODULE)
-	self:initBroadcastHooks(self)
-	return hooks
+	self:addTo(memhack, SUBMODULE)
+	self:initBroadcastHooks()
+	return self
+end
+
+function hooks:load()
+	self:reload(SUBMODULE)
+	return self
+end
+
+function hooks:initBroadcastHooks()
+	self["firePilotChangedHooks"] = self:buildBroadcastFunc("pilotChangedHooks", nil, nil, SUBMODULE)
+	self["firePilotLvlUpSkillChangedHooks"] = self:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Pilot"}, SUBMODULE)
 end
 
 -- Reloads hooks by clearing and re-adding event dispatchers
-function hooks.reload(hookTbl, debugId)
+function hooks:reload(debugId)
 	-- clear out previously registered hooks, since we're reloading.
-	hooks.clearHooks(hookTbl, debugId)
+	self:clearHooks(debugId)
 
 	-- add hooks to dispatch events of same name
-	for eventId, event in pairs(hookTbl.events) do
+	for eventId, event in pairs(self.events) do
 		local addHook = "add"..eventId:match("on(.+)").."Hook"
-		hookTbl[addHook](hookTbl, function(...)
+		self[addHook](self, function(...)
 			event:dispatch(...)
 		end)
 	end
 end
 
-function hooks:load()
-	hooks.reload(self, SUBMODULE)
-	return hooks
-end
-
 -- Reusable: Add hook registration functions to a table
--- hookNames: array of hook names (e.g., {"pilotChanged", "skillChanged"})
--- tbl: table to add hooks to (the hooks object itself)
+-- self is the hooks object to add hooks to
+-- owner: optional owner object to also add hooks to
 -- debugId: debug SUBMODULE ID from logger.register() for logging
-function hooks.addTo(hookTbl, owner, debugId)
-	if hookTbl.events == nil then
-		hookTbl.events = {}
+function hooks:addTo(owner, debugId)
+	if self.events == nil then
+		self.events = {}
 	end
 
-	local events = hookTbl.events
+	local events = self.events
 
-	for _, name in ipairs(hookTbl) do
+	for _, name in ipairs(self) do
 		local Name = name:gsub("^.", string.upper) -- capitalize first letter
 		local name = name:gsub("^.", string.lower) -- lower case first letter
 
@@ -69,18 +74,18 @@ function hooks.addTo(hookTbl, owner, debugId)
 
 		events[eventId] = Event({ eventName = eventId })
 
-		hookTbl[hookId] = {}
-		hookTbl[addHook] = function(self, fn)
+		self[hookId] = {}
+		self[addHook] = function(hookSelf, fn)
 			assert(type(fn) == "function")
-			table.insert(self[hookId], {
+			table.insert(hookSelf[hookId], {
 				fn = fn,
 				creator = debug.traceback("", 3)
 			})
 		end
 		-- Add the add hook function to the owner if provided
 		if owner then
-			owner[addHook] = function(self, fn)
-				local result = hookTbl[addHook](hookTbl, fn)
+			owner[addHook] = function(ownerSelf, fn)
+				local result = self[addHook](self, fn)
 				return result
 			end
 			owner.events = events
@@ -90,18 +95,17 @@ function hooks.addTo(hookTbl, owner, debugId)
 end
 
 -- Reusable: Clear all registered hooks
--- hookNames: array of hook names
--- tbl: table containing the hooks
+-- self is the table containing the hooks
 -- debugId: debug SUBMODULE ID from logger.register() for logging
-function hooks.clearHooks(hookTbl, debugId)
-	for _, name in ipairs(hookTbl) do
+function hooks:clearHooks(debugId)
+	for _, name in ipairs(self) do
 		local hookId = name.."Hooks"
-		hookTbl[hookId] = {}
+		self[hookId] = {}
 		logger.logDebug(debugId, "Cleared hook %s", name)
 	end
 end
 
-function hooks.handleFailure(errorOrResult, creator, caller)
+function hooks:handleFailure(errorOrResult, creator, caller)
 	errorOrResult = errorOrResult or "<unspecified error>"
 	local message = Event.buildErrorMessage("An event callback failed: ", errorOrResult,
 			nil, creator, caller)
@@ -114,11 +118,11 @@ end
 
 -- Reusable: Build a broadcast function that fires all registered hooks
 -- hooksField: name of the hooks field (e.g., "pilotChangedHooks")
--- tbl: table containing the hooks
 -- argsFunc: optional function that provides arguments when none are passed
 -- parentsToPrepend: optional array of parent type names for memhack structs
 -- debugId: debug SUBMODULE ID from logger.register() for logging
-function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, debugId)
+function hooks:buildBroadcastFunc(hooksField, argsFunc, parentsToPrepend, debugId)
+	local tbl = self  -- Capture self for the closure
 	local errfunc = function(e)
 		-- Capture and return the stack trace of the xpcall
 		-- 2 makes it start a frame higher so it doesn't include
@@ -145,7 +149,7 @@ function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, d
 		if parentsToPrepend and #parentsToPrepend > 0 and args and argCount > 0 then
 			local obj = args[1]  -- First argument is the object
 			for i, parentName in ipairs(parentsToPrepend) do
-				argsPrepended[i] = memhack.structManager.getParentOfType(obj, parentName)
+				argsPrepended[i] = memhack.structManager:getParentOfType(obj, parentName)
 				prependCount = prependCount + 1
 			end
 		end
@@ -175,15 +179,10 @@ function hooks.buildBroadcastFunc(hooksField, tbl, argsFunc, parentsToPrepend, d
 			)
 
 			if not ok then
-				hooks.handleFailure(errorOrResult, hookTbl.creator, caller)
+				tbl:handleFailure(errorOrResult, hookTbl.creator, caller)
 			end
 		end
 	end
-end
-
-function hooks:initBroadcastHooks(tbl)
-	tbl["firePilotChangedHooks"] = hooks.buildBroadcastFunc("pilotChangedHooks", tbl, nil, nil, SUBMODULE)
-	tbl["firePilotLvlUpSkillChangedHooks"] = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", tbl, nil, {"Pilot"}, SUBMODULE)
 end
 
 return hooks

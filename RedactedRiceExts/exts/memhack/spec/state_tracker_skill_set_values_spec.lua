@@ -30,7 +30,7 @@ describe("Skill Set Value Tracking", function()
 
 	describe("getSkillSetValue", function()
 		it("should initialize from memory on first access", function()
-			local value = stateTracker.getSkillSetValue(mockSkill, "coresBonus")
+			local value = stateTracker:getSkillSetValue(mockSkill, "coresBonus")
 
 			assert.are.equal(2, value)
 			-- Verify it was tracked
@@ -39,22 +39,22 @@ describe("Skill Set Value Tracking", function()
 
 		it("should return tracked value instead of memory value after being set", function()
 			-- Set a tracked value
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 5)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
 
 			-- Change memory value
 			mockSkill._coresBonus = 10
 
 			-- Should return tracked value, not memory
-			local value = stateTracker.getSkillSetValue(mockSkill, "coresBonus")
+			local value = stateTracker:getSkillSetValue(mockSkill, "coresBonus")
 			assert.are.equal(5, value)
 		end)
 
 		it("should track different fields independently", function()
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 5)
-			stateTracker.setSkillSetValue(mockSkill, "gridBonus", 7)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
+			stateTracker:setSkillSetValue(mockSkill, "gridBonus", 7)
 
-			assert.are.equal(5, stateTracker.getSkillSetValue(mockSkill, "coresBonus"))
-			assert.are.equal(7, stateTracker.getSkillSetValue(mockSkill, "gridBonus"))
+			assert.are.equal(5, stateTracker:getSkillSetValue(mockSkill, "coresBonus"))
+			assert.are.equal(7, stateTracker:getSkillSetValue(mockSkill, "gridBonus"))
 		end)
 	end)
 
@@ -62,32 +62,32 @@ describe("Skill Set Value Tracking", function()
 		it("should create tracker entry for new skill", function()
 			assert.is_nil(stateTracker._skillSetValues[mockSkill:getAddress()])
 
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 5)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
 
 			assert.is_not_nil(stateTracker._skillSetValues[mockSkill:getAddress()])
 			assert.are.equal(5, stateTracker._skillSetValues[mockSkill:getAddress()].coresBonus)
 		end)
 
 		it("should update existing tracker entry", function()
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 5)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
 			assert.are.equal(5, stateTracker._skillSetValues[mockSkill:getAddress()].coresBonus)
 
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 8)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 8)
 			assert.are.equal(8, stateTracker._skillSetValues[mockSkill:getAddress()].coresBonus)
 		end)
 
 		it("should allow setting zero values", function()
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 0)
-			assert.are.equal(0, stateTracker.getSkillSetValue(mockSkill, "coresBonus"))
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 0)
+			assert.are.equal(0, stateTracker:getSkillSetValue(mockSkill, "coresBonus"))
 		end)
 	end)
 
 	describe("getSkillSetValues", function()
 		it("should return both cores and grid values", function()
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 5)
-			stateTracker.setSkillSetValue(mockSkill, "gridBonus", 7)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
+			stateTracker:setSkillSetValue(mockSkill, "gridBonus", 7)
 
-			local values = stateTracker.getSkillSetValues(mockSkill)
+			local values = stateTracker:getSkillSetValues(mockSkill)
 
 			assert.are.equal(5, values.coresBonus)
 			assert.are.equal(7, values.gridBonus)
@@ -97,7 +97,7 @@ describe("Skill Set Value Tracking", function()
 			mockSkill._coresBonus = 3
 			mockSkill._gridBonus = 4
 
-			local values = stateTracker.getSkillSetValues(mockSkill)
+			local values = stateTracker:getSkillSetValues(mockSkill)
 
 			assert.are.equal(3, values.coresBonus)
 			assert.are.equal(4, values.gridBonus)
@@ -119,7 +119,7 @@ describe("Skill Set Value Tracking", function()
 				[skill3Addr] = true
 			}
 
-			stateTracker.cleanupStaleSkillSetValues(activeSkills)
+			stateTracker:cleanupStaleSkillSetValues(activeSkills)
 
 			assert.is_not_nil(stateTracker._skillSetValues[skill1Addr])
 			assert.is_nil(stateTracker._skillSetValues[skill2Addr])
@@ -130,7 +130,7 @@ describe("Skill Set Value Tracking", function()
 			stateTracker._skillSetValues[0x1000] = {coresBonus = 1}
 			stateTracker._skillSetValues[0x2000] = {coresBonus = 2}
 
-			stateTracker.cleanupStaleSkillSetValues({})
+			stateTracker:cleanupStaleSkillSetValues({})
 
 			assert.is_nil(next(stateTracker._skillSetValues))
 		end)
@@ -148,11 +148,11 @@ describe("Skill Set Value Tracking", function()
 				_getGridBonus = function(self) return self._gridBonus end,
 			}
 
-			stateTracker.setSkillSetValue(mockSkill, "coresBonus", 5)
-			stateTracker.setSkillSetValue(skill2, "coresBonus", 15)
+			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
+			stateTracker:setSkillSetValue(skill2, "coresBonus", 15)
 
-			assert.are.equal(5, stateTracker.getSkillSetValue(mockSkill, "coresBonus"))
-			assert.are.equal(15, stateTracker.getSkillSetValue(skill2, "coresBonus"))
+			assert.are.equal(5, stateTracker:getSkillSetValue(mockSkill, "coresBonus"))
+			assert.are.equal(15, stateTracker:getSkillSetValue(skill2, "coresBonus"))
 		end)
 	end)
 end)

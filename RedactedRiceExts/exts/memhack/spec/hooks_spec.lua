@@ -26,7 +26,7 @@ describe("Hooks Module", function()
 			hooks.pilotChangedHooks = {}
 
 			-- Build the broadcast function
-			fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, TEST_SUBMODULE)
+			fireFunc = hooks:buildBroadcastFunc("pilotChangedHooks", nil, nil, TEST_SUBMODULE)
 		end)
 
 		after_each(function()
@@ -95,7 +95,7 @@ describe("Hooks Module", function()
 			hooks.pilotLvlUpSkillChangedHooks = {}
 
 			-- Build the broadcast function with parent prepending
-			fireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Pilot"}, TEST_SUBMODULE)
+			fireFunc = hooks:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Pilot"}, TEST_SUBMODULE)
 		end)
 
 		after_each(function()
@@ -128,7 +128,7 @@ describe("Hooks Module", function()
 
 		it("should handle multiple parents", function()
 			-- Create a new fire function with multiple parents
-			local multiParentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Grandparent", "Parent"}, TEST_SUBMODULE)
+			local multiParentFireFunc = hooks:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Grandparent", "Parent"}, TEST_SUBMODULE)
 
 			local grandparent = {type = "grandparent"}
 			local parent = {type = "parent"}
@@ -192,7 +192,7 @@ describe("Hooks Module", function()
 
 		it("should preserve argument order with parent first", function()
 			-- Create fire function with single parent
-			local parentFireFunc = hooks.buildBroadcastFunc("pilotLvlUpSkillChangedHooks", hooks, nil, {"Parent"}, TEST_SUBMODULE)
+			local parentFireFunc = hooks:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Parent"}, TEST_SUBMODULE)
 
 			local argOrder = {}
 
@@ -233,7 +233,7 @@ describe("Hooks Module", function()
 			hooks.pilotChangedHooks = {}
 
 			-- Re-apply re-entrant wrapper
-			stateTracker.wrapHooksToUpdateStateTrackers()
+			stateTracker:wrapHooksToUpdateStateTrackers()
 
 			mockPilot = mocks.createMockPilot({pilotId = "TestPilot", level = 1, xp = 10})
 		end)
@@ -382,7 +382,7 @@ describe("Hooks Module", function()
 			assert.is_not_nil(stateTracker._pilotTrackers[mockPilot2:getAddress()])
 
 			-- Run cleanup
-			stateTracker.cleanupStaleTrackers()
+			stateTracker:cleanupStaleTrackers()
 
 			-- Verify only active pilot remains
 			assert.is_not_nil(stateTracker._pilotTrackers[mockPilot1:getAddress()])
@@ -414,7 +414,7 @@ describe("Hooks Module", function()
 			assert.is_not_nil(stateTracker._skillTrackers[staleSkillAddr])
 
 			-- Run cleanup
-			stateTracker.cleanupStaleTrackers()
+			stateTracker:cleanupStaleTrackers()
 
 			-- Verify only active skill remains
 			assert.is_not_nil(stateTracker._skillTrackers[activeSkill:getAddress()])
@@ -431,7 +431,7 @@ describe("Hooks Module", function()
 
 			_G.Game = nil
 
-			stateTracker.cleanupStaleTrackers()
+			stateTracker:cleanupStaleTrackers()
 
 			-- Verify all cleared
 			local pilotCount = 0
@@ -463,7 +463,7 @@ describe("Hooks Module", function()
 				creator = ""
 			}
 
-			local fireFunc = hooks.buildBroadcastFunc("pilotChangedHooks", hooks, nil, nil, TEST_SUBMODULE)
+			local fireFunc = hooks:buildBroadcastFunc("pilotChangedHooks", nil, nil, TEST_SUBMODULE)
 
 			-- Should not throw error - hooks module logs errors instead
 			fireFunc()

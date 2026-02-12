@@ -21,7 +21,7 @@ end
 
 -- This is a union. We hide alot of default getters/setters to
 -- ensure safe accessing and setting of values
-local ItBString = memhack.structManager.define("ItBString", {
+local ItBString = memhack.structManager:define("ItBString", {
 	-- If present in global text table, the text idx to display. Otherwise displays directly.
 	-- Can only be used if size < 16. Otherwise it has to be stored with strPtr
 	-- May not always be valid - calling getters may be unsafe
@@ -51,13 +51,13 @@ local ItBString = memhack.structManager.define("ItBString", {
 ItBString.LOCAL = ITB_STRING_LOCAL
 ItBString.REMOTE = ITB_STRING_REMOTE
 
-local selfGetter = memhack.structManager.makeStdSelfGetterName()
-local selfSetter = memhack.structManager.makeStdSelfSetterName()
+local selfGetter = memhack.structManager:makeStdSelfGetterName()
+local selfSetter = memhack.structManager:makeStdSelfSetterName()
 
 -- Custom getter for getting the string value from the struct
 function ItBString.makeItBStringGetterName(itbStrName)
 	-- Don't override default struct getter
-	local result = StructManager.makeStdGetterName(itbStrName) .. "Str"
+	local result = StructManager:makeStdGetterName(itbStrName) .. "Str"
 	return result
 end
 
@@ -65,7 +65,7 @@ end
 function ItBString.makeItBStringSetterName(itbStrName)
 	-- No default setter for struct and this handles both struct and string args
 	-- so use the std setter name
-	local result = StructManager.makeStdSetterName(itbStrName)
+	local result = StructManager:makeStdSetterName(itbStrName)
 	return result
 end
 

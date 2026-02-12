@@ -224,7 +224,7 @@ describe("Pilot Skill Changed Hook", function()
 		before_each(function()
 			-- Re-apply re-entrant wrapper for this test suite
 			-- (main before_each rebuilds broadcast functions which removes the wrapper)
-			memhack.stateTracker.wrapHooksToUpdateStateTrackers()
+			memhack.stateTracker:wrapHooksToUpdateStateTrackers()
 		end)
 		
 		it("should queue re-entrant calls and re-fire with actual state changes", function()

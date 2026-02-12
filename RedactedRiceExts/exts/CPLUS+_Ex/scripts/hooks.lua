@@ -1,6 +1,11 @@
 -- Hook system for CPLUS+ skill state events
--- Uses reusable functions from memhack hooks
+-- Uses shared utility functions from memhack hooks
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "Hooks", cplus_plus_ex.DEBUG.HOOKS and cplus_plus_ex.DEBUG.ENABLED)
+
+-- Create hooks object
 local hooks = {
 	-- args:
 	--  skillId (string) - the skill ID
@@ -40,28 +45,31 @@ local hooks = {
 	"skillsSelected",
 }
 
--- Register with logging system
-local logger = memhack.logger
-local SUBMODULE = logger.register("CPLUS+", "Hooks", cplus_plus_ex.DEBUG.HOOKS and cplus_plus_ex.DEBUG.ENABLED)
+-- Use shared utility functions from memhack.hooks
+hooks.addTo = memhack.hooks.addTo
+hooks.clearHooks = memhack.hooks.clearHooks
+hooks.handleFailure = memhack.hooks.handleFailure
+hooks.buildBroadcastFunc = memhack.hooks.buildBroadcastFunc
+hooks.reload = memhack.hooks.reload
 
 function hooks:init()
-	memhack.hooks.addTo(self, cplus_plus_ex, SUBMODULE)
-	self:initBroadcastHooks(self)
+	self:addTo(cplus_plus_ex, SUBMODULE)
+	self:initBroadcastHooks()
 	return self
 end
 
 function hooks:load()
-	memhack.hooks.reload(self, SUBMODULE)
+	self:reload(SUBMODULE)
 	return self
 end
 
-function hooks:initBroadcastHooks(tbl)
-	tbl["fireSkillEnabledHooks"] = memhack.hooks.buildBroadcastFunc("skillEnabledHooks", tbl, nil, nil, SUBMODULE)
-	tbl["fireSkillInRunHooks"] = memhack.hooks.buildBroadcastFunc("skillInRunHooks", tbl, nil, nil, SUBMODULE)
-	tbl["fireSkillActiveHooks"] = memhack.hooks.buildBroadcastFunc("skillActiveHooks", tbl, nil, nil, SUBMODULE)
-	tbl["firePreAssigningLvlUpSkillsHooks"] = memhack.hooks.buildBroadcastFunc("preAssigningLvlUpSkillsHooks", tbl, nil, nil, SUBMODULE)
-	tbl["firePostAssigningLvlUpSkillsHooks"] = memhack.hooks.buildBroadcastFunc("postAssigningLvlUpSkillsHooks", tbl, nil, nil, SUBMODULE)
-	tbl["fireSkillsSelectedHooks"] = memhack.hooks.buildBroadcastFunc("skillsSelectedHooks", tbl, nil, nil, SUBMODULE)
+function hooks:initBroadcastHooks()
+	self["fireSkillEnabledHooks"] = self:buildBroadcastFunc("skillEnabledHooks", nil, nil, SUBMODULE)
+	self["fireSkillInRunHooks"] = self:buildBroadcastFunc("skillInRunHooks", nil, nil, SUBMODULE)
+	self["fireSkillActiveHooks"] = self:buildBroadcastFunc("skillActiveHooks", nil, nil, SUBMODULE)
+	self["firePreAssigningLvlUpSkillsHooks"] = self:buildBroadcastFunc("preAssigningLvlUpSkillsHooks", nil, nil, SUBMODULE)
+	self["firePostAssigningLvlUpSkillsHooks"] = self:buildBroadcastFunc("postAssigningLvlUpSkillsHooks", nil, nil, SUBMODULE)
+	self["fireSkillsSelectedHooks"] = self:buildBroadcastFunc("skillsSelectedHooks", nil, nil, SUBMODULE)
 end
 
 return hooks

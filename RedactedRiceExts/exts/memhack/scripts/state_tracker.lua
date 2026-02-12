@@ -28,7 +28,7 @@ stateTracker._skillSetValues = {}
 -- Capture a single value from an object using either:
 -- - A field name which will use standard getter
 -- - A custom getter function name
-function stateTracker.captureValue(obj, valOrGetter)
+function stateTracker:captureValue(obj, valOrGetter)
 	if not obj then
 		error("obj cannot be nil")
 	end
@@ -43,7 +43,7 @@ function stateTracker.captureValue(obj, valOrGetter)
 		return result
 	else
 		-- Assume it's a field name, use standard getter
-		local getterName = StructManager.makeStdGetterName(valOrGetter)
+		local getterName = StructManager:makeStdGetterName(valOrGetter)
 		if type(obj[getterName]) ~= "function" then
 			error(string.format("Getter '%s' not found on object for field '%s'", getterName, valOrGetter))
 		end
@@ -59,7 +59,7 @@ end
 --   - Array entries (numeric keys): field names to capture using standard getters
 --   - Table entries with string values: fieldName = "customGetterName"
 -- valsToCheck: optional table of field names to check (if nil, checks all)
-function stateTracker.captureState(obj, stateDefinition, valsToCheck)
+function stateTracker:captureState(obj, stateDefinition, valsToCheck)
 	local capturedState = {}
 
 	if not stateDefinition then
@@ -73,7 +73,7 @@ function stateTracker.captureState(obj, stateDefinition, valsToCheck)
 		-- Array-style entry - just a field name and use it to get the standard getter
 		if type(key) == "number" then
 			fieldName = value
-			getterName = StructManager.makeStdGetterName(fieldName)
+			getterName = StructManager:makeStdGetterName(fieldName)
 		-- Map-style entry: field name with custom getter info
 		else
 			fieldName = key
@@ -98,7 +98,7 @@ end
 -- detect if it has changed content but ONLY if its the SAME REFERENCE
 -- checkRemoved - If nil or true detect removed fields. If false, only checks fields
 --		in newState (any other in oldState not in new state are ignored)
-function stateTracker.compareStates(oldState, newState, checkRemoved)
+function stateTracker:compareStates(oldState, newState, checkRemoved)
 	-- Default to true (detect removed fields by default)
 	if checkRemoved == nil then
 		checkRemoved = true
@@ -137,7 +137,7 @@ end
 -- Get set value for a skill bonus field
 -- Returns the set value if tracked, otherwise returns the actual memory value
 -- and initializes the set value tracker with it
-function stateTracker.getSkillSetValue(skill, field)
+function stateTracker:getSkillSetValue(skill, field)
 	local skillAddr = skill:getAddress()
 	local setVals = stateTracker._skillSetValues[skillAddr]
 
@@ -147,18 +147,18 @@ function stateTracker.getSkillSetValue(skill, field)
 
 	-- No set value tracked, get from memory and initialize tracking
 	-- Use the raw memory getter (hidden getter with _ prefix)
-	local rawGetterName = "_" .. memhack.structManager.makeStdGetterName(field)
+	local rawGetterName = "_" .. memhack.structManager:makeStdGetterName(field)
 	local memoryValue = skill[rawGetterName](skill)
 
 	-- Initialize set value from memory
-	stateTracker.setSkillSetValue(skill, field, memoryValue)
+	self:setSkillSetValue(skill, field, memoryValue)
 
 	return memoryValue
 end
 
 -- Set tracked value for a skill bonus field
 -- This tracks what external code should see when accessing this field
-function stateTracker.setSkillSetValue(skill, field, value)
+function stateTracker:setSkillSetValue(skill, field, value)
 	local skillAddr = skill:getAddress()
 
 	if not stateTracker._skillSetValues[skillAddr] then
@@ -170,19 +170,19 @@ end
 
 -- Get all set values for a skill
 -- Returns table with coresBonus and gridBonus (or actual values if not tracked)
-function stateTracker.getSkillSetValues(skill)
+function stateTracker:getSkillSetValues(skill)
 	return {
-		coresBonus = stateTracker.getSkillSetValue(skill, "coresBonus"),
-		gridBonus = stateTracker.getSkillSetValue(skill, "gridBonus")
+		coresBonus = self:getSkillSetValue(skill, "coresBonus"),
+		gridBonus = self:getSkillSetValue(skill, "gridBonus")
 	}
 end
 
 -- Cleanup stale skill set value trackers
 -- Called by hooks system when pilots/skills are removed
-function stateTracker.cleanupStaleSkillSetValues(activeSkills)
-	for addr in pairs(stateTracker._skillSetValues) do
+function stateTracker:cleanupStaleSkillSetValues(activeSkills)
+	for addr in pairs(self._skillSetValues) do
 		if not activeSkills[addr] then
-			stateTracker._skillSetValues[addr] = nil
+			self._skillSetValues[addr] = nil
 		end
 	end
 end
@@ -190,7 +190,7 @@ end
 -------------------- Pilot and Skill State Change Tracking ---------------------
 
 -- Check for level up skill changes on a pilot and fire hooks if changes detected
-function stateTracker.checkForLvlUpSkillChanges(pilot)
+function stateTracker:checkForLvlUpSkillChanges(pilot)
 	local lvlUpSkills = pilot:getLvlUpSkills()
 	if lvlUpSkills then
 		for i = 1, 2 do
@@ -198,11 +198,11 @@ function stateTracker.checkForLvlUpSkillChanges(pilot)
 			if skill then
 				local skillAddr = skill:getAddress()
 				local oldState = stateTracker._skillTrackers[skillAddr]
-				local newState = stateTracker.captureState(skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
+				local newState = self:captureState(skill, memhack.structs.PilotLvlUpSkill.stateDefinition)
 
 				if oldState then
 					-- Compare states and fire hook if changed
-					local changes = stateTracker.compareStates(oldState, newState)
+					local changes = self:compareStates(oldState, newState)
 					if next(changes) then
 						-- Call into hooks to fire
 						memhack._subobjects.hooks.firePilotLvlUpSkillChangedHooks(skill, changes)
@@ -216,22 +216,22 @@ function stateTracker.checkForLvlUpSkillChanges(pilot)
 end
 
 -- Check for pilot and skill changes and fire hooks if detected
-function stateTracker.checkForPilotAndLvlUpSkillChanges()
+function stateTracker:checkForPilotAndLvlUpSkillChanges()
 	if not Game then return end
 	local pilots = Game:GetSquadPilots()
 	for _, pilot in ipairs(pilots) do
 		local pilotAddr = pilot:getAddress()
 
 		-- First check for skill changes
-		stateTracker.checkForLvlUpSkillChanges(pilot)
+		self:checkForLvlUpSkillChanges(pilot)
 
 		-- Check pilot changes
 		local oldState = stateTracker._pilotTrackers[pilotAddr]
-		local newState = stateTracker.captureState(pilot, memhack.structs.Pilot.stateDefinition)
+		local newState = self:captureState(pilot, memhack.structs.Pilot.stateDefinition)
 
 		if oldState then
 			-- Compare states and fire hook if changed
-			local changes = stateTracker.compareStates(oldState, newState)
+			local changes = self:compareStates(oldState, newState)
 			if next(changes) then
 				-- Call into hooks to fire
 				memhack._subobjects.hooks.firePilotChangedHooks(pilot, changes)
@@ -244,20 +244,20 @@ function stateTracker.checkForPilotAndLvlUpSkillChanges()
 end
 
 -- Check for state changes in pilots and skills (main entry point)
-function stateTracker.checkForStateChanges()
-	stateTracker.checkForPilotAndLvlUpSkillChanges()
+function stateTracker:checkForStateChanges()
+	self:checkForPilotAndLvlUpSkillChanges()
 end
 
 ------------------ State tracking management -------------------
 
 -- Clean up stale state trackers to prevent memory leaks
 -- Removes trackers for pilots/skills that no longer exist
-function stateTracker.cleanupStaleTrackers()
+function stateTracker:cleanupStaleTrackers()
 	if not Game then
 		-- No game active, clear all trackers
 		stateTracker._pilotTrackers = {}
 		stateTracker._skillTrackers = {}
-		stateTracker.cleanupStaleSkillSetValues({})
+		self:cleanupStaleSkillSetValues({})
 		return
 	end
 
@@ -297,7 +297,7 @@ function stateTracker.cleanupStaleTrackers()
 	end
 
 	-- Remove stale skill set value trackers
-	stateTracker.cleanupStaleSkillSetValues(activeSkills)
+	self:cleanupStaleSkillSetValues(activeSkills)
 end
 
 -- Build a re-entrant wrapper for a hook fire function
@@ -310,7 +310,7 @@ end
 --   hookName: Name of the hook (e.g., "PilotChanged")
 --   stateDef: State definition for capturing state
 --   tracker: The tracker table (_pilotTrackers or _skillTrackers)
-function stateTracker.buildReentrantHookWrapper(hookName, stateDef, tracker)
+function stateTracker:buildReentrantHookWrapper(hookName, stateDef, tracker)
 	-- Track if we're currently executing and if changes occurred during execution
 	local isExecuting = false
 	local changesPending = false
@@ -338,7 +338,7 @@ function stateTracker.buildReentrantHookWrapper(hookName, stateDef, tracker)
 		-- lets us compare state afterward to see what changes were made by
 		-- re-entrant calls
 		local objAddr = obj:getAddress()
-		tracker[objAddr] = stateTracker.captureState(obj, stateDef)
+		tracker[objAddr] = self:captureState(obj, stateDef)
 
 		local iteration = 0
 		while changes and next(changes) do
@@ -369,8 +369,8 @@ function stateTracker.buildReentrantHookWrapper(hookName, stateDef, tracker)
 			-- it got changed then changed back) then it will break at the top
 			-- of the loop check
 			local oldState = tracker[objAddr]
-			local newState = stateTracker.captureState(obj, stateDef)
-			changes = stateTracker.compareStates(oldState, newState)
+			local newState = self:captureState(obj, stateDef)
+			changes = self:compareStates(oldState, newState)
 			tracker[objAddr] = newState
 		end
 
@@ -381,17 +381,17 @@ end
 
 function stateTracker:wrapHooksToUpdateStateTrackers()
 	-- Wrap pilot changed hook with re-entrant support
-	memhack._subobjects.hooks.firePilotChangedHooks = stateTracker.buildReentrantHookWrapper(
+	memhack._subobjects.hooks.firePilotChangedHooks = self:buildReentrantHookWrapper(
 		"PilotChanged",
 		memhack.structs.Pilot.stateDefinition,
-		stateTracker._pilotTrackers
+		self._pilotTrackers
 	)
 
 	-- Wrap skill changed hook with re-entrant support
-	memhack._subobjects.hooks.firePilotLvlUpSkillChangedHooks = stateTracker.buildReentrantHookWrapper(
+	memhack._subobjects.hooks.firePilotLvlUpSkillChangedHooks = self:buildReentrantHookWrapper(
 		"PilotLvlUpSkillChanged",
 		memhack.structs.PilotLvlUpSkill.stateDefinition,
-		stateTracker._skillTrackers
+		self._skillTrackers
 	)
 end
 

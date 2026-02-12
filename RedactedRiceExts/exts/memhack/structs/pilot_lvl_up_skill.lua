@@ -1,4 +1,4 @@
-local PilotLvlUpSkill = memhack.structManager.define("PilotLvlUpSkill", {
+local PilotLvlUpSkill = memhack.structManager:define("PilotLvlUpSkill", {
 	-- This is the main value used to determine skill effect in game. Note that the + move, hp, & cores
 	-- skills use the bonus values below instead
 	id = { offset = 0x0, type = "struct", subType = "ItBString" },
@@ -34,7 +34,7 @@ PilotLvlUpSkill.stateDefinition = {
 	"healthBonus", "coresBonus", "gridBonus", "moveBonus", "saveVal"
 }
 
-local selfSetter = memhack.structManager.makeStdSelfSetterName()
+local selfSetter = memhack.structManager:makeStdSelfSetterName()
 local methodGen = memhack.structManager._methodGeneration
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
 
@@ -54,19 +54,19 @@ methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "PilotLvlUpSkillsArray")
 
 -- Public getters return set values from state tracker
 PilotLvlUpSkill.getCoresBonus = function(self)
-	local result = memhack.stateTracker.getSkillSetValue(self, "coresBonus")
+	local result = memhack.stateTracker:getSkillSetValue(self, "coresBonus")
 	return result
 end
 
 PilotLvlUpSkill.getGridBonus = function(self)
-	local result = memhack.stateTracker.getSkillSetValue(self, "gridBonus")
+	local result = memhack.stateTracker:getSkillSetValue(self, "gridBonus")
 	return result
 end
 
 -- Public setters track set values and trigger combining
 PilotLvlUpSkill.setCoresBonus = function(self, value)
 	-- Store new set value
-	memhack.stateTracker.setSkillSetValue(self, "coresBonus", value)
+	memhack.stateTracker:setSkillSetValue(self, "coresBonus", value)
 
 	-- Trigger combining logic on parent pilot
 	local pilot = self:getParentPilot()
@@ -80,7 +80,7 @@ end
 
 PilotLvlUpSkill.setGridBonus = function(self, value)
 	-- Store new set value
-	memhack.stateTracker.setSkillSetValue(self, "gridBonus", value)
+	memhack.stateTracker:setSkillSetValue(self, "gridBonus", value)
 
 	-- Trigger combining logic on parent pilot
 	local pilot = self:getParentPilot()

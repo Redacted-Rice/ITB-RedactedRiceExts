@@ -1,6 +1,6 @@
 -- A std C++ vector but with a particularity so I made it its own class
 -- For some reason it always has at least 3 entries
-local MemhackStorageObj = memhack.structManager.define("StorageObject", {
+local MemhackStorageObj = memhack.structManager:define("StorageObject", {
 	-- Changing/setting these doesn't work well. Probably some more data that
 	-- needs ot be changed also if setting pilot/weapon but I only care about
 	-- reading ATM so I leave it at that

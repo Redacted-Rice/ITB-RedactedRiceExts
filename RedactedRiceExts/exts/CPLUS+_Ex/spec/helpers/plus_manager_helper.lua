@@ -80,31 +80,33 @@ function M.stubMemhack()
 				onPilotChanged = Event(),
 				onPilotLvlUpSkillChanged = Event(),
 			},
-			addTo = function(hookTbl, owner, debugId)
-				hookTbl.events = hookTbl.events or {}
-				for _, name in ipairs(hookTbl) do
+			addTo = function(self, owner, debugId)
+				self.events = self.events or {}
+				for _, name in ipairs(self) do
 					local Name = name:gsub("^.", string.upper)
 					local hookId = name.."Hooks"
 					local eventId = "on"..Name
 					local addHook = "add"..Name.."Hook"
 
-					hookTbl.events[eventId] = _G.Event()
-					hookTbl[hookId] = {}
-					hookTbl[addHook] = function(self, fn)
-						table.insert(self[hookId], fn)
+					self.events[eventId] = _G.Event()
+					self[hookId] = {}
+					self[addHook] = function(hookSelf, fn)
+						table.insert(hookSelf[hookId], fn)
 					end
 
 					if owner then
-						owner[addHook] = function(self, fn)
-							return hookTbl[addHook](hookTbl, fn)
+						owner[addHook] = function(ownerSelf, fn)
+							return self[addHook](self, fn)
 						end
 					end
 				end
 			end,
-			reload = function(hookTbl, debugId) end,
-			buildBroadcastFunc = function(hooksField, tbl, argsFunc, parentsToPrepend, debugId)
+			reload = function(self, debugId) end,
+			clearHooks = function(self, debugId) end,
+			handleFailure = function(self, errorOrResult, creator, caller) end,
+			buildBroadcastFunc = function(self, hooksField, argsFunc, parentsToPrepend, debugId)
 				return function(...)
-					local hooks = tbl[hooksField]
+					local hooks = self[hooksField]
 					if hooks then
 						for _, hook in ipairs(hooks) do
 							pcall(hook, ...)

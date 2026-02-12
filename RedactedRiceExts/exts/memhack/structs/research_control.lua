@@ -1,4 +1,4 @@
-local MemhackResearchControl = memhack.structManager.define("ResearchControl", {
+local MemhackResearchControl = memhack.structManager:define("ResearchControl", {
 	-- intersetingly storage seems to always have at least 3 items.. Maybe it has to do with that
 	-- there are 3 spaces in the UI? Anyways we need to be able to account for this
 	-- Should I define and expose the vector or wrap it at this point? I'm kind of thinking

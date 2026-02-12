@@ -72,7 +72,7 @@ function modify_pilot_skills_ui:init()
 	sdlext.addModContent(
         "Modify Pilot Abilities",
         function()
-            self.createDialog()
+            self:createDialog()
         end,
         "Modify skill weights and configurations"
     )

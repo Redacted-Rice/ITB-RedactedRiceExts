@@ -72,21 +72,21 @@ end
 -- Helper: Clear method names for a field
 function methodGeneration._clearFieldMethods(StructType, fieldName)
 	-- Clear exposed prefixes
-	StructType[StructManager.makeStdGetterName(fieldName, false)] = nil
-	StructType[StructManager.makeStdSetterName(fieldName, false)] = nil
-	StructType[StructManager.makeStdPtrGetterName(fieldName, false)] = nil
-	StructType[StructManager.makeStdPtrSetterName(fieldName, false)] = nil
+	StructType[StructManager:makeStdGetterName(fieldName, false)] = nil
+	StructType[StructManager:makeStdSetterName(fieldName, false)] = nil
+	StructType[StructManager:makeStdPtrGetterName(fieldName, false)] = nil
+	StructType[StructManager:makeStdPtrSetterName(fieldName, false)] = nil
 
 	-- Clear hidden prefixes
-	StructType[StructManager.makeStdGetterName(fieldName, true)] = nil
-	StructType[StructManager.makeStdSetterName(fieldName, true)] = nil
-	StructType[StructManager.makeStdPtrGetterName(fieldName, true)] = nil
-	StructType[StructManager.makeStdPtrSetterName(fieldName, true)] = nil
+	StructType[StructManager:makeStdGetterName(fieldName, true)] = nil
+	StructType[StructManager:makeStdSetterName(fieldName, true)] = nil
+	StructType[StructManager:makeStdPtrGetterName(fieldName, true)] = nil
+	StructType[StructManager:makeStdPtrSetterName(fieldName, true)] = nil
 end
 
 function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef, handler, capitalizedName)
 	-- Raw pointer getter (getXxxPtr or _getXxxPtr)
-	local ptrGetterName = StructManager.makeStdPtrGetterName(fieldName, fieldDef.hideGetter)
+	local ptrGetterName = StructManager:makeStdPtrGetterName(fieldName, fieldDef.hideGetter)
 	StructType[ptrGetterName] = function(self)
 		local address = self._address + fieldDef.offset
 		local result = handler.read(address)
@@ -95,7 +95,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 
 	-- Typed wrapper getter (getXxx or _getXxx) if subType specified
 	if fieldDef.subType then
-		local wrapperGetterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
+		local wrapperGetterName = StructManager:makeStdGetterName(fieldName, fieldDef.hideGetter)
 		StructType[wrapperGetterName] = function(self)
 			local address = self._address + fieldDef.offset
 			local ptrValue = handler.read(address)
@@ -113,7 +113,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 end
 
 function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local ptrSetterName = StructManager.makeStdPtrSetterName(fieldName, fieldDef.hideSetter)
+	local ptrSetterName = StructManager:makeStdPtrSetterName(fieldName, fieldDef.hideSetter)
 	StructType[ptrSetterName] = function(self, value)
 		local address = self._address + fieldDef.offset
 		handler.write(address, value)
@@ -121,7 +121,7 @@ function methodGeneration.generatePointerSetter(StructType, fieldName, fieldDef,
 end
 
 function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
+	local getterName = StructManager:makeStdGetterName(fieldName, fieldDef.hideGetter)
 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
@@ -150,7 +150,7 @@ function methodGeneration.generateStandardGetter(StructType, fieldName, fieldDef
 end
 
 function methodGeneration.generateStandardSetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local setterName = StructManager.makeStdSetterName(fieldName, fieldDef.hideSetter)
+	local setterName = StructManager:makeStdSetterName(fieldName, fieldDef.hideSetter)
 
 	StructType[setterName] = function(self, value)
 		local address = self._address + fieldDef.offset
@@ -178,7 +178,7 @@ function methodGeneration._resolveStructType(subType)
 end
 
 function methodGeneration.generateStructGetter(StructType, fieldName, fieldDef, handler, capitalizedName)
-	local getterName = StructManager.makeStdGetterName(fieldName, fieldDef.hideGetter)
+	local getterName = StructManager:makeStdGetterName(fieldName, fieldDef.hideGetter)
 
 	StructType[getterName] = function(self)
 		local address = self._address + fieldDef.offset
@@ -198,7 +198,7 @@ function methodGeneration.buildStructureMethods(StructType, layout)
 
 	-- Generate getter and setter methods for each field
 	for fieldName, fieldDef in pairs(layout) do
-		local capitalizedName = StructManager.capitalize(fieldName)
+		local capitalizedName = StructManager:capitalize(fieldName)
 		local handler = TYPE_HANDLERS[fieldDef.type]
 
 		if fieldDef.type == "pointer" then
@@ -226,7 +226,7 @@ function methodGeneration.makeParentGetterWrapper(struct, parentStructTypeName)
 	local methodName = "getParent" .. parentStructTypeName
 
 	struct[methodName] = function(self)
-		return StructManager.getParentOfType(self, parentStructTypeName)
+		return StructManager:getParentOfType(self, parentStructTypeName)
 	end
 end
 
@@ -236,8 +236,8 @@ end
 -- newGetterName: The name of the getter to add to the struct
 -- selfGetterName: The name of getter to call on the retrieved object or nil for <STD_SELF_GETTER>
 function methodGeneration.makeStructGetWrapper(struct, fieldName, newGetterName, selfGetterName)
-	local getterName = StructManager.makeStdGetterName(fieldName)
-	selfGetterName = selfGetterName or StructManager.makeStdSelfGetterName()
+	local getterName = StructManager:makeStdGetterName(fieldName)
+	selfGetterName = selfGetterName or StructManager:makeStdSelfGetterName()
 
 	struct[newGetterName] = function(self)
 		local obj = self[getterName](self)
@@ -252,9 +252,9 @@ end
 -- newSetterName: The name of the getter to add to the struct or nil for STD_SETTER
 -- selfSetterName: The name of setter to call on the retrieved object or nil for <STD_SELF_SETTER>
 function methodGeneration.makeStructSetWrapper(struct, fieldName, newSetterName, selfSetterName)
-	local newSetterName = newSetterName or StructManager.makeStdSetterName(fieldName)
-	local getterName = StructManager.makeStdGetterName(fieldName)
-	selfSetterName = selfSetterName or StructManager.makeStdSelfSetterName()
+	local newSetterName = newSetterName or StructManager:makeStdSetterName(fieldName)
+	local getterName = StructManager:makeStdGetterName(fieldName)
+	selfSetterName = selfSetterName or StructManager:makeStdSelfSetterName()
 
 	struct[newSetterName] = function(self, ...)
 		local obj = self[getterName](self)
@@ -273,7 +273,7 @@ end
 -- selfGetterName - name of Getter to use to get initial state. If nil uses standard getter name for <field>
 function methodGeneration.wrapSetterToFireOnValueChange(struct, field, hooksObj, fireFnName, setterName, getterName)
 	if not setterName then
-		setterName = StructManager.makeStdSetterName(field)
+		setterName = StructManager:makeStdSetterName(field)
 	end
 	local originalSetter = struct[setterName]
 	if not originalSetter then
@@ -290,7 +290,7 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, hooksObj,
 	struct[noFireName] = originalSetter
 
 	struct[setterName] = function(self, newVal)
-		local prevVal = memhack.stateTracker.captureValue(self, fieldOrGetter)
+		local prevVal = memhack.stateTracker:captureValue(self, fieldOrGetter)
 		originalSetter(self, newVal)
 		if newVal ~= prevVal then
 			local changes = {}
@@ -318,10 +318,10 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(hooksObj, f
 		local newVals = structOrNewVals
 		-- Check if it's a memhack struct by presence of isMemhackObj field (all structs have this)
 		if type(structOrNewVals) == "table" and structOrNewVals.isMemhackObj then
-			newVals = memhack.stateTracker.captureState(structOrNewVals, fullStateTable)
+			newVals = memhack.stateTracker:captureState(structOrNewVals, fullStateTable)
 		end
 		-- Only check & capture new values
-		local currentState = memhack.stateTracker.captureState(self, fullStateTable, newVals)
+		local currentState = memhack.stateTracker:captureState(self, fullStateTable, newVals)
 
 		local anyChanged = false
 		local changes = {}
@@ -330,7 +330,7 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(hooksObj, f
 				if settersTable and settersTable[field] then
 					settersTable[field](self, newVal)
 				else
-					local setter = StructManager.makeStdSetterName(field)
+					local setter = StructManager:makeStdSetterName(field)
 					-- Use private _noFire version if available to avoid double firing hooks
 					local noFireSetter = "_" .. setter .. "_noFire"
 					if self[noFireSetter] then

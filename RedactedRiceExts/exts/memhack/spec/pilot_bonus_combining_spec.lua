@@ -67,8 +67,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should not combine when both skills have cores bonuses", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
 			mockPilot:_combineBonuses()
 
@@ -77,8 +77,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should not combine when both skills have grid bonuses", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 1)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 			mockPilot:_combineBonuses()
 
@@ -93,8 +93,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should not combine when both skills have cores bonuses", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
 			mockPilot:_combineBonuses()
 
@@ -103,8 +103,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should not combine when both skills have grid bonuses", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 1)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 			mockPilot:_combineBonuses()
 
@@ -119,8 +119,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should combine cores when both skills have non-zero cores", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
 			mockPilot:_combineBonuses()
 
@@ -129,8 +129,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should combine grid when both skills have non-zero grid", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 1)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 			mockPilot:_combineBonuses()
 
@@ -139,8 +139,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should not combine cores when skill1 has zero cores", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 0)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 0)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
 			mockPilot:_combineBonuses()
 
@@ -149,8 +149,8 @@ describe("Pilot Bonus Combining", function()
 		end)
 
 		it("should not combine grid when skill1 has zero grid", function()
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 0)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 0)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 			mockPilot:_combineBonuses()
 
@@ -160,12 +160,12 @@ describe("Pilot Bonus Combining", function()
 
 	it("should handle combining cores and grid independently", function()
 		-- Both have cores (should combine)
-		memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-		memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+		memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+		memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
 		-- Only skill2 has grid (should not combine - set to individual values)
-		memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 0)
-		memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 1)
+		memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 0)
+		memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 1)
 
 		mockPilot:_combineBonuses()
 
@@ -179,11 +179,11 @@ describe("Pilot Bonus Combining", function()
 	end)
 
 	it("should preserve set values when memory changes", function()
-		memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-		memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+		memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+		memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-		memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
-		memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+		memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 1)
+		memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 		mockPilot:_combineBonuses()
 
@@ -194,21 +194,21 @@ describe("Pilot Bonus Combining", function()
 		assert.are.equal(0, mockSkill2._gridBonus)  -- Zeroed when combined
 
 		-- Set values remain unchanged (stateTracker preserves what was set)
-		assert.are.equal(2, memhack.stateTracker.getSkillSetValue(mockSkill1, "coresBonus"))
-		assert.are.equal(3, memhack.stateTracker.getSkillSetValue(mockSkill2, "coresBonus"))
-		assert.are.equal(1, memhack.stateTracker.getSkillSetValue(mockSkill1, "gridBonus"))
-		assert.are.equal(2, memhack.stateTracker.getSkillSetValue(mockSkill2, "gridBonus"))
+		assert.are.equal(2, memhack.stateTracker:getSkillSetValue(mockSkill1, "coresBonus"))
+		assert.are.equal(3, memhack.stateTracker:getSkillSetValue(mockSkill2, "coresBonus"))
+		assert.are.equal(1, memhack.stateTracker:getSkillSetValue(mockSkill1, "gridBonus"))
+		assert.are.equal(2, memhack.stateTracker:getSkillSetValue(mockSkill2, "gridBonus"))
 	end)
 	end)
 
 	describe("Level transitions", function()
 		it("should uncombine when leveling down from 2 to 1", function()
 			mockPilot._level = 2
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 1)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 			mockPilot:_combineBonuses()
 			assert.are.equal(5, mockSkill1._coresBonus)
@@ -229,11 +229,11 @@ describe("Pilot Bonus Combining", function()
 
 		it("should combine when leveling up from 1 to 2", function()
 			mockPilot._level = 1
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "coresBonus", 2)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "coresBonus", 3)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "coresBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "coresBonus", 3)
 
-			memhack.stateTracker.setSkillSetValue(mockSkill1, "gridBonus", 1)
-			memhack.stateTracker.setSkillSetValue(mockSkill2, "gridBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "gridBonus", 1)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "gridBonus", 2)
 
 			mockPilot:_combineBonuses()
 			assert.are.equal(2, mockSkill1._coresBonus)

@@ -597,7 +597,7 @@ describe("Method Generation Module", function()
 
 		before_each(function()
 			-- Create a test struct with noSetter fields
-			TestStructWithNoSetter = memhack.structManager.define("TestStructWithNoSetter", {
+			TestStructWithNoSetter = memhack.structManager:define("TestStructWithNoSetter", {
 				readWriteField = { offset = 0x00, type = "int" },
 				readOnlyField = { offset = 0x04, type = "int", noSetter = true },
 				readWritePtr = { offset = 0x08, type = "pointer", subType = "int" },
