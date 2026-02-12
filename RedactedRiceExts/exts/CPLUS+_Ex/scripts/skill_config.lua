@@ -315,7 +315,7 @@ function skill_config:loadConfiguration()
 					end
 				end
 
-				skill_config:rebuildEnabledSkills()
+				self:rebuildEnabledSkills()
 				logger.logDebug(SUBMODULE, "Loaded and merged skill configuration")
 			end
 		end

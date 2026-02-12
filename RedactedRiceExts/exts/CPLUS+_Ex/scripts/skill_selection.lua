@@ -126,7 +126,7 @@ end
 function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selectedSkills)
 	while true do
 		-- Get a weighted random skill from the available pool
-		local candidateSkillId = skill_selection:_getWeightedRandomSkillId(availableSkills)
+		local candidateSkillId = self:_getWeightedRandomSkillId(availableSkills)
 		if candidateSkillId == nil then
 			break
 		end
@@ -257,7 +257,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	-- otherwise assign random skills
 	else
 		-- Select 2 random skills that satisfy all registered constraint functions
-		skillIds = skill_selection:selectRandomSkills(availableSkills, pilot, 2)
+		skillIds = self:selectRandomSkills(availableSkills, pilot, 2)
 		if skillIds == nil then
 			return
 		end
@@ -266,8 +266,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 		-- Track newly assigned skills for per_run constraints
-		skill_selection:_markPerRunSkillAsUsed(skillIds[1])
-		skill_selection:_markPerRunSkillAsUsed(skillIds[2])
+		self:_markPerRunSkillAsUsed(skillIds[1])
+		self:_markPerRunSkillAsUsed(skillIds[2])
 
 		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
 	end
@@ -321,7 +321,7 @@ end
 -- Apply skills to all pilots - both squad and storage
 function skill_selection:applySkillsToAllPilots()
 	-- ensure game data is initialized
-	skill_selection:initGameSaveData()
+	self:initGameSaveData()
 
 	if #skill_config_module.enabledSkillsIds == 0 then
 		logger.logWarn(SUBMODULE, "No enabled skills, skipping pilot skill assignment")
@@ -358,7 +358,7 @@ function skill_selection:applySkillsToAllPilots()
 		if storedSkills ~= nil then
 			-- This pilot has assigned skills, mark them as used for per_run tracking
 			for _, skillData in ipairs(storedSkills) do
-				skill_selection:_markPerRunSkillAsUsed(skillData.id)
+				self:_markPerRunSkillAsUsed(skillData.id)
 			end
 		else
 			logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
@@ -370,7 +370,7 @@ function skill_selection:applySkillsToAllPilots()
 		local pilotId = pilot:getIdStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
 
-		skill_selection:applySkillsToPilot(pilot, isNewPilot)
+		self:applySkillsToPilot(pilot, isNewPilot)
 
 		-- Mark pilot as assigned this run
 		if isNewPilot then
@@ -401,7 +401,7 @@ function skill_selection:applySkillToPodPilot()
 	end
 
 	-- Apply skills with hooks
-	skill_selection:applySkillsToPilot(pilot, isNewPilot)
+	self:applySkillsToPilot(pilot, isNewPilot)
 
 	if isNewPilot then
 		skill_selection._pilotsAssignedThisRun[pilotId] = true
@@ -424,7 +424,7 @@ function skill_selection:applySkillToPerfectIslandPilot()
 	end
 
 	-- Apply skills with hooks
-	skill_selection:applySkillsToPilot(pilot, isNewPilot)
+	self:applySkillsToPilot(pilot, isNewPilot)
 
 	if isNewPilot then
 		skill_selection._pilotsAssignedThisRun[pilotId] = true

@@ -366,7 +366,7 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 			:width(1):heightpx(ROW_HEIGHT)
 
 	-- Store the enable checkbox for category management
-	entryRow.enableCheckbox = modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+	entryRow.enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
 
 	return entryRow
 end
@@ -472,13 +472,13 @@ function modify_pilot_skills_ui:_determineColumnLengths()
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
 	end
-	local longestName = modify_pilot_skills_ui:getLongestLength(names)
+	local longestName = self:getLongestLength(names)
 	-- Extra room for Checkbox
 	local paddedName = longestName + CHECKBOX_PADDING
 
 	local reuseOptions = utils.deepcopy(REUSABLILITY_NAMES)
 	table.insert(reuseOptions, REUSABLILITY_HEADER)
-	local longestReuse = modify_pilot_skills_ui:getLongestLength(reuseOptions)
+	local longestReuse = self:getLongestLength(reuseOptions)
 	-- Extra room for drop down image
 	local paddedReuse = longestReuse + DROPDOWN_PADDING
 
@@ -509,7 +509,7 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 		else
 			cplus_plus_ex:disableSkill(skill.id)
 		end
-		modify_pilot_skills_ui:updateAllPercentages()
+		self:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
 
 		-- Call the callback if provided for category checkbox updates
@@ -599,12 +599,12 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weig
 
 	-- Function to apply weight changes
 	local function applyWeightChange(self)
-		local isValid, value = modify_pilot_skills_ui:validateNumericInput(self.textfield)
+		local isValid, value = self:validateNumericInput(self.textfield)
 		if isValid and value >= 0 then
 			-- Format to 2 decimal places
 			self.textfield = string.format("%.2f", value)
 			cplus_plus_ex:setSkillConfig(skill.id, {weight = value})
-			modify_pilot_skills_ui:updateAllPercentages()
+			self:updateAllPercentages()
 			cplus_plus_ex:saveConfiguration()
 		else
 			-- Reset to current value if invalid
@@ -659,10 +659,10 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 		:width(1):heightpx(ROW_HEIGHT)
 
 	-- Add values to the row
-	local enableCheckbox = modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
-	modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
-	modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
-	modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
+	local enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+	self:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
+	self:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
+	self:buildSkillEntryLabels(entryRow, skill)
 
 	-- Store the enable checkbox for category management
 	entryRow.enableCheckbox = enableCheckbox
@@ -719,7 +719,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	local sortOptions = {"Name", "Enabled", "Reusability", "Weight/%"}
 	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, sortOptions)
 
-	local skillLength, reuseabilityLength = modify_pilot_skills_ui:_determineColumnLengths()
+	local skillLength, reuseabilityLength = self:_determineColumnLengths()
 
 	-- Track current sort option
 	-- 1 = Name, 2 = Enabled, 3 = Reusability, 4 = Weight/%
@@ -853,7 +853,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 					entry.checkbox.checked = newState
 				end
 
-				modify_pilot_skills_ui:updateAllPercentages()
+				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
 			end
 
@@ -863,7 +863,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 					categoryCheckbox:updateCheckedState()
 				end
 
-				local skillEntry = modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, reuseabilityLength, onToggleCallback)
+				local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, onToggleCallback)
 					:addTo(categoryContent)
 
 				-- Track the skill's enable checkbox for category updates
@@ -897,7 +897,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			cplus_plus_ex:saveConfiguration()
 			rebuildSkillCategories()
 			-- Update percentages after rebuild
-			modify_pilot_skills_ui:updateAllPercentages()
+			self:updateAllPercentages()
 		end)
 	end
 
@@ -905,7 +905,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	rebuildSkillCategories()
 
 	-- Initial percentage calculation
-	modify_pilot_skills_ui:updateAllPercentages()
+	self:updateAllPercentages()
 end
 
 function modify_pilot_skills_ui:addPilotImage(pilotId, row)
@@ -916,7 +916,7 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	local decorations = { DecoFrame() }
 
 	if pilotId and pilotId ~= "All" and pilotId ~= "" then
-		local portrait = modify_pilot_skills_ui:getPilotPortrait(pilotId)
+		local portrait = self:getPilotPortrait(pilotId)
 		if portrait then
 			table.insert(decorations, DecoSurface(portrait))
 		end
@@ -1032,8 +1032,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 	local includeSourceTooltips = sourceLabel == "Skill"
 	local includeTargetTooltips = targetLabel == "Skill"
 
-	local listDisplay, listVals, listTooltips = modify_pilot_skills_ui:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips)
-	local targetListDisplay, targetListVals, targetListTooltips = modify_pilot_skills_ui:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips)
+	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips)
+	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips)
 
 	-- Container for this section
 	local largestHeight = sourceLabel == "Pilot" and PILOT_SIZE or ROW_HEIGHT
@@ -1120,15 +1120,15 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 
 			-- Pilot portrait if its a pilot
 			if sourceLabel == "Pilot" then
-				modify_pilot_skills_ui:addPilotImage(sourceId, entryRow)
+				self:addPilotImage(sourceId, entryRow)
 			end
 
 			-- Add labels with skill tooltips if applicable
 			local sourceSkillId = sourceLabel == "Skill" and sourceId or nil
 			local targetSkillId = targetLabel == "Skill" and targetId or nil
-			modify_pilot_skills_ui:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
-			modify_pilot_skills_ui:addArrowLabel(title == "Skill Exclusions", entryRow)
-			modify_pilot_skills_ui:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
+			self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
+			self:addArrowLabel(title == "Skill Exclusions", entryRow)
+			self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
 
 				-- Remove button
 				local btnRemove = sdlext.buildButton(
@@ -1171,15 +1171,15 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 
 			-- Pilot portrait if its a pilot
 			if sourceLabel == "Pilot" then
-				modify_pilot_skills_ui:addPilotImage(sourceId, entryRow)
+				self:addPilotImage(sourceId, entryRow)
 			end
 
 			-- Add labels with skill tooltips if applicable
 			local sourceSkillId = sourceLabel == "Skill" and sourceId or nil
 			local targetSkillId = targetLabel == "Skill" and targetId or nil
-			modify_pilot_skills_ui:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
-			modify_pilot_skills_ui:addArrowLabel(title == "Skill Exclusions", entryRow)
-			modify_pilot_skills_ui:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
+			self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
+			self:addArrowLabel(title == "Skill Exclusions", entryRow)
+			self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
 
 			-- Remove button
 			local btnRemove = sdlext.buildButton(
@@ -1226,11 +1226,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 
 	-- Pilot portrait if its a pilot
 	if sourceLabel == "Pilot" then
-		currentPilotPortrait = modify_pilot_skills_ui:addPilotImage(selectedSource, addRow)
+		currentPilotPortrait = self:addPilotImage(selectedSource, addRow)
 	end
 
 	-- Source dropdown
-	modify_pilot_skills_ui:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
+	self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedSource = newValue
 
@@ -1246,7 +1246,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 
 				-- Add new portrait if not "All"
 				if newValue ~= "All" and newValue ~= "" then
-					local portrait = modify_pilot_skills_ui:getPilotPortrait(newValue)
+					local portrait = self:getPilotPortrait(newValue)
 					if portrait then
 						table.insert(currentPilotPortrait.decorations, DecoSurface(portrait))
 					end
@@ -1255,10 +1255,10 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 		end, addRow)
 
 	-- Arrow
-	modify_pilot_skills_ui:addArrowLabel(title == "Skill Exclusions", addRow)
+	self:addArrowLabel(title == "Skill Exclusions", addRow)
 
 	-- Target dropdown
-	modify_pilot_skills_ui:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
+	self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedTarget = newValue
 		end, addRow)
@@ -1374,12 +1374,12 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent)
 
 	-- Get lists for dropdowns (now includes sorted IDs)
-	local pilotData, pilotIdsSorted = modify_pilot_skills_ui:getPilotsData()
+	local pilotData, pilotIdsSorted = self:getPilotsData()
 	local skillData, exlusionSkillData, inclusionSkillData,
-	      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = modify_pilot_skills_ui:getSkillsData()
+	      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = self:getSkillsData()
 
 	-- Pilot Skill Exclusions
-	modify_pilot_skills_ui:buildRelationshipEditor(
+	self:buildRelationshipEditor(
 		relationshipsContent,
 		cplus_plus_ex.config.pilotSkillExclusions,
 		"Exclusions: Pilot → Skill",
@@ -1396,7 +1396,7 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 
 	if #inclusionSkillData > 0 then
 		-- Pilot Skill Inclusions
-		modify_pilot_skills_ui:buildRelationshipEditor(
+		self:buildRelationshipEditor(
 			relationshipsContent,
 			cplus_plus_ex.config.pilotSkillInclusions,
 			"Inclusions: Pilot → Skill ",
@@ -1413,7 +1413,7 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	end
 
 	-- Skill Exclusions
-	modify_pilot_skills_ui:buildRelationshipEditor(
+	self:buildRelationshipEditor(
 		relationshipsContent,
 		cplus_plus_ex.config.skillExclusions,
 		"Exclusions: Skill ↔ Skill",
@@ -1441,9 +1441,9 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 		:addTo(scroll)
 
 	-- Add the settings
-	modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
-	modify_pilot_skills_ui:buildSkillsList(scrollContent)
-	modify_pilot_skills_ui:buildRelationships(scrollContent)
+	self:buildGeneralSettings(scrollContent)
+	self:buildSkillsList(scrollContent)
+	self:buildRelationships(scrollContent)
 end
 
 function modify_pilot_skills_ui:buildResetConfirmation()
@@ -1464,7 +1464,7 @@ function modify_pilot_skills_ui:buildResetConfirmation()
 					percentageLabels = {}
 					categoryHeaderLabels = {}
 					-- Rebuild the content with fresh values
-					modify_pilot_skills_ui:buildMainContent(parentScroll)
+					self:buildMainContent(parentScroll)
 				end
 			end
 		end,
@@ -1480,7 +1480,7 @@ function modify_pilot_skills_ui:buildDialogButtons(buttonLayout)
 	local btnReset = sdlext.buildButton(
 		"Reset to Defaults",
 		"Reset all settings to their default values",
-		function() modify_pilot_skills_ui:buildResetConfirmation() end
+		function() self:buildResetConfirmation() end
 	)
 	btnReset:addTo(buttonLayout)
 end
@@ -1504,8 +1504,8 @@ function modify_pilot_skills_ui:createDialog()
 
 		local frame = sdlext.buildButtonDialog(
 			"Modify Pilot Level Up Skills",
-			function(scroll) modify_pilot_skills_ui:buildMainContent(scroll) end,
-			function(buttonLayout) modify_pilot_skills_ui:buildDialogButtons(buttonLayout) end,
+			function(scroll) self:buildMainContent(scroll) end,
+			function(buttonLayout) self:buildDialogButtons(buttonLayout) end,
 			{
 				maxW = math.min(DIALOG_MAX_WIDTH_PX, DIALOG_WIDTH_PREFERRED_PCT * ScreenSizeX()),
 				maxH = DIALOG_HEIGHT_PREFERRED_PCT * ScreenSizeY(),
