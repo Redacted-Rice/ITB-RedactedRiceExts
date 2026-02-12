@@ -251,7 +251,7 @@ end
 
 -- Determine in-run skills state for all enabled skills
 -- Returns in internal state format: {skillId -> {pilotAddr -> {pilot, skillIndices}}}
-function skill_state_tracker:determineInRunSkillsState()
+function skill_state_tracker:_determineInRunSkillsState()
 	local result = {}
 	if not Game then return result end
 
@@ -290,7 +290,7 @@ function skill_state_tracker:updateInRunSkills()
 	end
 
 	-- Determine new in-run skills state (already in internal format)
-	local newInRunSkills = self:determineInRunSkillsState()
+	local newInRunSkills = self:_determineInRunSkillsState()
 	local hooksToFire = {}
 
 	-- Check for newly added pilots with skills
@@ -359,7 +359,7 @@ end
 
 -- Determine active skills state for all enabled skills
 -- Returns in internal state format: {skillId -> {pawnId -> {pilot, skillIndices}}}
-function skill_state_tracker:determineActiveSkillsState()
+function skill_state_tracker:_determineActiveSkillsState()
 	local result = {}
 	if not Game or not Board then return result end
 
@@ -399,7 +399,7 @@ function skill_state_tracker:updateActiveSkills()
 	end
 
 	-- Determine new active skills state (already in internal format)
-	local newActiveSkills = self:determineActiveSkillsState()
+	local newActiveSkills = self:_determineActiveSkillsState()
 	local hooksToFire = {}
 
 	-- Check for newly active skills

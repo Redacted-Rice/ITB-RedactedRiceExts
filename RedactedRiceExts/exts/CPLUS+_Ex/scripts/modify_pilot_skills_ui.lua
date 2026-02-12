@@ -269,7 +269,7 @@ function modify_pilot_skills_ui:buildCollapsibleSection(title, parent, vgap, ini
 		for i = 1, #sortOptions do
 			table.insert(sortValues, i)
 		end
-		
+
 		sortDropdown = UiDropDown(sortValues, sortOptions, 1)
 			:widthpx(SORT_WIDTH):heightpx(ROW_HEIGHT)
 			:settooltip("Sort entries by the selected criteria")
@@ -364,7 +364,7 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 
 	local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
-			
+
 	-- Store the enable checkbox for category management
 	entryRow.enableCheckbox = modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
 
@@ -436,7 +436,7 @@ function modify_pilot_skills_ui:updateAllPercentages()
 		if headerData.weightDeco then
 			headerData.weightDeco:setsurface(string.format(TOTAL_WEIGHT_HEADER, categoryWeight))
 		end
-		
+
 		-- Update percentage header
 		if headerData.percentDeco then
 			headerData.percentDeco:setsurface(string.format(TOTAL_PERCENT_HEADER, categoryPercentage))
@@ -467,7 +467,7 @@ function modify_pilot_skills_ui:getLongestLength(entries)
 	return maxWidth
 end
 
-function modify_pilot_skills_ui:determineColumnLengths()
+function modify_pilot_skills_ui:_determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
@@ -719,7 +719,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	local sortOptions = {"Name", "Enabled", "Reusability", "Weight/%"}
 	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, sortOptions)
 
-	local skillLength, reuseabilityLength = modify_pilot_skills_ui:determineColumnLengths()
+	local skillLength, reuseabilityLength = modify_pilot_skills_ui:_determineColumnLengths()
 
 	-- Track current sort option
 	-- 1 = Name, 2 = Enabled, 3 = Reusability, 4 = Weight/%
@@ -750,15 +750,15 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				table.insert(sortedSkills, skill)
 			end
 		end
-		
+
 		table.sort(sortedSkills, function(a, b)
 			-- Safety checks
 			if not a or not a.id then return false end
 			if not b or not b.id then return true end
-			
+
 			local aConfig = cplus_plus_ex.config.skillConfigs[a.id]
 			local bConfig = cplus_plus_ex.config.skillConfigs[b.id]
-			
+
 			-- Get names
 			local aName = ""
 			if a.shortName then
@@ -768,12 +768,12 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			if b.shortName then
 				bName = GetText(b.shortName) or b.shortName or ""
 			end
-			
+
 			-- Fallback to name if either config is missing
 			if not aConfig or not bConfig then
 				return aName:lower() < bName:lower()
 			end
-			
+
 			-- 1 falls down to the default (name)
 			-- Each option sorts primary then falls back to name (secondary)
 			if currentSkillSort == 2 then
@@ -795,7 +795,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			-- Fallback to name
 			return aName:lower() < bName:lower()
 		end)
-		
+
 		return sortedSkills
 	end
 
@@ -805,7 +805,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 		while #skillsContent.children > 0 do
 			skillsContent.children[#skillsContent.children]:detach()
 		end
-		
+
 		-- Clear tracking tables for fresh rebuild
 		percentageLabels = {}
 		categoryHeaderLabels = {}
@@ -965,7 +965,7 @@ function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, 
 			DecoDropDown()
 		})
 		:addTo(row)
-		
+
 	-- Set initial tooltip with selected option description
 	local function updateTooltip()
 		local baseTooltip = "Select " .. label:lower() .. " (or All)"
@@ -1096,7 +1096,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 				local bTargetName = targetList[b.targetId] or ""
 				return aTargetName:lower() < bTargetName:lower()
 			else
-				-- Sort by target then source 
+				-- Sort by target then source
 				local aTargetName = targetList[a.targetId] or ""
 				local bTargetName = targetList[b.targetId] or ""
 				if aTargetName:lower() ~= bTargetName:lower() then
@@ -1109,7 +1109,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 			end
 		end)
 
-		-- Build newly added items first 
+		-- Build newly added items first
 		for _, relationship in ipairs(newItemsList) do
 			local sourceId = relationship.sourceId
 			local targetId = relationship.targetId
@@ -1393,7 +1393,7 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 		"Prevent specific pilots from receiving certain skills",
 		"pilotSkillExclusionsSortOrder"
 	)
-	
+
 	if #inclusionSkillData > 0 then
 		-- Pilot Skill Inclusions
 		modify_pilot_skills_ui:buildRelationshipEditor(

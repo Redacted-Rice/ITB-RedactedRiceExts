@@ -224,7 +224,7 @@ describe("Skill Constraints Module", function()
 		it("should allow reusable skills multiple times", function()
 			local pilot = helper.createMockPilot("TestPilot")
 
-			plus_manager._subobjects.skill_selection:markPerRunSkillAsUsed("Reusable1")
+			plus_manager._subobjects.skill_selection:_markPerRunSkillAsUsed("Reusable1")
 
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Reusable1")
 			assert.is_true(result)
@@ -272,7 +272,7 @@ describe("Skill Constraints Module", function()
 			local pilot1 = helper.createMockPilot("Pilot1")
 			local pilot2 = helper.createMockPilot("Pilot2")
 
-			plus_manager._subobjects.skill_selection:markPerRunSkillAsUsed("PerRun1")
+			plus_manager._subobjects.skill_selection:_markPerRunSkillAsUsed("PerRun1")
 
 			local result = plus_manager:checkSkillConstraints(pilot2, {}, "PerRun1")
 			assert.is_false(result)
@@ -288,7 +288,7 @@ describe("Skill Constraints Module", function()
 		it("should allow per_run skill after clearing run tracking", function()
 			local pilot = helper.createMockPilot("TestPilot")
 
-			plus_manager._subobjects.skill_selection:markPerRunSkillAsUsed("PerRun1")
+			plus_manager._subobjects.skill_selection:_markPerRunSkillAsUsed("PerRun1")
 
 			local result1 = plus_manager:checkSkillConstraints(pilot, {}, "PerRun1")
 			assert.is_false(result1)
