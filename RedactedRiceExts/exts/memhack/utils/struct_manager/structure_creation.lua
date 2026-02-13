@@ -49,7 +49,7 @@ function structureCreation._calculateFieldSize(field)
 			structType = StructManager._structures[structType]
 		end
 		if structType and structType.StructSize then
-			local structSize = structType.StructSize()
+			local structSize = structType:StructSize()
 			if structSize then
 				return structSize
 			else
@@ -147,7 +147,7 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 		end
 
 		-- Calculate struct size
-		local structSize = StructType.StructSize()
+		local structSize = StructType:StructSize()
 		if not structSize then
 			return nil, "Cannot determine structure size"
 		end
@@ -184,7 +184,7 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 
 
 	-- Calculate structure size
-	function StructType.StructSize()
+	function StructType:StructSize()
 		local maxOffset, maxField = structureCreation._findMaxOffsetField(layout)
 		if not maxField then
 			return 0

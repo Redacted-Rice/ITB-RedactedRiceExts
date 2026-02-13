@@ -8,19 +8,19 @@ local MemhackStorage = memhack.structManager:define("Storage", {
 
 MemhackStorage.UNUSABLE_ENTRIES = 3
 
-MemhackStorage.getSize = function(self)
+function MemhackStorage:getSize()
 	return self:_getVector():getSize() - self.UNUSABLE_ENTRIES
 end
 
 -- 1 indexed
-MemhackStorage.getAt = function(self, idx)
+function MemhackStorage:getAt(idx)
 	local idxAddress = self:_getVector():getPtrAt(idx + self.UNUSABLE_ENTRIES)
 	local result = memhack.structs.StorageObject.new(idxAddress)
 	return result
 end
 
 -- 1 indexed
-MemhackStorage.getRange = function(self, startIdx, endIdx)
+function MemhackStorage:getRange(startIdx, endIdx)
 	local addresses = self:_getVector():getPtrsRange(
 			startIdx + self.UNUSABLE_ENTRIES, endIdx + self.UNUSABLE_ENTRIES)
 	local objects = {}
@@ -30,12 +30,12 @@ MemhackStorage.getRange = function(self, startIdx, endIdx)
 	return objects
 end
 
-MemhackStorage.getAll = function(self)
+function MemhackStorage:getAll()
 	local result = self:getRange(1, self:getSize())
 	return result
 end
 
-MemhackStorage.getAllOfType = function(self, objType)
+function MemhackStorage:getAllOfType(objType)
 	local ofType = {}
 	for _, storageObj in ipairs(self:getAll()) do
 		if storageObj:isType(objType) then

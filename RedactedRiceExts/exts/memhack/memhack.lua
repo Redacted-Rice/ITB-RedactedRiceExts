@@ -82,7 +82,7 @@ function memhack:init(mockDll)
 	self.stateTracker = self._subobjects.stateTracker
 	stateTracker = self._subobjects.stateTracker
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
-	
+
 	-- Register events
 	self:addEvents()
 end

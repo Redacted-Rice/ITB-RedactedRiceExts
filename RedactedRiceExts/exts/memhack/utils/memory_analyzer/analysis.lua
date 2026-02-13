@@ -121,7 +121,7 @@ function analysis.compareChanges(results, includeData)
 	end
 
 	-- Compare to find what changed across all results with alignment
-	local changedRanges, unchangedRanges = buildChangeRanges(size, function(byteIdx)
+	local changedRanges, unchangedRanges = analysis.buildChangeRanges(size, function(byteIdx)
 		local firstValue = nil
 		for _, result in ipairs(results) do
 			if result._captures and #result._captures > 0 then
@@ -324,7 +324,7 @@ function analysis._findTypedRelativeOffsets(dataset, relativeType, valueType)
 		local prevValue = nil
 
 		for captureIdx, capture in ipairs(dataset.captures) do
-			local value = Dataset._getValueAtOffset(capture.data, offset, valueType, nil)
+			local value = dataset:_getValueAtOffset(capture.data, offset, valueType, nil)
 
 			if captureIdx == 1 then
 				prevValue = value

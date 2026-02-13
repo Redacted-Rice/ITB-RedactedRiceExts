@@ -15,19 +15,19 @@ local MemhackStorageObj = memhack.structManager:define("StorageObject", {
 MemhackStorageObj.TYPE_PILOT = "Pilot"
 MemhackStorageObj.TYPE_SKILL = "Skill"
 
-MemhackStorageObj.isPilot = function(self)
+function MemhackStorageObj:isPilot()
 	return self:getPilotPtr() ~= 0
 end
 
-MemhackStorageObj.isSkill = function(self)
+function MemhackStorageObj:isSkill()
 	return self:getSkillPtr() ~= 0
 end
 
-MemhackStorageObj.isType = function(self, objType)
+function MemhackStorageObj:isType(objType)
 	return self:getType() == objType
 end
 
-MemhackStorageObj.getType = function(self)
+function MemhackStorageObj:getType()
 	if self:isPilot() then
 		return MemhackStorageObj.TYPE_PILOT
 	elseif self:isSkill() then
