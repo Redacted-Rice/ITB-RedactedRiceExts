@@ -28,14 +28,14 @@ function Dataset:_capture(baseAddress)
 	local addr = baseAddr
 	local chain = self._analyzer.pointerChain or {}
 	for i, offset in ipairs(chain) do
-		local ptr = MemoryAnalyzer._dll.memory.readPointer(addr)
+		local ptr = self._analyzer._dll.memory.readPointer(addr)
 		if not ptr or ptr == 0 then
 			error(string.format("Failed to resolve pointer at 0x%X (offset index %d)", addr, i))
 		end
 		addr = ptr + offset
 	end
 
-	local data = MemoryAnalyzer._dll.memory.readByteArray(addr, self._analyzer.size)
+	local data = self._analyzer._dll.memory.readByteArray(addr, self._analyzer.size)
 	if not data then
 		error(string.format("Failed to read memory at 0x%X", addr))
 	end
@@ -114,7 +114,7 @@ end
 
 -- Reads the value from data at offset with specified type
 -- Supports byte, int, and pointer types for value comparison
-function Dataset._getValueAtOffset(data, offset, valueType, typeLength)
+function Dataset:_getValueAtOffset(data, offset, valueType, typeLength)
 	local byteIdx = offset + 1
 
 	if valueType == "byte" then
@@ -135,7 +135,7 @@ function Dataset._getValueAtOffset(data, offset, valueType, typeLength)
 end
 
 -- Compare values based on passed operator string
-function Dataset._compareValues(value, operator, target)
+function Dataset:_compareValues(value, operator, target)
 	if operator == "==" then
 		return value == target
 	elseif operator == "~=" then
@@ -154,7 +154,7 @@ function Dataset._compareValues(value, operator, target)
 end
 
 -- Get type size in bytes
-function Dataset._getTypeSize(valueType, targetValue)
+function Dataset:_getTypeSize(valueType, targetValue)
 	if valueType == "byte" then
 		return 1
 	elseif valueType == "int" or valueType == "pointer" then
@@ -211,7 +211,7 @@ function Dataset:findOffsets(operator, targetValue, valueType)
 		targetValue = memhack.debug.hexToBytes(targetValue)
 	end
 
-	local typeSize = Dataset._getTypeSize(valueType, targetValue)
+	local typeSize = self:_getTypeSize(valueType, targetValue)
 	local matchingOffsets = {}
 
 	-- For byte/int/pointer types, use typed value comparison
@@ -219,8 +219,8 @@ function Dataset:findOffsets(operator, targetValue, valueType)
 		for offset = 0, size - typeSize, alignment do
 			local allMatch = true
 			for _, capture in ipairs(self.captures) do
-				local value = Dataset._getValueAtOffset(capture.data, offset, valueType, nil)
-				if not value or not Dataset._compareValues(value, operator, targetValue) then
+				local value = self:_getValueAtOffset(capture.data, offset, valueType, nil)
+				if not value or not self:_compareValues(value, operator, targetValue) then
 					allMatch = false
 					break
 				end

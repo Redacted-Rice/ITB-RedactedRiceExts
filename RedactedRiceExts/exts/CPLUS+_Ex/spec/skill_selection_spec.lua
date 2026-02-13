@@ -8,7 +8,7 @@ describe("Skill Selection Module", function()
 	before_each(function()
 		helper.resetState()
 	end)
-	
+
 	after_each(function()
 		-- Restore math.random after each test to prevent pollution
 		helper.restoreMathRandom()
@@ -356,9 +356,9 @@ describe("Skill Selection Module", function()
 
 		it("should use stored saveVal when available", function()
 			local storedSkill = {id = "TestSkill", saveVal = 5}
-			
+
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, nil)
-			
+
 			assert.equals(5, result)
 			assert.equals(5, storedSkill.saveVal)
 		end)
@@ -366,19 +366,19 @@ describe("Skill Selection Module", function()
 		it("should use preassigned value when registered saveVal is -1", function()
 			local storedSkill = {id = "TestSkill"}
 			local preassignedVal = 7
-			
+
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", preassignedVal, nil)
-			
+
 			assert.equals(7, result)
 			assert.equals(7, storedSkill.saveVal)
 		end)
 
 		it("should generate random saveVal when no preassigned value and registered is -1", function()
 			local storedSkill = {id = "TestSkill"}
-			helper.mockMathRandom({0.5})  -- Will generate saveVal 6 (0.5 * 13 = 6.5, rounded down)
-			
+			helper.mockMathRandom({6})  -- math.random(0, 13) expects integer return
+
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, nil)
-			
+
 			assert.is_not_nil(result)
 			assert.is_true(result >= 0 and result <= 13)
 			assert.equals(result, storedSkill.saveVal)
@@ -387,9 +387,9 @@ describe("Skill Selection Module", function()
 		it("should use registered saveVal when not -1", function()
 			registeredSkill.saveVal = 3  -- Specific saveVal, not random
 			local storedSkill = {id = "TestSkill"}
-			
+
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", 7, nil)
-			
+
 			-- Should use registered (3), not preassigned (7)
 			assert.equals(3, result)
 			assert.equals(3, storedSkill.saveVal)
@@ -399,11 +399,11 @@ describe("Skill Selection Module", function()
 			local storedSkill = {id = "TestSkill"}
 			local preassignedVal = 5
 			local excludeVal = 5  -- Same as preassigned, should conflict
-			
-			helper.mockMathRandom({0.3})  -- Will generate different value
-			
+
+			helper.mockMathRandom({3})  -- math.random(0, 12) expects integer return
+
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", preassignedVal, excludeVal)
-			
+
 			-- Should generate random value different from excludeVal
 			assert.is_not.equals(5, result)
 			assert.is_true(result >= 0 and result <= 13)
@@ -414,11 +414,11 @@ describe("Skill Selection Module", function()
 			registeredSkill.saveVal = 8  -- Specific saveVal
 			local storedSkill = {id = "TestSkill"}
 			local excludeVal = 8  -- Same as registered, should conflict
-			
-			helper.mockMathRandom({0.6})  -- Will generate different value
-			
+
+			helper.mockMathRandom({7})  -- math.random(0, 12) returns 7, adjusted to 8 then conflict detected and regenerated
+
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, excludeVal)
-			
+
 			-- Should generate random value different from excludeVal
 			assert.is_not.equals(8, result)
 			assert.is_true(result >= 0 and result <= 13)
@@ -430,11 +430,11 @@ describe("Skill Selection Module", function()
 			local storedSkill2 = {id = "Skill2"}
 			local preassignedVal1 = 4
 			local preassignedVal2 = 9
-			
+
 			-- First skill: should use preassigned value
 			local result1 = skill_selection:_getOrAssignSaveVal(storedSkill1, registeredSkill, "TestPilot", "Skill1", preassignedVal1, nil)
 			assert.equals(4, result1)
-			
+
 			-- Second skill: should use preassigned value (different from first)
 			local result2 = skill_selection:_getOrAssignSaveVal(storedSkill2, registeredSkill, "TestPilot", "Skill2", preassignedVal2, result1)
 			assert.equals(9, result2)
@@ -446,13 +446,13 @@ describe("Skill Selection Module", function()
 			local storedSkill2 = {id = "Skill2"}
 			local preassignedVal1 = 7
 			local preassignedVal2 = 7  -- Same as first
-			
-			helper.mockMathRandom({0.8})  -- For generating different value for second skill
-			
+
+			helper.mockMathRandom({10})  -- math.random(0, 12) returns 10, adjusted to 11 (skips 7)
+
 			-- First skill
 			local result1 = skill_selection:_getOrAssignSaveVal(storedSkill1, registeredSkill, "TestPilot", "Skill1", preassignedVal1, nil)
 			assert.equals(7, result1)
-			
+
 			-- Second skill: preassigned conflicts with first, should generate random
 			local result2 = skill_selection:_getOrAssignSaveVal(storedSkill2, registeredSkill, "TestPilot", "Skill2", preassignedVal2, result1)
 			assert.is_not.equals(7, result2)

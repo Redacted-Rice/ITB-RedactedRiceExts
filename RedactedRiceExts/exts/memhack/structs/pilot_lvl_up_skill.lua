@@ -53,18 +53,18 @@ methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "PilotLvlUpSkillsArray")
 -- and will be set by combineBonuses
 
 -- Public getters return set values from state tracker
-PilotLvlUpSkill.getCoresBonus = function(self)
+function PilotLvlUpSkill:getCoresBonus()
 	local result = memhack.stateTracker:getSkillSetValue(self, "coresBonus")
 	return result
 end
 
-PilotLvlUpSkill.getGridBonus = function(self)
+function PilotLvlUpSkill:getGridBonus()
 	local result = memhack.stateTracker:getSkillSetValue(self, "gridBonus")
 	return result
 end
 
 -- Public setters track set values and trigger combining
-PilotLvlUpSkill.setCoresBonus = function(self, value)
+function PilotLvlUpSkill:setCoresBonus(value)
 	-- Store new set value
 	memhack.stateTracker:setSkillSetValue(self, "coresBonus", value)
 
@@ -78,7 +78,7 @@ PilotLvlUpSkill.setCoresBonus = function(self, value)
 	end
 end
 
-PilotLvlUpSkill.setGridBonus = function(self, value)
+function PilotLvlUpSkill:setGridBonus(value)
 	-- Store new set value
 	memhack.stateTracker:setSkillSetValue(self, "gridBonus", value)
 

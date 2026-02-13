@@ -15,19 +15,19 @@ local MemhackVector = memhack.structManager:define("Vector", {
 
 MemhackVector.PTR_SIZE = 4
 
-MemhackVector.getSize = function(self)
+function MemhackVector:getSize()
 	local result = (self:getNextPtr() - self:getHeadPtr()) / self.PTR_SIZE
 	return result
 end
 
 -- 1 indexed
-MemhackVector.getPtrAt = function(self, idx)
+function MemhackVector:getPtrAt(idx)
 	local result = memhack.dll.memory.readPointer(self:getHeadPtr() + (idx - 1) * self.PTR_SIZE)
 	return result
 end
 
 -- 1 indexed
-MemhackVector.getPtrsRange = function(self, startIdx, endIdx)
+function MemhackVector:getPtrsRange(startIdx, endIdx)
 	local ptrs = {}
 	for idx = startIdx, endIdx do
 		table.insert(ptrs, self:getPtrAt(idx))
@@ -35,7 +35,7 @@ MemhackVector.getPtrsRange = function(self, startIdx, endIdx)
 	return ptrs
 end
 
-MemhackVector.getPtrsAll = function(self)
+function MemhackVector:getPtrsAll()
 	local result = self:getPtrsRange(1, self:getSize())
 	return result
 end

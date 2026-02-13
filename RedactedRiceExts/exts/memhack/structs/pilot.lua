@@ -71,7 +71,7 @@ local function applyLevelChange(self, newLevel, previousLevel, previousXp, previ
 end
 
 
-Pilot.levelUp = function(self)
+function Pilot:levelUp()
 	local previousLevel = self:getLevel()
 	local newLevel = previousLevel + 1
 
@@ -82,7 +82,7 @@ Pilot.levelUp = function(self)
 	end
 end
 
-Pilot.levelDown = function(self)
+function Pilot:levelDown()
 	local previousLevel = self:getLevel()
 	local newLevel = previousLevel - 1
 
@@ -93,7 +93,7 @@ Pilot.levelDown = function(self)
 	end
 end
 
-Pilot.setLevel = function(self, newLevel)
+function Pilot:setLevel(newLevel)
 	local currentLevel = self:getLevel()
 
 	-- Call levelUp/levelDown as appropriate
@@ -108,7 +108,7 @@ Pilot.setLevel = function(self, newLevel)
 	end
 end
 
-Pilot.setXp = function(self, newXp)
+function Pilot:setXp(newXp)
 	local currentXp = self:getXp()
 	local levelUpXp = self:getLevelUpXp()
 
@@ -133,12 +133,12 @@ Pilot.setXp = function(self, newXp)
 	end
 end
 
-Pilot.addXp = function(self, xpToAdd)
+function Pilot:addXp(xpToAdd)
 	self:setXp(self:getXp() + xpToAdd)
 end
 
 -- Get the pawn ID (0-2) for this pilot if piloting a mech, nil otherwise
-Pilot.getPawnId = function(self)
+function Pilot:getPawnId()
 	if not Game then return nil end
 
 	local pilotAddr = self:getAddress()
@@ -155,7 +155,7 @@ Pilot.getPawnId = function(self)
 end
 
 -- Check if this pilot is currently piloting a mech
-Pilot.isPiloting = function(self)
+function Pilot:isPiloting()
 	return self:getPawnId() ~= nil
 end
 
@@ -165,7 +165,7 @@ end
 --   1. getLvlUpSkills() is wrapped (line 74) to inject {Pilot = pilot} into the array
 --   2. getSkill1/2() are wrapped (lines 200-201) to copy parents and add the array
 --   Result: returned skill has _parent = {Pilot = pilot, PilotLvlUpSkillsArray = array}
-Pilot.getLvlUpSkill = function(self, index)
+function Pilot:getLvlUpSkill(index)
 	if index == 1 then
 		local result = self:getLvlUpSkills():getSkill1()
 		return result
@@ -180,7 +180,7 @@ end
 -- Convenience setter for level up skills
 -- idx is either 1 or 2 for the respective skill
 -- PilotLvlUpSkill.set for other arg defs
-Pilot.setLvlUpSkill = function(self, index, structOrNewVals)
+function Pilot:setLvlUpSkill(index, structOrNewVals)
 	if index == 1 then
 		self:getLvlUpSkills():setSkill1(structOrNewVals)
 	elseif index == 2 then
@@ -208,7 +208,7 @@ end
 -- - External code always sees and sets the "base" values
 -- - Memhack handles combining automatically based on pilot level and setting
 --   memory to ther correct values
-Pilot._combineBonuses = function(self)
+function Pilot:_combineBonuses()
 	local skill1 = self:getLvlUpSkill(1)
 	local skill2 = self:getLvlUpSkill(2)
 
