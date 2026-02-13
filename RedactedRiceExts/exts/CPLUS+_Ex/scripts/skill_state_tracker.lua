@@ -20,6 +20,7 @@ local utils = nil
 -- State tracking tables
 function skill_state_tracker:resetAllTrackers()
 	self._hasAppliedSkill = false
+	self._isAssigningSkills = false
 	self._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
 	self._inRunSkills = {}    -- skillId -> {pilotAddr -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
 	self._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
@@ -32,10 +33,16 @@ function skill_state_tracker:init()
 	return self
 end
 
+-- Mark the start of skill assignment so we disabling firing hooks on tracking changes
+function skill_state_tracker:beginAssignment()
+	self._isAssigningSkills = true
+end
+
 -- Mark that skills have been applied (called by main module after assignment)
 function skill_state_tracker:updateAfterAssignment()
 	logger.logDebug(SUBMODULE, "Post-assignment: updating in-run and active skill states")
 	self._hasAppliedSkill = true
+	self._isAssigningSkills = false
 	-- Update in-run and active states after skills have been assigned to triggers
 	-- any changes
 	self:updateAllStates()
@@ -445,6 +452,13 @@ end
 
 -- Update all skill states (called from various triggers)
 function skill_state_tracker:updateAllStates()
+	-- Skip updates if we're in the middle of assigning skills
+	-- The postAssignment hook will handle the final update
+	if self._isAssigningSkills then
+		logger.logDebug(SUBMODULE, "Update all states: skipping during assignment")
+		return
+	end
+	
 	self:updateEnabledSkills()
 	if self._hasAppliedSkill then
 		self:updateInRunSkills()

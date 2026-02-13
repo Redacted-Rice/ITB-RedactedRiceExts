@@ -178,8 +178,8 @@ end
 
 local function skillDataToTable(id, shortName, fullName, description, saveVal, bonuses)
 	return {id = id, shortName = shortName, fullName = fullName, description = description,
-		healthBonus = bonuses.health, coresBonus = bonuses.cores, gridBonus = bonuses.grid,
-		moveBonus = bonuses.move, saveVal = saveVal}
+		healthBonus = bonuses.health or 0, coresBonus = bonuses.cores or 0, gridBonus = bonuses.grid or 0,
+		moveBonus = bonuses.move or 0, saveVal = saveVal}
 end
 
 -- Generate a random saveVal (0-13), optionally excluding a specific value
@@ -379,7 +379,7 @@ function skill_selection:applySkillsToAllPilots()
 		end
 	end
 
-	-- Assign skills to any new pilots (this handles the reset turn case)
+	-- Assign skills to any pilots (this handles the reset turn case)
 	for _, pilot in pairs(pilots) do
 		local pilotId = pilot:getIdStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
