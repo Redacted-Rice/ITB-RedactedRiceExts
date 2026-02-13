@@ -159,8 +159,8 @@ end
 function cplus_plus_ex:addEvents()
 	-- Save game event
 	modApi.events.onSaveGame:subscribe(function()
-		self:updateAndSaveSkills()
 		skill_state_tracker:updateAllStates()
+		self:updateAndSaveSkills()
 	end)
 
 	-- Subscribe to modApi events
@@ -216,6 +216,10 @@ function cplus_plus_ex:addEvents()
 	end)
 
 	-- Subscribe to our own events for skill state tracking as well
+	hooks.events.onPreAssigningLvlUpSkills:subscribe(function()
+		skill_state_tracker:beginAssignment()
+	end)
+	
 	hooks.events.onPostAssigningLvlUpSkills:subscribe(function()
 		skill_state_tracker:updateAfterAssignment()
 	end)
