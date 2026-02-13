@@ -192,7 +192,7 @@ end
 function StructManager:array(structType, baseAddress, count, stride)
 	local arr = {}
 
-	local structSize = stride or structType.StructSize()
+	local structSize = stride or structType:StructSize()
 	if not structSize then
 		error("Cannot create array: structure size unknown. Provide 'stride' parameter.")
 	end

@@ -199,29 +199,41 @@ end
 
 -- Assign or get saveVal for a skill, ensuring it's different from excludeVal
 -- preassignedVal: the current saveVal from memory (preassigned value to preserve if possible)
+-- Preference: registered, stored, in-memory
 function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, preassignedVal, excludeVal)
-	-- Check if we have a stored saveVal first
-	if storedSkill.saveVal ~= nil then
-		logger.logDebug(SUBMODULE, "Using stored saveVal %d for skill %s for pilot %s", storedSkill.saveVal, skillId, pilotId)
-		return storedSkill.saveVal
-	end
-
-	-- Start with registered skill's default saveVal
-	local saveVal = registeredSkill.saveVal
-
-	-- If saveVal is -1 (random), prefer the preassigned in-memory value
-	if saveVal == -1 then
-		if preassignedVal ~= nil then
-			saveVal = preassignedVal
-			logger.logDebug(SUBMODULE, "Using preassigned saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
+	-- Determine our starting save val
+	-- In order registered, stored, in-memory
+	local resolved = false
+	local saveVal = nil
+	if registeredSkill.saveVal and registeredSkill.saveVal >= 0 then 
+		if registeredSkill.saveVal == excludeVal then
+			logger.logDebug(SUBMODULE, "Found registered saveVal %d but it conflicts with excludeVal", excludeVal)
 		else
-			saveVal = self:_generateSaveVal(excludeVal)
-			logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s (no preassigned value)", saveVal, skillId, pilotId)
+			saveVal = registeredSkill.saveVal
+			logger.logDebug(SUBMODULE, "Found registered saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
+		end
+	end
+	
+	if not saveVal and storedSkill.saveVal and storedSkill.saveVal >= 0 then
+		if storedSkill.saveVal == excludeVal then
+			logger.logDebug(SUBMODULE, "Found stored saveVal %d but it conflicts with excludeVal", excludeVal)
+		else
+			saveVal = storedSkill.saveVal
+			logger.logDebug(SUBMODULE, "Found stored saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
+		end
+	end
+	
+	if not saveVal and preassignedVal and preassignedVal >= 0 then
+		if preassignedVal == excludeVal then
+			logger.logDebug(SUBMODULE, "Found preassinged saveVal %d but it conflicts with excludeVal", excludeVal)
+		else
+			saveVal = preassignedVal
+			logger.logDebug(SUBMODULE, "Found preassinged saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
 		end
 	end
 
 	-- Check for conflict with excludeVal and reassign if needed
-	if excludeVal ~= nil and saveVal == excludeVal then
+	if not saveVal then
 		saveVal = self:_generateSaveVal(excludeVal)
 		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned saveVal to %d", pilotId, saveVal)
 	end

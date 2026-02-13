@@ -14,12 +14,12 @@ MemoryAnalyzer.analysis = require(path .. "analysis")
 local Dataset = MemoryAnalyzer.Dataset
 local analysis = MemoryAnalyzer.analysis
 
--- Module level storage
-local _memoryAnalyzers = {}
-local _dll = nil
+-- Module level storage (following StructManager pattern)
+MemoryAnalyzer._memoryAnalyzers = {}
+MemoryAnalyzer._dll = nil
 
-function MemoryAnalyzer.init(dll)
-	_dll = dll
+function MemoryAnalyzer:init(dll)
+	self._dll = dll
 end
 
 -- constructor
@@ -29,51 +29,51 @@ end
 --    baseAddress can be overriden in capture()
 --    alignment: byte alignment for change detection (1=byte, 4=4-byte groups, default 4)
 function MemoryAnalyzer.new(id, size, options)
-	if _memoryAnalyzers[id] then
+	if MemoryAnalyzer._memoryAnalyzers[id] then
 		error(string.format("Memory analyzer with ID '%s' already exists", id))
 	end
 
 	options = options or {}
 
-	local self = setmetatable({}, MemoryAnalyzer)
-	self.id = id
-	self.size = size
+	local instance = setmetatable({}, MemoryAnalyzer)
+	instance.id = id
+	instance.size = size
 
-	self.baseAddress = options.baseAddress or nil
-	self.pointerChain = options.pointerChain or {}
-	self.alignment = options.alignment or 4  -- Default 4-byte alignment
+	instance.baseAddress = options.baseAddress or nil
+	instance.pointerChain = options.pointerChain or {}
+	instance.alignment = options.alignment or 4  -- Default 4-byte alignment
 
-	if self.size % self.alignment ~= 0 then
-		error(string.format("Size (%d) must be divisible by alignment (%d)", self.size, self.alignment))
+	if instance.size % instance.alignment ~= 0 then
+		error(string.format("Size (%d) must be divisible by alignment (%d)", instance.size, instance.alignment))
 	end
 
 	-- Enable/disable and rate limiting
-	self.enabled = options.enabled ~= false  -- Default true
-	self.rateLimit = options.rateLimit or 0  -- 0 = unlimited
-	self._lastCaptureTime = 0
+	instance.enabled = options.enabled ~= false  -- Default true
+	instance.rateLimit = options.rateLimit or 0  -- 0 = unlimited
+	instance._lastCaptureTime = 0
 
 	-- Datasets and current dataset
-	self._datasets = {}
-	self._currentDataset = nil
+	instance._datasets = {}
+	instance._currentDataset = nil
 
-	_memoryAnalyzers[id] = self
-	return self
+	MemoryAnalyzer._memoryAnalyzers[id] = instance
+	return instance
 end
 
 -- Get existing analyzer by ID
-function MemoryAnalyzer.get(id)
-	return _memoryAnalyzers[id]
+function MemoryAnalyzer:get(id)
+	return self._memoryAnalyzers[id]
 end
 
 -- Remove analyzer by ID
-function MemoryAnalyzer.remove(id)
-	_memoryAnalyzers[id] = nil
+function MemoryAnalyzer:remove(id)
+	self._memoryAnalyzers[id] = nil
 end
 
 -- List all analyzer IDs
-function MemoryAnalyzer.list()
+function MemoryAnalyzer:list()
 	local ids = {}
-	for id, _ in pairs(_memoryAnalyzers) do
+	for id, _ in pairs(self._memoryAnalyzers) do
 		table.insert(ids, id)
 	end
 	return ids
