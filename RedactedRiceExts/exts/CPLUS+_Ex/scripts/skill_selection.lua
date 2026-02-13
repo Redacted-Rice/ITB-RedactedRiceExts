@@ -198,20 +198,30 @@ function skill_selection:_generateSaveVal(excludeVal)
 end
 
 -- Assign or get saveVal for a skill, ensuring it's different from excludeVal
-function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, excludeVal)
+-- preassignedVal: the current saveVal from memory (preassigned value to preserve if possible)
+function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, preassignedVal, excludeVal)
 	-- Check if we have a stored saveVal first
 	if storedSkill.saveVal ~= nil then
 		logger.logDebug(SUBMODULE, "Using stored saveVal %d for skill %s for pilot %s", storedSkill.saveVal, skillId, pilotId)
 		return storedSkill.saveVal
 	end
 
-	-- Use registered skill's default or generate random
+	-- Start with registered skill's default saveVal
 	local saveVal = registeredSkill.saveVal
+	
+	-- If saveVal is -1 (random), prefer the preassigned in-memory value
 	if saveVal == -1 then
-		saveVal = self:_generateSaveVal(excludeVal)
-		logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s", saveVal, skillId, pilotId)
-	elseif excludeVal ~= nil and saveVal == excludeVal then
-		-- Conflict with excludeVal, generate different one
+		if preassignedVal ~= nil then
+			saveVal = preassignedVal
+			logger.logDebug(SUBMODULE, "Using preassigned saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
+		else
+			saveVal = self:_generateSaveVal(excludeVal)
+			logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s (no preassigned value)", saveVal, skillId, pilotId)
+		end
+	end
+	
+	-- Check for conflict with excludeVal and reassign if needed
+	if excludeVal ~= nil and saveVal == excludeVal then
 		saveVal = self:_generateSaveVal(excludeVal)
 		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned saveVal to %d", pilotId, saveVal)
 	end
@@ -303,9 +313,13 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		hooks.fireSkillsSelectedHooks(pilot, skill1Id, skill2Id)
 	end
 
+	-- Read current saveVals from memory (preassigned values to preserve if possible)
+	local preassignedSaveVal1 = pilot:getLvlUpSkill(1) and pilot:getLvlUpSkill(1):getSaveVal() or nil
+	local preassignedSaveVal2 = pilot:getLvlUpSkill(2) and pilot:getLvlUpSkill(2):getSaveVal() or nil
+
 	-- Assign saveVals, ensuring they're different
-	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, nil)
-	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, saveVal1)
+	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, preassignedSaveVal1, nil)
+	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, preassignedSaveVal2, saveVal1)
 
 	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
