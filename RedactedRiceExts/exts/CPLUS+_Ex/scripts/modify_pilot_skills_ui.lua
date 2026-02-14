@@ -598,11 +598,11 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weig
 	weightInput.textfield = string.format("%.2f", weight)
 
 	-- Function to apply weight changes
-	local function applyWeightChange(self)
-		local isValid, value = self:validateNumericInput(self.textfield)
+	local function applyWeightChange(weightInput)
+		local isValid, value = self:validateNumericInput(weightInput.textfield)
 		if isValid and value >= 0 then
 			-- Format to 2 decimal places
-			self.textfield = string.format("%.2f", value)
+			weightInput.textfield = string.format("%.2f", value)
 			cplus_plus_ex:setSkillConfig(skill.id, {weight = value})
 			self:updateAllPercentages()
 			cplus_plus_ex:saveConfiguration()
