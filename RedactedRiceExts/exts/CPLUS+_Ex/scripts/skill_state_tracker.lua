@@ -78,6 +78,13 @@ function skill_state_tracker:isSkillOnPilot(skillId, pilot, checkEarned)
 	return self:isSkillOnPilots(skillId, {pilot}, checkEarned)
 end
 
+function skill_state_tracker:isSkillOnPawn(skillId, pawn, checkEarned)
+	local pilot = pawn:GetPilot()
+	if pilot then 
+		return self:isSkillOnPilot(skillId, pilot, checkEarned)
+	end
+end
+
 -- Check if a skill is on any pilot in the given list
 -- pilots: list of pilots to check (defaults to all available pilots)
 -- checkEarned: if true, only check earned skills (defaults to true)

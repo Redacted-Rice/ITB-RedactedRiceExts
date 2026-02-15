@@ -5,6 +5,12 @@ For 1.0 release:
 	3. pilot (in mech)
 	4. storage (very complex)
 2. Add memory analyzer
+3. Get working for steam version
+	Pilot vtable
+	score
+4. Replace local fns with private fns (at least not nested fns)
+5. Pull out pawn into a memhack class
+6. Make LOG show where it was called from if feasible or remove and go back to calling explicitly
 
 Next release:
 1. Look into adding tests on c++ side?
@@ -14,7 +20,7 @@ Next release:
 ---------- PLUS Ex ---------
 
 For 1.0 release:
-1. Continue testing
+1. Configs get cleared sometimes... Not sure what causes it yet
 
 Next release candadites:
 	Major Features:
@@ -24,6 +30,7 @@ Next release candadites:
 		4. Add support for multiple pilots with same ID
 		5. Squad inclusions/exclusions
 		6. Skill rarities? - legendary skills & skill caps
+		7. Specifying defaults for things like weight and reusublity (separate for lowest possible)
 
 	Fixes/Enhancemnets
 		1. Move to GetText to be consistent/allow localization

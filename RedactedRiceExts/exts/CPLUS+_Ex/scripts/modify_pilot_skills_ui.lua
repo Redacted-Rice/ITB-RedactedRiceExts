@@ -616,17 +616,17 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weig
 	end
 
 	-- Handle Enter key
-	weightInput.onEnter = function(self)
-		applyWeightChange(self)
-		local result = UiInputField.onEnter(self)
+	weightInput.onEnter = function(wi)
+		applyWeightChange(wi)
+		local result = UiInputField.onEnter(wi)
 		return result
 	end
 
 	-- Handle focus loss
-	weightInput.onFocusChangedEvent:subscribe(function(self, focused, focused_prev)
+	weightInput.onFocusChangedEvent:subscribe(function(wi, focused, focused_prev)
 		if not focused and focused_prev then
 			-- Lost focus, apply changes
-			applyWeightChange(self)
+			applyWeightChange(wi)
 		end
 	end)
 end
@@ -819,7 +819,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			local categorySkillCheckboxes = {}
 
 			-- Method to update category checkbox state based on children
-			categoryCheckbox.updateCheckedState = function(self)
+			categoryCheckbox.updateCheckedState = function(cc)
 				local enabledCount = 0
 				local totalCount = #categorySkillCheckboxes
 
@@ -832,17 +832,17 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 				-- Set tri-state based on enabled count
 				if enabledCount == totalCount and totalCount > 0 then
-					self.checked = true
+					cc.checked = true
 				elseif enabledCount == 0 then
-					self.checked = false
+					cc.checked = false
 				else
-					self.checked = "mixed"
+					cc.checked = "mixed"
 				end
 			end
 
 			-- Update all child checkboxes
-			categoryCheckbox.updateChildrenCheckedState = function(self)
-				local newState = (self.checked == true)
+			categoryCheckbox.updateChildrenCheckedState = function(cc)
+				local newState = (cc.checked == true)
 
 				for _, entry in ipairs(categorySkillCheckboxes) do
 					if newState then
@@ -874,10 +874,10 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			end
 
 			-- Category checkbox click handler
-			categoryCheckbox.onclicked = function(self, button)
+			categoryCheckbox.onclicked = function(cc, button)
 				if button == 1 then
-					self:updateChildrenCheckedState()
-					self:updateCheckedState()
+					cc:updateChildrenCheckedState()
+					cc:updateCheckedState()
 					return true
 				end
 				return false

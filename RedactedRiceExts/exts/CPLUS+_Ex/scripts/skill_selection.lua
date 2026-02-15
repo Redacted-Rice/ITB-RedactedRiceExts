@@ -324,10 +324,14 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
 	-- Apply both skills with their determined saveVal
-	pilot:setLvlUpSkill(1, skillDataToTable(
-			skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses))
-	pilot:setLvlUpSkill(2, skillDataToTable(
-			skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
+	if skill1Id ~= pilot:getLvlUpSkill(1):getIdStr() then
+		pilot:setLvlUpSkill(1, skillDataToTable(
+				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses))
+	end
+	if skill2Id ~= pilot:getLvlUpSkill(2):getIdStr() then
+		pilot:setLvlUpSkill(2, skillDataToTable(
+				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
+	end
 
 end
 
