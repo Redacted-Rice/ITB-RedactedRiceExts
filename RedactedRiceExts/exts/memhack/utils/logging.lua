@@ -13,36 +13,41 @@ local nextSubmoduleId = 1
 function logger.register(extensionName, moduleName, enabled)
 	local id = nextSubmoduleId
 	nextSubmoduleId = nextSubmoduleId + 1
-	
-	SUBMODULE_INFO[id] = {
-		extensionName = extensionName,
-		moduleName = moduleName,
-		enabled = enabled  -- Store the combined enabled flag
-	}
-	
+	SUBMODULE_INFO[id] = enabled
 	return id
 end
 
 -- Helper to get submodule info
-local function getSubmoduleInfo(submodule)
+function logger.isSubmoduleEnabled(submodule)
 	return SUBMODULE_INFO[submodule]
 end
 
--- Base logging function
-function logger.log(extensionName, moduleName, level, message)
-	if level then
-		LOG(string.format("%s.%s: %s - %s", extensionName, moduleName, level, message))
+function logger.getCurrentDate()
+	return os.date("%Y-%m-%d %H:%M:%S")
+end
+
+function logger.buildCallerMessage(callerOffset, level)
+	callerOffset = callerOffset or 0
+	assert(type(callerOffset) == "number")
+
+	local timestamp = logger.getCurrentDate()
+	local info = debug.getinfo(3 + callerOffset, "Sl")
+	return string.format("[%s] [%s:%3d]:%s", timestamp, info.short_src, info.currentline, level)
+end
+
+function logger.modApiBaseLog(callerOffset, level, ...)
+	if mod_loader.logger then
+		local caller = logger.buildCallerMessage(callerOffset, level)
+		mod_loader.logger:log(caller, ...)
 	else
-		-- Debug log without level
-		LOG(string.format("%s.%s: %s", extensionName, moduleName, message))
+		LOG(...)
 	end
 end
 
 -- Debug logging with lazy evaluation - format string only constructed if logging enabled
 -- Usage: logger.logDebug(SUBMODULE, "Message") or logger.logDebug(SUBMODULE, "Format %s %d", arg1, arg2)
 function logger.logDebug(submodule, fmt, ...)
-	local info = getSubmoduleInfo(submodule)
-	if info.enabled then
+	if logger.isSubmoduleEnabled(submodule) then
 		local message
 		if select('#', ...) > 0 then
 			-- Format string with arguments
@@ -51,23 +56,21 @@ function logger.logDebug(submodule, fmt, ...)
 			-- No arguments, format is the message
 			message = fmt
 		end
-		logger.log(info.extensionName, info.moduleName, nil, message)
+		logger.modApiBaseLog(1, "DBUG", message)
 	end
 end
 
 function logger.logError(submodule, message)
-	local info = getSubmoduleInfo(submodule)
-	logger.log(info.extensionName, info.moduleName, "ERR", message)
+	-- Space to preserve spacing
+	logger.modApiBaseLog(1, " ERR", message)
 end
 
 function logger.logWarn(submodule, message)
-	local info = getSubmoduleInfo(submodule)
-	logger.log(info.extensionName, info.moduleName, "WARN", message)
+	logger.modApiBaseLog(1, "WARN", message)
 end
 
 function logger.logInfo(submodule, message)
-	local info = getSubmoduleInfo(submodule)
-	logger.log(info.extensionName, info.moduleName, "INFO", message)
+	logger.modApiBaseLog(1, "INFO", message)
 end
 
 return logger
