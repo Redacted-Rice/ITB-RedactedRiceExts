@@ -10,7 +10,6 @@ For 1.0 release:
 	score
 4. Replace local fns with private fns (at least not nested fns)
 5. Pull out pawn into a memhack class
-6. Make LOG show where it was called from if feasible or remove and go back to calling explicitly
 
 Next release:
 1. Look into adding tests on c++ side?

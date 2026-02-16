@@ -8,6 +8,7 @@ local Pilot = memhack.structManager:define("Pilot", {
 	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
 	prevTimelines = { offset = 0x27C, type = "int" },
 }, 0x004320d4)
+--0x00435dcc
 
 local itbStrGetterName = memhack.structs.ItBString.makeItBStringGetterName
 
@@ -20,16 +21,6 @@ Pilot.stateDefinition = {
 	-- lvl up skills specifically excluded - separate trigger for that
 	"prevTimelines",
 }
-
--- todo: add vftable ref? 0x008320d4
--- pilot pointer vtable ref 00828790
--- skill pointer vtable ref 008287a4
--- Skill has no vtable
--- Smart pointer - two pointers - struct addr, mem_management addr
--- TODO: Add a "verify" function generated that checks the struct looks valid?
--- Checks address is not nil, checks vtable, spot checks fields? e.g. for pilot,
--- getId, check it looks like a string, check it matches somthing in _G, check
--- that that looks like a pilot
 
 local selfSetter = memhack.structManager:makeStdSelfSetterName()
 local methodGen = memhack.structManager._methodGeneration
