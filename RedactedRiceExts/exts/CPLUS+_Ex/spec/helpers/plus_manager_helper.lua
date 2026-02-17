@@ -10,6 +10,13 @@ local _originalMathRandom = math.random
 function M.setupGlobals()
 	_G.LOG = _G.LOG or function(msg) end
 
+	-- Setup mod_loader for logger
+	_G.mod_loader = _G.mod_loader or {
+		logger = {
+			log = function(caller, ...) end
+		}
+	}
+
 	_G.GetParentPath = _G.GetParentPath or function(modPath)
 		return ""
 	end
@@ -25,7 +32,7 @@ function M.setupGlobals()
 			SCANNER = false,
 		}
 		-- Load logger from memhack using loadfile
-		local loggingFile = "../memhack/utils/logging.lua"
+		local loggingFile = "../memhack/utils/logger.lua"
 		local loggingFunc, err = loadfile(loggingFile)
 		if not loggingFunc then
 			error("Failed to load memhack logger: " .. tostring(err))
@@ -240,21 +247,48 @@ function M.setupTestSkills(skills)
 	end
 end
 
--- Mock math.random to return predetermined values
--- Takes an array of values to return in sequence
-function M.mockMathRandom(values)
-	local index = 1
-	math.random = function(...)
-		if index <= #values then
-			local value = values[index]
-			index = index + 1
-			return value
+-- Mock math.random with separate float and integer value arrays
+-- floatValues: array of values to return for math.random() calls (no args)
+-- intValues: array of values to return for math.random(min, max) calls (with args)
+function M.mockMathRandom(floatValues, intValues)
+	local floatIndex = 1
+	local intIndex = 1
+	
+	math.random = function(min, max)
+		-- No arguments: float mode
+		if min == nil and max == nil then
+			if floatIndex <= #floatValues then
+				local value = floatValues[floatIndex]
+				floatIndex = floatIndex + 1
+				return value
+			else
+				-- return nil to make sure we are aware we ran out of values
+				return nil
+			end
+		-- With arguments: integer mode
 		else
-			-- return nil to make sure we are aware we ran out of values
-			-- as this could cause unexpected test behavior
-			return nil
+			if intIndex <= #intValues then
+				local value = intValues[intIndex]
+				intIndex = intIndex + 1
+				return value
+			else
+				-- return nil to make sure we are aware we ran out of values
+				return nil
+			end
 		end
 	end
+end
+
+-- Mock math.random for float-only usage (calls with no arguments)
+-- Takes an array of float values to return in sequence
+function M.mockMathRandomFloat(values)
+	M.mockMathRandom(values, {})
+end
+
+-- Mock math.random for integer-only usage (calls with min, max arguments)
+-- Takes an array of integer values to return in sequence
+function M.mockMathRandomInt(values)
+	M.mockMathRandom({}, values)
 end
 
 -- Restore original math.random function

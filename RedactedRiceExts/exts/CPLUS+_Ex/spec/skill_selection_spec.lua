@@ -145,17 +145,17 @@ describe("Skill Selection Module", function()
 			local availableSkills = {"Health", "Move", "Grid"}
 
 			-- Mock random value of 0.3 * 3.0 = 0.9 -> should select Health
-			helper.mockMathRandom({0.1})
+			helper.mockMathRandomFloat({0.1})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Health", result)
 
 			-- Mock random value of 0.5 * 3.0 = 1.5 -> should select Move
-			helper.mockMathRandom({0.5})
+			helper.mockMathRandomFloat({0.5})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Move", result)
 
 			-- Mock random value of 0.9 * 3.0 = 2.7 -> should select Grid
-			helper.mockMathRandom({0.9})
+			helper.mockMathRandomFloat({0.9})
 			result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Grid", result)
 		end)
@@ -186,27 +186,27 @@ describe("Skill Selection Module", function()
 			-- Epic: 18 - 19
 
 			-- Test selecting Common (random = 0.2 * 19 = 3.8)
-			helper.mockMathRandom({0.2})
+			helper.mockMathRandomFloat({0.2})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Common", result)
 
 			-- Test selecting Common (random = 0.5 * 19 = 9.5, still in Common range)
-			helper.mockMathRandom({0.5})
+			helper.mockMathRandomFloat({0.5})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Common", result)
 
 			-- Test selecting Uncommon (random = 0.65 * 19 = 12.35)
-			helper.mockMathRandom({0.65})
+			helper.mockMathRandomFloat({0.65})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Uncommon", result)
 
 			-- Test selecting Rare (random = 0.85 * 19 = 16.15)
-			helper.mockMathRandom({0.85})
+			helper.mockMathRandomFloat({0.85})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Rare", result)
 
 			-- Test selecting Epic (random = 0.99 * 19 = 18.81)
-			helper.mockMathRandom({0.99})
+			helper.mockMathRandomFloat({0.99})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Epic", result)
 		end)
@@ -235,7 +235,7 @@ describe("Skill Selection Module", function()
 			-- SkillC: 1.0 - 2.0
 
 			-- Even with very low random, should skip SkillA
-			helper.mockMathRandom({0.01})
+			helper.mockMathRandomFloat({0.01})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.is_not.equals("SkillA", result)
 			assert.is_true(result == "SkillB" or result == "SkillC")
@@ -251,7 +251,7 @@ describe("Skill Selection Module", function()
 
 			-- Total weight = 4.0
 			-- Test exact boundary: 1.0 / 4.0 = 0.25
-			helper.mockMathRandom({0.25})
+			helper.mockMathRandomFloat({0.25})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			-- Should select SkillA (randomValue * 4 = 1.0, which is <= 1.0)
 			assert.equals("SkillA", result)
@@ -284,11 +284,11 @@ describe("Skill Selection Module", function()
 			-- Skill2: 0 - 2.0
 			-- Skill4: 2.0 - 6.0
 
-			helper.mockMathRandom({0.2})
+			helper.mockMathRandomFloat({0.2})
 			local result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Skill2", result)
 
-			helper.mockMathRandom({0.99})
+			helper.mockMathRandomFloat({0.99})
 			result = plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId(availableSkills)
 			assert.equals("Skill4", result)
 		end)
@@ -306,7 +306,7 @@ describe("Skill Selection Module", function()
 			-- Initial state: localRandomCount should be nil
 			assert.is_nil(plus_manager._subobjects.skill_selection.localRandomCount)
 
-			helper.mockMathRandom({0.5})
+			helper.mockMathRandomFloat({0.5})
 			plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId({"SkillX", "SkillY"})
 
 			-- After first call, localRandomCount should be initialized
@@ -315,7 +315,7 @@ describe("Skill Selection Module", function()
 		end)
 
 		it("should increment random count on each call", function()
-			helper.mockMathRandom({0.5, 0.5, 0.5})
+			helper.mockMathRandomFloat({0.5, 0.5, 0.5})
 
 			plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId({"SkillX", "SkillY"})
 			assert.equals(1, plus_manager._subobjects.skill_selection.localRandomCount)
@@ -328,7 +328,7 @@ describe("Skill Selection Module", function()
 		end)
 
 		it("should sync random count to GAME state", function()
-			helper.mockMathRandom({0.5, 0.5})
+			helper.mockMathRandomFloat({0.5, 0.5})
 
 			plus_manager._subobjects.skill_selection:_getWeightedRandomSkillId({"SkillX", "SkillY"})
 			assert.equals(1, GAME.cplus_plus_ex.randomSeedCnt)
@@ -375,7 +375,7 @@ describe("Skill Selection Module", function()
 
 		it("should generate random saveVal when no preassigned value and registered is -1", function()
 			local storedSkill = {id = "TestSkill"}
-			helper.mockMathRandom({0.5})  -- Will generate saveVal 6 (0.5 * 13 = 6.5, rounded down)
+			helper.mockMathRandomInt({6})  -- Will generate saveVal 6
 			
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, nil)
 			
@@ -400,7 +400,7 @@ describe("Skill Selection Module", function()
 			local preassignedVal = 5
 			local excludeVal = 5  -- Same as preassigned, should conflict
 			
-			helper.mockMathRandom({0.3})  -- Will generate different value
+			helper.mockMathRandomInt({3})  -- Will generate different value
 			
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", preassignedVal, excludeVal)
 			
@@ -415,7 +415,7 @@ describe("Skill Selection Module", function()
 			local storedSkill = {id = "TestSkill"}
 			local excludeVal = 8  -- Same as registered, should conflict
 			
-			helper.mockMathRandom({0.6})  -- Will generate different value
+			helper.mockMathRandomInt({6})  -- Will generate different value
 			
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, excludeVal)
 			
@@ -447,7 +447,7 @@ describe("Skill Selection Module", function()
 			local preassignedVal1 = 7
 			local preassignedVal2 = 7  -- Same as first
 			
-			helper.mockMathRandom({0.8})  -- For generating different value for second skill
+			helper.mockMathRandomInt({8})  -- For generating different value for second skill
 			
 			-- First skill
 			local result1 = skill_selection:_getOrAssignSaveVal(storedSkill1, registeredSkill, "TestPilot", "Skill1", preassignedVal1, nil)
