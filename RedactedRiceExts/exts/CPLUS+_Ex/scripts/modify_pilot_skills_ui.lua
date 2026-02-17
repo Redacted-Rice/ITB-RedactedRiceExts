@@ -56,7 +56,7 @@ modify_pilot_skills_ui.unnamedPilotDisplayNames = {
 }
 
 -- Helper to sort skill IDs by name
-local function getSortedIds(skillTable)
+function modify_pilot_skills_ui:getSortedIds(skillTable)
 	local sortedIds = {}
 	for id in pairs(skillTable) do
 		table.insert(sortedIds, id)
@@ -95,7 +95,7 @@ function modify_pilot_skills_ui:getPilotsData()
 		end
 	end
 
-	local ids = getSortedIds(pilotData)
+	local ids = self:getSortedIds(pilotData)
 	return pilotData, ids
 end
 
@@ -115,7 +115,7 @@ function modify_pilot_skills_ui:getSkillsData()
 	end
 
 	return skills, defaultSkills, inclusionSkills,
-	       getSortedIds(skills), getSortedIds(defaultSkills), getSortedIds(inclusionSkills)
+	       self:getSortedIds(skills), self:getSortedIds(defaultSkills), self:getSortedIds(inclusionSkills)
 end
 
 function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
@@ -138,26 +138,26 @@ function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
 end
 
 -- Helper to close collapse section
-local function closeCollapsable(self)
-	if not list_contains(expandedCollapsables, self) then
+function modify_pilot_skills_ui:closeCollapsable(collapsable)
+	if not list_contains(expandedCollapsables, collapsable) then
 		return
 	end
 
-	remove_element(expandedCollapsables, self)
-	self.dropdownHolder:hide()
-	self.checked = false
+	remove_element(expandedCollapsables, collapsable)
+	collapsable.dropdownHolder:hide()
+	collapsable.checked = false
 end
 
 -- Helper to open collapse section
-local function openCollapsable(self)
-	if not list_contains(expandedCollapsables, self) then
-		table.insert(expandedCollapsables, self)
+function modify_pilot_skills_ui:openCollapsable(collapsable)
+	if not list_contains(expandedCollapsables, collapsable) then
+		table.insert(expandedCollapsables, collapsable)
 	end
-	self.dropdownHolder:show()
+	collapsable.dropdownHolder:show()
 end
 
 -- Helper to check if a UI element is a descendant of another
-local function isDescendantOf(child, parent)
+function modify_pilot_skills_ui:isDescendantOf(child, parent)
 	while child.parent do
 		child = child.parent
 		if child == parent then
@@ -168,23 +168,23 @@ local function isDescendantOf(child, parent)
 end
 
 -- Click handler for collapse buttons
-local function clickCollapse(self, button)
+function modify_pilot_skills_ui:clickCollapse(collapsable, button)
 	if button == 1 then
 		-- Close any descendant dropdowns when opening/closing
 		if #expandedCollapsables > 0 then
 			for _, dropdown in ipairs(expandedCollapsables) do
 				if dropdown ~= self then
-					if isDescendantOf(dropdown.owner, self.owner) then
-						closeCollapsable(dropdown)
+					if self:isDescendantOf(dropdown.owner, collapsable.owner) then
+						self:closeCollapsable(dropdown)
 					end
 				end
 			end
 		end
 
-		if self.checked then
-			openCollapsable(self)
+		if collapsable.checked then
+			self:openCollapsable(collapsable)
 		else
-			closeCollapsable(self)
+			self:closeCollapsable(collapsable)
 		end
 		return true
 	end
@@ -228,7 +228,7 @@ function modify_pilot_skills_ui:buildCollapsibleSectionBase(title, parent, vgap,
 		:addTo(headerHolder)
 
 	collapse.checked = not startCollapsed
-	collapse.onclicked = clickCollapse
+	collapse.onclicked = function(button) self:clickCollapse(collapse, button) end
 	collapse.dropdownHolder = contentHolder
 	collapse.owner = sectionBox
 
@@ -236,7 +236,7 @@ function modify_pilot_skills_ui:buildCollapsibleSectionBase(title, parent, vgap,
 	if startCollapsed then
 		contentHolder:hide()
 	else
-		openCollapsable(collapse)
+		self:openCollapsable(collapse)
 	end
 
 	return collapse, headerHolder
@@ -521,6 +521,92 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 	return enabledCheckbox
 end
 
+-- Apply weight changes to a skill from weight input field
+function modify_pilot_skills_ui:_applyWeightChange(weightInput, skill)
+	local isValid, value = self:validateNumericInput(weightInput.textfield)
+	if isValid and value >= 0 then
+		-- Format to 2 decimal places
+		weightInput.textfield = string.format("%.2f", value)
+		cplus_plus_ex:setSkillConfig(skill.id, {weight = value})
+		self:updateAllPercentages()
+		cplus_plus_ex:saveConfiguration()
+	else
+		-- Reset to current value if invalid
+		local currentConfig = cplus_plus_ex.config.skillConfigs[skill.id]
+		if currentConfig then
+			weightInput.textfield = string.format("%.2f", currentConfig.weight)
+		end
+	end
+end
+
+-- Sort skills based on current sort option
+function modify_pilot_skills_ui:_sortSkillsByCurrentSort(skills, currentSkillSort)
+	local sortedSkills = {}
+	for _, skill in ipairs(skills) do
+		-- Only include valid skill objects with an id
+		if skill and skill.id then
+			table.insert(sortedSkills, skill)
+		end
+	end
+
+	table.sort(sortedSkills, function(a, b)
+		-- Safety checks
+		if not a or not a.id then return false end
+		if not b or not b.id then return true end
+
+		local aConfig = cplus_plus_ex.config.skillConfigs[a.id]
+		local bConfig = cplus_plus_ex.config.skillConfigs[b.id]
+
+		-- Get names
+		local aName = ""
+		if a.shortName then
+			aName = GetText(a.shortName) or a.shortName or ""
+		end
+		local bName = ""
+		if b.shortName then
+			bName = GetText(b.shortName) or b.shortName or ""
+		end
+
+		-- Fallback to name if either config is missing
+		if not aConfig or not bConfig then
+			return aName:lower() < bName:lower()
+		end
+
+		-- 1 falls down to the default (name)
+		-- Each option sorts primary then falls back to name (secondary)
+		if currentSkillSort == 2 then
+			-- Sort by enabled then name
+			if aConfig.enabled ~= bConfig.enabled then
+				return aConfig.enabled
+			end
+		elseif currentSkillSort == 3 then
+			-- Sort by reusability then name
+			if aConfig.reusability ~= bConfig.reusability then
+				return aConfig.reusability < bConfig.reusability
+			end
+		elseif currentSkillSort == 4 then
+			-- Sort by Weight/% then name
+			if aConfig.weight ~= bConfig.weight then
+				return aConfig.weight > bConfig.weight
+			end
+		end
+		-- Fallback to name
+		return aName:lower() < bName:lower()
+	end)
+
+	return sortedSkills
+end
+
+-- Update tooltip for a dropdown with base message and choice-specific tooltip
+function modify_pilot_skills_ui:_updateDropdownTooltip(widget, baseTooltip, tooltips)
+	local selectedTooltip = tooltips[widget.choice] or ""
+	if selectedTooltip ~= "" then
+		widget:settooltip(baseTooltip .. "\n\nCurrent: " .. selectedTooltip)
+	else
+		widget:settooltip(baseTooltip)
+	end
+end
+
 function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resuability, resuabilityLength)
 	local allowedReusability = cplus_plus_ex:getAllowedReusability(skill.id)
 	local reusabilityValues = {}
@@ -562,18 +648,13 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 			:addTo(entryRow)
 
 		-- Set initial tooltip with selected option description
-		local function updateTooltip()
-			local baseTooltip = "Skill reusability setting"
-			local selectedTooltip = reusabilityTooltips[reusabilityWidget.choice] or ""
-			reusabilityWidget:settooltip(baseTooltip .. "\n\nCurrent: " .. selectedTooltip)
-		end
-		updateTooltip()
+		self:_updateDropdownTooltip(reusabilityWidget, "Skill reusability setting", reusabilityTooltips)
 
 		-- Handle reusability changes
 		reusabilityWidget.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 			cplus_plus_ex:setSkillConfig(skill.id, {reusability = newValue})
 			cplus_plus_ex:saveConfiguration()
-			updateTooltip()
+			self:_updateDropdownTooltip(reusabilityWidget, "Skill reusability setting", reusabilityTooltips)
 		end)
 	end
 end
@@ -597,27 +678,9 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weig
 	weightInput:setAlphabet("0123456789.")
 	weightInput.textfield = string.format("%.2f", weight)
 
-	-- Function to apply weight changes
-	local function applyWeightChange(weightInput)
-		local isValid, value = self:validateNumericInput(weightInput.textfield)
-		if isValid and value >= 0 then
-			-- Format to 2 decimal places
-			weightInput.textfield = string.format("%.2f", value)
-			cplus_plus_ex:setSkillConfig(skill.id, {weight = value})
-			self:updateAllPercentages()
-			cplus_plus_ex:saveConfiguration()
-		else
-			-- Reset to current value if invalid
-			local currentConfig = cplus_plus_ex.config.skillConfigs[skill.id]
-			if currentConfig then
-				self.textfield = string.format("%.2f", currentConfig.weight)
-			end
-		end
-	end
-
 	-- Handle Enter key
 	weightInput.onEnter = function(wi)
-		applyWeightChange(wi)
+		self:_applyWeightChange(wi, skill)
 		local result = UiInputField.onEnter(wi)
 		return result
 	end
@@ -626,7 +689,7 @@ function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weig
 	weightInput.onFocusChangedEvent:subscribe(function(wi, focused, focused_prev)
 		if not focused and focused_prev then
 			-- Lost focus, apply changes
-			applyWeightChange(wi)
+			self:_applyWeightChange(wi, skill)
 		end
 	end)
 end
@@ -741,64 +804,6 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	end
 	table.sort(sortedCategories)
 
-	-- Function to sort skills based on current sort option
-	local function sortSkills(skills)
-		local sortedSkills = {}
-		for _, skill in ipairs(skills) do
-			-- Only include valid skill objects with an id
-			if skill and skill.id then
-				table.insert(sortedSkills, skill)
-			end
-		end
-
-		table.sort(sortedSkills, function(a, b)
-			-- Safety checks
-			if not a or not a.id then return false end
-			if not b or not b.id then return true end
-
-			local aConfig = cplus_plus_ex.config.skillConfigs[a.id]
-			local bConfig = cplus_plus_ex.config.skillConfigs[b.id]
-
-			-- Get names
-			local aName = ""
-			if a.shortName then
-				aName = GetText(a.shortName) or a.shortName or ""
-			end
-			local bName = ""
-			if b.shortName then
-				bName = GetText(b.shortName) or b.shortName or ""
-			end
-
-			-- Fallback to name if either config is missing
-			if not aConfig or not bConfig then
-				return aName:lower() < bName:lower()
-			end
-
-			-- 1 falls down to the default (name)
-			-- Each option sorts primary then falls back to name (secondary)
-			if currentSkillSort == 2 then
-				-- Sort by enabled then name
-				if aConfig.enabled ~= bConfig.enabled then
-					return aConfig.enabled
-				end
-			elseif currentSkillSort == 3 then
-				-- Sort by reusability then name
-				if aConfig.reusability ~= bConfig.reusability then
-					return aConfig.reusability < bConfig.reusability
-				end
-			elseif currentSkillSort == 4 then
-				-- Sort by Weight/% then name
-				if aConfig.weight ~= bConfig.weight then
-					return aConfig.weight > bConfig.weight
-				end
-			end
-			-- Fallback to name
-			return aName:lower() < bName:lower()
-		end)
-
-		return sortedSkills
-	end
-
 	-- Function to rebuild all categories with current sort
 	local function rebuildSkillCategories()
 		-- Clear existing content but keep header
@@ -812,7 +817,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 		-- Build each category section
 		for _, category in ipairs(sortedCategories) do
-			local skills = sortSkills(skillsByCategory[category])
+			local skills = self:_sortSkillsByCurrentSort(skillsByCategory[category], currentSkillSort)
 			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, false)
 
 			-- Track checkboxes for this category
@@ -967,21 +972,13 @@ function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, 
 		:addTo(row)
 
 	-- Set initial tooltip with selected option description
-	local function updateTooltip()
-		local baseTooltip = "Select " .. label:lower() .. " (or All)"
-		local selectedTooltip = listTooltips[dropDown.choice] or ""
-		if selectedTooltip ~= "" then
-			dropDown:settooltip(baseTooltip .. "\n\nCurrent: " .. selectedTooltip)
-		else
-			dropDown:settooltip(baseTooltip)
-		end
-	end
-	updateTooltip()
+	local baseTooltip = "Select " .. label:lower() .. " (or All)"
+	self:_updateDropdownTooltip(dropDown, baseTooltip, listTooltips)
 
 	-- Handle reusability changes
 	dropDown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 		selectFn(oldChoice, oldValue, newChoice, newValue)
-		updateTooltip()
+		self:_updateDropdownTooltip(dropDown, baseTooltip, listTooltips)
 	end)
 end
 
@@ -1486,7 +1483,7 @@ function modify_pilot_skills_ui:buildDialogButtons(buttonLayout)
 end
 
 -- Called when dialog is closed
-local function onExit()
+function modify_pilot_skills_ui:onExit()
 	cplus_plus_ex:saveConfiguration()
 	scrollContent = nil
 	percentageLabels = {}
@@ -1500,7 +1497,7 @@ function modify_pilot_skills_ui:createDialog()
 	cplus_plus_ex:loadConfiguration()
 
 	sdlext.showDialog(function(ui, quit)
-		ui.onDialogExit = onExit
+		ui.onDialogExit = function() self:onExit() end
 
 		local frame = sdlext.buildButtonDialog(
 			"Modify Pilot Level Up Skills",

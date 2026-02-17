@@ -59,13 +59,13 @@ end
 ------------------ Helper functions ------------------
 
 -- Check if a pilot is high enough level for the skill at the given index to be earned
-local function hasPilotEarnedSkillIndex(pilot, skillIndex)
+function skill_state_tracker:hasPilotEarnedSkillIndex(pilot, skillIndex)
 	if not pilot then return false end
 	local result = pilot:getLevel() >= skillIndex
 	return result
 end
 
-local function getPilotEarnedSkillIndexes(pilot)
+function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
 	local pilotLevel = pilot:getLevel()
 	local result = {}
 	for skillIndex = 1, pilotLevel do
@@ -80,7 +80,7 @@ end
 
 function skill_state_tracker:isSkillOnPawn(skillId, pawn, checkEarned)
 	local pilot = pawn:GetPilot()
-	if pilot then 
+	if pilot then
 		return self:isSkillOnPilot(skillId, pilot, checkEarned)
 	end
 end
@@ -105,7 +105,7 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 					if currentSkillId == skillId then
 						if not checkEarned then
 							return true
-						elseif hasPilotEarnedSkillIndex(pilot, skillIndex) then
+						elseif self:hasPilotEarnedSkillIndex(pilot, skillIndex) then
 							return true
 						end
 					end
@@ -144,7 +144,7 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 					if currentSkillId == skillId then
 						if not checkEarned then
 							table.insert(skillIndices, skillIndex)
-						elseif hasPilotEarnedSkillIndex(pilot, skillIndex) then
+						elseif self:hasPilotEarnedSkillIndex(pilot, skillIndex) then
 							table.insert(skillIndices, skillIndex)
 						end
 					end
@@ -274,7 +274,7 @@ function skill_state_tracker:_determineInRunSkillsState()
 	for _, pilot in ipairs(availablePilots) do
 		local pilotAddr = pilot:getAddress()
 		-- Check each skill slot
-		for _, skillIndex in ipairs(getPilotEarnedSkillIndexes(pilot)) do
+		for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
 			local skill = pilot:getLvlUpSkill(skillIndex)
 			if skill then
 				local skillId = skill:getIdStr()
@@ -382,7 +382,7 @@ function skill_state_tracker:_determineActiveSkillsState()
 	for _, pilot in ipairs(squadPilots) do
 		local pawnId = pilot:getPawnId()
 		-- Check each skill slot
-		for _, skillIndex in ipairs(getPilotEarnedSkillIndexes(pilot)) do
+		for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
 			local skill = pilot:getLvlUpSkill(skillIndex)
 			if skill then
 				local skillId = skill:getIdStr()
@@ -465,7 +465,7 @@ function skill_state_tracker:updateAllStates()
 		logger.logDebug(SUBMODULE, "Update all states: skipping during assignment")
 		return
 	end
-	
+
 	self:updateEnabledSkills()
 	if self._hasAppliedSkill then
 		self:updateInRunSkills()
