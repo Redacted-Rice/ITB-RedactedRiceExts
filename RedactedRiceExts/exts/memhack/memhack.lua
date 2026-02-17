@@ -67,6 +67,7 @@ function memhack:init(mockDll)
 	require(path.."structs/victory_screen")
 	require(path.."structs/unknown_obj_1")
 	require(path.."structs/game_map")
+	require(path.."structs/board_pawn")
 
 	-- Load added functions to existing game classes
 	require(path.."appended_fns/game")
