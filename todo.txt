@@ -5,14 +5,18 @@ For 1.0 release:
 	3. pilot (in mech)
 	4. storage (very complex)
 2. Add memory analyzer
-3. Get working for steam version
-	Pilot vtable
+3. Pilot verification not using vtable
 	
 	
 1.1 Release:
 1. Move errors to logs for validation and other things
 2. Add more lua tests
 3. Look into adding tests on c++ side?
+
+1.2 Release:
+1. Steam & GoG offset fixes
+	a. Maybe could use known vtables (like pilot) to determine GoG vs Steam and then use the corresponding offset
+	b. Current fields needing this: Score
 
 
 ---------- PLUS Ex ---------
