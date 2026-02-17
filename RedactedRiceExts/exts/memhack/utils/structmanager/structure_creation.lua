@@ -35,7 +35,7 @@ function structureCreation.addInstanceMethods(StructType, layout)
 end
 
 -- Helper: Calculate size for a single field
-local function calculateFieldSize(field)
+function structureCreation._calculateFieldSize(field)
 	local handler = TYPE_HANDLERS[field.type]
 
 	if handler.size then
@@ -64,7 +64,7 @@ local function calculateFieldSize(field)
 end
 
 -- Helper: Find the field with the maximum offset
-local function findMaxOffsetField(layout)
+function structureCreation._findMaxOffsetField(layout)
 	local maxOffset = -1
 	local maxField = nil
 
@@ -185,12 +185,12 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 
 	-- Calculate structure size
 	function StructType.StructSize()
-		local maxOffset, maxField = findMaxOffsetField(layout)
+		local maxOffset, maxField = structureCreation._findMaxOffsetField(layout)
 		if not maxField then
 			return 0
 		end
 
-		local maxSize = calculateFieldSize(maxField)
+		local maxSize = structureCreation._calculateFieldSize(maxField)
 		if not maxSize then
 			return nil  -- Cannot determine size
 		end

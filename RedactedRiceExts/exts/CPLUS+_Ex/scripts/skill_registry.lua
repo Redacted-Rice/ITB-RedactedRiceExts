@@ -105,11 +105,11 @@ function skill_registry:registerVanilla()
 end
 
 -- Helper function to register pilot-skill relationships
-local function registerPilotSkillRelationship(targetTable, pilotId, skillIds, relationshipType)
+function skill_registry:registerPilotSkillRelationship(targetTable, pilotId, skillIds, relationshipType)
 	if targetTable[pilotId] == nil then
 		targetTable[pilotId] = {}
 	end
-	
+
 	if type(skillIds) == "string" then
 		skillIds = {skillIds}
 	end
@@ -126,7 +126,7 @@ end
 -- Registers pilot skill exclusions
 -- Takes pilot id and list of skill ids to exclude
 function skill_registry:registerPilotSkillExclusions(pilotId, skillIds)
-	registerPilotSkillRelationship(skill_config.config.pilotSkillExclusions, pilotId, skillIds, "exclusion")
+	self:registerPilotSkillRelationship(skill_config.config.pilotSkillExclusions, pilotId, skillIds, "exclusion")
 end
 
 -- Registers pilot skill inclusions
@@ -134,7 +134,7 @@ end
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
 function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
-	registerPilotSkillRelationship(skill_config.config.pilotSkillInclusions, pilotId, skillIds, "inclusion")
+	self:registerPilotSkillRelationship(skill_config.config.pilotSkillInclusions, pilotId, skillIds, "inclusion")
 end
 
 -- Registers a skill to skill exclusion

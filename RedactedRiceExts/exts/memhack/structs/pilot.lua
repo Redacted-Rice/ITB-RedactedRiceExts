@@ -41,7 +41,7 @@ Pilot._calculateLevelUpXp = function(level)
 	return result
 end
 
-local function applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
+Pilot._applyLevelChange = function(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
 	local newLevelUpXp = self._calculateLevelUpXp(newLevel)
 
 	self:_setXp(0)

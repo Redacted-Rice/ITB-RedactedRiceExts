@@ -176,7 +176,7 @@ function skill_selection:selectRandomSkills(availableSkills, pilot, count)
 	return selectedSkills
 end
 
-local function skillDataToTable(id, shortName, fullName, description, saveVal, bonuses)
+function skill_selection:skillDataToTable(id, shortName, fullName, description, saveVal, bonuses)
 	return {id = id, shortName = shortName, fullName = fullName, description = description,
 		healthBonus = bonuses.health or 0, coresBonus = bonuses.cores or 0, gridBonus = bonuses.grid or 0,
 		moveBonus = bonuses.move or 0, saveVal = saveVal}
@@ -208,7 +208,7 @@ function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilot
 
 	-- Start with registered skill's default saveVal
 	local saveVal = registeredSkill.saveVal
-	
+
 	-- If saveVal is -1 (random), prefer the preassigned in-memory value
 	if saveVal == -1 then
 		if preassignedVal ~= nil then
@@ -219,7 +219,7 @@ function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilot
 			logger.logDebug(SUBMODULE, "Assigned random saveVal %d to skill %s for pilot %s (no preassigned value)", saveVal, skillId, pilotId)
 		end
 	end
-	
+
 	-- Check for conflict with excludeVal and reassign if needed
 	if excludeVal ~= nil and saveVal == excludeVal then
 		saveVal = self:_generateSaveVal(excludeVal)
@@ -325,11 +325,11 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 	-- Apply both skills with their determined saveVal
 	if skill1Id ~= pilot:getLvlUpSkill(1):getIdStr() then
-		pilot:setLvlUpSkill(1, skillDataToTable(
+		pilot:setLvlUpSkill(1, self:skillDataToTable(
 				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses))
 	end
 	if skill2Id ~= pilot:getLvlUpSkill(2):getIdStr() then
-		pilot:setLvlUpSkill(2, skillDataToTable(
+		pilot:setLvlUpSkill(2, self:skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
 

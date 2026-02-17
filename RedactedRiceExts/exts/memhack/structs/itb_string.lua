@@ -3,6 +3,8 @@ local ITB_STRING_LOCAL = 0x0F
 local ITB_STRING_REMOTE = 0x1F
 
 -- Validation function for ItBString structures
+-- Note this has to be local as we don't have the ItBString table yet. We can access it later
+-- via validate as well
 local function validateItBString(itbStr)
 	-- Check that unionType is valid
 	local unionType = itbStr:getUnionType()

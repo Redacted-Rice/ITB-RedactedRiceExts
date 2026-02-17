@@ -8,7 +8,6 @@ For 1.0 release:
 3. Get working for steam version
 	Pilot vtable
 	score
-4. Replace local fns with private fns (at least not nested fns)
 
 Next release:
 1. Look into adding tests on c++ side?

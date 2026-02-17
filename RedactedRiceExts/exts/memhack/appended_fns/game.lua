@@ -37,7 +37,7 @@ local function onGameClassInitialized(GameClass)
 	-- There may be some other interesting pointers or values stored here as well
 	-- but this doesn't seem to be part of GameMap interestingly and is static -
 	-- it doesn't change address per run (but obviously is cleared/reset on load/new game)
-	local function getScoreAddr()
+	GameClass._getScoreAddr = function(self)
 		local exeBase = memhack.dll.process.getExeBase()
 		local intermediateAddr = memhack.dll.memory.readPointer(exeBase + 0x4D19E0)
 		local gameStateStructAddr = memhack.dll.memory.readPointer(intermediateAddr + 0x20)
