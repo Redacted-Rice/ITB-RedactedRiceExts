@@ -136,8 +136,8 @@ function skill_config:setSkillConfig(skillId, config)
 			return
 		end
 		new_config.reusability = config.reusability
-		logger.logDebug(SUBMODULE, "Set skill reusability from %s to %s for skill %s", 
-				cplus_plus_ex.REUSABLILITY[utils.normalizeReusabilityToInt(curr_config.reusability)], 
+		logger.logDebug(SUBMODULE, "Set skill reusability from %s to %s for skill %s",
+				cplus_plus_ex.REUSABLILITY[utils.normalizeReusabilityToInt(curr_config.reusability)],
 				cplus_plus_ex.REUSABLILITY[normalizeReuse], skillId)
 	end
 
@@ -243,10 +243,13 @@ function skill_config:saveConfiguration()
 	sdlext.config(
 		modApi:getCurrentProfilePath().."modcontent.lua",
 		function(obj)
+			-- Get existing cplus_plus section if it exists or create it
 			obj.cplus_plus_ex = obj.cplus_plus_ex or {}
-			-- reset the whole table on save? Maybe just copy over changes like on load?
+			-- Just copy over the whole table each time instead of trying to update
+			-- Seems safer that way although removing & readding mods may then have
+			-- their configs cleared which seems fine to me
 			obj.cplus_plus_ex.skill_config = utils.deepcopy(skill_config.config)
-			
+
 			-- clear out some unneded fields
 			for id, config in pairs(obj.cplus_plus_ex.skill_config.skillConfigs) do
 				config.__index = nil
@@ -276,7 +279,7 @@ function skill_config:loadConfiguration()
 				if savedConfig.allowReusableSkills ~= nil then
 					skill_config.config.allowReusableSkills = savedConfig.allowReusableSkills
 				end
-				
+
 				-- Update UI sort preferences
 				if savedConfig.skillConfigSortOrder then
 					skill_config.config.skillConfigSortOrder = savedConfig.skillConfigSortOrder
