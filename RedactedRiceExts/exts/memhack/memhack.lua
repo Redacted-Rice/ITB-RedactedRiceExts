@@ -14,7 +14,7 @@ memhack.DEBUG = {
 }
 
 -- Load logging utilities first and expose at memhack level
-memhack.logger = require(path.."utils/logging")
+memhack.logger = require(path.."utils/logger")
 
 -- Local reference for use in this file
 local logger = memhack.logger

@@ -84,6 +84,13 @@ end
 function M.setupGlobals()
 	_G.LOG = _G.LOG or function(msg) end
 
+	-- Setup mod_loader for logger
+	_G.mod_loader = _G.mod_loader or {
+		logger = {
+			log = function(caller, ...) end
+		}
+	}
+
 	_G.GetParentPath = _G.GetParentPath or function(modPath)
 		return ""
 	end
