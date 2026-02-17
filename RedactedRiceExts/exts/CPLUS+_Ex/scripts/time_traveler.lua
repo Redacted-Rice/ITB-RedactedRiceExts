@@ -4,7 +4,7 @@
 -- so that we have the info to use for the potential time travelers to search for
 -- and apply as appropriate.
 -- I ended up needing to track all pilots because any could be a time traveler. This is now
--- redundant with the data saved in saveData but it seems more intuitive to use that data 
+-- redundant with the data saved in saveData but it seems more intuitive to use that data
 -- primarily so I will keep it as is.
 
 local time_traveler = {}
@@ -146,7 +146,9 @@ function time_traveler:savePersistentDataIfChanged()
 		logger.logDebug(SUBMODULE, "Saving persistent data")
 		sdlext.config(modApi:getCurrentProfilePath().."modcontent.lua",
 				function(readObj)
-					readObj.cplus_plus_ex = {}
+					-- Get existing cplus_plus section if it exists or create it
+					readObj.cplus_plus_ex = readObj.cplus_plus_ex or {}
+					-- Clear out last_run_pilots to ensure no stale data
 					readObj.cplus_plus_ex.last_run_pilots = {}
 					for _, pilot in pairs(Game:GetAvailablePilots()) do
 						local id = pilot:getIdStr()
