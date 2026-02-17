@@ -1,3 +1,42 @@
+
+-- Validation function for ItBString structures
+-- Note this has to be local as we don't have the ItBString table yet. We can access it later
+-- via validate as well
+local function validatePilot(pilot)
+	-- Check the id is a valid string and is in _G like all pilots should be
+	local id = pilot:getIdStr()
+	if not id then
+		return false, "Pilot ID is nil"
+	end
+	local pilotTable = _G[id]
+	if not pilotTable then
+		return false, string.format("Pilot table for ID %s not found", id)
+	end
+
+	-- Check that the value in _G is in fact a pilot table
+	if type(pilotTable) ~= "table" then
+		return false, string.format("Pilot table for ID %s is not a table (type: %s)", id, type(pilotTable))
+	end
+	if _G.Pilot and getmetatable(pilotTable) ~= _G.Pilot then
+		return false, string.format("Pilot table for ID %s does not have _G.Pilot as metatable", id)
+	end
+
+	-- To guard against places where ID is used, also cehck the skill string as a secondary
+	-- check. This prevents falsely verifying something that was based soley off of ID string
+	local skillStr = pilot:getSkillStr()
+	-- If there is no skill (e.g. a recruit), the skillStr should be empty
+	-- If there is a skill, it should match the skill string
+	if pilotTable.Skill == nil then
+		if skillStr ~= "" then
+			return false, string.format("Pilot %s has skill '%s' but pilot table has no Skill member", id, skillStr)
+		end
+	elseif skillStr ~= pilotTable.Skill then
+		return false, string.format("Pilot %s skill mismatch: struct has '%s' but pilot table has '%s'",
+				id, skillStr, pilotTable.Skill)
+	end
+	return true
+end
+
 local Pilot = memhack.structManager:define("Pilot", {
 	name = { offset = 0x14, type = "struct", subType = "ItBString" },
 	xp = { offset = 0x30, type = "int", hideSetter = true},
@@ -7,7 +46,7 @@ local Pilot = memhack.structManager:define("Pilot", {
 	id = { offset = 0x78, type = "struct", subType = "ItBString" },
 	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
 	prevTimelines = { offset = 0x27C, type = "int" },
-})
+}, validatePilot)
 -- Vtables don't match :(
 -- For now, don't validate
 -- GoG: 0x004320d4

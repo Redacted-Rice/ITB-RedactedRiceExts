@@ -5,7 +5,6 @@ For 1.0 release:
 	3. pilot (in mech)
 	4. storage (very complex)
 2. Add memory analyzer
-3. Pilot verification not using vtable
 	
 	
 1.1 Release:
