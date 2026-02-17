@@ -31,6 +31,14 @@ local function onGameClassInitialized(GameClass)
 		obj:SetReputation(obj:getReputation() + amount)
 	end
 
+	--[[
+	Unfortunately steam has different offsets. This is unlikely to work for steam version
+	so for now removing it. Long term I hope to find a way to support both versions. It
+	may just be different offsets for each version.
+
+	From pointer scanning with cheat engine, I am fairly confident this is not in the
+	GameMap object unfortunately so I think it will need to be an offset from base.
+
 	-- This was found by identifying the memory using cheat engine then searching
 	-- (via pointer scan for this address) for stable references in Breach.exe and repeating
 	-- until I found the chain that doesn't change
@@ -65,6 +73,7 @@ local function onGameClassInitialized(GameClass)
 		local current = self:GetScore()
 		self:SetScore(current + amount)
 	end
+	]]--
 
 	-- Gets the memhack storage struct which can be used to read the
 	-- current pilots and weapons in storage. Write is not currently
