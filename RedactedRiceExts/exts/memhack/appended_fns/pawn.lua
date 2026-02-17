@@ -1,16 +1,16 @@
-function addPawnGetPilotFunc(BoardPawn, pawn)
+local function onPawnClassInitialized(BoardPawn, pawn)
+	BoardPawn.GetMemhackObj = function(self)
+		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
+			self.memhackObj = memhack.structs.BoardPawn.new(memhack.dll.memory.getUserdataAddr(self), true)
+		end
+		return self.memhackObj
+	end
+
 	-- Upper case to align with BoardPawn conventions
 	BoardPawn.GetPilot = function(self)
-		-- Pawn contains a smart pointer at 0x980 which consists of a
-		-- pointer to the data (0x980) and a pointer to the mem management
-		-- (0x984). We only care about the data so use that one
-		local pilotPtr = memhack.dll.memory.readPointer(memhack.dll.memory.getUserdataAddr(self) + 0x980)
-		-- If no pilot, address will be set to 0
-		if pilotPtr == nil or pilotPtr == 0 then
-			return nil
-		end
-		return memhack.structs.Pilot.new(pilotPtr, true)
+		local pilot = self:GetMemhackObj():getPilot()
+		return pilot
 	end
 end
 
-modApi.events.onPawnClassInitialized:subscribe(addPawnGetPilotFunc)
+modApi.events.onPawnClassInitialized:subscribe(onPawnClassInitialized)
