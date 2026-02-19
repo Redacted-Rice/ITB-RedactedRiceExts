@@ -228,7 +228,7 @@ function modify_pilot_skills_ui:buildCollapsibleSectionBase(title, parent, vgap,
 		:addTo(headerHolder)
 
 	collapse.checked = not startCollapsed
-	collapse.onclicked = function(button) self:clickCollapse(collapse, button) end
+	collapse.onclicked = function(collapseSelf, button) return self:clickCollapse(collapseSelf, button) end
 	collapse.dropdownHolder = contentHolder
 	collapse.owner = sectionBox
 
@@ -878,7 +878,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				})
 			end
 
-			-- Category checkbox click handler
+			-- Category checkbox click hanupdateChildrenCheckedStatedler
 			categoryCheckbox.onclicked = function(cc, button)
 				if button == 1 then
 					cc:updateChildrenCheckedState()

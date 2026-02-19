@@ -18,8 +18,8 @@ local analysis = MemoryAnalyzer.analysis
 MemoryAnalyzer._memoryAnalyzers = {}
 MemoryAnalyzer._dll = nil
 
-function MemoryAnalyzer:init(dll)
-	self._dll = dll
+function MemoryAnalyzer.init(dll)
+	MemoryAnalyzer._dll = dll
 end
 
 -- constructor
@@ -61,19 +61,19 @@ function MemoryAnalyzer.new(id, size, options)
 end
 
 -- Get existing analyzer by ID
-function MemoryAnalyzer:get(id)
-	return self._memoryAnalyzers[id]
+function MemoryAnalyzer.get(id)
+	return MemoryAnalyzer._memoryAnalyzers[id]
 end
 
 -- Remove analyzer by ID
-function MemoryAnalyzer:remove(id)
-	self._memoryAnalyzers[id] = nil
+function MemoryAnalyzer.remove(id)
+	MemoryAnalyzer._memoryAnalyzers[id] = nil
 end
 
 -- List all analyzer IDs
-function MemoryAnalyzer:list()
+function MemoryAnalyzer.list()
 	local ids = {}
-	for id, _ in pairs(self._memoryAnalyzers) do
+	for id, _ in pairs(MemoryAnalyzer._memoryAnalyzers) do
 		table.insert(ids, id)
 	end
 	return ids
@@ -113,6 +113,28 @@ function MemoryAnalyzer:createDataset(name)
 	self._currentDataset = name
 
 	return dataset
+end
+
+function MemoryAnalyzer:getDataset(name)
+	return self._datasets[name]
+end
+
+function MemoryAnalyzer:getCurrentDataset()
+	return self:getDataset(self._currentDataset)
+end
+
+-- Remove analyzer by ID
+function MemoryAnalyzer:removeDataset(name)
+	self._datasets[name] = nil
+end
+
+-- List all analyzer IDs
+function MemoryAnalyzer:listDatasets()
+	local names = {}
+	for name, _ in pairs(self._datasets) do
+		table.insert(names, name)
+	end
+	return names
 end
 
 -- Capture to current dataset if analyzer is enabled and rate limit is not exceeded
