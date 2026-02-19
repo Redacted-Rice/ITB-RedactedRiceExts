@@ -197,28 +197,6 @@ function MemoryAnalyzer:listCaptures()
 	return captureList
 end
 
--- Compare up to the last N captures
--- n: number of recent captures to compare (default: all)
--- includeData: if true, adds detailed value data to the result
--- resultId: optional ID to store result for later retrieval
-function MemoryAnalyzer:getChanges(n, includeData, resultId)
-	local result = analysis.getChanges(self._captures, self, self.id, n, includeData)
-
-	if resultId then
-		self._results[resultId] = result
-	end
-
-	return result
-end
-
--- Find offsets where values match a condition across all captures
--- operator: ==, ~=, <, <=, >, >= (comparison operators by type)
--- targetValue: value to compare against
--- valueType: byte, int, pointer, string, bytearray
-function MemoryAnalyzer:findOffsets(operator, targetValue, valueType)
-	return analysis.findOffsets(self._captures, self, operator, targetValue, valueType)
-end
-
 -- Get stored result by ID
 function MemoryAnalyzer:getResult(resultId)
 	return self._results[resultId]
@@ -239,12 +217,140 @@ function MemoryAnalyzer:listResults()
 	return ids
 end
 
--- Re-export analysis functions for convenience
-MemoryAnalyzer.buildChangeRanges = analysis.buildChangeRanges
-MemoryAnalyzer.compareChanges = analysis.compareChanges
-MemoryAnalyzer.getChangedData = analysis.getChangedData
-MemoryAnalyzer.logChanges = analysis.logChanges
-MemoryAnalyzer.crossCheckOffsets = analysis.crossCheckOffsets
-MemoryAnalyzer.compareValuesByOffset = analysis.compareValuesByOffset
+-- Compare captures - changed at least once
+-- captureIndices: array of indices, number for last N, or nil for all
+-- resultId: optional ID to store result for later retrieval
+-- Returns: {filtered=ranges that changed, unfiltered=ranges that didn't}
+function MemoryAnalyzer:getChangedOnce(captureIndices, resultId)
+	local result = analysis.getChangedOnce(self._captures, captureIndices, self, self.id)
+	if resultId then
+		self._results[resultId] = result
+	end
+	return result
+end
+
+-- Compare captures - changed in every transition
+-- captureIndices: array of indices, number for last N, or nil for all
+-- resultId: optional ID to store result for later retrieval
+-- Returns: {filtered=ranges that changed every time, unfiltered=ranges that didn't}
+function MemoryAnalyzer:getChangedEvery(captureIndices, resultId)
+	local result = analysis.getChangedEvery(self._captures, captureIndices, self, self.id)
+	if resultId then
+		self._results[resultId] = result
+	end
+	return result
+end
+
+-- Compare captures - never changed
+-- captureIndices: array of indices, number for last N, or nil for all
+-- resultId: optional ID to store result for later retrieval
+-- Returns: {filtered=ranges that never changed, unfiltered=ranges that did}
+function MemoryAnalyzer:getUnchanged(captureIndices, resultId)
+	local result = analysis.getUnchanged(self._captures, captureIndices, self, self.id)
+	if resultId then
+		self._results[resultId] = result
+	end
+	return result
+end
+
+-- Compare captures with custom comparator
+-- captureIndices: array of indices, number for last N, or nil for all
+-- comparatorFunc: function(selectedCaptures, byteIdx) -> bool (true if matches filter)
+-- resultId: optional ID to store result for later retrieval
+-- Returns: {filtered=ranges that match comparator, unfiltered=ranges that don't}
+function MemoryAnalyzer:getCustomChanges(captureIndices, comparatorFunc, resultId)
+	local result = analysis.getCustomChanges(self._captures, captureIndices, self, self.id, comparatorFunc)
+	if resultId then
+		self._results[resultId] = result
+	end
+	return result
+end
+
+-- Add all value progressions to result (shows every value for each chunk)
+-- result: result object or resultId string
+-- ranges: "filtered" (default), "unfiltered", or "both"
+-- Common helper for add* functions - handles result lookup and storage
+function MemoryAnalyzer:_addDataHelper(result, analysisFunc, ranges)
+	ranges = ranges or "filtered"
+
+	local resultId = nil
+	if type(result) == "string" then
+		resultId = result
+		result = self._results[resultId]
+		if not result then
+			error("Result ID not found: " .. resultId)
+		end
+	end
+
+	result = analysisFunc(result, ranges)
+
+	if resultId then
+		self._results[resultId] = result
+	end
+
+	return result
+end
+
+-- Add all value progressions to result (shows every value for each chunk)
+-- result: result object or resultId string
+-- ranges: "filtered" (default), "unfiltered", or "both"
+function MemoryAnalyzer:addAllCapturesValues(result, ranges)
+	return self:_addDataHelper(result, analysis.addAllCapturesValues, ranges)
+end
+
+-- Add changed value progressions to result (only shows when value changes)
+-- result: result object or resultId string
+-- ranges: "filtered" (default), "unfiltered", or "both"
+function MemoryAnalyzer:addChangedCapturesValues(result, ranges)
+	return self:_addDataHelper(result, analysis.addChangedCapturesValues, ranges)
+end
+
+-- Add unique value counts to result
+-- result: result object or resultId string
+-- ranges: "filtered" (default), "unfiltered", or "both"
+function MemoryAnalyzer:addUniqueCapturesValues(result, ranges)
+	return self:_addDataHelper(result, analysis.addUniqueCapturesValues, ranges)
+end
+
+-- Log a result (displays whatever data has been added via add* functions)
+-- result: result object or resultId string
+-- Logs all ranges and all data without limits
+function MemoryAnalyzer:log(result)
+	if type(result) == "string" then
+		result = self._results[result]
+		if not result then
+			error("Result ID not found")
+		end
+	end
+
+	if not result then
+		error("Result is nil")
+	end
+
+	analysis.logChanges(result)
+end
+
+-- Filter a result based on custom criteria
+-- result: result object or resultId string
+-- filterSpec: filter specification (see analysis.filterResult for details)
+--   Range-level: function(range, captures) -> bool
+--   Chunk-level: {alignment=N, filter=function(offset, values) -> bool, ranges="filtered"}
+--     values are alignment-sized (byte/short/int depending on alignment)
+-- resultId: optional ID to store filtered result
+-- Returns new result with only ranges/chunks that pass the filter
+function MemoryAnalyzer:filterResult(result, filterSpec, resultId)
+	if type(result) == "string" then
+		result = self._results[result]
+		if not result then
+			error("Result ID not found")
+		end
+	end
+
+	local filtered = analysis.filterResult(result, filterSpec)
+	if resultId then
+		self._results[resultId] = filtered
+	end
+	return filtered
+end
 
 return MemoryAnalyzer
