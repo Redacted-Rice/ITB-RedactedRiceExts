@@ -1,5 +1,6 @@
 # Redacted Rice Extensions
 All of RedactedRice's Extensions for Into the Breach
+
 Created by Das Keifer
 
 Join the Redacted Rice discord for support, mods, discussion and other projects: https://discord.gg/CNjTVrpN4v
@@ -7,22 +8,25 @@ Join the Redacted Rice discord for support, mods, discussion and other projects:
 See individual folders for more details on each extension
 
 Please enjoy and contact us if you run into any issues.
-RedactedRice Discord Server: https://discord.gg/CNjTVrpN4v
-ItB Discord: Das Keifer
-Email: RedactedRice@gmail.com
+* RedactedRice Discord Server: https://discord.gg/CNjTVrpN4v
+* ItB Discord: Das Keifer
+* Email: RedactedRice@gmail.com
 
 # Extensions
-* memhack - v0.1.0 - Extension to expose additional functionality via direct memory access
+* memhack - v0.9.0 - Extension to expose additional functionality via direct memory access
+* CPLUS+ - v0.9.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 
 # Releases
-Latest release: 0.1.0
+Latest release: 0.9.0
 
-## 0.1.0
+## 0.9.0
 Released: XX/XX/XXXX 
-memhack 0.1.0
+
+* memhack - v0.9.0
+* CPLUS+ Ex - v0.9.0
 
 ### Notes
-In progress...
+Initial releases of the extenstions
 
 # Install
 - Unzip the release folder
