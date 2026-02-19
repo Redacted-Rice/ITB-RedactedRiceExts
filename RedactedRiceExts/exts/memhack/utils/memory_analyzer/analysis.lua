@@ -2,681 +2,588 @@
 
 local analysis = {}
 
--- Reads the value from data at offset with specified type
--- Supports byte, int, and pointer types for value comparison
-function analysis._getValueAtOffset(data, offset, valueType)
+-- Read value based on alignment size
+-- alignment: 1 (byte), 2 (short), 4 (int/pointer)
+function analysis._readAlignedValue(data, offset, alignment)
 	local byteIdx = offset + 1
 
-	if valueType == "byte" then
+	if alignment == 1 then
 		return string.byte(data, byteIdx)
-	elseif valueType == "int" or valueType == "pointer" then
+	elseif alignment == 2 then
+		if byteIdx + 1 > #data then return nil end
+		local b1, b2 = string.byte(data, byteIdx, byteIdx + 1)
+		return b1 + b2 * 256
+	elseif alignment == 4 then
 		if byteIdx + 3 > #data then return nil end
 		local b1, b2, b3, b4 = string.byte(data, byteIdx, byteIdx + 3)
-		local value = b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
-		if valueType == "int" and value >= 0x80000000 then
-			value = value - 0x100000000
-		end
-		return value
+		return b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
 	else
-		error(string.format("_getValueAtOffset only supports 'byte', 'int', and 'pointer' types, got '%s'", valueType))
+		error(string.format("Unsupported alignment: %d (use 1, 2, or 4)", alignment))
 	end
 end
 
--- Compare values based on passed operator string
-function analysis._compareValues(value, operator, target)
-	if operator == "==" then
-		return value == target
-	elseif operator == "~=" then
-		return value ~= target
-	elseif operator == "<" then
-		return value < target
-	elseif operator == "<=" then
-		return value <= target
-	elseif operator == ">" then
-		return value > target
-	elseif operator == ">=" then
-		return value >= target
-	else
-		error(string.format("Unsupported operator: %s (use Lua syntax: ==, ~=, <, <=, >, >=)", operator))
-	end
-end
+-- Parse capture indices into array
+-- captureIndices: array of indices, number for last N, or nil for all
+-- totalCount: total number of captures available
+-- Returns array of 1-based indices
+function analysis._parseCaptureIndices(captureIndices, totalCount)
+	local indices = {}
 
--- Get type size in bytes
-function analysis._getTypeSize(valueType, targetValue)
-	if valueType == "byte" then
-		return 1
-	elseif valueType == "int" or valueType == "pointer" then
-		return 4
-	elseif valueType == "bytearray" then
-		if type(targetValue) == "string" then
-			return #targetValue
-		else
-			error("bytearray type requires target value to be a string")
+	if captureIndices == nil then
+		for i = 1, totalCount do
+			table.insert(indices, i)
 		end
-	elseif valueType == "string" then
-		if type(targetValue) == "string" then
-			return #targetValue + 1
-		else
-			error("string type requires target value to be a string")
+	elseif type(captureIndices) == "number" then
+		local n = captureIndices
+		if n <= 0 then n = totalCount end
+		if n > totalCount then
+			LOG(string.format("Warning: Requested %d captures but only %d available. Using all captures.", n, totalCount))
+			n = totalCount
+		end
+		local startIdx = math.max(1, totalCount - n + 1)
+		for i = startIdx, totalCount do
+			table.insert(indices, i)
+		end
+	elseif type(captureIndices) == "table" then
+		for _, idx in ipairs(captureIndices) do
+			if idx < 1 or idx > totalCount then
+				error(string.format("Capture index %d out of range [1,%d]", idx, totalCount))
+			end
+			table.insert(indices, idx)
 		end
 	else
-		error(string.format("Unsupported type '%s'. Supported types: byte, int, pointer, string, bytearray", valueType))
+		error("captureIndices must be nil, number, or array of indices")
 	end
+
+	return indices
 end
 
--- Compare up to the last N captures
--- captures: array of capture data
--- analyzer: analyzer instance for size/alignment config
--- name: analyzer name for result metadata
--- n: number of recent captures to compare (default: all)
--- includeData: if true, automatically adds detailed value data to the result
-function analysis.getChanges(captures, analyzer, name, n, includeData)
+-- Core comparison function with custom comparator
+-- captures: all available captures
+-- captureIndices: indices to compare
+-- analyzer: analyzer instance
+-- name: analyzer name for metadata
+-- comparatorFunc: function(selectedCaptures, byteIdx) -> bool (true if matches filter)
+-- requireAll: if true, ALL bytes in chunk must match; if false, ANY byte matching means chunk matches
+function analysis._compareCaptures(captures, captureIndices, analyzer, name, comparatorFunc, requireAll)
 	local count = #captures
-
-	if n == nil or n <= 0 then
-		n = count
-	end
 
 	if count < 2 then
 		error("Need at least 2 captures to compare")
 	end
 
-	if n > count then
-		LOG(string.format("Warning: Requested %d captures but only %d available. Using all captures.", n, count))
-		n = count
+	local indices = analysis._parseCaptureIndices(captureIndices, count)
+	if #indices < 2 then
+		error("Need at least 2 capture indices to compare")
 	end
 
-	local startIdx = math.max(1, count - n + 1)
 	local selectedCaptures = {}
-	for i = startIdx, count do
-		table.insert(selectedCaptures, captures[i])
+	for _, idx in ipairs(indices) do
+		table.insert(selectedCaptures, captures[idx])
 	end
 
-	local changedRanges, unchangedRanges = analysis.buildChangeRanges(analyzer.size,
+	local filteredRanges, unfilteredRanges = analysis._buildRanges(
+		analyzer.size,
 		function(byteIdx)
-			local firstValue = string.byte(selectedCaptures[1].data, byteIdx)
-			for i = 2, #selectedCaptures do
-				if string.byte(selectedCaptures[i].data, byteIdx) ~= firstValue then
-					return true
-				end
-			end
-			return false
-		end, analyzer.alignment
+			return comparatorFunc(selectedCaptures, byteIdx)
+		end,
+		analyzer.alignment,
+		requireAll
 	)
 
 	local result = {
-		datasets = {{name = name, captureIndices = {startIdx, count}}},
-		changedRanges = changedRanges,
-		unchangedRanges = unchangedRanges,
+		name = name,
+		captureIndices = indices,
+		filtered = filteredRanges,
+		unfiltered = unfilteredRanges,
 		_captures = selectedCaptures,
-		_startIdx = startIdx,
 		_analyzer = analyzer,
 		_alignment = analyzer.alignment
 	}
 
-	if includeData then
-		result = analysis.getChangedData(result)
-	end
-
 	return result
 end
 
--- Find offsets where values match a condition
--- captures: array of capture data
--- analyzer: analyzer instance for size/alignment config
--- operator: ==, ~=, <, <=, >, >=
--- targetValue: value to compare against
--- valueType: byte, int, pointer, string, bytearray
--- Returns an array of offsets (0-based) that match across all captures
-function analysis.findOffsets(captures, analyzer, operator, targetValue, valueType)
-	if #captures == 0 then
-		error("No captures available")
-	end
-
-	-- Validate operator for type
-	local comparisonOps = {"<", "<=", ">", ">="}
-	local isComparisonOp = false
-	for _, op in ipairs(comparisonOps) do
-		if operator == op then
-			isComparisonOp = true
-			break
-		end
-	end
-
-	if isComparisonOp and valueType ~= "int" and valueType ~= "byte" and valueType ~= "pointer" then
-		error(string.format("Operator '%s' only supported for 'int', 'byte', and 'pointer' types. Type '%s' only supports '==' and '~='", operator, valueType))
-	end
-
-	local size = analyzer.size
-	local alignment = analyzer.alignment
-
-	-- Handle hex string conversion for bytearray
-	if valueType == "bytearray" and type(targetValue) == "string" then
-		targetValue = memhack.debug.hexToBytes(targetValue)
-	end
-
-	local typeSize = analysis._getTypeSize(valueType, targetValue)
-	local matchingOffsets = {}
-
-	-- For byte/int/pointer types, use typed value comparison
-	if valueType == "byte" or valueType == "int" or valueType == "pointer" then
-		for offset = 0, size - typeSize, alignment do
-			local allMatch = true
-			for _, capture in ipairs(captures) do
-				local value = analysis._getValueAtOffset(capture.data, offset, valueType)
-				if not value or not analysis._compareValues(value, operator, targetValue) then
-					allMatch = false
-					break
-				end
-			end
-			if allMatch then
-				table.insert(matchingOffsets, offset)
+-- Compare captures - changed at least once
+-- ANY byte changed in the alignment chunk = chunk is changed
+function analysis.getChangedOnce(captures, captureIndices, analyzer, name)
+	local comparator = function(selectedCaptures, byteIdx)
+		local firstValue = string.byte(selectedCaptures[1].data, byteIdx)
+		for i = 2, #selectedCaptures do
+			if string.byte(selectedCaptures[i].data, byteIdx) ~= firstValue then
+				return true
 			end
 		end
-	elseif valueType == "string" or valueType == "bytearray" then
-		if operator ~= "==" and operator ~= "~=" then
-			error(string.format("Type '%s' only supports '==' and '~=' operators", valueType))
-		end
-
-		local targetBytes
-		if valueType == "string" then
-			targetBytes = targetValue .. "\0"
-		elseif valueType == "bytearray" then
-			targetBytes = targetValue
-		end
-
-		for offset = 0, size - typeSize, alignment do
-			local allMatch = true
-			for _, capture in ipairs(captures) do
-				local dataBytes = string.sub(capture.data, offset + 1, offset + typeSize)
-				local matches = (dataBytes == targetBytes)
-				if operator == "~=" then
-					matches = not matches
-				end
-				if not matches then
-					allMatch = false
-					break
-				end
-			end
-			if allMatch then
-				table.insert(matchingOffsets, offset)
-			end
-		end
-	else
-		error(string.format("Unsupported type '%s' for findOffsets. Supported types: byte, int, pointer, string, bytearray", valueType))
+		return false
 	end
-
-	return matchingOffsets
+	return analysis._compareCaptures(captures, captureIndices, analyzer, name, comparator, false)
 end
 
--- Build both changed and unchanged ranges with alignment support
--- compareFunc(byteIdx) should return true if byte is changed
+-- Compare captures - changed in every transition
+-- ANY byte changed every time in the alignment chunk = chunk is changed
+function analysis.getChangedEvery(captures, captureIndices, analyzer, name)
+	local comparator = function(selectedCaptures, byteIdx)
+		for i = 2, #selectedCaptures do
+			local prevValue = string.byte(selectedCaptures[i-1].data, byteIdx)
+			local currValue = string.byte(selectedCaptures[i].data, byteIdx)
+			if currValue == prevValue then
+				return false
+			end
+		end
+		return true
+	end
+	return analysis._compareCaptures(captures, captureIndices, analyzer, name, comparator, false)
+end
+
+-- Compare captures - never changed
+-- ALL bytes must be unchanged in the alignment chunk = chunk is unchanged
+function analysis.getUnchanged(captures, captureIndices, analyzer, name)
+	local comparator = function(selectedCaptures, byteIdx)
+		local firstValue = string.byte(selectedCaptures[1].data, byteIdx)
+		for i = 2, #selectedCaptures do
+			if string.byte(selectedCaptures[i].data, byteIdx) ~= firstValue then
+				return false
+			end
+		end
+		return true
+	end
+	return analysis._compareCaptures(captures, captureIndices, analyzer, name, comparator, true)
+end
+
+-- Compare captures with custom comparator function
+-- comparatorFunc(selectedCaptures, byteIdx) should return true if byte matches your filter
+-- requireAll: if true, ALL bytes in chunk must match; if false (default), ANY byte matching means chunk matches
+function analysis.getCustomChanges(captures, captureIndices, analyzer, name, comparatorFunc, requireAll)
+	if type(comparatorFunc) ~= "function" then
+		error("comparatorFunc must be a function")
+	end
+	requireAll = requireAll or false
+	return analysis._compareCaptures(captures, captureIndices, analyzer, name, comparatorFunc, requireAll)
+end
+
+-- Build both filtered and unfiltered ranges with alignment support
+-- compareFunc(byteIdx) should return true if byte matches the filter criteria
 -- alignment: group bytes by alignment (1 = byte-by-byte, 4 = 4-byte groups, etc.)
---            helps prevent detecting single byte changes in multi-byte values
-function analysis.buildChangeRanges(size, compareFunc, alignment)
+-- requireAll: if true, ALL bytes in chunk must match; if false, ANY byte matching means chunk matches
+-- Returns: filteredRanges (matched filter), unfilteredRanges (didn't match filter)
+function analysis._buildRanges(size, compareFunc, alignment, requireAll)
 	alignment = alignment or 4
 	if size % alignment ~= 0 then
 		error("Size ( " .. size .. " ) must be divisible by alignment ( " .. alignment .. " )")
 	end
 
-	local changedRanges = {}
-	local unchangedRanges = {}
+	local filteredRanges = {}
+	local unfilteredRanges = {}
 
-	local changedInRange = false
-	local unchangedInRange = false
-	local changedStart = nil
-	local unchangedStart = nil
+	local filteredInRange = false
+	local unfilteredInRange = false
+	local filteredStart = nil
+	local unfilteredStart = nil
 
 	local byteIdx = 1
 	while byteIdx <= size do
-		local isChanged = false
-		for offset = 0, alignment - 1 do
-			if compareFunc(byteIdx + offset) then
-				isChanged = true
-				break
+		local matchesFilter
+		if requireAll then
+			-- ALL bytes in the alignment chunk must match the filter
+			matchesFilter = true
+			for offset = 0, alignment - 1 do
+				if not compareFunc(byteIdx + offset) then
+					matchesFilter = false
+					break
+				end
+			end
+		else
+			-- ANY byte in the alignment chunk matching means the chunk matches
+			matchesFilter = false
+			for offset = 0, alignment - 1 do
+				if compareFunc(byteIdx + offset) then
+					matchesFilter = true
+					break
+				end
 			end
 		end
 
-		if isChanged then
-			if not changedInRange then
-				changedStart = byteIdx
-				changedInRange = true
+		if matchesFilter then
+			if not filteredInRange then
+				filteredStart = byteIdx
+				filteredInRange = true
 			end
-			if unchangedInRange then
+			if unfilteredInRange then
 				local rangeEnd = byteIdx - 1
-				table.insert(unchangedRanges, {
-					start = unchangedStart - 1,
+				table.insert(unfilteredRanges, {
+					start = unfilteredStart - 1,
 					endOffset = rangeEnd - 1,
-					count = rangeEnd - unchangedStart + 1
+					count = rangeEnd - unfilteredStart + 1
 				})
-				unchangedInRange = false
+				unfilteredInRange = false
 			end
 		else
-			if not unchangedInRange then
-				unchangedStart = byteIdx
-				unchangedInRange = true
+			if not unfilteredInRange then
+				unfilteredStart = byteIdx
+				unfilteredInRange = true
 			end
-			if changedInRange then
+			if filteredInRange then
 				local rangeEnd = byteIdx - 1
-				table.insert(changedRanges, {
-					start = changedStart - 1,
+				table.insert(filteredRanges, {
+					start = filteredStart - 1,
 					endOffset = rangeEnd - 1,
-					count = rangeEnd - changedStart + 1
+					count = rangeEnd - filteredStart + 1
 				})
-				changedInRange = false
+				filteredInRange = false
 			end
 		end
 
 		byteIdx = byteIdx + alignment
 	end
 
-	if changedInRange then
-		table.insert(changedRanges, {
-			start = changedStart - 1,
+	if filteredInRange then
+		table.insert(filteredRanges, {
+			start = filteredStart - 1,
 			endOffset = size - 1,
-			count = size - changedStart + 1
+			count = size - filteredStart + 1
 		})
 	end
-	if unchangedInRange then
-		table.insert(unchangedRanges, {
-			start = unchangedStart - 1,
+	if unfilteredInRange then
+		table.insert(unfilteredRanges, {
+			start = unfilteredStart - 1,
 			endOffset = size - 1,
-			count = size - unchangedStart + 1
+			count = size - unfilteredStart + 1
 		})
 	end
 
-	return changedRanges, unchangedRanges
+	return filteredRanges, unfilteredRanges
 end
 
--- Compare changed ranges across multiple results
--- Takes array of results (from getChanges)
--- includeData: if true, automatically adds detailed value data to the result
-function analysis.compareChanges(results, includeData)
-	if type(results) ~= "table" or #results == 0 then
-		error("compareChanges requires array of results")
+-- Clear any existing values from result
+function analysis._clearValues(result)
+	for _, range in ipairs(result.filtered or {}) do
+		range.values = nil
+		range.uniqueValues = nil
 	end
-
-	-- Use first result to determine analyzer properties
-	local firstResult = results[1]
-	if not firstResult._analyzer then
-		error("Results must contain analyzer reference")
+	for _, range in ipairs(result.unfiltered or {}) do
+		range.values = nil
+		range.uniqueValues = nil
 	end
-
-	local analyzer = firstResult._analyzer
-	local size = analyzer.size
-	local alignment = analyzer.alignment
-
-	-- Ensure all results use the same analyzer
-	for i, result in ipairs(results) do
-		if result._analyzer ~= analyzer then
-			error(string.format("Result %d uses a different analyzer than first result. All results must use the same analyzer.", i))
-		end
-	end
-
-	-- Merge dataset info
-	local allDatasets = {}
-	local allCaptures = {}
-	for _, result in ipairs(results) do
-		for _, dsInfo in ipairs(result.datasets) do
-			table.insert(allDatasets, dsInfo)
-		end
-		if result._captures then
-			for _, capture in ipairs(result._captures) do
-				table.insert(allCaptures, capture)
-			end
-		end
-	end
-
-	-- Compare to find what changed across all results with alignment
-	local changedRanges, unchangedRanges = analysis.buildChangeRanges(size, function(byteIdx)
-		local firstValue = nil
-		for _, result in ipairs(results) do
-			if result._captures and #result._captures > 0 then
-				local value = string.byte(result._captures[1].data, byteIdx)
-				if firstValue == nil then
-					firstValue = value
-				elseif value ~= firstValue then
-					return true
-				end
-			end
-		end
-		return false
-	end, alignment)
-
-	local result = {
-		datasets = allDatasets,
-		changedRanges = changedRanges,
-		unchangedRanges = unchangedRanges,
-		_captures = allCaptures,
-		_startIdx = 1,
-		_alignment = alignment
-	}
-
-	-- Automatically add data if requested
-	if includeData then
-		result = analysis.getChangedData(result)
-	end
-	return result
+	result._dataType = nil
+	result._dataOptions = nil
 end
 
--- Get detailed value data for a result
--- Adds value progressions to ranges based on whatToAdd
--- whatToAdd can be "changed", "unchanged", or "both"/nil. Defaults to nil (both)
-function analysis.getChangedData(result, whatToAdd)
+-- Process a range to add all value progressions (shows every value)
+function analysis._processAllValues(range, captures, captureIndices, alignment)
+	range.values = {}
+	for offset = range.start, range.endOffset, alignment do
+		local progression = {}
+
+		for i, capture in ipairs(captures) do
+			local value = analysis._readAlignedValue(capture.data, offset, alignment)
+			table.insert(progression, {
+				captureIndex = captureIndices[i],
+				value = value,
+				address = capture.address + offset
+			})
+		end
+		table.insert(range.values, progression)
+	end
+end
+
+-- Process a range to add changed value progressions (only shows when value changes)
+function analysis._processChangedValues(range, captures, captureIndices, alignment)
+	range.values = {}
+	for offset = range.start, range.endOffset, alignment do
+		local progression = {}
+		local lastValue = nil
+
+		for i, capture in ipairs(captures) do
+			local value = analysis._readAlignedValue(capture.data, offset, alignment)
+
+			if value ~= lastValue then
+				table.insert(progression, {
+					captureIndex = captureIndices[i],
+					value = value,
+					address = capture.address + offset
+				})
+				lastValue = value
+			end
+		end
+		table.insert(range.values, progression)
+	end
+end
+
+-- Process a range to add unique value counts
+function analysis._processRangeUnique(range, captures, captureIndices, alignment)
+	range.uniqueValues = {}
+	for offset = range.start, range.endOffset, alignment do
+		local valueCounts = {}
+		for _, capture in ipairs(captures) do
+			local value = analysis._readAlignedValue(capture.data, offset, alignment)
+			if value then
+				valueCounts[value] = (valueCounts[value] or 0) + 1
+			end
+		end
+
+		local uniqueList = {}
+		for value, count in pairs(valueCounts) do
+			table.insert(uniqueList, {value = value, count = count})
+		end
+		table.sort(uniqueList, function(a, b) return a.count > b.count end)
+
+		table.insert(range.uniqueValues, {
+			offset = offset,
+			values = uniqueList
+		})
+	end
+end
+
+-- Core function that adds data to results
+-- ranges: "filtered", "unfiltered", or "both"
+-- processorFunc: function(range, captures, captureIndices, alignment)
+-- dataType: "all", "changes", or "unique"
+function analysis._addValues(result, ranges, processorFunc, dataType)
 	if not result._captures then
 		LOG("No captures found in result")
 		return result
 	end
 
+	ranges = ranges or "filtered"
+
+	analysis._clearValues(result)
+
 	local captures = result._captures
-	local startIdx = result._startIdx or 1
+	local captureIndices = result.captureIndices or {}
+	local alignment = result._alignment
 
-	-- Determine what changes to get
-	local getChanged = true
-	local getUnchanged = true
-	if flags == "both" or flags == nil then
-		getChanged = true
-		getUnchanged = true
-	elseif flags == "changed" then
-		getUnchanged = false
-	elseif flags == "unchanged" then
-		getChanged = false
-	else
-		LOG("flags must be 'changed', 'unchanged', 'both', or nil (default)")
-		return result
-	end
-
-	-- Add values to changed ranges
-	if getChanged then
-		for _, range in ipairs(result.changedRanges or {}) do
-			range.values = {}
-			for byteOffset = range.start, range.endOffset do
-				local byteIdx = byteOffset + 1
-				local progression = {}
-				for i, capture in ipairs(captures) do
-					table.insert(progression, {
-						captureIndex = startIdx + i - 1,
-						value = string.byte(capture.data, byteIdx),
-						address = capture.address + byteOffset
-					})
-				end
-				table.insert(range.values, progression)
-			end
+	if ranges == "filtered" or ranges == "both" then
+		for _, range in ipairs(result.filtered or {}) do
+			processorFunc(range, captures, captureIndices, alignment)
 		end
 	end
 
-	-- Add values to unchanged ranges
-	if getUnchanged then
-		for _, range in ipairs(result.unchangedRanges or {}) do
-			if #captures > 0 then
-				range.value = string.byte(captures[1].data, range.start + 1)
-				range.address = captures[1].address + range.start
-			end
+	if ranges == "unfiltered" or ranges == "both" then
+		for _, range in ipairs(result.unfiltered or {}) do
+			processorFunc(range, captures, captureIndices, alignment)
 		end
 	end
 
+	result._dataType = dataType
 	return result
 end
 
--- Find the matching offset values in multiple arrays
--- Returns sorted array of offsets that appear in all input arrays
-function analysis._crossCheckOffsets(offsetSets)
-	if #offsetSets == 0 then
-		return {}
-	end
-	if #offsetSets == 1 then
-		return offsetSets[1]
-	end
-	-- Build set from first array
-	local commonOffsets = {}
-	for _, offset in ipairs(offsetSets[1]) do
-		commonOffsets[offset] = true
-	end
-
-	-- compare with remaining arrays
-	-- For each array, form a new array of all offsets that
-	-- match the previous common offsets
-	for i = 2, #offsetSets do
-		local nextSet = {}
-		for _, offset in ipairs(offsetSets[i]) do
-			if commonOffsets[offset] then
-				nextSet[offset] = true
-			end
-		end
-		commonOffsets = nextSet
-	end
-
-	-- Convert back to array and sort
-	local result = {}
-	for offset, _ in pairs(commonOffsets) do
-		table.insert(result, offset)
-	end
-	table.sort(result)
-
-	return result
+-- Add all value progressions to result
+function analysis.addAllCapturesValues(result, ranges)
+	return analysis._addValues(result, ranges, analysis._processAllValues, "all")
 end
 
--- cross check offsets across multiple arrays to find common offsets
--- offsetArrays - array of offsets to compare to find matches
--- Returns an array of offsets present in all input arrays
-function analysis.crossCheckOffsets(offsetArrays)
-	if type(offsetArrays) ~= "table" or #offsetArrays == 0 then
-		error("offsetArrays must be a non-empty array of offset arrays")
-	end
-
-	-- Validate that each element is an array
-	for i, offsetArray in ipairs(offsetArrays) do
-		if type(offsetArray) ~= "table" then
-			error(string.format("offsetArrays[%d] must be an array of offsets", i))
-		end
-	end
-
-	return analysis._crossCheckOffsets(offsetArrays)
+-- Add changed value progressions to result
+function analysis.addChangedCapturesValues(result, ranges)
+	return analysis._addValues(result, ranges, analysis._processChangedValues, "changes")
 end
 
--- Compare values based on offset across analyzers using value/relative conditions
--- Supported operators by type:
---   byte & int: ==, ~=, <, <=, >, >=, increased, decreased
---   Other types: ==, ~=, changed only
--- Returns an array of offsets matching all conditions
-function analysis.compareValuesByOffset(valueType, analyzerDefs)
-	if type(valueType) ~= "string" then
-		error("valueType must be a type string (i.e. 'int' or 'byte')")
-	end
-	if type(analyzerDefs) ~= "table" or #analyzerDefs == 0 then
-		error("analyzerDefs must be non-empty array of specifications")
-	end
+-- Add unique value counts to result
+function analysis.addUniqueCapturesValues(result, ranges)
+	return analysis._addValues(result, ranges, analysis._processRangeUnique, "unique")
+end
 
-	-- Find offsets for each spec
-	local offsetSets = {}
-	for i, analyzerDef in ipairs(analyzerDefs) do
-		if not analyzerDef.analyzer then
-			error(string.format("Spec %d missing 'analyzer' field", i))
-		end
-
-		local offsets
-		if analyzerDef.relative then
-			-- Validate relative type support
-			if (analyzerDef.relative == "increased" or analyzerDef.relative == "decreased") then
-				if valueType ~= "int" and valueType ~= "byte" then
-					error(string.format("Relative type '%s' only supported for 'int' and 'byte'. Type '%s' only supports 'changed'", analyzerDef.relative, valueType))
-				end
-			end
-			offsets = analysis._findRelativeOffsets(analyzerDef.analyzer._captures, analyzerDef.analyzer, analyzerDef.relative, valueType)
-		elseif analyzerDef.operator and analyzerDef.val ~= nil then
-			offsets = analysis.findOffsets(analyzerDef.analyzer._captures, analyzerDef.analyzer, analyzerDef.operator, analyzerDef.val, valueType)
+-- Helper to log a set of ranges with their data
+function analysis._logRanges(ranges, rangeType, result, alignment, formatStr)
+	for i = 1, #ranges do
+		local range = ranges[i]
+		if range.count == alignment then
+			LOG(string.format("    [+0x%X]:", range.start))
 		else
-			error(string.format("analyzerDef %d must have either 'relative' or both 'operator' and 'val'", i))
+			LOG(string.format("    [+0x%X - +0x%X] (%d bytes):", range.start, range.endOffset, range.count))
 		end
 
-		table.insert(offsetSets, offsets)
-	end
-
-	return analysis._crossCheckOffsets(offsetSets)
-end
-
--- Find typed relative offsets for int & byte types
--- Supports increased, decreased, changed
--- Uses analyzer's alignment setting to determine which offsets to check
-function analysis._findTypedRelativeOffsets(captures, analyzer, relativeType, valueType)
-	local size = analyzer.size
-	local alignment = analyzer.alignment
-	local typeSize = (valueType == "int") and 4 or 1
-	local matchingOffsets = {}
-
-	for offset = 0, size - typeSize, alignment do
-		local allMatch = true
-		local prevValue = nil
-
-		for captureIdx, capture in ipairs(captures) do
-			local value = analysis._getValueAtOffset(capture.data, offset, valueType)
-
-			if captureIdx == 1 then
-				prevValue = value
-			else
-				local matches = false
-				if relativeType == "increased" then
-					matches = (value > prevValue)
-				elseif relativeType == "decreased" then
-					matches = (value < prevValue)
-				elseif relativeType == "changed" then
-					matches = (value ~= prevValue)
-				else
-					error(string.format("Unsupported relative type: %s", relativeType))
-				end
-
-				if not matches then
-					allMatch = false
-					break
-				end
-				prevValue = value
-			end
-		end
-
-		if allMatch then
-			table.insert(matchingOffsets, offset)
-		end
-	end
-
-	return matchingOffsets
-end
-
--- Find byte level changed offsets for all types
--- Only supports 'changed' comparison
--- Uses analyzer's alignment setting to determine which offsets to check
-function analysis._findByteChangedOffsets(captures, analyzer)
-	local size = analyzer.size
-	local alignment = analyzer.alignment
-	local matchingOffsets = {}
-
-	for offset = 0, size - 1, alignment do
-		local byteIdx = offset + 1
-		local allMatch = true
-		local prevValue = string.byte(captures[1].data, byteIdx)
-
-		for i = 2, #captures do
-			local currValue = string.byte(captures[i].data, byteIdx)
-			if currValue == prevValue then
-				allMatch = false
-				break
-			end
-			prevValue = currValue
-		end
-
-		if allMatch then
-			table.insert(matchingOffsets, offset)
-		end
-	end
-
-	return matchingOffsets
-end
-
--- Find offsets where values changed relatively (increased/decreased/changed)
--- For byte/int: Uses typed comparison (increased/decreased/changed supported)
--- For other types: Uses byte-level comparison (only 'changed' supported)
-function analysis._findRelativeOffsets(captures, analyzer, relativeType, valueType)
-	if #captures < 2 then
-		LOG("Need at least 2 captures for relative comparison")
-		return {}
-	end
-
-	-- Validate valueType if doing increased/decreased
-	if (relativeType == "increased" or relativeType == "decreased") then
-		if valueType ~= "int" and valueType ~= "byte" then
-			error(string.format("Relative type '%s' only supported for int/byte types", relativeType))
-		end
-	end
-
-	-- Use appropriate helper based on type and operation
-	if valueType == "int" or valueType == "byte" then
-		return analysis._findTypedRelativeOffsets(captures, analyzer, relativeType, valueType)
-	else
-		-- For other types, only 'changed' supported
-		if relativeType ~= "changed" then
-			error(string.format("Type '%s' only supports 'changed' relative comparison", valueType))
-		end
-		return analysis._findByteChangedOffsets(captures, analyzer)
-	end
-end
-
--- Log changes from a result
--- If the result has value data in ranges, it will be logged
--- If not, only range information is logged
-function analysis.logChanges(result, maxDisplay)
-	maxDisplay = maxDisplay or 20
-
-	-- Use result as-is, don't auto-calculate data
-	local dataToLog = result
-
-	-- Build dataset info string
-	local dsNames = {}
-	for _, dsInfo in ipairs(dataToLog.datasets) do
-		table.insert(dsNames, dsInfo.name)
-	end
-
-	if #dataToLog.datasets == 1 then
-		LOG(string.format("Dataset '%s': Found %d changed ranges",
-			dsNames[1], #dataToLog.changedRanges))
-	else
-		LOG(string.format("Comparison: Found %d changed ranges across %d datasets",
-			#dataToLog.changedRanges, #dataToLog.datasets))
-		LOG("  Datasets: " .. table.concat(dsNames, ", "))
-	end
-
-	if #dataToLog.changedRanges == 0 then
-		LOG("  No changes detected")
-		return
-	end
-
-	local displayCount = math.min(#dataToLog.changedRanges, maxDisplay)
-	for i = 1, displayCount do
-		local range = dataToLog.changedRanges[i]
-		if range.count == 1 then
-			LOG(string.format("  [+0x%X]:", range.start))
-		else
-			LOG(string.format("  [+0x%X - +0x%X] (%d bytes):", range.start, range.endOffset, range.count))
-		end
-
-		-- Show values if they were added
 		if range.values then
-			local bytesToShow = math.min(range.count, 3)
-			for j = 1, bytesToShow do
+			for j = 1, #range.values do
 				local progression = range.values[j]
 				local values = {}
 				for _, v in ipairs(progression) do
-					table.insert(values, string.format("0x%02X", v.value))
+					table.insert(values, string.format(formatStr, v.value))
 				end
-				LOG(string.format("    +0x%X: %s", range.start + j - 1, table.concat(values, " -> ")))
+				-- progression[1].address is the actual address for this chunk
+				local chunkOffset = progression[1] and (progression[1].address - result._captures[1].address) or (range.start + (j-1) * alignment)
+				LOG(string.format("      +0x%X: %s", chunkOffset, table.concat(values, " -> ")))
 			end
-			if range.count > bytesToShow then
-				LOG(string.format("    ... and %d more bytes in range", range.count - bytesToShow))
+		end
+
+		if range.uniqueValues then
+			for j = 1, #range.uniqueValues do
+				local uniqueData = range.uniqueValues[j]
+				local valueStrs = {}
+				for _, vCount in ipairs(uniqueData.values) do
+					table.insert(valueStrs, string.format(formatStr .. "(%d)", vCount.value, vCount.count))
+				end
+				LOG(string.format("      +0x%X: %s", uniqueData.offset, table.concat(valueStrs, ", ")))
 			end
 		end
 	end
+end
 
-	if #dataToLog.changedRanges > maxDisplay then
-		LOG(string.format("  ... and %d more ranges", #dataToLog.changedRanges - maxDisplay))
+-- Log changes from a result (logs everything - all ranges, all data)
+function analysis.logChanges(result)
+
+	local name = result.name or "Unknown"
+	local captureIndices = result.captureIndices or {}
+	local alignment = result._alignment or 4
+
+	local filteredRanges = result.filtered or {}
+	local unfilteredRanges = result.unfiltered or {}
+
+	-- Determine format string based on alignment
+	local formatStr = "0x%02X"  -- byte
+	if alignment == 2 then
+		formatStr = "0x%04X"  -- short
+	elseif alignment == 4 then
+		formatStr = "0x%08X"  -- int/pointer
 	end
+
+	LOG(string.format("Analyzer '%s' (captures: [%s], alignment: %d): %d filtered ranges, %d unfiltered ranges",
+		name, table.concat(captureIndices, ","), alignment, #filteredRanges, #unfilteredRanges))
+
+	if #filteredRanges > 0 then
+		LOG(string.format("  Filtered Ranges (%d total):", #filteredRanges))
+		analysis._logRanges(filteredRanges, "filtered", result, alignment, formatStr)
+	end
+
+	if #unfilteredRanges > 0 then
+		LOG(string.format("  Unfiltered Ranges (%d total):", #unfilteredRanges))
+		analysis._logRanges(unfilteredRanges, "unfiltered", result, alignment, formatStr)
+	end
+end
+
+-- Filter result ranges based on custom criteria
+-- result: result object to filter
+-- filterSpec: filter specification
+--   Mode 1 (range-level): function(range, captures) -> bool
+--     - range: {start, endOffset, count}
+--     - captures: array of capture data
+--     - return true to keep the range
+--   Mode 2 (alignment-chunk): {alignment=N, filter=function(offset, values) -> bool, ranges="filtered"}
+--     - alignment: size of chunks to test (default: result._alignment)
+--     - filter: function(offset, values) -> bool
+--       - offset: byte offset within memory region
+--       - values: array of alignment-sized values from each capture at this offset
+--                 (byte for alignment=1, short for alignment=2, int for alignment=4)
+--       - return true to keep this alignment chunk
+--     - ranges: "filtered", "unfiltered", or "both" (which ranges to filter)
+-- Returns new result with only ranges/chunks that pass the filter
+function analysis.filterResult(result, filterSpec)
+	if not result then
+		error("Result is required")
+	end
+
+	if not result._captures or #result._captures == 0 then
+		error("Result must have captures")
+	end
+
+	-- Determine filter mode
+	local isRangeFilter = type(filterSpec) == "function"
+	local isChunkFilter = type(filterSpec) == "table" and filterSpec.filter
+
+	if not isRangeFilter and not isChunkFilter then
+		error("filterSpec must be a function or table with 'filter' field")
+	end
+
+	local captures = result._captures
+	local newFiltered = {}
+	local newUnfiltered = {}
+
+	if isRangeFilter then
+		-- Mode 1: Range-level filtering
+		for _, range in ipairs(result.filtered or {}) do
+			if filterSpec(range, captures) then
+				table.insert(newFiltered, range)
+			end
+		end
+		for _, range in ipairs(result.unfiltered or {}) do
+			table.insert(newUnfiltered, range)
+		end
+	else
+		-- Mode 2: Alignment-chunk filtering
+		local alignment = filterSpec.alignment or result._alignment
+		local rangeMode = filterSpec.ranges or "filtered"
+		local filterFunc = filterSpec.filter
+
+		-- Helper to filter ranges by alignment chunks
+		local function filterRangesByChunks(ranges)
+			local filtered = {}
+			for _, range in ipairs(ranges) do
+				-- Test each alignment chunk in the range
+				local keptChunks = {}
+				for offset = range.start, range.endOffset, alignment do
+					-- Gather aligned values at this offset from all captures
+					local values = {}
+					for _, capture in ipairs(captures) do
+						local value = analysis._readAlignedValue(capture.data, offset, alignment)
+						if value then
+							table.insert(values, value)
+						end
+					end
+
+					-- Test this chunk
+					if #values > 0 and filterFunc(offset, values) then
+						table.insert(keptChunks, offset)
+					end
+				end
+
+				-- Build new ranges from kept chunks
+				if #keptChunks > 0 then
+					local currentStart = keptChunks[1]
+					local currentEnd = keptChunks[1]
+
+					for i = 2, #keptChunks do
+						local offset = keptChunks[i]
+						if offset == currentEnd + alignment then
+							currentEnd = offset
+						else
+							-- Gap found, emit current range
+							table.insert(filtered, {
+								start = currentStart,
+								endOffset = currentEnd + alignment - 1,
+								count = currentEnd - currentStart + alignment
+							})
+							currentStart = offset
+							currentEnd = offset
+						end
+					end
+
+					-- Emit final range
+					table.insert(filtered, {
+						start = currentStart,
+						endOffset = currentEnd + alignment - 1,
+						count = currentEnd - currentStart + alignment
+					})
+				end
+			end
+			return filtered
+		end
+
+		-- Apply to filtered and/or unfiltered ranges
+		if rangeMode == "filtered" or rangeMode == "both" then
+			newFiltered = filterRangesByChunks(result.filtered or {})
+		else
+			newFiltered = result.filtered or {}
+		end
+
+		if rangeMode == "unfiltered" or rangeMode == "both" then
+			newUnfiltered = filterRangesByChunks(result.unfiltered or {})
+		else
+			newUnfiltered = result.unfiltered or {}
+		end
+	end
+
+	-- Build new result
+	local newResult = {
+		name = (result.name or "Unknown") .. "_filtered",
+		captureIndices = result.captureIndices,
+		filtered = newFiltered,
+		unfiltered = newUnfiltered,
+		_captures = result._captures,
+		_analyzer = result._analyzer,
+		_alignment = result._alignment
+	}
+
+	return newResult
 end
 
 return analysis
