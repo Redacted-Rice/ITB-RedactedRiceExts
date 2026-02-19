@@ -2,6 +2,213 @@
 
 local analysis = {}
 
+-- Reads the value from data at offset with specified type
+-- Supports byte, int, and pointer types for value comparison
+function analysis._getValueAtOffset(data, offset, valueType)
+	local byteIdx = offset + 1
+
+	if valueType == "byte" then
+		return string.byte(data, byteIdx)
+	elseif valueType == "int" or valueType == "pointer" then
+		if byteIdx + 3 > #data then return nil end
+		local b1, b2, b3, b4 = string.byte(data, byteIdx, byteIdx + 3)
+		local value = b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
+		if valueType == "int" and value >= 0x80000000 then
+			value = value - 0x100000000
+		end
+		return value
+	else
+		error(string.format("_getValueAtOffset only supports 'byte', 'int', and 'pointer' types, got '%s'", valueType))
+	end
+end
+
+-- Compare values based on passed operator string
+function analysis._compareValues(value, operator, target)
+	if operator == "==" then
+		return value == target
+	elseif operator == "~=" then
+		return value ~= target
+	elseif operator == "<" then
+		return value < target
+	elseif operator == "<=" then
+		return value <= target
+	elseif operator == ">" then
+		return value > target
+	elseif operator == ">=" then
+		return value >= target
+	else
+		error(string.format("Unsupported operator: %s (use Lua syntax: ==, ~=, <, <=, >, >=)", operator))
+	end
+end
+
+-- Get type size in bytes
+function analysis._getTypeSize(valueType, targetValue)
+	if valueType == "byte" then
+		return 1
+	elseif valueType == "int" or valueType == "pointer" then
+		return 4
+	elseif valueType == "bytearray" then
+		if type(targetValue) == "string" then
+			return #targetValue
+		else
+			error("bytearray type requires target value to be a string")
+		end
+	elseif valueType == "string" then
+		if type(targetValue) == "string" then
+			return #targetValue + 1
+		else
+			error("string type requires target value to be a string")
+		end
+	else
+		error(string.format("Unsupported type '%s'. Supported types: byte, int, pointer, string, bytearray", valueType))
+	end
+end
+
+-- Compare up to the last N captures
+-- captures: array of capture data
+-- analyzer: analyzer instance for size/alignment config
+-- name: analyzer name for result metadata
+-- n: number of recent captures to compare (default: all)
+-- includeData: if true, automatically adds detailed value data to the result
+function analysis.getChanges(captures, analyzer, name, n, includeData)
+	local count = #captures
+
+	if n == nil or n <= 0 then
+		n = count
+	end
+
+	if count < 2 then
+		error("Need at least 2 captures to compare")
+	end
+
+	if n > count then
+		LOG(string.format("Warning: Requested %d captures but only %d available. Using all captures.", n, count))
+		n = count
+	end
+
+	local startIdx = math.max(1, count - n + 1)
+	local selectedCaptures = {}
+	for i = startIdx, count do
+		table.insert(selectedCaptures, captures[i])
+	end
+
+	local changedRanges, unchangedRanges = analysis.buildChangeRanges(analyzer.size,
+		function(byteIdx)
+			local firstValue = string.byte(selectedCaptures[1].data, byteIdx)
+			for i = 2, #selectedCaptures do
+				if string.byte(selectedCaptures[i].data, byteIdx) ~= firstValue then
+					return true
+				end
+			end
+			return false
+		end, analyzer.alignment
+	)
+
+	local result = {
+		datasets = {{name = name, captureIndices = {startIdx, count}}},
+		changedRanges = changedRanges,
+		unchangedRanges = unchangedRanges,
+		_captures = selectedCaptures,
+		_startIdx = startIdx,
+		_analyzer = analyzer,
+		_alignment = analyzer.alignment
+	}
+
+	if includeData then
+		result = analysis.getChangedData(result)
+	end
+
+	return result
+end
+
+-- Find offsets where values match a condition
+-- captures: array of capture data
+-- analyzer: analyzer instance for size/alignment config
+-- operator: ==, ~=, <, <=, >, >=
+-- targetValue: value to compare against
+-- valueType: byte, int, pointer, string, bytearray
+-- Returns an array of offsets (0-based) that match across all captures
+function analysis.findOffsets(captures, analyzer, operator, targetValue, valueType)
+	if #captures == 0 then
+		error("No captures available")
+	end
+
+	-- Validate operator for type
+	local comparisonOps = {"<", "<=", ">", ">="}
+	local isComparisonOp = false
+	for _, op in ipairs(comparisonOps) do
+		if operator == op then
+			isComparisonOp = true
+			break
+		end
+	end
+
+	if isComparisonOp and valueType ~= "int" and valueType ~= "byte" and valueType ~= "pointer" then
+		error(string.format("Operator '%s' only supported for 'int', 'byte', and 'pointer' types. Type '%s' only supports '==' and '~='", operator, valueType))
+	end
+
+	local size = analyzer.size
+	local alignment = analyzer.alignment
+
+	-- Handle hex string conversion for bytearray
+	if valueType == "bytearray" and type(targetValue) == "string" then
+		targetValue = memhack.debug.hexToBytes(targetValue)
+	end
+
+	local typeSize = analysis._getTypeSize(valueType, targetValue)
+	local matchingOffsets = {}
+
+	-- For byte/int/pointer types, use typed value comparison
+	if valueType == "byte" or valueType == "int" or valueType == "pointer" then
+		for offset = 0, size - typeSize, alignment do
+			local allMatch = true
+			for _, capture in ipairs(captures) do
+				local value = analysis._getValueAtOffset(capture.data, offset, valueType)
+				if not value or not analysis._compareValues(value, operator, targetValue) then
+					allMatch = false
+					break
+				end
+			end
+			if allMatch then
+				table.insert(matchingOffsets, offset)
+			end
+		end
+	elseif valueType == "string" or valueType == "bytearray" then
+		if operator ~= "==" and operator ~= "~=" then
+			error(string.format("Type '%s' only supports '==' and '~=' operators", valueType))
+		end
+
+		local targetBytes
+		if valueType == "string" then
+			targetBytes = targetValue .. "\0"
+		elseif valueType == "bytearray" then
+			targetBytes = targetValue
+		end
+
+		for offset = 0, size - typeSize, alignment do
+			local allMatch = true
+			for _, capture in ipairs(captures) do
+				local dataBytes = string.sub(capture.data, offset + 1, offset + typeSize)
+				local matches = (dataBytes == targetBytes)
+				if operator == "~=" then
+					matches = not matches
+				end
+				if not matches then
+					allMatch = false
+					break
+				end
+			end
+			if allMatch then
+				table.insert(matchingOffsets, offset)
+			end
+		end
+	else
+		error(string.format("Unsupported type '%s' for findOffsets. Supported types: byte, int, pointer, string, bytearray", valueType))
+	end
+
+	return matchingOffsets
+end
+
 -- Build both changed and unchanged ranges with alignment support
 -- compareFunc(byteIdx) should return true if byte is changed
 -- alignment: group bytes by alignment (1 = byte-by-byte, 4 = 4-byte groups, etc.)
@@ -91,17 +298,17 @@ function analysis.compareChanges(results, includeData)
 
 	-- Use first result to determine analyzer properties
 	local firstResult = results[1]
-	if not firstResult._dataset then
-		error("Results must contain dataset reference")
+	if not firstResult._analyzer then
+		error("Results must contain analyzer reference")
 	end
 
-	local analyzer = firstResult._dataset._analyzer
+	local analyzer = firstResult._analyzer
 	local size = analyzer.size
 	local alignment = analyzer.alignment
 
 	-- Ensure all results use the same analyzer
 	for i, result in ipairs(results) do
-		if result._dataset._analyzer ~= analyzer then
+		if result._analyzer ~= analyzer then
 			error(string.format("Result %d uses a different analyzer than first result. All results must use the same analyzer.", i))
 		end
 	end
@@ -267,40 +474,39 @@ function analysis.crossCheckOffsets(offsetArrays)
 	return analysis._crossCheckOffsets(offsetArrays)
 end
 
--- Compare values based on offset across datasets using value/relative conditions
+-- Compare values based on offset across analyzers using value/relative conditions
 -- Supported operators by type:
 --   byte & int: ==, ~=, <, <=, >, >=, increased, decreased
 --   Other types: ==, ~=, changed only
 -- Returns an array of offsets matching all conditions
-function analysis.compareValuesByOffset(valueType, datasetDefs)
-	-- Note - alignment is applied in the underlying findOffsets and _findRelativeOffsets functions
+function analysis.compareValuesByOffset(valueType, analyzerDefs)
 	if type(valueType) ~= "string" then
 		error("valueType must be a type string (i.e. 'int' or 'byte')")
 	end
-	if type(datasetDefs) ~= "table" or #datasetDefs == 0 then
-		error("datasetDefs must be non-empty array of specifications")
+	if type(analyzerDefs) ~= "table" or #analyzerDefs == 0 then
+		error("analyzerDefs must be non-empty array of specifications")
 	end
 
 	-- Find offsets for each spec
 	local offsetSets = {}
-	for i, datasetDef in ipairs(datasetDefs) do
-		if not datasetDef.dataset then
-			error(string.format("Spec %d missing 'dataset' field", i))
+	for i, analyzerDef in ipairs(analyzerDefs) do
+		if not analyzerDef.analyzer then
+			error(string.format("Spec %d missing 'analyzer' field", i))
 		end
 
 		local offsets
-		if datasetDef.relative then
+		if analyzerDef.relative then
 			-- Validate relative type support
-			if (datasetDef.relative == "increased" or datasetDef.relative == "decreased") then
+			if (analyzerDef.relative == "increased" or analyzerDef.relative == "decreased") then
 				if valueType ~= "int" and valueType ~= "byte" then
-					error(string.format("Relative type '%s' only supported for 'int' and 'byte'. Type '%s' only supports 'changed'", spec.relative, valueType))
+					error(string.format("Relative type '%s' only supported for 'int' and 'byte'. Type '%s' only supports 'changed'", analyzerDef.relative, valueType))
 				end
 			end
-			offsets = analysis._findRelativeOffsets(datasetDef.dataset, datasetDef.relative, valueType)
-		elseif datasetDef.operator and datasetDef.val ~= nil then
-			offsets = datasetDef.dataset:findOffsets(datasetDef.operator, datasetDef.val, valueType)
+			offsets = analysis._findRelativeOffsets(analyzerDef.analyzer._captures, analyzerDef.analyzer, analyzerDef.relative, valueType)
+		elseif analyzerDef.operator and analyzerDef.val ~= nil then
+			offsets = analysis.findOffsets(analyzerDef.analyzer._captures, analyzerDef.analyzer, analyzerDef.operator, analyzerDef.val, valueType)
 		else
-			error(string.format("datasetDef %d must have either 'relative' or both 'operator' and 'val'", i))
+			error(string.format("analyzerDef %d must have either 'relative' or both 'operator' and 'val'", i))
 		end
 
 		table.insert(offsetSets, offsets)
@@ -312,10 +518,9 @@ end
 -- Find typed relative offsets for int & byte types
 -- Supports increased, decreased, changed
 -- Uses analyzer's alignment setting to determine which offsets to check
-function analysis._findTypedRelativeOffsets(dataset, relativeType, valueType)
-	local size = dataset._analyzer.size
-	local alignment = dataset._analyzer.alignment
-	-- Only supports int & byte
+function analysis._findTypedRelativeOffsets(captures, analyzer, relativeType, valueType)
+	local size = analyzer.size
+	local alignment = analyzer.alignment
 	local typeSize = (valueType == "int") and 4 or 1
 	local matchingOffsets = {}
 
@@ -323,8 +528,8 @@ function analysis._findTypedRelativeOffsets(dataset, relativeType, valueType)
 		local allMatch = true
 		local prevValue = nil
 
-		for captureIdx, capture in ipairs(dataset.captures) do
-			local value = dataset:_getValueAtOffset(capture.data, offset, valueType, nil)
+		for captureIdx, capture in ipairs(captures) do
+			local value = analysis._getValueAtOffset(capture.data, offset, valueType)
 
 			if captureIdx == 1 then
 				prevValue = value
@@ -359,18 +564,18 @@ end
 -- Find byte level changed offsets for all types
 -- Only supports 'changed' comparison
 -- Uses analyzer's alignment setting to determine which offsets to check
-function analysis._findByteChangedOffsets(dataset)
-	local size = dataset._analyzer.size
-	local alignment = dataset._analyzer.alignment
+function analysis._findByteChangedOffsets(captures, analyzer)
+	local size = analyzer.size
+	local alignment = analyzer.alignment
 	local matchingOffsets = {}
 
 	for offset = 0, size - 1, alignment do
 		local byteIdx = offset + 1
 		local allMatch = true
-		local prevValue = string.byte(dataset.captures[1].data, byteIdx)
+		local prevValue = string.byte(captures[1].data, byteIdx)
 
-		for i = 2, #dataset.captures do
-			local currValue = string.byte(dataset.captures[i].data, byteIdx)
+		for i = 2, #captures do
+			local currValue = string.byte(captures[i].data, byteIdx)
 			if currValue == prevValue then
 				allMatch = false
 				break
@@ -389,8 +594,8 @@ end
 -- Find offsets where values changed relatively (increased/decreased/changed)
 -- For byte/int: Uses typed comparison (increased/decreased/changed supported)
 -- For other types: Uses byte-level comparison (only 'changed' supported)
-function analysis._findRelativeOffsets(dataset, relativeType, valueType)
-	if #dataset.captures < 2 then
+function analysis._findRelativeOffsets(captures, analyzer, relativeType, valueType)
+	if #captures < 2 then
 		LOG("Need at least 2 captures for relative comparison")
 		return {}
 	end
@@ -404,13 +609,13 @@ function analysis._findRelativeOffsets(dataset, relativeType, valueType)
 
 	-- Use appropriate helper based on type and operation
 	if valueType == "int" or valueType == "byte" then
-		return analysis._findTypedRelativeOffsets(dataset, relativeType, valueType)
+		return analysis._findTypedRelativeOffsets(captures, analyzer, relativeType, valueType)
 	else
 		-- For other types, only 'changed' supported
 		if relativeType ~= "changed" then
 			error(string.format("Type '%s' only supports 'changed' relative comparison", valueType))
 		end
-		return analysis._findByteChangedOffsets(dataset)
+		return analysis._findByteChangedOffsets(captures, analyzer)
 	end
 end
 
