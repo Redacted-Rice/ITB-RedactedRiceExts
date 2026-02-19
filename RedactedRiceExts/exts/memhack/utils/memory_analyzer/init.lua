@@ -8,10 +8,8 @@ local path = GetParentPath(...)
 local MemoryAnalyzer = {}
 MemoryAnalyzer.__index = MemoryAnalyzer
 
-MemoryAnalyzer.Dataset = require(path .. "dataset")
 MemoryAnalyzer.analysis = require(path .. "analysis")
 
-local Dataset = MemoryAnalyzer.Dataset
 local analysis = MemoryAnalyzer.analysis
 
 -- Module level storage (following StructManager pattern)
@@ -52,9 +50,10 @@ function MemoryAnalyzer.new(id, size, options)
 	instance.rateLimit = options.rateLimit or 0  -- 0 = unlimited
 	instance._lastCaptureTime = 0
 
-	-- Datasets and current dataset
-	instance._datasets = {}
-	instance._currentDataset = nil
+	-- Capture and result storage
+	instance._captures = {}
+	instance._results = {}
+	instance._lastBaseAddress = options.baseAddress
 
 	MemoryAnalyzer._memoryAnalyzers[id] = instance
 	return instance
@@ -76,6 +75,7 @@ function MemoryAnalyzer.list()
 	for id, _ in pairs(MemoryAnalyzer._memoryAnalyzers) do
 		table.insert(ids, id)
 	end
+	table.sort(ids)
 	return ids
 end
 
@@ -89,79 +89,154 @@ function MemoryAnalyzer:disable()
 	self.enabled = false
 end
 
--- Set current dataset for captures
-function MemoryAnalyzer:setCurrentDataset(name)
-	if not self._datasets[name] then
-		error(string.format("Dataset '%s' does not exist", name))
-	end
-	self._currentDataset = name
-end
-
--- Create dataset and sets it to the current dataset
-function MemoryAnalyzer:createDataset(name)
-	if type(name) ~= "string" then
-		error("createDataset requires a string dataset name")
-	end
-
-	if self._datasets[name] then
-		error(string.format("Dataset '%s' already exists", name))
-	end
-
-	-- Create it and set it as the current dataset
-	local dataset = Dataset.new(self, name)
-	self._datasets[name] = dataset
-	self._currentDataset = name
-
-	return dataset
-end
-
-function MemoryAnalyzer:getDataset(name)
-	return self._datasets[name]
-end
-
-function MemoryAnalyzer:getCurrentDataset()
-	return self:getDataset(self._currentDataset)
-end
-
--- Remove analyzer by ID
-function MemoryAnalyzer:removeDataset(name)
-	self._datasets[name] = nil
-end
-
--- List all analyzer IDs
-function MemoryAnalyzer:listDatasets()
-	local names = {}
-	for name, _ in pairs(self._datasets) do
-		table.insert(names, name)
-	end
-	return names
-end
-
--- Capture to current dataset if analyzer is enabled and rate limit is not exceeded
--- If baseAddress is not specified, it will use the last baseAddress set
-function MemoryAnalyzer:capture(baseAddress)
+-- Check if capture can proceed and return base address
+-- Returns baseAddr on success, nil on failure
+function MemoryAnalyzer:_checkCanCapture(baseAddress)
 	if not self.enabled then
 		LOG("Analyzer is disabled. Capture aborted.")
 		return nil
 	end
 
-	if not self._currentDataset then
-		error("No current dataset set. Call setCurrentDataset() or createDataset() first")
-	end
-
-	-- Check rate limit
 	if self.rateLimit > 0 then
 		local now = os.time()
 		if (now - self._lastCaptureTime) < self.rateLimit then
 			LOG("Rate limit exceeded. Capture aborted.")
 			return nil
 		end
-		self._lastCaptureTime = now
 	end
 
-	local dataset = self._datasets[self._currentDataset]
-	local result = dataset:_capture(baseAddress)
+	local baseAddr = baseAddress or self._lastBaseAddress
+	if not baseAddr then
+		error("No base address available for capture")
+	end
+
+	return baseAddr
+end
+
+-- Resolve pointer chain and return final address
+function MemoryAnalyzer:_resolveAddress(baseAddr)
+	local addr = baseAddr
+	local chain = self.pointerChain or {}
+	for i, offset in ipairs(chain) do
+		local ptr = MemoryAnalyzer._dll.memory.readPointer(addr)
+		if not ptr or ptr == 0 then
+			error(string.format("Failed to resolve pointer at 0x%X (offset index %d)", addr, i))
+		end
+		addr = ptr + offset
+	end
+	return addr
+end
+
+-- Capture memory state if analyzer is enabled and rate limit is not exceeded
+-- If baseAddress is not specified, it will use the last baseAddress set
+-- Returns the capture index (1-based)
+function MemoryAnalyzer:capture(baseAddress)
+	local baseAddr = self:_checkCanCapture(baseAddress)
+	if not baseAddr then
+		-- can't capture
+		return nil
+	end
+	self._lastCaptureTime = os.time()
+
+	local addr = self:_resolveAddress(baseAddr)
+	local data = MemoryAnalyzer._dll.memory.readByteArray(addr, self.size)
+	if not data then
+		error(string.format("Failed to read memory at 0x%X", addr))
+	end
+
+	local captureData = {
+		timestamp = os.time(),
+		address = addr,
+		data = data,
+		baseAddress = baseAddr
+	}
+
+	self._lastBaseAddress = baseAddr
+	table.insert(self._captures, captureData)
+	return #self._captures
+end
+
+-- Clear all captures and results
+function MemoryAnalyzer:clear()
+	self._captures = {}
+	self._results = {}
+end
+
+-- Get number of captures
+function MemoryAnalyzer:getCaptureCount()
+	return #self._captures
+end
+
+-- Get capture by index (1-based)
+function MemoryAnalyzer:getCapture(index)
+	if index < 1 or index > #self._captures then
+		error(string.format("Capture index %d out of range [1,%d]", index, #self._captures))
+	end
+	return self._captures[index]
+end
+
+-- Remove capture by index (1-based)
+function MemoryAnalyzer:removeCapture(index)
+	if index < 1 or index > #self._captures then
+		error(string.format("Capture index %d out of range [1,%d]", index, #self._captures))
+	end
+	table.remove(self._captures, index)
+end
+
+-- List all captures with basic info
+function MemoryAnalyzer:listCaptures()
+	local captureList = {}
+	for i, capture in ipairs(self._captures) do
+		table.insert(captureList, {
+			index = i,
+			timestamp = capture.timestamp,
+			address = capture.address,
+			baseAddress = capture.baseAddress
+		})
+	end
+	return captureList
+end
+
+-- Compare up to the last N captures
+-- n: number of recent captures to compare (default: all)
+-- includeData: if true, adds detailed value data to the result
+-- resultId: optional ID to store result for later retrieval
+function MemoryAnalyzer:getChanges(n, includeData, resultId)
+	local result = analysis.getChanges(self._captures, self, self.id, n, includeData)
+
+	if resultId then
+		self._results[resultId] = result
+	end
+
 	return result
+end
+
+-- Find offsets where values match a condition across all captures
+-- operator: ==, ~=, <, <=, >, >= (comparison operators by type)
+-- targetValue: value to compare against
+-- valueType: byte, int, pointer, string, bytearray
+function MemoryAnalyzer:findOffsets(operator, targetValue, valueType)
+	return analysis.findOffsets(self._captures, self, operator, targetValue, valueType)
+end
+
+-- Get stored result by ID
+function MemoryAnalyzer:getResult(resultId)
+	return self._results[resultId]
+end
+
+-- Remove stored result by ID
+function MemoryAnalyzer:removeResult(resultId)
+	self._results[resultId] = nil
+end
+
+-- List all stored result IDs
+function MemoryAnalyzer:listResults()
+	local ids = {}
+	for id, _ in pairs(self._results) do
+		table.insert(ids, id)
+	end
+	table.sort(ids)
+	return ids
 end
 
 -- Re-export analysis functions for convenience
