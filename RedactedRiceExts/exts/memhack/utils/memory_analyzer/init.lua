@@ -8,9 +8,10 @@ local path = GetParentPath(...)
 local MemoryAnalyzer = {}
 MemoryAnalyzer.__index = MemoryAnalyzer
 
-MemoryAnalyzer.analysis = require(path .. "analysis")
-
-local analysis = MemoryAnalyzer.analysis
+-- Load analysis submodules
+local comparison = require(path .. "comparison")
+local values = require(path .. "values")
+local logging = require(path .. "logging")
 
 -- Module level storage (following StructManager pattern)
 MemoryAnalyzer._memoryAnalyzers = {}
@@ -222,7 +223,7 @@ end
 -- resultId: optional ID to store result for later retrieval
 -- Returns: {filtered=ranges that changed, unfiltered=ranges that didn't}
 function MemoryAnalyzer:getChangedOnce(captureIndices, resultId)
-	local result = analysis.getChangedOnce(self._captures, captureIndices, self, self.id)
+	local result = comparison.getChangedOnce(self._captures, captureIndices, self, self.id)
 	if resultId then
 		self._results[resultId] = result
 	end
@@ -234,7 +235,7 @@ end
 -- resultId: optional ID to store result for later retrieval
 -- Returns: {filtered=ranges that changed every time, unfiltered=ranges that didn't}
 function MemoryAnalyzer:getChangedEvery(captureIndices, resultId)
-	local result = analysis.getChangedEvery(self._captures, captureIndices, self, self.id)
+	local result = comparison.getChangedEvery(self._captures, captureIndices, self, self.id)
 	if resultId then
 		self._results[resultId] = result
 	end
@@ -246,7 +247,7 @@ end
 -- resultId: optional ID to store result for later retrieval
 -- Returns: {filtered=ranges that never changed, unfiltered=ranges that did}
 function MemoryAnalyzer:getUnchanged(captureIndices, resultId)
-	local result = analysis.getUnchanged(self._captures, captureIndices, self, self.id)
+	local result = comparison.getUnchanged(self._captures, captureIndices, self, self.id)
 	if resultId then
 		self._results[resultId] = result
 	end
@@ -259,7 +260,7 @@ end
 -- resultId: optional ID to store result for later retrieval
 -- Returns: {filtered=ranges that match comparator, unfiltered=ranges that don't}
 function MemoryAnalyzer:getCustomChanges(captureIndices, comparatorFunc, resultId)
-	local result = analysis.getCustomChanges(self._captures, captureIndices, self, self.id, comparatorFunc)
+	local result = comparison.getCustomChanges(self._captures, captureIndices, self, self.id, comparatorFunc)
 	if resultId then
 		self._results[resultId] = result
 	end
@@ -295,21 +296,21 @@ end
 -- result: result object or resultId string
 -- ranges: "filtered" (default), "unfiltered", or "both"
 function MemoryAnalyzer:addAllCapturesValues(result, ranges)
-	return self:_addDataHelper(result, analysis.addAllCapturesValues, ranges)
+	return self:_addDataHelper(result, values.addAllCapturesValues, ranges)
 end
 
 -- Add changed value progressions to result (only shows when value changes)
 -- result: result object or resultId string
 -- ranges: "filtered" (default), "unfiltered", or "both"
 function MemoryAnalyzer:addChangedCapturesValues(result, ranges)
-	return self:_addDataHelper(result, analysis.addChangedCapturesValues, ranges)
+	return self:_addDataHelper(result, values.addChangedCapturesValues, ranges)
 end
 
 -- Add unique value counts to result
 -- result: result object or resultId string
 -- ranges: "filtered" (default), "unfiltered", or "both"
 function MemoryAnalyzer:addUniqueCapturesValues(result, ranges)
-	return self:_addDataHelper(result, analysis.addUniqueCapturesValues, ranges)
+	return self:_addDataHelper(result, values.addUniqueCapturesValues, ranges)
 end
 
 -- Log a result (displays whatever data has been added via add* functions)
@@ -327,12 +328,12 @@ function MemoryAnalyzer:log(result)
 		error("Result is nil")
 	end
 
-	analysis.logChanges(result)
+	logging.logChanges(result)
 end
 
 -- Filter a result based on custom criteria
 -- result: result object or resultId string
--- filterSpec: filter specification (see analysis.filterResult for details)
+-- filterSpec: filter specification (see comparison.filterResult for details)
 --   Range-level: function(range, captures) -> bool
 --   Chunk-level: {alignment=N, filter=function(offset, values) -> bool, ranges="filtered"}
 --     values are alignment-sized (byte/short/int depending on alignment)
@@ -346,7 +347,7 @@ function MemoryAnalyzer:filterResult(result, filterSpec, resultId)
 		end
 	end
 
-	local filtered = analysis.filterResult(result, filterSpec)
+	local filtered = comparison.filterResult(result, filterSpec)
 	if resultId then
 		self._results[resultId] = filtered
 	end
