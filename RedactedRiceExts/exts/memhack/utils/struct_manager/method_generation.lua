@@ -10,7 +10,7 @@ local TYPE_HANDLERS = StructManager.TYPE_HANDLERS
 -- Helper: Resolve sub type and read value
 -- Supports table subType format: { type = "string", maxLength = X, lengthFn = fn }
 -- For non-string/bytearray types, subType can be a string (struct name or native type)
-function methodGeneration._resolveSubType(subType, ptrValue, fieldDef)
+function methodGeneration._resolveSubType(obj, subType, ptrValue, fieldDef)
 	local actualSubType = subType
 	local lengthFn = nil
 	local sizeToRead = nil
@@ -42,7 +42,7 @@ function methodGeneration._resolveSubType(subType, ptrValue, fieldDef)
 		-- Use lengthFn if provided, otherwise use sizeToRead
 		local actualLength = sizeToRead
 		if lengthFn then
-			actualLength = lengthFn(self)
+			actualLength = lengthFn(obj)
 			-- Add 1 for null terminator if reading a string
 			if actualSubType == "string" then
 				actualLength = actualLength + 1
@@ -106,7 +106,7 @@ function methodGeneration.generatePointerGetters(StructType, fieldName, fieldDef
 			end
 
 			-- Resolve the subtype if specified
-			local result = methodGeneration._resolveSubType(fieldDef.subType, ptrValue, fieldDef)
+			local result = methodGeneration._resolveSubType(self, fieldDef.subType, ptrValue, fieldDef)
 			return result
 		end
 	end
