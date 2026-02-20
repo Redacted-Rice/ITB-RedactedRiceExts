@@ -205,7 +205,7 @@ function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilot
 	-- In order registered, stored, in-memory
 	local resolved = false
 	local saveVal = nil
-	if registeredSkill.saveVal and registeredSkill.saveVal >= 0 then 
+	if registeredSkill.saveVal and registeredSkill.saveVal >= 0 then
 		if registeredSkill.saveVal == excludeVal then
 			logger.logDebug(SUBMODULE, "Found registered saveVal %d but it conflicts with excludeVal", excludeVal)
 		else
@@ -213,7 +213,7 @@ function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilot
 			logger.logDebug(SUBMODULE, "Found registered saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
 		end
 	end
-	
+
 	if not saveVal and storedSkill.saveVal and storedSkill.saveVal >= 0 then
 		if storedSkill.saveVal == excludeVal then
 			logger.logDebug(SUBMODULE, "Found stored saveVal %d but it conflicts with excludeVal", excludeVal)
@@ -222,7 +222,7 @@ function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilot
 			logger.logDebug(SUBMODULE, "Found stored saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
 		end
 	end
-	
+
 	if not saveVal and preassignedVal and preassignedVal >= 0 then
 		if preassignedVal == excludeVal then
 			logger.logDebug(SUBMODULE, "Found preassinged saveVal %d but it conflicts with excludeVal", excludeVal)
@@ -241,6 +241,28 @@ function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilot
 	-- Store the assigned saveVal
 	storedSkill.saveVal = saveVal
 	return saveVal
+end
+
+-- Apply specific skills to a pilot
+-- Takes a memhack pilot struct and specific skill IDs to apply
+-- skillIds: table with two skill IDs {skill1Id, skill2Id}
+-- fireHooks: if true, fires skillsSelected hook before applying skills (defaults to false)
+function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
+	if pilot == nil then
+		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillIdsToPilot - skipping")
+		return
+	end
+
+	if fireHooks == nil then fireHooks = false end
+
+	local pilotId = pilot:getIdStr()
+
+	-- Create stored skills structure
+	local storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
+	GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
+
+	-- Apply the skills to the pilot
+	self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 end
 
 -- Main function to apply level up skills to a pilot (handles both skill slots)
@@ -274,7 +296,6 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		local lus = cplus_plus_ex._subobjects.time_traveler.timeTraveler:getLvlUpSkills()
 		skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
 		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 		logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
 	-- otherwise assign random skills
 	else
@@ -285,7 +306,6 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		end
 		-- Convert to table format so we can associat saveVals and update in game state
 		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 		-- Track newly assigned skills for per_run constraints
 		self:_markPerRunSkillAsUsed(skillIds[1])
@@ -294,11 +314,24 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
 	end
 
-	local skill1Id = skillIds[1] or "<unknown>"
-	local skill2Id = skillIds[2] or "<unknown>"
+	-- Use common validation and application logic
+	self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
+end
+
+-- Internal function to validate, assign saveVals, and apply skills to the pilot
+-- Takes storedSkills structure: { {id = skill1Id}, {id = skill2Id} }
+function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
+	local availableSkills = self:_createAvailableSkills()
+	local pilotId = pilot:getIdStr()
+
+	local skill1Id = storedSkills[1].id or "<unknown>"
+	local skill2Id = storedSkills[2].id or "<unknown>"
 	local skill1 = skill_config_module.enabledSkills[skill1Id]
 	local skill2 = skill_config_module.enabledSkills[skill2Id]
 
+	local skillIds = {skill1Id, skill2Id}
+
+	-- If skills are disabled, assign random ones
 	if not skill2 then
 		skillIds[2] = nil
 	end
@@ -332,6 +365,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	-- Assign saveVals, ensuring they're different
 	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, preassignedSaveVal1, nil)
 	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, preassignedSaveVal2, saveVal1)
+	-- Make sure save game data is updated
+	GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
@@ -344,9 +379,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		pilot:setLvlUpSkill(2, self:skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
-
 end
-
 
 -- Apply skills to all pilots - both squad and storage
 function skill_selection:applySkillsToAllPilots()

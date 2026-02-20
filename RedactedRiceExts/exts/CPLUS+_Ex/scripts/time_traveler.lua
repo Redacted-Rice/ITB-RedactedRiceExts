@@ -20,10 +20,12 @@ time_traveler.timeTraveler = nil  -- The actual time traveler pilot struct
 
 -- Local references to other submodules (set during init)
 local utils = nil
+local skill_selection = nil
 
 -- Initialize the module
 function time_traveler:init()
 	utils = cplus_plus_ex._subobjects.utils
+	skill_selection = cplus_plus_ex._subobjects.skill_selection
 	return self
 end
 
@@ -189,7 +191,8 @@ function time_traveler:scanForTimeTraveler()
 			-- Validate just in case. Really should be fine
 			time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr, true)
 			if time_traveler.timeTraveler then
-				logger.logDebug(SUBMODULE, "Setting to found pilot at 0x%X", baseAddr)
+				logger.logDebug(SUBMODULE, "found pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
+				skill_selection:applySkillIdsToPilot(time_traveler.timeTraveler, {data.skill1, data.skill2}, false)
 				break
 			end
 		end
