@@ -360,7 +360,7 @@ function skill_selection:applySkillsToAllPilots()
 
 	-- Assign skills for all squad and storage pilots
 	local pilots = Game:GetAvailablePilots()
-	logger.logDebug(SUBMODULE, "Starting skill assignment for %d pilots", #pilots)
+	logger.logDebug(SUBMODULE, "Checking and maybe doing skill assignment for %d pilots", #pilots)
 
 	-- Check if any pilots have not had skills assigned yet this run
 	local newPilots = {}
@@ -395,8 +395,8 @@ function skill_selection:applySkillsToAllPilots()
 		end
 	end
 
-	-- Assign skills to any pilots (this handles the reset turn case)
-	for _, pilot in pairs(pilots) do
+	-- Assign skills to any new pilots
+	for _, pilot in pairs(newPilots) do
 		local pilotId = pilot:getIdStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
 
@@ -408,7 +408,7 @@ function skill_selection:applySkillsToAllPilots()
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Applied skills to " .. #pilots .. " pilot(s)")
+	logger.logInfo(SUBMODULE, "Applied skills to " .. #newPilots .. " new pilot(s)")
 
 	-- Only fire post assignment hook if there were new pilots
 	if hasNewPilots then
