@@ -164,7 +164,7 @@ describe("Assignment Hooks Fire Once Behavior", function()
 			local podPilot = mocks.createMockPilot("Pilot_PodReward")
 			_G.Game.GetPodRewardPilot = function() return podPilot end
 			
-			skill_selection:applySkillToPodPilot()
+			skill_selection:_selectSkillsForPodPilot()
 			
 			assert.are.equal(1, preCount, "Pre hook should fire for pod pilot")
 			assert.are.equal(1, postCount, "Post hook should fire for pod pilot")
@@ -192,10 +192,10 @@ describe("Assignment Hooks Fire Once Behavior", function()
 			_G.Game.GetPodRewardPilot = function() return podPilot end
 			
 			-- First call
-			skill_selection:applySkillToPodPilot()
+			skill_selection:_selectSkillsForPodPilot()
 			
 			-- Second call - should not fire hooks
-			skill_selection:applySkillToPodPilot()
+			skill_selection:_selectSkillsForPodPilot()
 			
 			assert.are.equal(1, preCount, "Pre hook should only fire once")
 			assert.are.equal(1, postCount, "Post hook should only fire once")
@@ -225,7 +225,7 @@ describe("Assignment Hooks Fire Once Behavior", function()
 			local perfectPilot = mocks.createMockPilot("Pilot_PerfectIsland")
 			_G.Game.GetPerfectIslandRewardPilot = function() return perfectPilot end
 			
-			skill_selection:applySkillToPerfectIslandPilot()
+			skill_selection:_selectSkillsForPerfectIslandPilot()
 			
 			assert.are.equal(1, preCount, "Pre hook should fire for perfect island pilot")
 			assert.are.equal(1, postCount, "Post hook should fire for perfect island pilot")
@@ -253,10 +253,10 @@ describe("Assignment Hooks Fire Once Behavior", function()
 			_G.Game.GetPerfectIslandRewardPilot = function() return perfectPilot end
 			
 			-- First call
-			skill_selection:applySkillToPerfectIslandPilot()
+			skill_selection:_selectSkillsForPerfectIslandPilot()
 			
 			-- Second call (e.g., menu reopened) - should not fire hooks
-			skill_selection:applySkillToPerfectIslandPilot()
+			skill_selection:_selectSkillsForPerfectIslandPilot()
 			
 			assert.are.equal(1, preCount, "Pre hook should only fire once")
 			assert.are.equal(1, postCount, "Post hook should only fire once")

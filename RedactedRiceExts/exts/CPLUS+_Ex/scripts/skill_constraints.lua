@@ -23,9 +23,9 @@ function skill_constraints:init()
 	skill_selection = cplus_plus_ex._subobjects.skill_selection
 	utils = cplus_plus_ex._subobjects.utils
 
-	self:registerReusabilityConstraintFunction()
-	self:registerPlusExclusionInclusionConstraintFunction()
-	self:registerSkillExclusionConstraintFunction()
+	self:_registerReusabilityConstraintFunction()
+	self:_registerPlusExclusionInclusionConstraintFunction()
+	self:_registerSkillExclusionConstraintFunction()
 	return self
 end
 
@@ -55,7 +55,7 @@ function skill_constraints:registerConstraintFunction(constraintFn)
 end
 
 -- This enforces pilot exclusions (Vanilla blacklist API) and inclusion restrictions
-function skill_constraints:registerPlusExclusionInclusionConstraintFunction()
+function skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
 
@@ -92,7 +92,7 @@ function skill_constraints:registerPlusExclusionInclusionConstraintFunction()
 end
 
 -- This enforces per_pilot and per_run skill restrictions
-function skill_constraints:registerReusabilityConstraintFunction()
+function skill_constraints:_registerReusabilityConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
 		local skill = skill_config_module.enabledSkills[candidateSkillId]
@@ -133,7 +133,7 @@ function skill_constraints:registerReusabilityConstraintFunction()
 end
 
 -- This enforces skill to skill exclusions
-function skill_constraints:registerSkillExclusionConstraintFunction()
+function skill_constraints:_registerSkillExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		-- pilot id for logging
 		local pilotId = pilot:getIdStr()

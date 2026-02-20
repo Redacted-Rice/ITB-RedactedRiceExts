@@ -185,9 +185,9 @@ function M.resetState()
 	-- Reset skill_constraints module state
 	skill_constraints.constraintFunctions = {}
 	-- Re-register built-in constraint functions after clearing
-	skill_constraints:registerReusabilityConstraintFunction()
-	skill_constraints:registerPlusExclusionInclusionConstraintFunction()
-	skill_constraints:registerSkillExclusionConstraintFunction()
+	skill_constraints:_registerReusabilityConstraintFunction()
+	skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
+	skill_constraints:_registerSkillExclusionConstraintFunction()
 
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil

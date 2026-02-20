@@ -18,14 +18,14 @@ local hooks = nil
 local utils = nil
 
 -- State tracking tables
-function skill_state_tracker:resetAllTrackers()
+function skill_state_tracker:_resetAllTrackers()
 	self._hasAppliedSkill = false
 	self._isAssigningSkills = false
 	self._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
 	self._inRunSkills = {}    -- skillId -> {pilotAddr -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
 	self._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
 end
-skill_state_tracker:resetAllTrackers()
+skill_state_tracker:_resetAllTrackers()
 
 function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
@@ -34,25 +34,25 @@ function skill_state_tracker:init()
 end
 
 -- Mark the start of skill assignment so we disabling firing hooks on tracking changes
-function skill_state_tracker:beginAssignment()
+function skill_state_tracker:_beginAssignment()
 	self._isAssigningSkills = true
 end
 
 -- Mark that skills have been applied (called by main module after assignment)
-function skill_state_tracker:updateAfterAssignment()
+function skill_state_tracker:_updateAfterAssignment()
 	logger.logDebug(SUBMODULE, "Post-assignment: updating in-run and active skill states")
 	self._hasAppliedSkill = true
 	self._isAssigningSkills = false
 	-- Update in-run and active states after skills have been assigned to triggers
 	-- any changes
-	self:updateAllStates()
+	self:_updateAllStates()
 end
 
 -- Update states only if pilot level changed (called on pilot changed event)
-function skill_state_tracker:updateStatesIfNeeded(pilot, changes)
+function skill_state_tracker:_updateStatesIfNeeded(pilot, changes)
 	-- Check if level changed. This is the only change that will affect skill availability
 	if changes.level then
-		self:updateAllStates()
+		self:_updateAllStates()
 	end
 end
 
@@ -203,7 +203,7 @@ end
 
 -- Update enabled skills state and fire hooks for changes
 -- Only fires hooks if we're in a game
-function skill_state_tracker:updateEnabledSkills()
+function skill_state_tracker:_updateEnabledSkills()
 	if not Game then
 		-- No game active, clear all enabled skills
 		self._enabledSkills = {}
@@ -296,7 +296,7 @@ end
 
 -- Update in-run skills state and fire hooks for changes
 -- Only fires hooks if we're in a game
-function skill_state_tracker:updateInRunSkills()
+function skill_state_tracker:_updateInRunSkills()
 	if not Game then
 		-- No game active, clear all in-run skills
 		self._inRunSkills = {}
@@ -405,7 +405,7 @@ end
 
 -- Update active skills state and fire hooks for changes
 -- Only fires hooks if we're in a game
-function skill_state_tracker:updateActiveSkills()
+function skill_state_tracker:_updateActiveSkills()
 	if not Game or not Board then
 		-- No game active or no board, clear all active skills
 		self._activeSkills = {}
@@ -458,7 +458,7 @@ end
 -------------------- State Update Orchestration --------------------
 
 -- Update all skill states (called from various triggers)
-function skill_state_tracker:updateAllStates()
+function skill_state_tracker:_updateAllStates()
 	-- Skip updates if we're in the middle of assigning skills
 	-- The postAssignment hook will handle the final update
 	if self._isAssigningSkills then
@@ -466,10 +466,10 @@ function skill_state_tracker:updateAllStates()
 		return
 	end
 
-	self:updateEnabledSkills()
+	self:_updateEnabledSkills()
 	if self._hasAppliedSkill then
-		self:updateInRunSkills()
-		self:updateActiveSkills()
+		self:_updateInRunSkills()
+		self:_updateActiveSkills()
 	else
 		logger.logDebug(SUBMODULE, "Update all states: skipping In Run and Active")
 	end
