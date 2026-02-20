@@ -30,7 +30,7 @@ function skill_selection:init()
 end
 
 -- Clear pilot assignment tracking used on reset/enter/exit events
-function skill_selection:clearPilotTracking()
+function skill_selection:_clearPilotTracking()
 	self._pilotsAssignedThisRun = {}
 end
 
@@ -38,7 +38,7 @@ end
 -- technically redundant with the data in modloader save data
 -- but this is a more intuitive spot for it and only the minimal
 -- needed data for skills
-function skill_selection:initGameSaveData()
+function skill_selection:_initGameSaveData()
 	if GAME == nil then
 		GAME = {}
 	end
@@ -176,7 +176,7 @@ function skill_selection:selectRandomSkills(availableSkills, pilot, count)
 	return selectedSkills
 end
 
-function skill_selection:skillDataToTable(id, shortName, fullName, description, saveVal, bonuses)
+function skill_selection:_skillDataToTable(id, shortName, fullName, description, saveVal, bonuses)
 	return {id = id, shortName = shortName, fullName = fullName, description = description,
 		healthBonus = bonuses.health or 0, coresBonus = bonuses.cores or 0, gridBonus = bonuses.grid or 0,
 		moveBonus = bonuses.move or 0, saveVal = saveVal}
@@ -372,11 +372,11 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 
 	-- Apply both skills with their determined saveVal
 	if skill1Id ~= pilot:getLvlUpSkill(1):getIdStr() then
-		pilot:setLvlUpSkill(1, self:skillDataToTable(
+		pilot:setLvlUpSkill(1, self:_skillDataToTable(
 				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses))
 	end
 	if skill2Id ~= pilot:getLvlUpSkill(2):getIdStr() then
-		pilot:setLvlUpSkill(2, self:skillDataToTable(
+		pilot:setLvlUpSkill(2, self:_skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
 end
@@ -384,7 +384,7 @@ end
 -- Apply skills to all pilots - both squad and storage
 function skill_selection:applySkillsToAllPilots()
 	-- ensure game data is initialized
-	self:initGameSaveData()
+	self:_initGameSaveData()
 
 	if #skill_config_module.enabledSkillsIds == 0 then
 		logger.logWarn(SUBMODULE, "No enabled skills, skipping pilot skill assignment")
@@ -449,7 +449,7 @@ function skill_selection:applySkillsToAllPilots()
 	end
 end
 
-function skill_selection:applySkillToPodPilot()
+function skill_selection:_selectSkillsForPodPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPodRewardPilot()
 	if not pilot then return end
@@ -472,7 +472,7 @@ function skill_selection:applySkillToPodPilot()
 	end
 end
 
-function skill_selection:applySkillToPerfectIslandPilot()
+function skill_selection:_selectSkillsForPerfectIslandPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPerfectIslandRewardPilot()
 	if not pilot then return end

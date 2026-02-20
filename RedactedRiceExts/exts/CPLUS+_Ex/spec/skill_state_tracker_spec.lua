@@ -62,7 +62,7 @@ describe("Skill State Tracker", function()
 		it("should track skill not in run when no pilots", function()
 			plus_manager:registerSkill("test", "TestSkill", "Test", "Test Skill", "Description")
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			assert.is_false(skill_state_tracker:isSkillInRun("TestSkill"))
 		end)
@@ -76,7 +76,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			assert.is_true(skill_state_tracker:isSkillInRun("TestSkill"))
 		end)
@@ -90,7 +90,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			assert.is_false(skill_state_tracker:isSkillInRun("TestSkill"))
 		end)
@@ -115,7 +115,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_true(hookCalls[1].isInRun)
@@ -131,7 +131,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 			assert.is_true(skill_state_tracker:isSkillInRun("TestSkill"))
 
 			local hookCalls = {}
@@ -146,7 +146,7 @@ describe("Skill State Tracker", function()
 
 			-- Remove pilot from run
 			_G.Game.GetAvailablePilots = function() return {} end
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_false(hookCalls[1].isInRun)
@@ -169,7 +169,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			-- Should fire twice - once for each skill instance
 			assert.are.equal(2, #hookCalls)
@@ -191,7 +191,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetAvailablePilots = function() return {mockPilot1, mockPilot2} end
 
-			skill_state_tracker:updateInRunSkills()
+			skill_state_tracker:_updateInRunSkills()
 
 			local skillsInRun = skill_state_tracker:getSkillsInRun()
 
@@ -213,7 +213,7 @@ describe("Skill State Tracker", function()
 		it("should track skill not active when no squad pilots", function()
 			plus_manager:registerSkill("test", "TestSkill", "Test", "Test Skill", "Description")
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			assert.is_false(skill_state_tracker:isSkillActive("TestSkill"))
 		end)
@@ -235,7 +235,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			assert.is_true(skill_state_tracker:isSkillActive("TestSkill"))
 		end)
@@ -257,7 +257,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			assert.is_false(skill_state_tracker:isSkillActive("TestSkill"))
 		end)
@@ -291,7 +291,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_true(hookCalls[1].isActive)
@@ -316,7 +316,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 			assert.is_true(skill_state_tracker:isSkillActive("TestSkill"))
 
 			local hookCalls = {}
@@ -333,7 +333,7 @@ describe("Skill State Tracker", function()
 			-- Remove pilot from squad
 			_G.Game.GetSquadPilots = function() return {} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			assert.are.equal(1, #hookCalls)
 			assert.is_false(hookCalls[1].isActive)
@@ -365,7 +365,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			-- Should fire twice - once for each skill instance
 			assert.are.equal(2, #hookCalls)
@@ -398,7 +398,7 @@ describe("Skill State Tracker", function()
 
 			_G.Game.GetSquadPilots = function() return {mockPilot1, mockPilot2} end
 
-			skill_state_tracker:updateActiveSkills()
+			skill_state_tracker:_updateActiveSkills()
 
 			local activeSkills = skill_state_tracker:getSkillsActive()
 

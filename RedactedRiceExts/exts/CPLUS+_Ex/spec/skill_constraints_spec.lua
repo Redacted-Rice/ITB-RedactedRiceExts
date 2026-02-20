@@ -178,7 +178,7 @@ describe("Skill Constraints Module", function()
 				Blacklist = {"Grid"}
 			}, Pilot)
 
-			plus_manager._subobjects.skill_registry:readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
 
 			local exclusionsA = plus_manager.config.pilotSkillExclusions["Pilot_TestA"]
 			assert.is_not_nil(exclusionsA)
@@ -195,7 +195,7 @@ describe("Skill Constraints Module", function()
 				Name = "No Blacklist Pilot"
 			}, Pilot)
 
-			plus_manager._subobjects.skill_registry:readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
 
 			local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_TestNoBlacklist"]
 			assert.is_nil(exclusions)
@@ -204,7 +204,7 @@ describe("Skill Constraints Module", function()
 		it("should not clear registered exclusions", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Manual", {"Health"})
 
-			plus_manager._subobjects.skill_registry:readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
 
 			local manualExclusions = plus_manager.config.pilotSkillExclusions["Pilot_Manual"]
 			assert.is_not_nil(manualExclusions)

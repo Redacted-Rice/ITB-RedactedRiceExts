@@ -63,10 +63,10 @@ function skill_config:init()
 end
 
 -- Called after all mods are loaded
-function skill_config:postModsLoaded()
+function skill_config:_postModsLoaded()
 	-- Set the defaults to our registered/setup values
 	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
-	self:captureDefaultConfigs()
+	self:_captureDefaultConfigs()
 
 	-- Log summary of registered skills
 	local enabledCount = #self.enabledSkillsIds
@@ -176,7 +176,7 @@ function skill_config:_enableSkill_internal(id)
 
 		-- Trigger state update for enabled skills
 		if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
-			cplus_plus_ex._subobjects.skill_state_tracker:updateEnabledSkills()
+			cplus_plus_ex._subobjects.skill_state_tracker:_updateEnabledSkills()
 		end
 	end
 	logger.logDebug(SUBMODULE, "Skill %s enabled", id)
@@ -198,13 +198,13 @@ function skill_config:_disableSkill_internal(id)
 
 		-- Trigger state update for enabled skills
 		if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
-			cplus_plus_ex._subobjects.skill_state_tracker:updateEnabledSkills()
+			cplus_plus_ex._subobjects.skill_state_tracker:_updateEnabledSkills()
 		end
 	end
 	logger.logDebug(SUBMODULE, "Skill %s disabled", id)
 end
 
-function skill_config:captureDefaultConfigs()
+function skill_config:_captureDefaultConfigs()
 	self.defaultConfig = utils.deepcopy(self.config)
 end
 
@@ -227,7 +227,7 @@ function skill_config:resetToDefaults()
 
 	-- Trigger state update for enabled skills
 	if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
-		cplus_plus_ex._subobjects.skill_state_tracker:updateEnabledSkills()
+		cplus_plus_ex._subobjects.skill_state_tracker:_updateEnabledSkills()
 	end
 
 	-- Note: Saving is handled by the caller (e.g., UI saveConfiguration())
@@ -318,14 +318,14 @@ function skill_config:loadConfiguration()
 					end
 				end
 
-				self:rebuildEnabledSkills()
+				self:_rebuildEnabledSkills()
 				logger.logDebug(SUBMODULE, "Loaded and merged skill configuration")
 			end
 		end
 	)
 end
 
-function skill_config:rebuildEnabledSkills()
+function skill_config:_rebuildEnabledSkills()
 	-- Rebuild enabled skills list from merged config
 	self.enabledSkills = {}
 	self.enabledSkillsIds = {}
@@ -340,7 +340,7 @@ function skill_config:rebuildEnabledSkills()
 
 	-- Trigger state update for enabled skills
 	if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
-		cplus_plus_ex._subobjects.skill_state_tracker:updateEnabledSkills()
+		cplus_plus_ex._subobjects.skill_state_tracker:_updateEnabledSkills()
 	end
 end
 

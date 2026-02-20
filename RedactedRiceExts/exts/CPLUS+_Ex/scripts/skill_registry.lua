@@ -22,14 +22,14 @@ function skill_registry:init()
 	skill_config = cplus_plus_ex._subobjects.skill_config
 	utils = cplus_plus_ex._subobjects.utils
 
-	self:registerVanilla()
+	self:_registerVanilla()
 	return self
 end
 
 -- Called after all mods are loaded
-function skill_registry:postModsLoaded()
+function skill_registry:_postModsLoaded()
 	-- Read vanilla pilot exclusions to support vanilla API
-	self:readPilotExclusionsFromGlobal()
+	self:_readPilotExclusionsFromGlobal()
 end
 
 -- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
@@ -97,7 +97,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 end
 
 -- Registers all vanilla skills
-function skill_registry:registerVanilla()
+function skill_registry:_registerVanilla()
 	-- Register all vanilla skills
 	for _, skill in ipairs(cplus_plus_ex.VANILLA_SKILLS) do
 		self:registerSkill("Vanilla", skill)
@@ -105,7 +105,7 @@ function skill_registry:registerVanilla()
 end
 
 -- Helper function to register pilot-skill relationships
-function skill_registry:registerPilotSkillRelationship(targetTable, pilotId, skillIds, relationshipType)
+function skill_registry:_registerPilotSkillRelationship(targetTable, pilotId, skillIds, relationshipType)
 	if targetTable[pilotId] == nil then
 		targetTable[pilotId] = {}
 	end
@@ -126,7 +126,7 @@ end
 -- Registers pilot skill exclusions
 -- Takes pilot id and list of skill ids to exclude
 function skill_registry:registerPilotSkillExclusions(pilotId, skillIds)
-	self:registerPilotSkillRelationship(skill_config.config.pilotSkillExclusions, pilotId, skillIds, "exclusion")
+	self:_registerPilotSkillRelationship(skill_config.config.pilotSkillExclusions, pilotId, skillIds, "exclusion")
 end
 
 -- Registers pilot skill inclusions
@@ -134,7 +134,7 @@ end
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
 function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
-	self:registerPilotSkillRelationship(skill_config.config.pilotSkillInclusions, pilotId, skillIds, "inclusion")
+	self:_registerPilotSkillRelationship(skill_config.config.pilotSkillInclusions, pilotId, skillIds, "inclusion")
 end
 
 -- Registers a skill to skill exclusion
@@ -157,7 +157,7 @@ end
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
 -- This maintains the vanilla method of defining pilot exclusions to be compatible
 -- without any specific changes for using this extension
-function skill_registry:readPilotExclusionsFromGlobal()
+function skill_registry:_readPilotExclusionsFromGlobal()
 	if _G.Pilot == nil then
 		logger.logError(SUBMODULE, "Pilot class not found, skipping exclusion registration")
 		return

@@ -91,6 +91,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
 	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
 	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
+	function cplus_plus_ex:getEnabledSkillsSet() return skill_config:getEnabledSkillsSet() end
 	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
 	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
 
@@ -105,6 +106,8 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end
+	function cplus_plus_ex:selectRandomSkill(...) return skill_selection:selectRandomSkill(...) end
+	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
 
 	-- Skill state checking functions
 	function cplus_plus_ex:isSkillEnabled(...) return skill_state_tracker:isSkillEnabled(...) end
@@ -122,6 +125,10 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:getSkillsEnabled(...) return skill_state_tracker:getSkillsEnabled(...) end
 	function cplus_plus_ex:getSkillsInRun(...) return skill_state_tracker:getSkillsInRun(...) end
 	function cplus_plus_ex:getSkillsActive(...) return skill_state_tracker:getSkillsActive(...) end
+
+	-- Pilot skill tracking helpers
+	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
+	function cplus_plus_ex:getPilotEarnedSkillIndexes(...) return skill_state_tracker:getPilotEarnedSkillIndexes(...) end
 
 	-- Wrapper for time_traveler since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getTimeTraveler() return time_traveler.timeTraveler end
@@ -160,70 +167,70 @@ end
 function cplus_plus_ex:addEvents()
 	-- Save game event
 	modApi.events.onSaveGame:subscribe(function()
-		skill_state_tracker:updateAllStates()
-		skill_selection:applySkillsToAllPilots()
-		time_traveler:savePersistentDataIfChanged()
+		skill_state_tracker:_updateAllStates()
+		skill_selection:_applySkillsToAllPilots()
+		time_traveler:_savePersistentDataIfChanged()
 	end)
 
 	-- Subscribe to modApi events
 	modApi.events.onModsFirstLoaded:subscribe(function()
-		skill_registry:postModsLoaded()
-		skill_config:postModsLoaded()
+		skill_registry:_postModsLoaded()
+		skill_config:_postModsLoaded()
 	end)
 
 	modApi.events.onPodWindowShown:subscribe(function()
-		skill_selection:applySkillToPodPilot()
+		skill_selection:_selectSkillsForPodPilot()
 	end)
 
 	modApi.events.onPerfectIslandWindowShown:subscribe(function()
-		skill_selection:applySkillToPerfectIslandPilot()
+		skill_selection:_selectSkillsForPerfectIslandPilot()
 	end)
 
 	modApi.events.onGameEntered:subscribe(function()
-		skill_selection:clearPilotTracking()
-		skill_state_tracker:resetAllTrackers()
-		--skill_state_tracker:updateAllStates()
+		skill_selection:_clearPilotTracking()
+		skill_state_tracker:_resetAllTrackers()
+		--skill_state_tracker:_updateAllStates()
 	end)
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
-		skill_selection:clearPilotTracking()
-		skill_state_tracker:resetAllTrackers()
+		skill_selection:_clearPilotTracking()
+		skill_state_tracker:_resetAllTrackers()
 	end)
 
 	modApi.events.onGameExited:subscribe(function()
-		skill_selection:clearPilotTracking()
-		skill_state_tracker:updateAllStates()
+		skill_selection:_clearPilotTracking()
+		skill_state_tracker:_updateAllStates()
 	end)
 
 	modApi.events.onGameVictory:subscribe(function()
-		skill_selection:clearPilotTracking()
-		skill_state_tracker:updateAllStates()
+		skill_selection:_clearPilotTracking()
+		skill_state_tracker:_updateAllStates()
 	end)
 
 	modApi.events.onMainMenuEntered:subscribe(function()
-		time_traveler:clearGameData()
+		time_traveler:_clearGameData()
 	end)
 
 	modApi.events.onHangarEntered:subscribe(function()
-		time_traveler:searchForTimeTraveler()
+		time_traveler:_searchForTimeTraveler()
 	end)
 
 	-- Memhack events for skill state tracking
 	memhack.events.onPilotChanged:subscribe(function(pilot, changes)
-		skill_state_tracker:updateStatesIfNeeded(pilot, changes)
+		skill_state_tracker:_updateStatesIfNeeded(pilot, changes)
 	end)
 
 	memhack.events.onPilotLvlUpSkillChanged:subscribe(function(pilot, skill, changes)
-		skill_state_tracker:updateAllStates()
+		skill_state_tracker:_updateAllStates()
 	end)
 
 	-- Subscribe to our own events for skill state tracking as well
 	hooks.events.onPreAssigningLvlUpSkills:subscribe(function()
-		skill_state_tracker:beginAssignment()
+		skill_state_tracker:_beginAssignment()
 	end)
 
 	hooks.events.onPostAssigningLvlUpSkills:subscribe(function()
-		skill_state_tracker:updateAfterAssignment()
+		skill_state_tracker:_updateAfterAssignment()
 	end)
 end
