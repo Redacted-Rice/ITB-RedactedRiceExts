@@ -130,8 +130,6 @@ end
 function cplus_plus_ex:updateAndSaveSkills()
 	-- These are done here instead of delegating to lower level files because we have a specific order
 	-- we want these to happen in and they are dependent on each other
-	skill_selection:applySkillsToAllPilots()
-	time_traveler:savePersistentDataIfChanged()
 end
 
 function cplus_plus_ex:overwriteAeSkillsUiText()
@@ -162,7 +160,8 @@ function cplus_plus_ex:addEvents()
 	-- Save game event
 	modApi.events.onSaveGame:subscribe(function()
 		skill_state_tracker:updateAllStates()
-		self:updateAndSaveSkills()
+		skill_selection:applySkillsToAllPilots()
+		time_traveler:savePersistentDataIfChanged()
 	end)
 
 	-- Subscribe to modApi events
@@ -182,9 +181,10 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onGameEntered:subscribe(function()
 		skill_selection:clearPilotTracking()
 		skill_state_tracker:resetAllTrackers()
-		skill_state_tracker:updateAllStates()
+		--skill_state_tracker:updateAllStates()
 	end)
 
+	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
 		skill_selection:clearPilotTracking()
 		skill_state_tracker:resetAllTrackers()
