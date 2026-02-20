@@ -103,6 +103,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
 
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
+	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end
 
 	-- Skill state checking functions
@@ -221,7 +222,7 @@ function cplus_plus_ex:addEvents()
 	hooks.events.onPreAssigningLvlUpSkills:subscribe(function()
 		skill_state_tracker:beginAssignment()
 	end)
-	
+
 	hooks.events.onPostAssigningLvlUpSkills:subscribe(function()
 		skill_state_tracker:updateAfterAssignment()
 	end)
