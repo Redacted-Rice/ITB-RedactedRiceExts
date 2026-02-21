@@ -9,6 +9,7 @@ local path = GetParentPath(...)
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
 	ENABLED = true,  -- Disable/enable all debug logging
+	TRIGGER_EVENTS = true,
 	CONFIG = true,
 	REGISTRY = true,
 	SELECTION = true,
@@ -18,6 +19,9 @@ cplus_plus_ex.DEBUG = {
 	HOOKS = true,
 	UI = false,
 }
+
+local logger = memhack.logger
+local TRIGGER_EVENTS = logger.register("CPLUS+", "Trigger Events", cplus_plus_ex.DEBUG.TRIGGER_EVENTS and cplus_plus_ex.DEBUG.ENABLED)
 
 -- Constants
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
@@ -167,70 +171,83 @@ end
 function cplus_plus_ex:addEvents()
 	-- Save game event
 	modApi.events.onSaveGame:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onSaveGame")
 		skill_state_tracker:_updateAllStates()
-		skill_selection:_applySkillsToAllPilots()
+		skill_selection:applySkillsToAllPilots()
 		time_traveler:_savePersistentDataIfChanged()
 	end)
 
 	-- Subscribe to modApi events
 	modApi.events.onModsFirstLoaded:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onModsFirstLoaded")
 		skill_registry:_postModsLoaded()
 		skill_config:_postModsLoaded()
 	end)
 
 	modApi.events.onPodWindowShown:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onPodWindowShown")
 		skill_selection:_selectSkillsForPodPilot()
 	end)
 
 	modApi.events.onPerfectIslandWindowShown:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onPodWindowShown")
 		skill_selection:_selectSkillsForPerfectIslandPilot()
 	end)
 
 	modApi.events.onGameEntered:subscribe(function()
-		skill_selection:_clearPilotTracking()
-		skill_state_tracker:_resetAllTrackers()
-		--skill_state_tracker:_updateAllStates()
+		logger.logDebug(TRIGGER_EVENTS, "onGameEntered")
+		--skill_selection:_clearPilotTracking()
+		--skill_state_tracker:_resetAllTrackers()
 	end)
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onModsLoaded")
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()
 	end)
 
 	modApi.events.onGameExited:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onGameExited")
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_updateAllStates()
 	end)
 
 	modApi.events.onGameVictory:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onGameVictory")
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_updateAllStates()
 	end)
 
 	modApi.events.onMainMenuEntered:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onMainMenuEntered")
 		time_traveler:_clearGameData()
 	end)
 
 	modApi.events.onHangarEntered:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onHangarEntered")
 		time_traveler:_searchForTimeTraveler()
 	end)
 
 	-- Memhack events for skill state tracking
 	memhack.events.onPilotChanged:subscribe(function(pilot, changes)
+		logger.logDebug(TRIGGER_EVENTS, "onPilotChanged")
 		skill_state_tracker:_updateStatesIfNeeded(pilot, changes)
 	end)
 
 	memhack.events.onPilotLvlUpSkillChanged:subscribe(function(pilot, skill, changes)
+		logger.logDebug(TRIGGER_EVENTS, "onPilotLvlUpSkillChanged")
 		skill_state_tracker:_updateAllStates()
 	end)
 
 	-- Subscribe to our own events for skill state tracking as well
 	hooks.events.onPreAssigningLvlUpSkills:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onPreAssigningLvlUpSkills")
 		skill_state_tracker:_beginAssignment()
 	end)
 
 	hooks.events.onPostAssigningLvlUpSkills:subscribe(function()
+		logger.logDebug(TRIGGER_EVENTS, "onPostAssigningLvlUpSkills")
 		skill_state_tracker:_updateAfterAssignment()
 	end)
 end

@@ -259,7 +259,6 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 
 	-- Create stored skills structure
 	local storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-	GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 	-- Apply the skills to the pilot
 	self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
@@ -366,7 +365,9 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, preassignedSaveVal1, nil)
 	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, preassignedSaveVal2, saveVal1)
 	-- Make sure save game data is updated
-	GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
+	if GAME then
+		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
+	end
 
 	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
