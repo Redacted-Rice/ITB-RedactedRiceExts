@@ -296,15 +296,47 @@ function skill_config:loadConfiguration()
 
 				-- Update sparse, saved as added tables
 				-- We don't merge these since we only save exclusions not relationships
+				-- Make sure to filter out pilot/skill IDs from disabled/removed mods! Otherwise we will
+				-- get errors trying to open the UI... Totally not from user experience or anything
+				-- like that...
 				if savedConfig.pilotSkillExclusions then
-					skill_config.config.pilotSkillExclusions = utils.deepcopy(savedConfig.pilotSkillExclusions)
+					for pilotId, skillIds in pairs(savedConfig.pilotSkillExclusions) do
+						-- Only load if pilot still exists in _G with correct metatable
+						if _G[pilotId] and type(_G[pilotId]) == "table" and getmetatable(_G[pilotId]) == _G.Pilot then
+							skill_config.config.pilotSkillExclusions[pilotId] = utils.deepcopy(skillIds)
+						else
+							logger.logDebug(SUBMODULE, "Ignoring saved pilotSkillExclusions for removed pilot: %s", pilotId)
+						end
+					end
 				end
 				if savedConfig.pilotSkillInclusions then
-					skill_config.config.pilotSkillInclusions = utils.deepcopy(savedConfig.pilotSkillInclusions)
+					for pilotId, skillIds in pairs(savedConfig.pilotSkillInclusions) do
+						-- Only load if pilot still exists in _G with correct metatable
+						if _G[pilotId] and type(_G[pilotId]) == "table" and getmetatable(_G[pilotId]) == _G.Pilot then
+							skill_config.config.pilotSkillInclusions[pilotId] = utils.deepcopy(skillIds)
+						else
+							logger.logDebug(SUBMODULE, "Ignoring saved pilotSkillInclusions for removed pilot: %s", pilotId)
+						end
+					end
 				end
-			if savedConfig.skillExclusions then
-				skill_config.config.skillExclusions = utils.deepcopy(savedConfig.skillExclusions)
-			end
+				if savedConfig.skillExclusions then
+					for skillId, excludedSkills in pairs(savedConfig.skillExclusions) do
+						-- Only load if the skill is still registered
+						if skill_config.config.skillConfigs[skillId] then
+							skill_config.config.skillExclusions[skillId] = {}
+							-- Filter the excluded skills list as well
+							for excludedSkillId, _ in pairs(excludedSkills) do
+								if skill_config.config.skillConfigs[excludedSkillId] then
+									skill_config.config.skillExclusions[skillId][excludedSkillId] = true
+								else
+									logger.logDebug(SUBMODULE, "Ignoring saved skillExclusion for removed skill: %s -> %s", skillId, excludedSkillId)
+								end
+							end
+						else
+							logger.logDebug(SUBMODULE, "Ignoring saved skillExclusions for removed skill: %s", skillId)
+						end
+					end
+				end
 
 				-- Merge skillConfigs to update existing skill but preserve new defaults
 				if savedConfig.skillConfigs then
