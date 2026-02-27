@@ -221,7 +221,9 @@ function cplus_plus_ex:addEvents()
 
 	modApi.events.onMainMenuEntered:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onMainMenuEntered")
-		time_traveler:_clearGameData()
+		-- TODO: Check if/when they are invalidated. Hopefully not until new game or profile change
+		-- at which point hopefully Profile is updated
+		-- time_traveler:_clearGameData()
 	end)
 
 	modApi.events.onHangarEntered:subscribe(function()

@@ -163,49 +163,64 @@ end
 
 -- Scan for time traveler pilot using memory scanning
 function time_traveler:_scanForTimeTraveler()
+	logger.logDebug(SUBMODULE, "Maybe scanning for time traveler")
 	self:_loadPersistentDataIfNeeded()
 
-	local PilotLayout = memhack.structs.Pilot._layout
-	local scanner = memhack.dll.scanner.new("struct", {checkTiming = cplus_plus_ex.DEBUG.TIME_TRAVELER})
+	-- Check which pilot we are looking for
+	local pilot = Profile.pilot
+	if not pilot then
+		logger.logDebug(SUBMODULE, "No profile pilot found. This means there is no time traveler.")
+		return
+	end
 
 	for id, data in pairs(time_traveler.lastSavedPersistentData) do
-		logger.logDebug(SUBMODULE, "Scanning for pilot %s with timelines == %d, xp == %d, level == %d",
-			id, data.prevTimelines + 1, data.xp, data.level)
+		if id ~= pilot.id then
+			logger.logDebug(SUBMODULE, "Skipping pilot Id %s", id)
+		else
+			logger.logDebug(SUBMODULE, "Scanning for pilot %s with timelines == %d, xp == %d, level == %d",
+				id, data.prevTimelines + 1, data.xp, data.level)
 
-		local structDef = memhack.dll.scanner.StructSearch.new(string.byte(id:sub(1,1)), PilotLayout.id.offset)
-		--structDef:addField(PilotLayout.vtable.offset, "int", memhack.structs.Pilot._vtableAddr)
-		structDef:addField(PilotLayout.xp.offset, "int", data.xp)
-		structDef:addField(PilotLayout.level.offset, "int", data.level)
-		structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
-		structDef:addField(PilotLayout.id.offset, "string", id)
+			local PilotLayout = memhack.structs.Pilot._layout
+			local scanner = memhack.dll.scanner.new("struct", {checkTiming = cplus_plus_ex.DEBUG.TIME_TRAVELER})
+			local structDef = memhack.dll.scanner.StructSearch.new(string.byte(id:sub(1,1)), PilotLayout.id.offset)
+			--structDef:addField(PilotLayout.vtable.offset, "int", memhack.structs.Pilot._vtableAddr)
+			structDef:addField(PilotLayout.xp.offset, "int", data.xp)
+			structDef:addField(PilotLayout.level.offset, "int", data.level)
+			structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
+			structDef:addField(PilotLayout.id.offset, "string", id)
 
-		local results = scanner:firstScan("exact", structDef)
+			local results = scanner:firstScan("exact", structDef)
 
-		if cplus_plus_ex.PLUS_DEBUG then
-			logger.logDebug(SUBMODULE, "Found " .. results.resultCount .. " matches")
-		end
+			if cplus_plus_ex.PLUS_DEBUG then
+				logger.logDebug(SUBMODULE, "Found " .. results.resultCount .. " matches")
+			end
 
-		if results.resultCount > 0 then
-			local matches = scanner:getResults({limit = 1})
-			local baseAddr = matches.results[1].address
-			-- Validate just in case. Really should be fine
-			time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr, true)
-			if time_traveler.timeTraveler then
-				logger.logDebug(SUBMODULE, "found pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
-				skill_selection:applySkillIdsToPilot(time_traveler.timeTraveler, {data.skill1, data.skill2}, false)
-				break
+			if results.resultCount > 0 then
+				local matches = scanner:getResults({limit = 1})
+				local baseAddr = matches.results[1].address
+				-- Validate just in case. Really should be fine
+				time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr, true)
+				if time_traveler.timeTraveler then
+					logger.logDebug(SUBMODULE, "found pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
+					skill_selection:applySkillIdsToPilot(time_traveler.timeTraveler, {data.skill1, data.skill2}, false)
+					break
+				end
 			end
 		end
-
-		scanner:reset()
 	end
 end
 
--- Search for time traveler in squad pilots
-function time_traveler:_searchForTimeTraveler()
-	if time_traveler.allPilots then
-		logger.logDebug(SUBMODULE, "Checking squad pilots for time traveler")
-		for idx, pilot in pairs(time_traveler.allPilots) do
+-- Scan for time traveler pilot using memory scanning
+function time_traveler:_getTimeTravelerFromMemory()
+	-- profile data will not be updated yet if we did not shut the game down. Instead
+	-- we have to check the existing pilot pointers and the expected timelines to see
+	-- which was taken
+	logger.logDebug(SUBMODULE, "Checking squad pilots for time traveler")
+	for idx, pilot in pairs(time_traveler.allPilots) do
+		local valid, err = pilot:validate()
+		if not valid then
+			logger.logWarn(SUBMODULE, "Pilot at idx %s is invalid (%s) - must not be time traveler!", idx, err)
+		else
 			local pilotData = time_traveler.lastSavedPersistentData[pilot:getIdStr()]
 			if pilotData then
 				logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",
@@ -218,8 +233,14 @@ function time_traveler:_searchForTimeTraveler()
 				logger.logWarn(SUBMODULE, "pilotData %s is nil in searchForTimeTraveler - skipping", idx)
 			end
 		end
+	end
+end
+
+-- Search for time traveler in squad pilots
+function time_traveler:_searchForTimeTraveler()
+	if time_traveler.allPilots then
+		self:_getTimeTravelerFromMemory()
 	else
-		logger.logDebug(SUBMODULE, "No cached pilots; Scanning for pilot")
 		self:_scanForTimeTraveler()
 	end
 end
