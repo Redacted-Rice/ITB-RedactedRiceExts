@@ -1,16 +1,18 @@
+---------- Memhack ---------
+
 For 1.0 release:
-1. Document how to find/how I found the references in memhack
-	1. Score
-	2. Rep
-	3. pilot (in mech)
-	4. storage (very complex)
-2. Add memory analyzer
-	
-	
+1. Testing
+
+
 1.1 Release:
 1. Move errors to logs for validation and other things
 2. Add more lua tests
 3. Look into adding tests on c++ side?
+4. Try reverse engineering more things and add to memhack if possible
+	a. mech innate upgrades
+	b. time pod landing coords
+	c. bump damage
+
 
 1.2 Release:
 1. Steam & GoG offset fixes
@@ -18,7 +20,7 @@ For 1.0 release:
 	b. Current fields needing this: Score
 
 
----------- PLUS Ex ---------
+---------- CPLUS+ Ex ---------
 
 For 1.0 release:
 1. Test
@@ -29,6 +31,9 @@ For 1.0 release:
 2. Skill default functions - e.g. isNotCyborg for Popular Hero
 3. Specifying defaults for things like weight and reusublity (separate for lowest possible)
 4. Hijack AddPilot to avoid searching _G for pilots?
+5. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
+	Could potential make for some unique pilot "skills" where they are more likely to get good skills or something
+	or giving better chances (or worse) for generic corp pilots
 
 
 1.2 Release:
