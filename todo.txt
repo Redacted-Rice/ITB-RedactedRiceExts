@@ -2,10 +2,8 @@
 
 For 1.0 release:
 1. Testing
-2. Only show skills that are enabled in drop downs?
-3. Don't clear disabled pilots settings
-	a. Disabled pilots profile pics don't show?
-	b. better to just remove them if not enabled
+2. Only show skills/pilots that are enabled in drop downs?
+3. Don't clear disabled/uninstalled skill/pilots settings
 
 
 1.1 Release:

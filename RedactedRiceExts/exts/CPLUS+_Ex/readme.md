@@ -11,16 +11,16 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 0.9.0
+Latest release: 0.9.1
 
-## 0.9.0
+## 0.9.1
 Released: XX/XX/XXXX 
 
 compatible with:
 * ItB AE 	1.2.93
 * ModLoader 	2.9.4
 * ModLoaderExt	1.23
-* memhack		0.9.0
+* memhack		0.9.1
 
 ### Notes
 Intial release!

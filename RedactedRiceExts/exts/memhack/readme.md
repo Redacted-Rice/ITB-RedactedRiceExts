@@ -11,9 +11,9 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 0.9.0
+Latest release: 0.9.1
 
-## 0.9.0
+## 0.9.1
 Released: XX/XX/XXXX 
 
 compatible with:

@@ -13,17 +13,17 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Extensions
-* memhack - v0.9.0 - Extension to expose additional functionality via direct memory access
-* CPLUS+ - v0.9.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+* memhack - v0.9.1 - Extension to expose additional functionality via direct memory access
+* CPLUS+ - v0.9.1 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 
 # Releases
-Latest release: 0.9.0
+Latest release: 0.9.1
 
-## 0.9.0
+## 0.9.1
 Released: XX/XX/XXXX 
 
-* memhack - v0.9.0
-* CPLUS+ Ex - v0.9.0
+* memhack - v0.9.1
+* CPLUS+ Ex - v0.9.1
 
 ### Notes
 Initial releases of the extenstions
