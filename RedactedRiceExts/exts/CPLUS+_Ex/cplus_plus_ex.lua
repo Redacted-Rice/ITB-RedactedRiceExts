@@ -134,8 +134,8 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
 	function cplus_plus_ex:getPilotEarnedSkillIndexes(...) return skill_state_tracker:getPilotEarnedSkillIndexes(...) end
 
-	-- Wrapper for time_traveler since we can't do a ref as we reassign the ref each time we find the time traveler
-	function cplus_plus_ex:getTimeTraveler() return time_traveler.timeTraveler end
+	-- Wrapper for potentialTimeTravelers since we can't do a ref as we reassign the ref each time we find the time traveler
+	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end
 end
 
 -- Orchestrates skill assignment and persistent data saving workflow
@@ -174,7 +174,7 @@ function cplus_plus_ex:addEvents()
 		logger.logDebug(TRIGGER_EVENTS, "onSaveGame")
 		skill_state_tracker:_updateAllStates()
 		skill_selection:applySkillsToAllPilots()
-		time_traveler:_savePersistentDataIfChanged()
+		time_traveler:_updateDataOnSave()
 	end)
 
 	-- Subscribe to modApi events
@@ -217,13 +217,6 @@ function cplus_plus_ex:addEvents()
 		logger.logDebug(TRIGGER_EVENTS, "onGameVictory")
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_updateAllStates()
-	end)
-
-	modApi.events.onMainMenuEntered:subscribe(function()
-		logger.logDebug(TRIGGER_EVENTS, "onMainMenuEntered")
-		-- TODO: Check if/when they are invalidated. Hopefully not until new game or profile change
-		-- at which point hopefully Profile is updated
-		-- time_traveler:_clearGameData()
 	end)
 
 	modApi.events.onHangarEntered:subscribe(function()
