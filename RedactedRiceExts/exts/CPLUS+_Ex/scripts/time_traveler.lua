@@ -14,9 +14,15 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "TimeTraveler", cplus_plus_ex.DEBUG.TIME_TRAVELER and cplus_plus_ex.DEBUG.ENABLED)
 
 -- Module state
-time_traveler.allPilots = nil
+-- Store per profile. These from what I can tell stay valid the whole life of the game
+-- even when switching profiles
+time_traveler.allPilots = {}
 time_traveler.lastSavedPersistentData = nil
-time_traveler.timeTraveler = nil  -- The actual time traveler pilot struct
+-- There may be times where there is more than one... In testing we saw cases
+-- were a quick close & reopen of the game *can* end up finding more than one or
+-- unexpected pilots. As such we keep track of all potential travelers. Typically
+-- there will be just one
+time_traveler.potentialTimeTravelers = {}  
 
 -- Local references to other submodules (set during init)
 local utils = nil
@@ -44,14 +50,14 @@ end
 -- Refresh cached squad pilot data
 function time_traveler:_refreshGameData()
 	if Game then
-		time_traveler.allPilots = Game:GetAvailablePilots()
+		time_traveler.allPilots[Profile.visible_name] = Game:GetAvailablePilots()
 		logger.logDebug(SUBMODULE, "Refreshing game data")
 	end
 end
 
 -- Clear cached game data
 function time_traveler:_clearGameData()
-	time_traveler.allPilots = nil
+	time_traveler.allPilots[Profile.visible_name] = nil
 	logger.logDebug(SUBMODULE, "Clearing game data")
 end
 
@@ -138,7 +144,9 @@ function time_traveler:_persistentDataChanged()
 end
 
 -- Save persistent data if it has changed
-function time_traveler:_savePersistentDataIfChanged()
+function time_traveler:_updateDataOnSave()
+	time_traveler:_refreshGameData()
+	
 	if self:_persistentDataChanged() then
 		if not modApi:isProfilePath() then
 			logger.logDebug(SUBMODULE, "Skipping persistent data save: not in profile path")
@@ -199,11 +207,11 @@ function time_traveler:_scanForTimeTraveler()
 				local matches = scanner:getResults({limit = 1})
 				local baseAddr = matches.results[1].address
 				-- Validate just in case. Really should be fine
-				time_traveler.timeTraveler = memhack.structs.Pilot.new(baseAddr, true)
-				if time_traveler.timeTraveler then
-					logger.logDebug(SUBMODULE, "found pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
-					skill_selection:applySkillIdsToPilot(time_traveler.timeTraveler, {data.skill1, data.skill2}, false)
-					break
+				local traveler = memhack.structs.Pilot.new(baseAddr, true)
+				if traveler then
+					table.insert(time_traveler.potentialTimeTravelers, traveler)
+					logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
+					skill_selection:applySkillIdsToPilot(traveler, {data.skill1, data.skill2}, false)
 				end
 			end
 		end
@@ -216,7 +224,7 @@ function time_traveler:_getTimeTravelerFromMemory()
 	-- we have to check the existing pilot pointers and the expected timelines to see
 	-- which was taken
 	logger.logDebug(SUBMODULE, "Checking squad pilots for time traveler")
-	for idx, pilot in pairs(time_traveler.allPilots) do
+	for idx, pilot in pairs(time_traveler.allPilots[Profile.visible_name]) do
 		local valid, err = pilot:validate()
 		if not valid then
 			logger.logWarn(SUBMODULE, "Pilot at idx %s is invalid (%s) - must not be time traveler!", idx, err)
@@ -226,7 +234,7 @@ function time_traveler:_getTimeTravelerFromMemory()
 				logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",
 						pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
 				if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
-					time_traveler.timeTraveler = pilot
+					time_traveler.potentialTimeTravelers = {pilot}
 					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
 				end
 			else
@@ -238,7 +246,7 @@ end
 
 -- Search for time traveler in squad pilots
 function time_traveler:_searchForTimeTraveler()
-	if time_traveler.allPilots then
+	if time_traveler.allPilots[Profile.visible_name] then
 		self:_getTimeTravelerFromMemory()
 	else
 		self:_scanForTimeTraveler()
