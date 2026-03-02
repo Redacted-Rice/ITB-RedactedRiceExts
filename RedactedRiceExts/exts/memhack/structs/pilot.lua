@@ -83,7 +83,7 @@ Pilot._calculateLevelUpXp = function(level)
 	return result
 end
 
-Pilot._applyLevelChange = function(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
+function Pilot:_applyLevelChange(newLevel, previousLevel, previousXp, previousLevelUpXp)
 	local newLevelUpXp = self._calculateLevelUpXp(newLevel)
 
 	self:_setXp(0)
@@ -111,7 +111,7 @@ function Pilot:levelUp()
 	if newLevel <= 2 then
 		local previousXp = self:getXp()
 		local previousLevelUpXp = self:getLevelUpXp()
-		applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
+		self:_applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
 	end
 end
 
@@ -122,7 +122,7 @@ function Pilot:levelDown()
 	if newLevel >= 0 then
 		local previousXp = self:getXp()
 		local previousLevelUpXp = self:getLevelUpXp()
-		applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
+		self:_applyLevelChange(self, newLevel, previousLevel, previousXp, previousLevelUpXp)
 	end
 end
 

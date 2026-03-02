@@ -26,20 +26,22 @@ For 1.0 release:
 
 For 1.0 release:
 1. Test
+2. Disabling time traveler skills needs some work to get working right - reroll them and assign if not enabled. Maybe make them ???
 
 
 1.1 Release:
-1. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
-2. Skill default functions - e.g. isNotCyborg for Popular Hero
-3. Specifying defaults for things like weight and reusublity (separate for lowest possible)
-4. Hijack AddPilot to avoid searching _G for pilots?
-5. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
+1. Skill default functions - e.g. isNotCyborg for Popular Hero
+2. Specifying defaults for things like weight and reusublity (separate for lowest possible)
+3. Hijack AddPilot to avoid searching _G for pilots?
+4. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
 	Could potential make for some unique pilot "skills" where they are more likely to get good skills or something
 	or giving better chances (or worse) for generic corp pilots
+5. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
+6. First & second slot only skills
 
 
 1.2 Release:
-1. Add support for multiple pilots with same ID
+1. Add support for multiple pilots with same ID?
 2. Squad inclusions/exclusions
 3. Move to GetText to be consistent/allow localization
 4. Add auto support of "auto-dictonarying" skill strings
