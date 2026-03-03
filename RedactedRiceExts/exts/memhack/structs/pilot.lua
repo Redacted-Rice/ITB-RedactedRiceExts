@@ -33,6 +33,8 @@ local function validatePilot(pilot)
 				id, personalityStr, pilotTable.Personality)
 	end
 		
+	--[[Sex doesn't work either... Aparantly the coorp pilots sex changes each
+	-- time you relaunch the game
 	local sex = pilot:getSex()
 	-- Check sex as well. Should also never be nil
 	if pilotTable.Sex == nil then
@@ -40,7 +42,7 @@ local function validatePilot(pilot)
 	elseif sex ~= pilotTable.Sex then
 		return false, string.format("Pilot %s Sex mismatch: struct has '%d' but pilot table has '%d'",
 				id, sex, pilotTable.Sex)
-	end
+	end]]
 	return true
 end
 
