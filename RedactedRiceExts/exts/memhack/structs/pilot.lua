@@ -21,18 +21,25 @@ local function validatePilot(pilot)
 		return false, string.format("Pilot table for ID %s does not have _G.Pilot as metatable", id)
 	end
 
-	-- To guard against places where ID is used, also cehck the skill string as a secondary
-	-- check. This prevents falsely verifying something that was based soley off of ID string
-	local skillStr = pilot:getSkillStr()
-	-- If there is no skill (e.g. a recruit), the skillStr should be empty
-	-- If there is a skill, it should match the skill string
-	if pilotTable.Skill == nil then
-		if skillStr ~= "" then
-			return false, string.format("Pilot %s has skill '%s' but pilot table has no Skill member", id, skillStr)
+	-- To guard against places where ID is used, also check some secondary fields
+	local personalityStr = pilot:getPersonalityStr()
+	-- Personality should never be nil but just in case
+	if pilotTable.Personality == nil then
+		if personalityStr ~= "" then
+			return false, string.format("Pilot %s has Personality '%s' but pilot table has no Personality member", id, personalityStr)
 		end
-	elseif skillStr ~= pilotTable.Skill then
-		return false, string.format("Pilot %s skill mismatch: struct has '%s' but pilot table has '%s'",
-				id, skillStr, pilotTable.Skill)
+	elseif personalityStr ~= pilotTable.Personality then
+		return false, string.format("Pilot %s Personality mismatch: struct has '%s' but pilot table has '%s'",
+				id, personalityStr, pilotTable.Personality)
+	end
+		
+	local sex = pilot:getSex()
+	-- Check sex as well. Should also never be nil
+	if pilotTable.Sex == nil then
+		return false, string.format("Pilot %d has no Sex member", id, sex)
+	elseif sex ~= pilotTable.Sex then
+		return false, string.format("Pilot %s Sex mismatch: struct has '%d' but pilot table has '%d'",
+				id, sex, pilotTable.Sex)
 	end
 	return true
 end
@@ -44,6 +51,8 @@ local Pilot = memhack.structManager:define("Pilot", {
 	level = { offset = 0x5C, type = "int", hideSetter = true},
 	skill = { offset = 0x60, type = "struct", subType = "ItBString" },
 	id = { offset = 0x78, type = "struct", subType = "ItBString" },
+	personality = { offset = 0x94, type = "struct", subType = "ItBString", hideSetter = true},  -- used for validation
+	sex = { offset = 0xC8, type = "int", hideSetter = true }, -- used for validation
 	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
 	prevTimelines = { offset = 0x27C, type = "int" },
 }, validatePilot)
@@ -77,6 +86,7 @@ methodGen.wrapGetterToPreserveParent(Pilot, "getLvlUpSkills")
 genItBStrGetSetWrappers(Pilot, "name")
 genItBStrGetSetWrappers(Pilot, "skill")
 genItBStrGetSetWrappers(Pilot, "id")
+genItBStrGetSetWrappers(Pilot, "personality")
 
 Pilot._calculateLevelUpXp = function(level)
 	local result = (level + 1) * 25
