@@ -14,6 +14,8 @@ local scrollContent = nil
 local percentageLabels = {}
 local expandedCollapsables = {}
 local categoryHeaderLabels = {}
+local relationshipsContainer = nil
+local relationshipsParent = nil
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -27,6 +29,7 @@ local REUSABLILITY_DESCRIPTIONS = {
 local TOTAL_WEIGHT_HEADER = "Total: %.1f"
 local TOTAL_PERCENT_HEADER = "Total: %.1f%%"
 local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
+local SECRET_PILOTS = {"Pilot_Mantis","Pilot_Rock","Pilot_Zoltan"}
 
 local BOARDER_SIZE = 0
 local DEFAULT_VGAP = 5
@@ -65,6 +68,40 @@ function modify_pilot_skills_ui:getSortedIds(skillTable)
 		return skillTable[a]:lower() < skillTable[b]:lower()
 	end)
 	return sortedIds
+end
+
+function modify_pilot_skills_ui:isItemEnabled(itemId)
+	local skillConfig = cplus_plus_ex.config.skillConfigs[itemId]
+	if skillConfig then
+		return skillConfig.enabled
+	end
+	
+	local pilot = _G[itemId]
+	if pilot and type(pilot) == "table" and getmetatable(pilot) == _G.Pilot then		
+		-- Check if pilot is enabled. Not entirely sure how its used but its in mod loader
+		-- so might as well check it
+		if not pilot:IsEnabled() then
+			return false
+		end
+		
+		-- Check if pilot is unlocked (using checks from pilot_deck_selector.lua)
+		-- Pilots not in hangar lists (recruits, cyborgs, etc.) are always shown as unlocked
+		local isPilotUnlocked = (not list_contains(PilotListExtended, itemId) and not list_contains(SECRET_PILOTS, itemId))
+			or (type(Profile) == "table" and type(Profile.pilots) == "table" and list_contains(Profile.pilots, itemId))
+		if not isPilotUnlocked then
+			return false
+		end
+		return true
+	end
+	return false
+end
+
+-- Rebuild all relationship sections when skills are toggled
+function modify_pilot_skills_ui:rebuildAllRelationships()
+	if relationshipsContainer and relationshipsParent then
+		relationshipsContainer:detach()
+		self:buildRelationships(relationshipsParent)
+	end
 end
 
 function modify_pilot_skills_ui:init()
@@ -516,6 +553,9 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 		if onToggleCallback then
 			onToggleCallback()
 		end
+
+		-- Rebuild relationship sections to reflect enabled/disabled state
+		self:rebuildAllRelationships()
 	end)
 
 	return enabledCheckbox
@@ -860,6 +900,9 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
+				
+				-- Rebuild relationship sections to reflect enabled/disabled state
+				self:rebuildAllRelationships()
 			end
 
 			-- Build skill entries
@@ -1003,20 +1046,23 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 	local keysToUse = sortedIds or utils.sortByValue(dataList)
 
 	for _, k in ipairs(keysToUse) do
-		table.insert(listDisplay, dataList[k])
-		table.insert(listVals, k)
+		-- Only show enabled items
+		if self:isItemEnabled(k) then
+			table.insert(listDisplay, dataList[k])
+			table.insert(listVals, k)
 
-		-- Add skill description as tooltip if requested
-		if includeSkillTooltips then
-			local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[k]
-			if skill then
-				local description = GetText(skill.description) or skill.description or ""
-				table.insert(listTooltips, description)
+			-- Add skill description as tooltip if requested
+			if includeSkillTooltips then
+				local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[k]
+				if skill then
+					local description = GetText(skill.description) or skill.description or ""
+					table.insert(listTooltips, description)
+				else
+					table.insert(listTooltips, "")
+				end
 			else
 				table.insert(listTooltips, "")
 			end
-		else
-			table.insert(listTooltips, "")
 		end
 	end
 	return listDisplay, listVals, listTooltips
@@ -1067,14 +1113,17 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 
 		for sourceId, targets in pairs(relationshipTable) do
 			for targetId, _ in pairs(targets) do
-				local key = sourceId .. "|" .. targetId
-				local relationship = {sourceId = sourceId, targetId = targetId}
+				-- Only show relationships where both source and target are enabled
+				if self:isItemEnabled(sourceId) and self:isItemEnabled(targetId) then
+					local key = sourceId .. "|" .. targetId
+					local relationship = {sourceId = sourceId, targetId = targetId}
 
-				-- Check if this is a newly added item
-				if newlyAddedRelationships[key] then
-					table.insert(newItemsList, relationship)
-				else
-					table.insert(relationshipList, relationship)
+					-- Check if this is a newly added item
+					if newlyAddedRelationships[key] then
+						table.insert(newItemsList, relationship)
+					else
+						table.insert(relationshipList, relationship)
+					end
 				end
 			end
 		end
@@ -1312,13 +1361,21 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 			local targetsToAdd = {}
 
 			if selectedSource == "All" then
-				sourcesToAdd = sourceList
+				for sourceId, _ in pairs(sourceList) do
+					if self:isItemEnabled(sourceId) then
+						sourcesToAdd[sourceId] = true
+					end
+				end
 			else
 				sourcesToAdd = {[selectedSource] = true}
 			end
 
 			if selectedTarget == "All" then
-				targetsToAdd = targetList
+				for targetId, _ in pairs(targetList) do
+					if self:isItemEnabled(targetId) then
+						targetsToAdd[targetId] = true
+					end
+				end
 			else
 				targetsToAdd = {[selectedTarget] = true}
 			end
@@ -1369,6 +1426,10 @@ end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent)
+	
+	-- Store reference to the entire section box (parent of content) for rebuilding
+	relationshipsContainer = relationshipsContent.parent
+	relationshipsParent = scrollContent
 
 	-- Get lists for dropdowns (now includes sorted IDs)
 	local pilotData, pilotIdsSorted = self:getPilotsData()
@@ -1431,6 +1492,8 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	percentageLabels = {}
 	categoryHeaderLabels = {}
+	relationshipsContainer = nil
+	relationshipsParent = nil
 
 	scrollContent = UiBoxLayout()
 		:vgap(5)
@@ -1489,6 +1552,8 @@ function modify_pilot_skills_ui:onExit()
 	percentageLabels = {}
 	categoryHeaderLabels = {}
 	expandedCollapsables = {}
+	relationshipsContainer = nil
+	relationshipsParent = nil
 end
 
 -- Creates the main modification dialog
