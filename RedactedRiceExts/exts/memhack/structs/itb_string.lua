@@ -52,6 +52,7 @@ local ItBString = memhack.structManager:define("ItBString", {
 -- Set constants on ItBString after it's defined
 ItBString.LOCAL = ITB_STRING_LOCAL
 ItBString.REMOTE = ITB_STRING_REMOTE
+ItBString.AutoUndictionary = true
 
 local selfGetter = memhack.structManager:makeStdSelfGetterName()
 local selfSetter = memhack.structManager:makeStdSelfSetterName()
@@ -92,12 +93,24 @@ ItBString[selfGetter] = function(self)
 	return nil
 end
 
-ItBString[selfSetter] = function(self, strOrStruct)
+ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
 	local str = strOrStruct
 	if type(strOrStruct) == "table" and getmetatable(strOrStruct) == ItBString then
 		-- for simplicity and to prevent coupling, just get the current string
 		-- value and use that
 		str = strOrStruct:get()
+	end
+	
+	-- Some menus (e.g. the post mission, level up skill notification window) don't use
+	-- the lua dictionary/GetText function... For simplicity and consistency, by default
+	-- just un-dictionary-ificate strings. This may cause oddities if you try to replace
+	-- them dynamically where some are the old one. Most notable would be switching
+	-- language but mods really only are in english and don't have translations so
+	-- it shouldn't be a big deal
+	if ItBString.AutoUndictionary and not skipUndictionary and IsText(str) then
+		oldStr = str
+		str = GetText(str)
+		LOG("Un-dictionary text %s to %s", oldStr, str)
 	end
 
 	local length = #str
