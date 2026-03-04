@@ -2,8 +2,6 @@
 
 For 1.0 release:
 1. Testing
-2. Only show skills/pilots that are enabled in drop downs?
-3. Don't clear disabled/uninstalled skill/pilots settings
 
 
 1.1 Release:
@@ -26,7 +24,6 @@ For 1.0 release:
 
 For 1.0 release:
 1. Test
-2. Disabling time traveler skills needs some work to get working right - reroll them and assign if not enabled. Maybe make them ???
 
 
 1.1 Release:
