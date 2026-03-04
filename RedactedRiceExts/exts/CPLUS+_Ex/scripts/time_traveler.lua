@@ -235,6 +235,7 @@ function time_traveler:_getTimeTravelerFromMemory()
 						pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
 				if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
 					time_traveler.potentialTimeTravelers = {pilot}
+					skill_selection:applySkillIdsToPilot(pilot, {pilotData.skill1, pilotData.skill2}, false)
 					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
 				end
 			else

@@ -252,15 +252,17 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillIdsToPilot - skipping")
 		return
 	end
-
-	if fireHooks == nil then fireHooks = false end
-
+	
+	-- ensure game data is initialized
+	skill_selection:_initGameSaveData()
 	local pilotId = pilot:getIdStr()
-
-	-- Create stored skills structure
-	local storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
+	if not GAME.cplus_plus_ex.pilotSkills[pilotId] then
+		GAME.cplus_plus_ex.pilotSkills[pilotId] = {} 
+	end
 
 	-- Apply the skills to the pilot
+	if fireHooks == nil then fireHooks = false end
+	local storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 	self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 end
 
@@ -287,17 +289,33 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	local skillIds = {}
 
 	-- If the skills are not stored, we need to assign them
+	local found = false
 	if storedSkills ~= nil then
 		logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilotId)
 		skillIds = {storedSkills[1].id, storedSkills[2].id}
+		found = true
+	end
 	-- if its the time traveler, save the current skills
-	elseif cplus_plus_ex._subobjects.time_traveler.timeTraveler and cplus_plus_ex._subobjects.time_traveler.timeTraveler._address == pilot._address then
-		local lus = cplus_plus_ex._subobjects.time_traveler.timeTraveler:getLvlUpSkills()
-		skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
-		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-		logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
+	if not found and cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers then
+		for _, ttPilot in ipairs(cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers) do
+			-- Only one should be found at this point - we will only have one in our squad
+			if ttPilot._address == pilot._address then
+				found = true
+				cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers = {ttPilot}
+				logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilotId, pilot._address)
+				break
+			end
+		end
+		
+		if found then
+			local lus = cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers[1]:getLvlUpSkills()
+			skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
+			storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
+			logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
+		end
+	end
 	-- otherwise assign random skills
-	else
+	if not found then
 		-- Select 2 random skills that satisfy all registered constraint functions
 		skillIds = self:selectRandomSkills(availableSkills, pilot, 2)
 		if skillIds == nil then
@@ -365,9 +383,7 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, preassignedSaveVal1, nil)
 	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, preassignedSaveVal2, saveVal1)
 	-- Make sure save game data is updated
-	if GAME then
-		GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
-	end
+	GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
 
 	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
 
