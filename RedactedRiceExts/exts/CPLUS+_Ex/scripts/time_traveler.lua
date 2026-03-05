@@ -204,14 +204,16 @@ function time_traveler:_scanForTimeTraveler()
 			end
 
 			if results.resultCount > 0 then
-				local matches = scanner:getResults({limit = 1})
-				local baseAddr = matches.results[1].address
-				-- Validate just in case. Really should be fine
-				local traveler = memhack.structs.Pilot.new(baseAddr, true)
-				if traveler then
-					table.insert(time_traveler.potentialTimeTravelers, traveler)
-					logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
-					skill_selection:applySkillIdsToPilot(traveler, {data.skill1, data.skill2}, false)
+				local matches = scanner:getResults()
+				for _, result in ipairs(matches.results) do 
+					local baseAddr = result.address
+					-- Validate just in case. Really should be fine
+					local traveler = memhack.structs.Pilot.new(baseAddr, true)
+					if traveler then
+						table.insert(time_traveler.potentialTimeTravelers, traveler)
+						logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
+						skill_selection:applySkillIdsToPilot(traveler, {data.skill1, data.skill2}, false)
+					end
 				end
 			end
 		end
