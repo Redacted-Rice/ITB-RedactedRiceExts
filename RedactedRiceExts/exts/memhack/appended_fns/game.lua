@@ -1,7 +1,4 @@
 local function onGameClassInitialized(GameClass)
-	-- persistent pointer. This won't change and stays even between runs
-	-- and going to the main menu
-
 	GameClass.GetMemhackObj = function(self)
 		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
 			self.memhackObj = memhack.structs.GameMap.new(memhack.dll.memory.getUserdataAddr(self), true)
