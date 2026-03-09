@@ -267,6 +267,23 @@ function MemoryAnalyzer:getCustomChanges(captureIndices, comparatorFunc, resultI
 	return result
 end
 
+-- Search for offsets matching a value pattern across captures
+-- pattern: array with exact values, nil (any value), or wildcard names (strings starting with "$")
+--   - Exact values: numeric values that must match exactly
+--   - nil: unnamed wildcard, matches any value
+--   - "$name": named wildcard, must be consistent wherever the same name appears
+--
+-- captureIndices: array of indices, number for last N, or nil for all (must match pattern length)
+-- resultId: optional ID to store result for later retrieval
+-- Returns: {filtered=ranges matching pattern, unfiltered=ranges not matching}
+function MemoryAnalyzer:getMatchingPattern(pattern, captureIndices, resultId)
+	local result = comparison.getMatchingPattern(self._captures, pattern, captureIndices, self, self.id)
+	if resultId then
+		self._results[resultId] = result
+	end
+	return result
+end
+
 -- Add all value progressions to result (shows every value for each chunk)
 -- result: result object or resultId string
 -- ranges: "filtered" (default), "unfiltered", or "both"

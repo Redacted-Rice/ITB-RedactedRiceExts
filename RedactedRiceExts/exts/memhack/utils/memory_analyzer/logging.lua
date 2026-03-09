@@ -2,6 +2,17 @@
 
 local logging = {}
 
+-- Helper to check if ranges have any data associated with them
+local function rangesHaveData(ranges)
+	for i = 1, #ranges do
+		local range = ranges[i]
+		if (range.values and #range.values > 0) or (range.uniqueValues and #range.uniqueValues > 0) then
+			return true
+		end
+	end
+	return false
+end
+
 -- Helper to log a set of ranges with their data
 local function logRanges(ranges, rangeType, result, alignment, formatStr)
 	for i = 1, #ranges do
@@ -52,15 +63,25 @@ function logging.logChanges(result)
 		formatStr = "0x%08X"  -- int/pointer
 	end
 
+	-- Check which sections have data
+	local filteredHasData = rangesHaveData(filteredRanges)
+	local unfilteredHasData = rangesHaveData(unfilteredRanges)
+	
+	-- Decide what to print:
+	-- Both have data or neither has data -> print both
+	-- Only one has data -> print only that one
+	local printFiltered = (#filteredRanges > 0) and (filteredHasData or not unfilteredHasData)
+	local printUnfiltered = (#unfilteredRanges > 0) and (unfilteredHasData or not filteredHasData)
+
 	LOG(string.format("Analyzer '%s' (captures: [%s], alignment: %d): %d filtered ranges, %d unfiltered ranges",
 		name, table.concat(captureIndices, ","), alignment, #filteredRanges, #unfilteredRanges))
 
-	if #filteredRanges > 0 then
+	if printFiltered then
 		LOG(string.format("  Filtered Ranges (%d total):", #filteredRanges))
 		logRanges(filteredRanges, "filtered", result, alignment, formatStr)
 	end
 
-	if #unfilteredRanges > 0 then
+	if printUnfiltered then
 		LOG(string.format("  Unfiltered Ranges (%d total):", #unfilteredRanges))
 		logRanges(unfilteredRanges, "unfiltered", result, alignment, formatStr)
 	end

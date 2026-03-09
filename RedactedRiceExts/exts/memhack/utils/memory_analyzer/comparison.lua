@@ -201,6 +201,67 @@ function comparison.getCustomChanges(captures, captureIndices, analyzer, name, c
 	return compareCaptures(captures, captureIndices, analyzer, name, comparatorFunc, requireAll)
 end
 
+-- Compare captures - match value pattern with wildcards
+-- Unified pattern matching supporting exact values, unnamed wildcards (nil), and named wildcards ($name)
+function comparison.getMatchingPattern(captures, pattern, captureIndices, analyzer, name)
+	if type(pattern) ~= "table" then
+		error("pattern must be a table/array")
+	end
+
+	local count = #captures
+	if count < 1 then
+		error("Need at least 1 capture")
+	end
+
+	local indices = utils.parseCaptureIndices(captureIndices, count)
+
+	if #pattern ~= #indices then
+		error(string.format("Pattern length (%d) must match number of captures (%d)", #pattern, #indices))
+	end
+
+	local comparator = function(selectedCaptures, byteIdx)
+		local alignment = analyzer.alignment
+		local offsetFromStart = byteIdx - 1
+
+		-- For multi byte values, only check at alignment boundaries
+		if offsetFromStart % alignment ~= 0 then
+			return false
+		end
+
+		-- Track wildcard values as we go
+		local wildcardValues = {}
+
+		-- Check pattern match across all captures
+		for i = 1, #selectedCaptures do
+			local expectedPattern = pattern[i]
+			local actualValue = utils.readAlignedValue(selectedCaptures[i].data, offsetFromStart, alignment)
+
+			if expectedPattern == nil then
+				-- nil = unnamed wildcard, matches anything
+				-- continue to next capture
+			elseif type(expectedPattern) == "string" and expectedPattern:sub(1, 1) == "$" then
+				-- Named wildcard pattern
+				local wildcardName = expectedPattern
+				if wildcardValues[wildcardName] == nil then
+					-- First occurrence of this wildcard, store the value
+					wildcardValues[wildcardName] = actualValue
+				elseif wildcardValues[wildcardName] ~= actualValue then
+					-- Wildcard value mismatch
+					return false
+				end
+			else
+				-- Exact value match required
+				if actualValue ~= expectedPattern then
+					return false
+				end
+			end
+		end
+		return true
+	end
+
+	return compareCaptures(captures, indices, analyzer, name, comparator, true)
+end
+
 -- Filter result ranges based on custom criteria
 -- result: result object to filter
 -- filterSpec: filter specification
