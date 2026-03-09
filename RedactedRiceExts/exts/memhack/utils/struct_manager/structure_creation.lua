@@ -252,6 +252,11 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 		local result = self:_toDebugString()
 		return result
 	end
+	
+	function StructType.__eq(a, b)
+		return a._address == b._address
+	end
+
 end
 
 -- Register structure to structs table
