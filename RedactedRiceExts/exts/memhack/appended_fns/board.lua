@@ -8,15 +8,15 @@ local function onBoardClassInitialized(BoardClass)
 
 	-- Upper case to align with BoardPawn conventions
 	BoardClass.GetPodLandingPoint = function(self)
-		local point = self:GetMemhackObj():getPodLandingPointAsPoint()
-		return reputation
+		local point = self:GetMemhackObj():getPodLandingAsPoint()
+		return point
 	end
 
-	GameClass.SetPodLandingPoint = function(self, point)
+	BoardClass.SetPodLandingPoint = function(self, point)
 		if type(point) ~= "userdata"  and getmetatable(v) == Point then
-			error(string.format("Point must be... a point. Got type %s", type(reputation)))
+			error(string.format("Point must be... a point. Got type %s", type(point)))
 		end
-		 self:GetMemhackObj():setPodLandingPoint(point)
+		 self:GetMemhackObj():setPodLandingLoc(point)
 	end
 end
 
