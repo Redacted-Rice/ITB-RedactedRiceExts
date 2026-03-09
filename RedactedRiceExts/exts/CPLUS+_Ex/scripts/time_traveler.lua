@@ -49,7 +49,7 @@ end
 
 -- Refresh cached squad pilot data
 function time_traveler:_refreshGameData()
-	if Game then
+	if Game and Profile then
 		time_traveler.allPilots[Profile.visible_name] = Game:GetAvailablePilots()
 		logger.logDebug(SUBMODULE, "Refreshing game data")
 	end
@@ -57,8 +57,10 @@ end
 
 -- Clear cached game data
 function time_traveler:_clearGameData()
-	time_traveler.allPilots[Profile.visible_name] = nil
-	logger.logDebug(SUBMODULE, "Clearing game data")
+	if Profile then
+		time_traveler.allPilots[Profile.visible_name] = nil
+		logger.logDebug(SUBMODULE, "Clearing game data")
+	end
 end
 
 -- Load persistent data if not already loaded
@@ -175,14 +177,17 @@ function time_traveler:_scanForTimeTraveler()
 	self:_loadPersistentDataIfNeeded()
 
 	-- Check which pilot we are looking for
-	local pilot = Profile.pilot
-	if not pilot then
-		logger.logDebug(SUBMODULE, "No profile pilot found. This means there is no time traveler.")
-		return
+	local pilot = nil
+	if Profile then 
+		pilot = Profile.pilot
+		if not pilot then
+			logger.logDebug(SUBMODULE, "No profile pilot found. This means there is no time traveler.")
+			return
+		end
 	end
 
 	for id, data in pairs(time_traveler.lastSavedPersistentData) do
-		if id ~= pilot.id then
+		if pilot and id ~= pilot.id then
 			logger.logDebug(SUBMODULE, "Skipping pilot Id %s", id)
 		else
 			logger.logDebug(SUBMODULE, "Scanning for pilot %s with timelines == %d, xp == %d, level == %d",
@@ -222,6 +227,7 @@ end
 
 -- Scan for time traveler pilot using memory scanning
 function time_traveler:_getTimeTravelerFromMemory()
+	-- profile already ensured non-null in this path
 	-- profile data will not be updated yet if we did not shut the game down. Instead
 	-- we have to check the existing pilot pointers and the expected timelines to see
 	-- which was taken
@@ -249,7 +255,7 @@ end
 
 -- Search for time traveler in squad pilots
 function time_traveler:_searchForTimeTraveler()
-	if time_traveler.allPilots[Profile.visible_name] then
+	if Profile and time_traveler.allPilots[Profile.visible_name] then
 		self:_getTimeTravelerFromMemory()
 	else
 		self:_scanForTimeTraveler()
