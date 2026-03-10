@@ -24,6 +24,8 @@ local logger = memhack.logger
 local TRIGGER_EVENTS = logger.register("CPLUS+", "Trigger Events", cplus_plus_ex.DEBUG.TRIGGER_EVENTS and cplus_plus_ex.DEBUG.ENABLED)
 
 -- Constants
+cplus_plus_ex.MAX_SKILL_SLOTS = 2  -- Maximum number of skill slots per pilot
+
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
 local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
 local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
@@ -133,6 +135,7 @@ function cplus_plus_ex:exposeAPI()
 	-- Pilot skill tracking helpers
 	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
 	function cplus_plus_ex:getPilotEarnedSkillIndexes(...) return skill_state_tracker:getPilotEarnedSkillIndexes(...) end
+	function cplus_plus_ex:getPilotSkillIndices(...) return skill_state_tracker:getPilotSkillIndices(...) end
 
 	-- Wrapper for potentialTimeTravelers since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end
