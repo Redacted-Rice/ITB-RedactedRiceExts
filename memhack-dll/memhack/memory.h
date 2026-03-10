@@ -11,7 +11,7 @@
 
 // Maximum length for C string operations (including null terminator)
 const int MAX_NULL_TERM_STRING_LENGTH = 2048;
-const int MAX_BYTE_ARRAY_LENGTH = 32768;
+const int MAX_BYTE_ARRAY_LENGTH = 65536;
 
 int get_userdata_addr(lua_State* L);
 int alloc_cstring(lua_State* L);
