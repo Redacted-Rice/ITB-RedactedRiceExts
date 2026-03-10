@@ -74,6 +74,21 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
 	return result
 end
 
+function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
+	if checkEarned == nil then checkEarned = true end
+	
+	local indices = {}
+	for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
+		local skill = pilot:getLvlUpSkill(skillIndex)
+		if skill and skill:getIdStr() == skillId then
+			if not checkEarned or self:hasPilotEarnedSkillIndex(pilot, skillIndex) then
+				table.insert(indices, skillIndex)
+			end
+		end
+	end
+	return indices
+end
+
 function skill_state_tracker:isSkillOnPilot(skillId, pilot, checkEarned)
 	return self:isSkillOnPilots(skillId, {pilot}, checkEarned)
 end
@@ -98,7 +113,7 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 	if checkEarned == nil then checkEarned = true end
 	for _, pilot in ipairs(pilots) do
 		if pilot then
-			for skillIndex = 1, 2 do
+			for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
 				local skill = pilot:getLvlUpSkill(skillIndex)
 				if skill then
 					local currentSkillId = skill:getIdStr()
@@ -136,7 +151,7 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 		if pilot then
 			local skillIndices = {}
 
-			for skillIndex = 1, 2 do
+			for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
 				local skill = pilot:getLvlUpSkill(skillIndex)
 
 				if skill then
