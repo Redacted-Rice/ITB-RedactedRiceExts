@@ -130,7 +130,9 @@ function cplus_plus_ex:exposeAPI()
 	-- Get all skills by category
 	function cplus_plus_ex:getSkillsEnabled(...) return skill_state_tracker:getSkillsEnabled(...) end
 	function cplus_plus_ex:getSkillsInRun(...) return skill_state_tracker:getSkillsInRun(...) end
+	function cplus_plus_ex:getSkillObjsInRun(...) return skill_state_tracker:getSkillObjsInRun(...) end
 	function cplus_plus_ex:getSkillsActive(...) return skill_state_tracker:getSkillsActive(...) end
+	function cplus_plus_ex:getSkillObjsActive(...) return skill_state_tracker:getSkillObjsActive(...) end
 
 	-- Pilot skill tracking helpers
 	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
