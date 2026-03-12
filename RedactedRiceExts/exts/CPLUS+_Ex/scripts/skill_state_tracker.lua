@@ -278,6 +278,24 @@ function skill_state_tracker:getSkillsInRun()
 	return result
 end
 
+-- Get skill struct objects for a specific skill that is in run
+-- skillId: the skill ID to get structs for
+-- Returns: array of skill struct objects (PilotLvlUpSkill)
+function skill_state_tracker:getSkillObjsInRun(skillId)
+	local result = {}
+	local allInRun = self:getSkillsInRun()
+	local instances = allInRun[skillId] or {}
+	for _, instance in ipairs(instances) do
+		for _, skillIndex in ipairs(instance.skillIndices) do
+			local skill = instance.pilot:getLvlUpSkill(skillIndex)
+			if skill then
+				table.insert(result, skill)
+			end
+		end
+	end
+	return result
+end
+
 -- Determine in-run skills state for all enabled skills
 -- Returns in internal state format: {skillId -> {pilotAddr -> {pilot, skillIndices}}}
 function skill_state_tracker:_determineInRunSkillsState()
@@ -381,6 +399,24 @@ function skill_state_tracker:getSkillsActive()
 				pilot = data.pilot,
 				skillIndices = data.skillIndices
 			})
+		end
+	end
+	return result
+end
+
+-- Get skill struct objects for a specific skill that is active
+-- skillId: the skill ID to get structs for
+-- Returns: array of skill struct objects (PilotLvlUpSkill)
+function skill_state_tracker:getSkillObjsActive(skillId)
+	local result = {}
+	local allActive = self:getSkillsActive()
+	local instances = allActive[skillId] or {}
+	for _, instance in ipairs(instances) do
+		for _, skillIndex in ipairs(instance.skillIndices) do
+			local skill = instance.pilot:getLvlUpSkill(skillIndex)
+			if skill then
+				table.insert(result, skill)
+			end
 		end
 	end
 	return result
