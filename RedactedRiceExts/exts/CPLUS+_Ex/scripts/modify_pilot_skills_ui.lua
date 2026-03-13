@@ -223,6 +223,13 @@ function modify_pilot_skills_ui:clickCollapse(collapsable, button)
 		else
 			self:closeCollapsable(collapsable)
 		end
+
+		-- Save collapse state if this is a category section
+		if collapsable.categoryName then
+			cplus_plus_ex.config.categoryCollapseStates[collapsable.categoryName] = not collapsable.checked
+			cplus_plus_ex:saveConfiguration()
+		end
+
 		return true
 	end
 	return false
@@ -328,6 +335,9 @@ end
 -- Returns the content holder and the checkbox for updating checked state
 function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, startCollapsed)
 	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, nil, nil, startCollapsed)
+
+	-- Store category name for saving collapse state
+	collapse.categoryName = category
 
 	-- Category checkbox (tri-state)
 	local categoryCheckbox = UiTriCheckbox()
@@ -858,7 +868,9 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 		-- Build each category section
 		for _, category in ipairs(sortedCategories) do
 			local skills = self:_sortSkillsByCurrentSort(skillsByCategory[category], currentSkillSort)
-			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, false)
+			-- Use saved collapse state if available, default to expanded (false = not collapsed)
+			local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
+			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, startCollapsed)
 
 			-- Track checkboxes for this category
 			local categorySkillCheckboxes = {}
