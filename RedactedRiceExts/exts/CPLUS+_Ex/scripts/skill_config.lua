@@ -49,6 +49,8 @@ skill_config.config = {
 	pilotSkillExclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
 	pilotSkillInclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
 	skillExclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
+	-- UI category collapse states (categoryName -> boolean, true = collapsed)
+	categoryCollapseStates = {}, -- category name -> collapsed state
 }
 
 -- Module state
@@ -290,6 +292,11 @@ function skill_config:loadConfiguration()
 				end
 				if savedConfig.skillExclusionsSortOrder then
 					skill_config.config.skillExclusionsSortOrder = savedConfig.skillExclusionsSortOrder
+				end
+
+				-- Load category collapse states
+				if savedConfig.categoryCollapseStates then
+					skill_config.config.categoryCollapseStates = utils.deepcopy(savedConfig.categoryCollapseStates)
 				end
 
 				-- Load ALL relationships including invalid/disabled ones
