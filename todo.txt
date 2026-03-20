@@ -10,12 +10,12 @@ For 1.0 release:
 3. Look into adding tests on c++ side?
 4. Try reverse engineering more things and add to memhack if possible
 	a. mech innate upgrades
-	b. time pod landing coords
+	b. Deploy zone (probably point list pointer in mission)
 	c. bump damage
 
 
 1.2 Release:
-1. Steam & GoG offset fixes
+1. Steam & GoG (Epic?) offset fixes
 	a. Maybe could use known vtables (like pilot) to determine GoG vs Steam and then use the corresponding offset
 	b. Current fields needing this: Score
 
@@ -23,18 +23,19 @@ For 1.0 release:
 ---------- CPLUS+ Ex ---------
 
 For 1.0 release:
-1. Test
+1. Reusiblity not saving anymore
+2. Disabling duplicate skills mid run doesn't cause re-rolls
+3. Blacklist doesn't always init correctly. Consider aproaches to handle consistently
+	a. Maybe save removals of blacklists?
+	b. Maybe track which pilots have been init'd at least once and only load blacklist if not seen before
 
 
 1.1 Release:
-1. Skill default functions - e.g. isNotCyborg for Popular Hero
-2. Specifying defaults for things like weight and reusublity (separate for lowest possible)
-3. Hijack AddPilot to avoid searching _G for pilots?
-4. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
-	Could potential make for some unique pilot "skills" where they are more likely to get good skills or something
-	or giving better chances (or worse) for generic corp pilots
-5. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
-6. First & second slot only skills
+1. First & second slot only skills
+2. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
+3. Skill default functions - e.g. isNotCyborg for Popular Hero
+4. Specifying defaults for things like weight and reusublity (separate for lowest possible)
+5. Hijack AddPilot to avoid searching _G for pilots?
 
 
 1.2 Release:
@@ -44,3 +45,6 @@ For 1.0 release:
 4. Add auto support of "auto-dictonarying" skill strings
 	Mostly just replacing test with GetText and adding a SetText. Can probably try calling GetText to see if it exists first
 5. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
+6. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
+	Could potential make for some unique pilot "skills" where they are more likely to get good skills or something
+	or giving better chances (or worse) for generic corp pilots
