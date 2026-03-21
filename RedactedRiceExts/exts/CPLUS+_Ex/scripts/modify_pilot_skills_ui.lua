@@ -663,13 +663,33 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 	local reusabilityStrings = {}
 	local reusabilityTooltips = {}
 
-	-- Build dropdown options from allowed values
-	local count = 1
-	for k, _ in pairs(allowedReusability) do
-		table.insert(reusabilityValues, count)
-		table.insert(reusabilityStrings, REUSABLILITY_NAMES[k])
-		table.insert(reusabilityTooltips, REUSABLILITY_DESCRIPTIONS[k])
-		count = count + 1
+	-- Build dropdown options in hierarchy order
+	-- Store actual enum values and not sequential indices
+	for k = cplus_plus_ex.REUSABLILITY.REUSABLE, cplus_plus_ex.REUSABLILITY.PER_RUN do
+		if allowedReusability[k] then
+			table.insert(reusabilityValues, k)
+			table.insert(reusabilityStrings, REUSABLILITY_NAMES[k])
+			table.insert(reusabilityTooltips, REUSABLILITY_DESCRIPTIONS[k])
+		end
+	end
+	
+	-- Validate that the current reusability value is in the allowed list
+    -- UiDropDown expects the actual VALUE (not an index) - it searches for it internally
+	local currentReusabilityValue = resuability
+	local isValueAllowed = false
+	for i, val in ipairs(reusabilityValues) do
+		if val == resuability then
+			isValueAllowed = true
+			break
+		end
+	end
+	-- If the current value is not in the allowed list, use the first allowed value
+	if not isValueAllowed then
+		logger.logWarn(SUBMODULE, "Skill " .. skill.id .. " has reusability=" .. tostring(resuability) ..
+				" but it's not in allowed values [" .. table.concat(reusabilityValues, ",") .. "]. Using first allowed value.")
+		currentReusabilityValue = reusabilityValues[1]
+		-- Update config to match the first allowed value
+		cplus_plus_ex:setSkillConfig(skill.id, {reusability = currentReusabilityValue})
 	end
 
 	local reusabilityWidget
@@ -685,7 +705,8 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 			})
 			:addTo(entryRow)
 	else
-		reusabilityWidget = UiDropDown(reusabilityValues, reusabilityStrings, reusability, reusabilityTooltips)
+		-- Pass the actual values to UiDropDown - it will find the index internally
+		reusabilityWidget = UiDropDown(reusabilityValues, reusabilityStrings, currentReusabilityValue, reusabilityTooltips)
 				:widthpx(resuabilityLength)
 				:heightpx(40)
 				:decorate({

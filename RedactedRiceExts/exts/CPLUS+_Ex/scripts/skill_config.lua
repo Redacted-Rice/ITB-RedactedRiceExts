@@ -137,10 +137,11 @@ function skill_config:setSkillConfig(skillId, config)
 			logger.logError(SUBMODULE, "Unallowed skill reusability passed: " .. config.reusability .. " (normalized to " .. normalizeReuse .. ") for skill " .. skillId)
 			return
 		end
-		new_config.reusability = config.reusability
-		logger.logDebug(SUBMODULE, "Set skill reusability from %s to %s for skill %s",
+		new_config.reusability = normalizeReuse
+		logger.logInfo(SUBMODULE, "Set skill reusability from %s (value=%s) to %s (value=%s) for skill %d",
 				cplus_plus_ex.REUSABLILITY[utils.normalizeReusabilityToInt(curr_config.reusability)],
-				cplus_plus_ex.REUSABLILITY[normalizeReuse], skillId)
+				tostring(curr_config.reusability), cplus_plus_ex.REUSABLILITY[normalizeReuse],
+				tostring(normalizeReuse), skillId)
 	end
 
 	-- If we reached here, its a good config. Apply it
