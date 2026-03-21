@@ -332,7 +332,13 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	end
 
 	-- Use common validation and application logic
-	self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
+	local success = self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
+	if not success then
+		logger.logError(SUBMODULE, "Failed to apply skills to pilot " .. pilotId .. " - constraints cannot be satisfied")
+		return false
+	end
+
+	return true
 end
 
 -- Internal function to validate, assign saveVals, and apply skills to the pilot
@@ -348,23 +354,37 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 
 	local skillIds = {skill1Id, skill2Id}
 
-	-- If skills are disabled, assign random ones
+	-- If skills are disabled or now violate constraints, assign random ones
 	if not skill2 then
 		skillIds[2] = nil
 	end
-	if not skill1 then
-		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id .. " is disabled, assigning new one")
+	-- Skill one is checked without skill2 regardless as its first assigned and as such
+	-- has priority in any conflicts
+	if not skill1 or not skill_constraints:checkSkillConstraints(pilot, {}, skill1Id) then
+		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
+				" is invalid (disabled or violates constraints), assigning new one")
 		skillIds[1] = nil
 		skill1Id = self:selectRandomSkill(availableSkills, pilot, 1, skillIds)
+		if not skill1Id then
+			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilotId .. " - constraints too restrictive")
+			return false
+		end
 		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = {id = skill1Id}
 		storedSkills[1] = {id = skill1Id}
+		skillIds[1] = skill1Id
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
-	if not skill2 then
-		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id .. " is disabled, assigning new one")
+	if not skill2 or not skill_constraints:checkSkillConstraints(pilot, {skill1Id}, skill2Id) then
+		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id ..
+				" is invalid (disabled or violates constraints), assigning new one")
 		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, skillIds)
+		if not skill2Id then
+			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilotId .. " - constraints too restrictive")
+			return false
+		end
 		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = {id = skill2Id}
 		storedSkills[2] = {id = skill2Id}
+		skillIds[2] = skill2Id
 		skill2 = skill_config_module.enabledSkills[skill2Id]
 	end
 
@@ -396,6 +416,7 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		pilot:setLvlUpSkill(2, self:_skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
+	return true
 end
 
 -- Apply skills to all pilots - both squad and storage
@@ -445,21 +466,33 @@ function skill_selection:applySkillsToAllPilots()
 		end
 	end
 
-	-- Assign skills to any new pilots
+	-- Assign skills to any new pilots which will include validating already
+	-- selected skills against contraints and choosing new ones if they
+	-- are no longer valid
+	local successCount = 0
+	local failCount = 0
+	
 	for _, pilot in pairs(newPilots) do
 		local pilotId = pilot:getIdStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
 
-		self:applySkillsToPilot(pilot, isNewPilot)
-
-		-- Mark pilot as assigned this run
-		if isNewPilot then
-			skill_selection._pilotsAssignedThisRun[pilotId] = true
+		local success = self:applySkillsToPilot(pilot, isNewPilot)
+		if success then
+			successCount = successCount + 1
+			-- Mark pilot as assigned this run
+			if isNewPilot then
+			   skill_selection._pilotsAssignedThisRun[pilotId] = true
+			end
+		else
+			failCount = failCount + 1
+			logger.logError(SUBMODULE, "Could not assign valid skills to pilot " .. pilotId ..
+					" - constraints are impossible to satisfy. Check relationship settings.")
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Applied skills to " .. #newPilots .. " new pilot(s)")
-
+	logger.logInfo(SUBMODULE, "Applied skills to %d pilot(s), %d failed due to impossible constraints",
+			successCount, failCount)
+			
 	-- Only fire post assignment hook if there were new pilots
 	if hasNewPilots then
 		hooks.firePostAssigningLvlUpSkillsHooks()
