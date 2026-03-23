@@ -126,7 +126,10 @@ end
 -- Registers pilot skill exclusions
 -- Takes pilot id and list of skill ids to exclude
 function skill_registry:registerPilotSkillExclusions(pilotId, skillIds)
-	self:_registerPilotSkillRelationship(skill_config.config.pilotSkillExclusions, pilotId, skillIds, "exclusion")
+	self:_registerPilotSkillRelationship(
+			skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
+			pilotId, skillIds, "exclusion"
+	)
 end
 
 -- Registers pilot skill inclusions
@@ -134,22 +137,27 @@ end
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
 function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
-	self:_registerPilotSkillRelationship(skill_config.config.pilotSkillInclusions, pilotId, skillIds, "inclusion")
+	self:_registerPilotSkillRelationship(
+			skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
+			pilotId, skillIds, "inclusion"
+	)
 end
 
 -- Registers a skill to skill exclusion
 -- Takes two skill ids that cannot be selected for the same pilot
 function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
-	if skill_config.config.skillExclusions[skillId] == nil then
-		skill_config.config.skillExclusions[skillId] = {}
+	local skillExclusionsTable = skill_config.codeDefinedRelationships[skill_config.RelationshipType.SKILL_EXCLUSIONS]
+
+	if skillExclusionsTable[skillId] == nil then
+		skillExclusionsTable[skillId] = {}
 	end
-	if skill_config.config.skillExclusions[excludedSkillId] == nil then
-		skill_config.config.skillExclusions[excludedSkillId] = {}
+	if skillExclusionsTable[excludedSkillId] == nil then
+		skillExclusionsTable[excludedSkillId] = {}
 	end
 
 	-- Register exclusion in both directions
-	skill_config.config.skillExclusions[skillId][excludedSkillId] = true
-	skill_config.config.skillExclusions[excludedSkillId][skillId] = true
+	skillExclusionsTable[skillId][excludedSkillId] = true
+	skillExclusionsTable[excludedSkillId][skillId] = true
 
 	logger.logDebug(SUBMODULE, "Registered exclusion: %s <-> %s", skillId, excludedSkillId)
 end

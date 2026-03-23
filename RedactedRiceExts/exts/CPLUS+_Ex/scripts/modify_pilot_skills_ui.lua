@@ -75,15 +75,15 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 	if skillConfig then
 		return skillConfig.enabled
 	end
-	
+
 	local pilot = _G[itemId]
-	if pilot and type(pilot) == "table" and getmetatable(pilot) == _G.Pilot then		
+	if pilot and type(pilot) == "table" and getmetatable(pilot) == _G.Pilot then
 		-- Check if pilot is enabled. Not entirely sure how its used but its in mod loader
 		-- so might as well check it
 		if not pilot:IsEnabled() then
 			return false
 		end
-		
+
 		-- Check if pilot is unlocked (using checks from pilot_deck_selector.lua)
 		-- Pilots not in hangar lists (recruits, cyborgs, etc.) are always shown as unlocked
 		local isPilotUnlocked = (not list_contains(PilotListExtended, itemId) and not list_contains(SECRET_PILOTS, itemId))
@@ -672,7 +672,7 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 			table.insert(reusabilityTooltips, REUSABLILITY_DESCRIPTIONS[k])
 		end
 	end
-	
+
 	-- Validate that the current reusability value is in the allowed list
     -- UiDropDown expects the actual VALUE (not an index) - it searches for it internally
 	local currentReusabilityValue = resuability
@@ -933,7 +933,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
-				
+
 				-- Rebuild relationship sections to reflect enabled/disabled state
 				self:rebuildAllRelationships()
 			end
@@ -1102,7 +1102,23 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 end
 
 -- Builds a relationship editor section
-function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTable, title, sourceList, targetList, sourceLabel, targetLabel, isSameTypeRelation, sourceIdsSorted, targetIdsSorted, sectionTooltip, sortConfigKey)
+function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType, sourceList, targetList, sourceIdsSorted, targetIdsSorted)
+	-- Get metadata for this relationship type
+	local metadata = cplus_plus_ex:getRelationshipMetadata(relationshipType)
+	if not metadata then
+		error("Invalid relationship type: " .. tostring(relationshipType))
+	end
+
+	local title = metadata.title
+	local sectionTooltip = metadata.tooltip
+	local sortConfigKey = metadata.sortOrder
+	local sourceLabel = metadata.sourceLabel
+	local targetLabel = metadata.targetLabel
+	local isBidirectional = metadata.isBidirectional
+
+	-- Get the active relationship table
+	local relationshipTable = cplus_plus_ex.config[relationshipType]
+
 	-- create list values with empty and all (using sorted IDs)
 	-- Include skill tooltips if the label is "Skill"
 	local includeSourceTooltips = sourceLabel == "Skill"
@@ -1132,9 +1148,62 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 		sortDropdown.value = sortColumn
 		sortDropdown.choice = sortColumn
 	end
+	
+	-- Ideally i'd avoid the circular dependency but for simplicity I'm
+	-- just predefnining the fn
+	local rebuildRelationshipList
+
+	-- Helper function to build a single relationship row
+	local function buildRelationshipRow(sourceId, targetId, isNewlyAdded)
+		local entryRow = UiWeightLayout()
+			:width(1):heightpx(ROW_HEIGHT)
+			:addTo(sectionContainer)
+
+		-- Pilot portrait if its a pilot
+		if sourceLabel == "Pilot" then
+			self:addPilotImage(sourceId, entryRow)
+		end
+
+		-- Add labels with skill tooltips if applicable
+		local sourceSkillId = sourceLabel == "Skill" and sourceId or nil
+		local targetSkillId = targetLabel == "Skill" and targetId or nil
+		self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
+		self:addArrowLabel(isBidirectional, entryRow)
+		self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
+
+		-- Remove button
+		local isCodeDefined = cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
+		local btnText = "Remove"
+		local btnTooltip = isCodeDefined and "Remove this code defined relationship"
+				or "Remove this user added relationship"
+
+		local btnRemove = sdlext.buildButton(
+			btnText,
+			btnTooltip,
+			function()
+				cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
+				if isBidirectional then
+					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
+				end
+
+				if isNewlyAdded then
+					local key = sourceId .. "|" .. targetId
+					newlyAddedRelationships[key] = nil
+				end
+
+				-- Save and rebuild
+				cplus_plus_ex:saveConfiguration()
+				rebuildRelationshipList()
+				return true
+			end
+		)
+		btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
+			:heightpx(ROW_HEIGHT)
+			:addTo(entryRow)
+	end
 
 	-- Function to rebuild the list of existing relationships
-	local function rebuildRelationshipList()
+	rebuildRelationshipList = function()
 		-- Clear existing list (remove all but the add row)
 		while #sectionContainer.children > 1 do
 			sectionContainer.children[#sectionContainer.children]:detach()
@@ -1190,108 +1259,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 
 		-- Build newly added items first
 		for _, relationship in ipairs(newItemsList) do
-			local sourceId = relationship.sourceId
-			local targetId = relationship.targetId
-
-			local entryRow = UiWeightLayout()
-				:width(1):heightpx(ROW_HEIGHT)
-				:addTo(sectionContainer)
-
-			-- Pilot portrait if its a pilot
-			if sourceLabel == "Pilot" then
-				self:addPilotImage(sourceId, entryRow)
-			end
-
-			-- Add labels with skill tooltips if applicable
-			local sourceSkillId = sourceLabel == "Skill" and sourceId or nil
-			local targetSkillId = targetLabel == "Skill" and targetId or nil
-			self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
-			self:addArrowLabel(title == "Skill Exclusions", entryRow)
-			self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
-
-				-- Remove button
-				local btnRemove = sdlext.buildButton(
-					"Remove",
-					"Remove this relationship",
-					function()
-						-- Remove from config
-						if relationshipTable[sourceId] then
-							relationshipTable[sourceId][targetId] = nil
-							-- If no more targets, remove source entry
-							local hasAny = false
-							for _, _ in pairs(relationshipTable[sourceId]) do
-								hasAny = true
-								break
-							end
-							if not hasAny then
-								relationshipTable[sourceId] = nil
-							end
-						end
-
-						-- Save and rebuild
-						cplus_plus_ex:saveConfiguration()
-						rebuildRelationshipList()
-						return true
-					end
-				)
-				btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
-					:heightpx(ROW_HEIGHT)
-					:addTo(entryRow)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId, false)
 		end
 
 		-- Build sorted items
 		for _, relationship in ipairs(relationshipList) do
-			local sourceId = relationship.sourceId
-			local targetId = relationship.targetId
-
-			local entryRow = UiWeightLayout()
-				:width(1):heightpx(ROW_HEIGHT)
-				:addTo(sectionContainer)
-
-			-- Pilot portrait if its a pilot
-			if sourceLabel == "Pilot" then
-				self:addPilotImage(sourceId, entryRow)
-			end
-
-			-- Add labels with skill tooltips if applicable
-			local sourceSkillId = sourceLabel == "Skill" and sourceId or nil
-			local targetSkillId = targetLabel == "Skill" and targetId or nil
-			self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
-			self:addArrowLabel(title == "Skill Exclusions", entryRow)
-			self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
-
-			-- Remove button
-			local btnRemove = sdlext.buildButton(
-				"Remove",
-				"Remove this relationship",
-				function()
-					-- Remove from config
-					if relationshipTable[sourceId] then
-						relationshipTable[sourceId][targetId] = nil
-						-- If no more targets, remove source entry
-						local hasAny = false
-						for _, _ in pairs(relationshipTable[sourceId]) do
-							hasAny = true
-							break
-						end
-						if not hasAny then
-							relationshipTable[sourceId] = nil
-						end
-					end
-
-					-- Remove from newly added tracking
-					local key = sourceId .. "|" .. targetId
-					newlyAddedRelationships[key] = nil
-
-					-- Save and rebuild
-					cplus_plus_ex:saveConfiguration()
-					rebuildRelationshipList()
-					return true
-				end
-			)
-			btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
-				:heightpx(ROW_HEIGHT)
-				:addTo(entryRow)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId, true)
 		end
 
 		-- Spacer
@@ -1334,7 +1307,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 		end, addRow)
 
 	-- Arrow
-	self:addArrowLabel(title == "Skill Exclusions", addRow)
+	self:addArrowLabel(isBidirectional, addRow)
 
 	-- Target dropdown
 	self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
@@ -1418,10 +1391,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipTabl
 				for targetId, _ in pairs(targetsToAdd) do
 					-- Skip adding to self (if all was used)
 					if not (sourceId == targetId) then
-						if not relationshipTable[sourceId] then
-							relationshipTable[sourceId] = {}
+						cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
+
+						if isBidirectional then
+							cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
 						end
-						relationshipTable[sourceId][targetId] = true
 
 						-- Mark as newly added to show at top
 						local key = sourceId .. "|" .. targetId
@@ -1459,7 +1433,7 @@ end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent)
-	
+
 	-- Store reference to the entire section box (parent of content) for rebuilding
 	relationshipsContainer = relationshipsContent.parent
 	relationshipsParent = scrollContent
@@ -1472,51 +1446,33 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	-- Pilot Skill Exclusions
 	self:buildRelationshipEditor(
 		relationshipsContent,
-		cplus_plus_ex.config.pilotSkillExclusions,
-		"Exclusions: Pilot → Skill",
+		cplus_plus_ex.RelationshipType.PILOT_SKILL_EXCLUSIONS,
 		pilotData,
 		exlusionSkillData,
-		"Pilot",
-		"Skill",
-		false,
 		pilotIdsSorted,
-		exlusionSkillIdsSorted,
-		"Prevent specific pilots from receiving certain skills",
-		"pilotSkillExclusionsSortOrder"
+		exlusionSkillIdsSorted
 	)
 
 	if #inclusionSkillData > 0 then
 		-- Pilot Skill Inclusions
 		self:buildRelationshipEditor(
 			relationshipsContent,
-			cplus_plus_ex.config.pilotSkillInclusions,
-			"Inclusions: Pilot → Skill ",
+			cplus_plus_ex.RelationshipType.PILOT_SKILL_INCLUSIONS,
 			pilotData,
 			inclusionSkillData,
-			"Pilot",
-			"Skill",
-			false,
 			pilotIdsSorted,
-			inclusionSkillIdsSorted,
-			"Allow specific pilots to receive the skill",
-			"pilotSkillInclusionsSortOrder"
+			inclusionSkillIdsSorted
 		)
 	end
 
 	-- Skill Exclusions
 	self:buildRelationshipEditor(
 		relationshipsContent,
-		cplus_plus_ex.config.skillExclusions,
-		"Exclusions: Skill ↔ Skill",
+		cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS,
 		skillData,
 		skillData,
-		"Skill",
-		"Skill",
-		true,
 		skillIdsSorted,
-		skillIdsSorted,
-		"Prevent certain skills from being selected together on the same pilot",
-		"skillExclusionsSortOrder"
+		skillIdsSorted
 	)
 end
 

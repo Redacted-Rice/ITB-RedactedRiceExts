@@ -90,6 +90,7 @@ function cplus_plus_ex:exposeAPI()
 	self.events = hooks.events
 	self.config = skill_config.config
 	self.SkillConfig = skill_config.SkillConfig
+	self.RelationshipType = skill_config.RelationshipType
 
 	-- Expose API functions that delegate to submodules
 	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
@@ -108,6 +109,11 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
+	
+	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
+	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
+	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
+	function cplus_plus_ex:getRelationshipMetadata(...) return skill_config:getRelationshipMetadata(...) end
 
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
