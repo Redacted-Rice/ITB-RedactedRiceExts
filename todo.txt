@@ -23,12 +23,7 @@ For 1.0 release:
 ---------- CPLUS+ Ex ---------
 
 For 1.0 release:
-1. Reusiblity not saving anymore
-2. Disabling duplicate skills mid run doesn't cause re-rolls
-3. Blacklist doesn't always init correctly. Consider aproaches to handle consistently
-	a. Maybe save removals of blacklists?
-	b. Maybe track which pilots have been init'd at least once and only load blacklist if not seen before
-
+Testing
 
 1.1 Release:
 1. First & second slot only skills

@@ -12,6 +12,52 @@ local SUBMODULE = logger.register("CPLUS+", "SkillConfig", cplus_plus_ex.DEBUG.C
 local skill_registry = nil
 local utils = nil
 
+-- Relationship Type Enum
+skill_config.RelationshipType = {
+	PILOT_SKILL_EXCLUSIONS = "pilotSkillExclusions",
+	PILOT_SKILL_INCLUSIONS = "pilotSkillInclusions",
+	SKILL_EXCLUSIONS = "skillExclusions",
+}
+
+-- Mapping from relationship type to config keys and UI metadata
+local relationshipConfigKeys = {
+	[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS] = {
+		added = "addedPilotSkillExclusions",
+		removed = "removedPilotSkillExclusions",
+		sortOrder = "pilotSkillExclusionsSortOrder",
+		title = "Exclusions: Pilot → Skill",
+		tooltip = "Prevent specific pilots from receiving certain skills",
+		sourceLabel = "Pilot",
+		targetLabel = "Skill",
+		isBidirectional = false,
+	},
+	[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS] = {
+		added = "addedPilotSkillInclusions",
+		removed = "removedPilotSkillInclusions",
+		sortOrder = "pilotSkillInclusionsSortOrder",
+		title = "Inclusions: Pilot → Skill ",
+		tooltip = "Allow specific pilots to receive the skill",
+		sourceLabel = "Pilot",
+		targetLabel = "Skill",
+		isBidirectional = false,
+	},
+	[skill_config.RelationshipType.SKILL_EXCLUSIONS] = {
+		added = "addedSkillExclusions",
+		removed = "removedSkillExclusions",
+		sortOrder = "skillExclusionsSortOrder",
+		title = "Exclusions: Skill ↔ Skill",
+		tooltip = "Prevent certain skills from being selected together on the same pilot",
+		sourceLabel = "Skill",
+		targetLabel = "Skill",
+		isBidirectional = true,
+	},
+}
+
+-- Public getter for relationship metadata
+function skill_config:getRelationshipMetadata(relationshipType)
+	return relationshipConfigKeys[relationshipType]
+end
+
 -- SkillConfig class definition
 -- Note: Defaults are set in new() to avoid forward reference issues
 skill_config.SkillConfig = {
@@ -40,18 +86,25 @@ end
 -- These are runtime changeable configuration parameters
 skill_config.config = {
 	allowReusableSkills = false, -- will be set on load by options but default to vanilla
-	pilotSkillExclusions = {}, -- pilotId -> excluded skill ids (set-like table) - auto-loaded from pilot Blacklists
-	pilotSkillInclusions = {}, -- pilotId -> included skill ids (set-like table)
-	skillExclusions = {},  -- skillId -> excluded skill ids (set-like table) - skills that cannot be taken together
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability
-	-- UI sort preferences
 	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Weight/%
-	pilotSkillExclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
-	pilotSkillInclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
-	skillExclusionsSortOrder = 1, -- 1=First Column, 2=Second Column
-	-- UI category collapse states (categoryName -> boolean, true = collapsed)
 	categoryCollapseStates = {}, -- category name -> collapsed state
 }
+
+-- Initialize relationship tables using enum
+for relType, keys in pairs(relationshipConfigKeys) do
+	skill_config.config[relType] = {}  -- Active runtime relationships
+	skill_config.config[keys.added] = {}  -- User added relationships
+	skill_config.config[keys.removed] = {}  -- User removed, code defined relationships
+	skill_config.config[keys.sortOrder] = 1  -- Sort order
+end
+
+-- Code defined relationships which are read and set during registration but not
+-- saved so they can be changed easily
+skill_config.codeDefinedRelationships = {}
+for _, relType in pairs(skill_config.RelationshipType) do
+	skill_config.codeDefinedRelationships[relType] = {}
+end
 
 -- Module state
 skill_config.enabledSkills = {}  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability}
@@ -66,6 +119,8 @@ end
 
 -- Called after all mods are loaded
 function skill_config:_postModsLoaded()
+	self:_rebuildRelationships()
+
 	-- Set the defaults to our registered/setup values
 	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
 	self:_captureDefaultConfigs()
@@ -207,14 +262,136 @@ function skill_config:_disableSkill_internal(id)
 	logger.logDebug(SUBMODULE, "Skill %s disabled", id)
 end
 
+-- Check if a relationship exists
+function skill_config:_relationshipExists(relationshipTable, sourceId, targetId)
+	return relationshipTable[sourceId] ~= nil and relationshipTable[sourceId][targetId] == true
+end
+
+-- Add a relationship
+function skill_config:_addRelationship(relationshipTable, sourceId, targetId)
+	if not relationshipTable[sourceId] then
+		relationshipTable[sourceId] = {}
+	end
+	relationshipTable[sourceId][targetId] = true
+end
+
+-- Remove a relationship
+function skill_config:_removeRelationship(relationshipTable, sourceId, targetId)
+	if relationshipTable[sourceId] then
+		relationshipTable[sourceId][targetId] = nil
+		local hasAny = false
+		for _, _ in pairs(relationshipTable[sourceId]) do
+			hasAny = true
+			break
+		end
+		if not hasAny then
+			relationshipTable[sourceId] = nil
+		end
+	end
+end
+
+-- Merge code defined relationships with user modifications (adds and removal of code defined ones)
+function skill_config:_mergeRelationships(codeDefinedTable, addedTable, removedTable)
+	local merged = {}
+
+	for sourceId, targets in pairs(codeDefinedTable) do
+		for targetId, _ in pairs(targets) do
+			if not self:_relationshipExists(removedTable, sourceId, targetId) then
+				self:_addRelationship(merged, sourceId, targetId)
+			end
+		end
+	end
+
+	for sourceId, targets in pairs(addedTable) do
+		for targetId, _ in pairs(targets) do
+			self:_addRelationship(merged, sourceId, targetId)
+		end
+	end
+
+	return merged
+end
+
+-- Rebuild runtime relationship tables
+function skill_config:_rebuildRelationships()
+	for relType, keys in pairs(relationshipConfigKeys) do
+		self.config[relType] = self:_mergeRelationships(
+			self.codeDefinedRelationships[relType],
+			self.config[keys.added],
+			self.config[keys.removed]
+		)
+	end
+
+	logger.logDebug(SUBMODULE, "Rebuilt active relationships for constraint checking")
+end
+
+-- User adds a relationship
+function skill_config:addRelationshipToRuntime(relationshipType, sourceId, targetId)
+	local keys = relationshipConfigKeys[relationshipType]
+	if not keys then
+		logger.logError(SUBMODULE, "Invalid relationship type: " .. tostring(relationshipType))
+		return
+	end
+
+	local codeDefinedTable = self.codeDefinedRelationships[relationshipType]
+	local addedTable = self.config[keys.added]
+	local removedTable = self.config[keys.removed]
+	local runtimeTable = self.config[relationshipType]
+
+	if self:_relationshipExists(codeDefinedTable, sourceId, targetId) then
+		self:_removeRelationship(removedTable, sourceId, targetId)
+	else
+		self:_addRelationship(addedTable, sourceId, targetId)
+	end
+
+	self:_addRelationship(runtimeTable, sourceId, targetId)
+end
+
+-- User removes a relationship
+function skill_config:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
+	local keys = relationshipConfigKeys[relationshipType]
+	if not keys then
+		logger.logError(SUBMODULE, "Invalid relationship type: " .. tostring(relationshipType))
+		return
+	end
+
+	local codeDefinedTable = self.codeDefinedRelationships[relationshipType]
+	local addedTable = self.config[keys.added]
+	local removedTable = self.config[keys.removed]
+	local runtimeTable = self.config[relationshipType]
+
+	if self:_relationshipExists(codeDefinedTable, sourceId, targetId) then
+		self:_addRelationship(removedTable, sourceId, targetId)
+	else
+		self:_removeRelationship(addedTable, sourceId, targetId)
+	end
+
+	self:_removeRelationship(runtimeTable, sourceId, targetId)
+end
+
+-- Check if relationship is code defined
+function skill_config:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
+	return self:_relationshipExists(self.codeDefinedRelationships[relationshipType], sourceId, targetId)
+end
+
 function skill_config:_captureDefaultConfigs()
 	self.defaultConfig = utils.deepcopy(self.config)
 end
 
 -- Resets configuration to default state
--- Restores all values to what they were at initial load (after registration and auto-loading)
+-- Restores all values to what they were at initial load - i.e. to the
+-- code defined relationships and default values for skills
 function skill_config:resetToDefaults()
+	-- Restore all config values from the captured defaults
 	utils.deepcopyInPlace(self.config, self.defaultConfig)
+
+	-- Clear all user modified relationships
+	for _, keys in pairs(relationshipConfigKeys) do
+		self.config[keys.added] = {}
+		self.config[keys.removed] = {}
+	end
+
+	-- Rebuild active relationship tables from code defined sources
+	self:_rebuildRelationships()
 
 	-- Rebuild enabled skills list from the reset config
 	self.enabledSkills = {}
@@ -251,6 +428,11 @@ function skill_config:saveConfiguration()
 			-- Just copy over the whole table each time instead of trying to update
 			obj.cplus_plus_ex.skill_config = utils.deepcopy(skill_config.config)
 
+			-- Clear runtime computed relationship tables - they will be rebuilt on load
+			for _, relType in pairs(skill_config.RelationshipType) do
+				obj.cplus_plus_ex.skill_config[relType] = nil
+			end
+
 			-- clear out some unneded fields
 			for id, config in pairs(obj.cplus_plus_ex.skill_config.skillConfigs) do
 				config.__index = nil
@@ -285,14 +467,18 @@ function skill_config:loadConfiguration()
 				if savedConfig.skillConfigSortOrder then
 					skill_config.config.skillConfigSortOrder = savedConfig.skillConfigSortOrder
 				end
-				if savedConfig.pilotSkillExclusionsSortOrder then
-					skill_config.config.pilotSkillExclusionsSortOrder = savedConfig.pilotSkillExclusionsSortOrder
-				end
-				if savedConfig.pilotSkillInclusionsSortOrder then
-					skill_config.config.pilotSkillInclusionsSortOrder = savedConfig.pilotSkillInclusionsSortOrder
-				end
-				if savedConfig.skillExclusionsSortOrder then
-					skill_config.config.skillExclusionsSortOrder = savedConfig.skillExclusionsSortOrder
+
+				-- Load relationship sort orders and added/removed tables
+				for _, keys in pairs(relationshipConfigKeys) do
+					if savedConfig[keys.sortOrder] then
+						skill_config.config[keys.sortOrder] = savedConfig[keys.sortOrder]
+					end
+					if savedConfig[keys.added] then
+						skill_config.config[keys.added] = utils.deepcopy(savedConfig[keys.added])
+					end
+					if savedConfig[keys.removed] then
+						skill_config.config[keys.removed] = utils.deepcopy(savedConfig[keys.removed])
+					end
 				end
 
 				-- Load category collapse states
@@ -300,19 +486,7 @@ function skill_config:loadConfiguration()
 					skill_config.config.categoryCollapseStates = utils.deepcopy(savedConfig.categoryCollapseStates)
 				end
 
-				-- Load ALL relationships including invalid/disabled ones
-				-- UI will filter display, runtime constraint checking treats IDs as strings
-				if savedConfig.pilotSkillExclusions then
-					skill_config.config.pilotSkillExclusions = utils.deepcopy(savedConfig.pilotSkillExclusions)
-				end
-
-				if savedConfig.pilotSkillInclusions then
-					skill_config.config.pilotSkillInclusions = utils.deepcopy(savedConfig.pilotSkillInclusions)
-				end
-
-				if savedConfig.skillExclusions then
-					skill_config.config.skillExclusions = utils.deepcopy(savedConfig.skillExclusions)
-				end
+				self:_rebuildRelationships()
 
 				-- Merge skillConfigs to update existing skill but preserve new defaults
 				if savedConfig.skillConfigs then
