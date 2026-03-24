@@ -1,10 +1,6 @@
 ---------- Memhack ---------
 
-For 1.0 release:
-1. Testing
-
-
-1.1 Release:
+For 1.1 Release:
 1. Move errors to logs for validation and other things
 2. Add more lua tests
 3. Look into adding tests on c++ side?
@@ -22,10 +18,7 @@ For 1.0 release:
 
 ---------- CPLUS+ Ex ---------
 
-For 1.0 release:
-Testing
-
-1.1 Release:
+For 1.1 Release:
 1. First & second slot only skills
 2. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
 3. Skill default functions - e.g. isNotCyborg for Popular Hero

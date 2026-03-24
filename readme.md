@@ -13,22 +13,27 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Extensions
-* memhack - v0.9.1 - Extension to expose additional functionality via direct memory access
-* CPLUS+ - v0.9.1 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+
+* memhack - v1.0.0 - Extension to expose additional functionality via direct memory access
+* CPLUS+ - v1.0.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 
 # Releases
-Latest release: 0.9.1
 
-## 0.9.1
-Released: XX/XX/XXXX 
+Latest release: 1.0.0
 
-* memhack - v0.9.1
-* CPLUS+ Ex - v0.9.1
+## 1.0.0
+
+Released: 03/28/2026
+
+* memhack - v1.0.0
+* CPLUS+ Ex - v1.0.0
 
 ### Notes
+
 Initial releases of the extenstions
 
 # Install
+
 - Unzip the release folder
 - Place the unzipped RedactedRiceExts folder in "Into the Breach/extensions" folder (create it if needed)
   - Make sure there is not an extra layer of folder - when you enter the RedactedRiceExts folder you should see the "scripts" folder. Remove any extra folder layers
@@ -36,5 +41,6 @@ Initial releases of the extenstions
 To uninstall, just delete the folder
 
 # Release Process
+
 Build memhack-dll (if changed) and copy to memhack/memhack.dll
 Copy license and this readme into RedactedRiceExts folder and zip it up
