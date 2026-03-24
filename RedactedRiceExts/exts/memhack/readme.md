@@ -11,15 +11,15 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 0.9.1
+Latest release: 1.0.0
 
-## 0.9.1
-Released: XX/XX/XXXX 
+## 1.0.0
+Released: 03/28/2026
 
 compatible with:
-* ItB AE 	1.2.93
-* ModLoader 	2.9.4
-* ModLoaderExt	1.23
+* ItB AE       1.2.93
+* ModLoader    2.9.5
+* ModLoaderExt 1.24
 
 ### Notes
-Initial release!
+Initial official release!

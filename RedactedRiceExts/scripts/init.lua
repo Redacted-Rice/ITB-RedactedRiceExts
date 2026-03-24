@@ -6,11 +6,11 @@ local extension =  {
 	icon = "scripts/icon.png",
 	description = "Extensions to support mods made by Redacted Rice",
 	submodFolders = {"exts/"},
-	modApiVersion = "2.9.4",
+	modApiVersion = "2.9.5",
 	gameVersion = "1.2.93",
 	dependencies = {
-        modApiExt = "1.23",
-        memedit = "1.2.0",
+        modApiExt = "1.24",
+        memedit = "1.2.1",
     },
 	isExtension = true,
 }
