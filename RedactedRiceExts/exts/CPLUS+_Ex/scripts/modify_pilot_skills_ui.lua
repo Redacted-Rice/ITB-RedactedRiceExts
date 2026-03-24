@@ -1154,7 +1154,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local rebuildRelationshipList
 
 	-- Helper function to build a single relationship row
-	local function buildRelationshipRow(sourceId, targetId, isNewlyAdded)
+	local function buildRelationshipRow(sourceId, targetId)
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 			:addTo(sectionContainer)
@@ -1184,11 +1184,6 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
 				if isBidirectional then
 					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
-				end
-
-				if isNewlyAdded then
-					local key = sourceId .. "|" .. targetId
-					newlyAddedRelationships[key] = nil
 				end
 
 				-- Save and rebuild
@@ -1259,12 +1254,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 		-- Build newly added items first
 		for _, relationship in ipairs(newItemsList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId, false)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId)
 		end
 
 		-- Build sorted items
 		for _, relationship in ipairs(relationshipList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId, true)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId)
 		end
 
 		-- Spacer
