@@ -25,7 +25,7 @@ local function onGameClassInitialized(GameClass)
 			error(string.format("Amount must be a number, got %s", type(amount)))
 		end
 		local obj = self:GetMemhackObj()
-		obj:SetReputation(obj:getReputation() + amount)
+		obj:setReputation(obj:getReputation() + amount)
 	end
 
 	--[[

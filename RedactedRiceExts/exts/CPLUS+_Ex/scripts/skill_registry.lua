@@ -15,7 +15,7 @@ local skill_config = nil
 local utils = nil
 
 -- Module state
-skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability}
+skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability, icon}
 
 -- Initialize the module
 function skill_registry:init()
@@ -42,7 +42,8 @@ end
 --   PER_RUN (3) - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
 --			affect the game state in a one time only way
 -- weight optional default weight for the skill
-function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight)
+-- icon optional path to 21x21 image to display in the skills config menu
+function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight, icon)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -54,6 +55,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		saveVal = idOrTable.saveVal
 		reusability = idOrTable.reusability
 		weight = idOrTable.weight
+		icon = idOrTable.icon
 	end
 
 	-- Check if ID is already registered globally
@@ -90,6 +92,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
 			saveVal = saveVal, reusability = reusability,
+			icon = icon,
 	}
 
 	-- add a config value

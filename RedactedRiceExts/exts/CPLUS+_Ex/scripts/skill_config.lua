@@ -107,7 +107,7 @@ for _, relType in pairs(skill_config.RelationshipType) do
 end
 
 -- Module state
-skill_config.enabledSkills = {}  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability}
+skill_config.enabledSkills = {}  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability, icon}
 skill_config.enabledSkillsIds = {}  -- Array of skill ids enabled
 
 -- Initialize the module
