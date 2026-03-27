@@ -33,8 +33,14 @@ local SECRET_PILOTS = {"Pilot_Mantis","Pilot_Rock","Pilot_Zoltan"}
 
 local BOARDER_SIZE = 0
 local DEFAULT_VGAP = 5
+local SKILL_LIST_VGAP = 8
 local ROW_HEIGHT = 41
 local CHECKBOX_PADDING = 40
+local SKILL_ICON_BASE_SIZE = 21
+local SKILL_ICON_SCALE = 2
+local SKILL_ICON_OUTLINE = 1
+local SKILL_ICON_SPACING = 4
+local SKILL_ICON_TOTAL = (SKILL_ICON_BASE_SIZE * SKILL_ICON_SCALE) + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE) + (SKILL_ICON_SPACING * 2)
 local DROPDOWN_PADDING = 40
 local DROPDOWN_BUTTON_PADDING = 33
 local COLLAPSE_BTN_PADDING = 40
@@ -334,7 +340,7 @@ end
 -- Builds a category section with tri checkbox
 -- Returns the content holder and the checkbox for updating checked state
 function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, startCollapsed)
-	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, nil, nil, startCollapsed)
+	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, SKILL_LIST_VGAP, nil, startCollapsed)
 
 	-- Store category name for saving collapse state
 	collapse.categoryName = category
@@ -520,8 +526,8 @@ function modify_pilot_skills_ui:_determineColumnLengths()
 		table.insert(names, GetText(skill.shortName))
 	end
 	local longestName = self:getLongestLength(names)
-	-- Extra room for Checkbox
-	local paddedName = longestName + CHECKBOX_PADDING
+	-- Extra room for Checkbox and optional skill icon
+	local paddedName = longestName + CHECKBOX_PADDING + SKILL_ICON_TOTAL
 
 	local reuseOptions = utils.deepcopy(REUSABLILITY_NAMES)
 	table.insert(reuseOptions, REUSABLILITY_HEADER)
@@ -537,15 +543,34 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 	local description = GetText(skill.description)
 	local category = skill.category
 
+	local decorations = {
+		DecoButton(),
+		DecoCheckbox(),
+		DecoAlign(2, 0),
+	}
+
+	-- Add icon if available (icons are 21x21 base, scaled to display size)
+	if skill.icon and skill.icon ~= "" then
+		local surface = sdlext.getSurface({ path = skill.icon })
+		if surface then
+			table.insert(decorations, DecoAlign(SKILL_ICON_SPACING, 0))
+			table.insert(decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+			table.insert(decorations, DecoAlign(SKILL_ICON_SPACING, 0))
+		else
+			table.insert(decorations, DecoAlign(SKILL_ICON_TOTAL, 0))
+		end
+	else
+		table.insert(decorations, DecoAlign(SKILL_ICON_TOTAL, 0))
+	end
+
+	-- Add text alignment and text
+	table.insert(decorations, DecoAlign(0, 2))
+	table.insert(decorations, DecoText(shortName))
+
 	local enabledCheckbox = UiCheckbox()
 		:widthpx(skillLength):heightpx(ROW_HEIGHT)
 		:settooltip(description)
-		:decorate({
-			DecoButton(),
-			DecoCheckbox(),
-			DecoAlign(0, 2),
-			DecoText(shortName)
-		})
+		:decorate(decorations)
 		:addTo(entryRow)
 
 	enabledCheckbox.checked = enabled
