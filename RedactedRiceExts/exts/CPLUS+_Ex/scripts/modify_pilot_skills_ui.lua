@@ -41,6 +41,7 @@ local SKILL_ICON_SCALE = 2
 local SKILL_ICON_OUTLINE = 1
 local SKILL_ICON_SPACING = 4
 local SKILL_ICON_TOTAL = (SKILL_ICON_BASE_SIZE * SKILL_ICON_SCALE) + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE) + (SKILL_ICON_SPACING * 2)
+local SKILL_ICON_REL_SIZE = (SKILL_ICON_BASE_SIZE * SKILL_ICON_SCALE) + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE)
 local DROPDOWN_PADDING = 40
 local DROPDOWN_BUTTON_PADDING = 33
 local COLLAPSE_BTN_PADDING = 40
@@ -1037,6 +1038,32 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	return pilotUi
 end
 
+function modify_pilot_skills_ui:addSkillIcon(skillId, row)
+	local skillUi = Ui()
+		:widthpx(SKILL_ICON_REL_SIZE - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
+
+	-- Always draw frame border, add icon on top if available
+	local decorations = { DecoFrame() }
+
+	if skillId and skillId ~= "All" and skillId ~= "" then
+		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+		if skill and skill.icon and skill.icon ~= "" then
+			local surface = sdlext.getSurface({ path = skill.icon })
+			if surface then
+				table.insert(decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+			end
+		end
+	end
+
+	skillUi:decorate(decorations)
+	skillUi:addTo(row)
+
+	-- Add some spacing
+	Ui():widthpx(BOARDER_SIZE * 2):heightpx(ROW_HEIGHT):addTo(row)
+
+	return skillUi
+end
+
 function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId)
 	local label = Ui()
 		:width(0.5):heightpx(ROW_HEIGHT)
@@ -1153,7 +1180,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips)
 
 	-- Container for this section
-	local largestHeight = sourceLabel == "Pilot" and PILOT_SIZE or ROW_HEIGHT
+	-- Determine largest height based on whether we have pilot portraits or skill icons
+	local largestHeight = ROW_HEIGHT
+	if sourceLabel == "Pilot" then
+		largestHeight = PILOT_SIZE
+	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
+		largestHeight = math.max(ROW_HEIGHT, SKILL_ICON_REL_SIZE)
+	end
 	local padding = largestHeight - ROW_HEIGHT  + 3 + DEFAULT_VGAP
 	local initialPadding = padding / 2 + DEFAULT_VGAP
 
@@ -1164,7 +1197,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- State for the add dropdowns and sorting
 	local selectedSource = listVals[1]
 	local selectedTarget = targetListVals[1]
-	local currentPilotPortrait = nil
+	local currentSourceImage = nil
+	local currentTargetImage = nil
 	local sortColumn = cplus_plus_ex.config[sortConfigKey] or 1  -- Load saved sort order (1 = source, 2 = target)
 	local newlyAddedRelationships = {}  -- Track newly added items to show at top
 
@@ -1187,6 +1221,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		-- Pilot portrait if its a pilot
 		if sourceLabel == "Pilot" then
 			self:addPilotImage(sourceId, entryRow)
+		elseif sourceLabel == "Skill" then
+			self:addSkillIcon(sourceId, entryRow)
 		end
 
 		-- Add labels with skill tooltips if applicable
@@ -1194,6 +1230,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		local targetSkillId = targetLabel == "Skill" and targetId or nil
 		self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
 		self:addArrowLabel(isBidirectional, entryRow)
+
+		-- Skill icon for target if its a skill
+		if targetLabel == "Skill" then
+			self:addSkillIcon(targetId, entryRow)
+		end
+
 		self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
 
 		-- Remove button
@@ -1296,9 +1338,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		:width(1):heightpx(ROW_HEIGHT)
 		:addTo(sectionContainer)
 
-	-- Pilot portrait if its a pilot
+	-- Source image (pilot portrait or skill icon)
 	if sourceLabel == "Pilot" then
-		currentPilotPortrait = self:addPilotImage(selectedSource, addRow)
+		currentSourceImage = self:addPilotImage(selectedSource, addRow)
+	elseif sourceLabel == "Skill" then
+		currentSourceImage = self:addSkillIcon(selectedSource, addRow)
 	end
 
 	-- Source dropdown
@@ -1306,21 +1350,31 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedSource = newValue
 
-			-- Update portrait if its a pilot table
-			if sourceLabel == "Pilot" and currentPilotPortrait then
-				-- Remove old portrait decoration
-				for i = #currentPilotPortrait.decorations, 1, -1 do
-					local deco = currentPilotPortrait.decorations[i]
+			-- Update image if we have one
+			if currentSourceImage then
+				-- Remove old decoration
+				for i = #currentSourceImage.decorations, 1, -1 do
+					local deco = currentSourceImage.decorations[i]
 					if deco.__index and deco.__index:isSubclassOf(DecoSurface) then
-						table.remove(currentPilotPortrait.decorations, i)
+						table.remove(currentSourceImage.decorations, i)
 					end
 				end
 
-				-- Add new portrait if not "All"
+				-- Add new image if not "All"
 				if newValue ~= "All" and newValue ~= "" then
-					local portrait = self:getPilotPortrait(newValue)
-					if portrait then
-						table.insert(currentPilotPortrait.decorations, DecoSurface(portrait))
+					if sourceLabel == "Pilot" then
+						local portrait = self:getPilotPortrait(newValue)
+						if portrait then
+							table.insert(currentSourceImage.decorations, DecoSurface(portrait))
+						end
+					elseif sourceLabel == "Skill" then
+						local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
+						if skill and skill.icon and skill.icon ~= "" then
+							local surface = sdlext.getSurface({ path = skill.icon })
+							if surface then
+								table.insert(currentSourceImage.decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+							end
+						end
 					end
 				end
 			end
@@ -1329,10 +1383,37 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- Arrow
 	self:addArrowLabel(isBidirectional, addRow)
 
+	-- Target image (skill icon only, since target is always skill in current relationships)
+	if targetLabel == "Skill" then
+		currentTargetImage = self:addSkillIcon(selectedTarget, addRow)
+	end
+
 	-- Target dropdown
 	self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedTarget = newValue
+
+			-- Update skill icon if we have one
+			if currentTargetImage and targetLabel == "Skill" then
+				-- Remove old decoration
+				for i = #currentTargetImage.decorations, 1, -1 do
+					local deco = currentTargetImage.decorations[i]
+					if deco.__index and deco.__index:isSubclassOf(DecoSurface) then
+						table.remove(currentTargetImage.decorations, i)
+					end
+				end
+
+				-- Add new icon if not "All"
+				if newValue ~= "All" and newValue ~= "" then
+					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
+					if skill and skill.icon and skill.icon ~= "" then
+						local surface = sdlext.getSurface({ path = skill.icon })
+						if surface then
+							table.insert(currentTargetImage.decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+						end
+					end
+				end
+			end
 		end, addRow)
 
 	-- Add button
