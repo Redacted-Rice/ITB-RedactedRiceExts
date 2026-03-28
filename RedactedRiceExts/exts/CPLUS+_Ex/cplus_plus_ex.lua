@@ -40,7 +40,6 @@ local customVanillaIcons = {
 }
 
 local resourcePath = mod_loader.mods[modApi.currentMod].resourcePath
-LOG(resourcePath)
 for _, iconPath in ipairs(customVanillaIcons) do
 	modApi:appendAsset(iconPath, resourcePath..iconPath)
 end
