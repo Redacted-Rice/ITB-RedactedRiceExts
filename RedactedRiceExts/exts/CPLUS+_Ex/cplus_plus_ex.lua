@@ -30,23 +30,38 @@ cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT"
 local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
 local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
 
+-- Core skill icons since they don't have any
+local customVanillaIcons = {
+	"img/combat/icons/icon_Pilot_Health.png",
+	"img/combat/icons/icon_Pilot_Move.png",
+	"img/combat/icons/icon_Pilot_Grid.png",
+	"img/combat/icons/icon_Pilot_Reactor.png",
+	"img/advanced/combat/icons/icon_Pilot_Skilled.png"
+}
+
+local resourcePath = mod_loader.mods[modApi.currentMod].resourcePath
+LOG(resourcePath)
+for _, iconPath in ipairs(customVanillaIcons) do
+	modApi:appendAsset(iconPath, resourcePath..iconPath)
+end
+
 cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
 cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
-	{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
-	{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE },
-	{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE },
-	{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE },
-	{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT }, -- doesn't work
-	{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT }, -- doesn't work
-	{id = "Popular", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT }, -- doesn't work
-	{id = "Thick", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = PER_PILOT }, -- doesn't make sense
-	{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE },
-	{id = "Invulnerable", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = PER_PILOT }, -- doesn't make sense
-	{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT }, -- doesn't work
-	{id = "Pain", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = PER_PILOT }, -- doesn't work
-	{id = "Regen", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = PER_PILOT }, -- doesn't work
-	{id = "Conservative", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = PER_PILOT }, -- doesn't work
+	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
+	{id = "Move", icon = "img/combat/icons/icon_Pilot_Move.png", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE },
+	{id = "Grid", icon = "img/combat/icons/icon_Pilot_Grid.png", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE },
+	{id = "Reactor", icon = "img/combat/icons/icon_Pilot_Reactor.png", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE },
+	{id = "Opener", icon = "img/advanced/combat/icons/icon_Pilot_Opener.png", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT }, -- doesn't work
+	{id = "Closer", icon = "img/advanced/combat/icons/icon_Pilot_Closer.png", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT }, -- doesn't work
+	{id = "Popular", icon = "img/advanced/combat/icons/icon_Pilot_Popular.png", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT }, -- doesn't work
+	{id = "Thick", icon = "img/advanced/combat/icons/icon_Pilot_Thick.png", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = PER_PILOT }, -- doesn't make sense
+	{id = "Skilled", icon = "img/advanced/combat/icons/icon_Pilot_Skilled.png", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE },
+	{id = "Invulnerable", icon = "img/advanced/combat/icons/icon_Pilot_Invulnerable.png", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = PER_PILOT }, -- doesn't make sense
+	{id = "Adrenaline", icon = "img/advanced/combat/icons/icon_Pilot_Adrenaline.png", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT }, -- doesn't work
+	{id = "Pain", icon = "img/advanced/combat/icons/icon_Pilot_Pain.png", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = PER_PILOT }, -- doesn't work
+	{id = "Regen", icon = "img/advanced/combat/icons/icon_Pilot_Regen.png", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = PER_PILOT }, -- doesn't work
+	{id = "Conservative", icon = "img/advanced/combat/icons/icon_Pilot_Conservative.png", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = PER_PILOT }, -- doesn't work
 }
 
 cplus_plus_ex._subobjects = {}
