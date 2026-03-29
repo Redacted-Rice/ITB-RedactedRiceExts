@@ -6,7 +6,7 @@ local path = GetParentPath(...)
 -- Debug Configuration - Set to false in production
 -- Controls logging for different components
 memhack.DEBUG = {
-	ENABLED = true,  -- Master switch for all debug logging
+	ENABLED = false,  -- Main switch for all debug logging
 	HOOKS = true,    -- hooks module
 	STRUCTS = true,  -- struct operations
 	STATE_TRACKER = true, -- state_tracker module
