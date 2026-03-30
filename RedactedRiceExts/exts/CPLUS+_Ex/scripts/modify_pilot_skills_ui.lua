@@ -521,14 +521,38 @@ function modify_pilot_skills_ui:getLongestLength(entries)
 	return maxWidth
 end
 
+function modify_pilot_skills_ui:getLargestIconWidth()
+	local maxWidth = 0
+	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+		if skill.icon and skill.icon ~= "" then
+			local surface = sdlext.getSurface({ path = skill.icon })
+			if surface then
+				local scaledWidth = surface:w() * SKILL_ICON_SCALE + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE)
+				maxWidth = math.max(maxWidth, scaledWidth)
+			end
+		end
+	end
+	-- If no icons found, use default size
+	if maxWidth == 0 then
+		maxWidth = SKILL_ICON_REL_SIZE
+	end
+	return maxWidth
+end
+
 function modify_pilot_skills_ui:_determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
+	
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
 	end
+	
+	-- Get max icon width and add spacing
+	local maxIconWidth = self:getLargestIconWidth()
+	local iconTotalWidth = maxIconWidth + (SKILL_ICON_SPACING * 2)
+	
 	local longestName = self:getLongestLength(names)
-	-- Extra room for Checkbox and optional skill icon
-	local paddedName = longestName + CHECKBOX_PADDING + SKILL_ICON_TOTAL
+	-- Extra room for Checkbox and dynamically sized icon
+	local paddedName = longestName + CHECKBOX_PADDING + iconTotalWidth
 
 	local reuseOptions = utils.deepcopy(REUSABLILITY_NAMES)
 	table.insert(reuseOptions, REUSABLILITY_HEADER)
@@ -1038,9 +1062,10 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	return pilotUi
 end
 
-function modify_pilot_skills_ui:addSkillIcon(skillId, row)
+function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
+	iconWidth = iconWidth or SKILL_ICON_REL_SIZE
 	local skillUi = Ui()
-		:widthpx(SKILL_ICON_REL_SIZE - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
+		:widthpx(iconWidth - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
 	-- Always draw frame border, add icon on top if available
 	local decorations = { DecoFrame() }
@@ -1050,7 +1075,9 @@ function modify_pilot_skills_ui:addSkillIcon(skillId, row)
 		if skill and skill.icon and skill.icon ~= "" then
 			local surface = sdlext.getSurface({ path = skill.icon })
 			if surface then
-				table.insert(decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+				-- Center the icon in the box (no hover highlight)
+				local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+				table.insert(decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 			end
 		end
 	end
@@ -1179,13 +1206,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips)
 	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips)
 
+	-- Calculate dynamic icon width
+	local maxSkillIconWidth = self:getLargestIconWidth()
+
 	-- Container for this section
 	-- Determine largest height based on whether we have pilot portraits or skill icons
 	local largestHeight = ROW_HEIGHT
 	if sourceLabel == "Pilot" then
 		largestHeight = PILOT_SIZE
 	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
-		largestHeight = math.max(ROW_HEIGHT, SKILL_ICON_REL_SIZE)
+		largestHeight = math.max(ROW_HEIGHT, maxSkillIconWidth)
 	end
 	local padding = largestHeight - ROW_HEIGHT  + 3 + DEFAULT_VGAP
 	local initialPadding = padding / 2 + DEFAULT_VGAP
@@ -1222,7 +1252,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		if sourceLabel == "Pilot" then
 			self:addPilotImage(sourceId, entryRow)
 		elseif sourceLabel == "Skill" then
-			self:addSkillIcon(sourceId, entryRow)
+			self:addSkillIcon(sourceId, entryRow, maxSkillIconWidth)
 		end
 
 		-- Add labels with skill tooltips if applicable
@@ -1233,7 +1263,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 		-- Skill icon for target if its a skill
 		if targetLabel == "Skill" then
-			self:addSkillIcon(targetId, entryRow)
+			self:addSkillIcon(targetId, entryRow, maxSkillIconWidth)
 		end
 
 		self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
@@ -1342,7 +1372,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	if sourceLabel == "Pilot" then
 		currentSourceImage = self:addPilotImage(selectedSource, addRow)
 	elseif sourceLabel == "Skill" then
-		currentSourceImage = self:addSkillIcon(selectedSource, addRow)
+		currentSourceImage = self:addSkillIcon(selectedSource, addRow, maxSkillIconWidth)
 	end
 
 	-- Source dropdown
@@ -1372,7 +1402,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						if skill and skill.icon and skill.icon ~= "" then
 							local surface = sdlext.getSurface({ path = skill.icon })
 							if surface then
-								table.insert(currentSourceImage.decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+								local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+								table.insert(currentSourceImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 							end
 						end
 					end
@@ -1385,7 +1416,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 	-- Target image (skill icon only, since target is always skill in current relationships)
 	if targetLabel == "Skill" then
-		currentTargetImage = self:addSkillIcon(selectedTarget, addRow)
+		currentTargetImage = self:addSkillIcon(selectedTarget, addRow, maxSkillIconWidth)
 	end
 
 	-- Target dropdown
@@ -1409,7 +1440,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					if skill and skill.icon and skill.icon ~= "" then
 						local surface = sdlext.getSurface({ path = skill.icon })
 						if surface then
-							table.insert(currentTargetImage.decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
+							local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+							table.insert(currentTargetImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 						end
 					end
 				end
