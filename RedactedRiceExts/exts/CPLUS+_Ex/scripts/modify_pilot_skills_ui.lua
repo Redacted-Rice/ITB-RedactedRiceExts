@@ -341,7 +341,7 @@ end
 -- Builds a category section with tri checkbox
 -- Returns the content holder and the checkbox for updating checked state
 function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, startCollapsed)
-	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, SKILL_LIST_VGAP, nil, startCollapsed)
+	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, startCollapsed)
 
 	-- Store category name for saving collapse state
 	collapse.categoryName = category
@@ -876,7 +876,7 @@ function modify_pilot_skills_ui:calculateCategoryTotals(categorySkills, totalWei
 end
 
 function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
-	local settingsContent = self:buildCollapsibleSection("General Settings", scrollContent)
+	local settingsContent = self:buildCollapsibleSection("General Settings", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP)
 
 	-- Allow duplicate skills checkbox
 	local allowDupsCheckbox = UiCheckbox()
@@ -901,7 +901,7 @@ end
 function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	-- Add sort options to Skills Configuration header
 	local sortOptions = {"Name", "Enabled", "Reusability", "Weight/%"}
-	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, sortOptions)
+	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, false, nil, sortOptions)
 
 	local skillLength, reuseabilityLength = self:_determineColumnLengths()
 
@@ -1217,12 +1217,17 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
 		largestHeight = math.max(ROW_HEIGHT, maxSkillIconWidth)
 	end
-	local padding = largestHeight - ROW_HEIGHT  + 3 + DEFAULT_VGAP
-	local initialPadding = padding / 2 + DEFAULT_VGAP
+	
+	-- Use consistent spacing throughout
+	local itemSpacing = SKILL_LIST_VGAP
+	if largestHeight > ROW_HEIGHT then
+		-- Add extra spacing for taller items (pilots/large icons)
+		itemSpacing = itemSpacing + (largestHeight - ROW_HEIGHT)
+	end
 
 	-- Build section with sort dropdown in header
 	local sortOptions = {"First Column", "Second Column"}
-	local sectionContainer, sortDropdown = self:buildCollapsibleSection(title, parent, padding, initialPadding, false, sectionTooltip, sortOptions)
+	local sectionContainer, sortDropdown = self:buildCollapsibleSection(title, parent, itemSpacing, itemSpacing, false, sectionTooltip, sortOptions)
 
 	-- State for the add dropdowns and sorting
 	local selectedSource = listVals[1]
@@ -1565,7 +1570,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
-	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent)
+	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP)
 
 	-- Store reference to the entire section box (parent of content) for rebuilding
 	relationshipsContainer = relationshipsContent.parent
