@@ -252,12 +252,12 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillIdsToPilot - skipping")
 		return
 	end
-	
+
 	-- ensure game data is initialized
 	skill_selection:_initGameSaveData()
 	local pilotId = pilot:getIdStr()
 	if not GAME.cplus_plus_ex.pilotSkills[pilotId] then
-		GAME.cplus_plus_ex.pilotSkills[pilotId] = {} 
+		GAME.cplus_plus_ex.pilotSkills[pilotId] = {}
 	end
 
 	-- Apply the skills to the pilot
@@ -284,6 +284,14 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	-- technically possible but not allowed by vanilla so this may change later
 	local pilotId = pilot:getIdStr()
 
+	-- Check if we have any stored pilot skills to determine if this is a new run or
+	-- a mid run when CPLUS+ was enabled
+	local hasAnyStoredSkills = false
+	for _ in pairs(GAME.cplus_plus_ex.pilotSkills) do
+		hasAnyStoredSkills = true
+		break
+	end
+
 	-- Try to get stored skills
 	local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
 	local skillIds = {}
@@ -306,12 +314,32 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 				break
 			end
 		end
-		
+
 		if found then
 			local lus = cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers[1]:getLvlUpSkills()
 			skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
 			storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 			logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
+		end
+	end
+	-- Check if we should preserve existing vanilla skills
+	-- If its the first run or a run without, try to preserve existing skills
+	if not found and not hasAnyStoredSkills then
+		local pilotXp = pilot:getXp()
+		local pilotLevel = pilot:getLevel()
+
+		if pilotXp > 0 or pilotLevel > 0 then
+			-- Pilot existed before CPLUS+ was active - preserve their current skills
+			local memSkill1 = pilot:getLvlUpSkill(1)
+			local memSkill2 = pilot:getLvlUpSkill(2)
+
+			if memSkill1 and memSkill2 then
+				skillIds = {memSkill1:getIdStr(), memSkill2:getIdStr()}
+				storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
+				found = true
+				logger.logInfo(SUBMODULE, "Preserving existing skills for pilot %s (XP=%d, Level=%d) - first time with CPLUS+ active",
+					pilotId, pilotXp, pilotLevel)
+			end
 		end
 	end
 	-- otherwise assign random skills
@@ -471,7 +499,7 @@ function skill_selection:applySkillsToAllPilots()
 	-- are no longer valid
 	local successCount = 0
 	local failCount = 0
-	
+
 	for _, pilot in pairs(newPilots) do
 		local pilotId = pilot:getIdStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
@@ -492,7 +520,7 @@ function skill_selection:applySkillsToAllPilots()
 
 	logger.logInfo(SUBMODULE, "Applied skills to %d pilot(s), %d failed due to impossible constraints",
 			successCount, failCount)
-			
+
 	-- Only fire post assignment hook if there were new pilots
 	if hasNewPilots then
 		hooks.firePostAssigningLvlUpSkillsHooks()
