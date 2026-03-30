@@ -11,7 +11,23 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.0.0
+Latest release: 1.0.1
+
+## 1.0.1
+Released: 03/30/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.0.0
+
+### Notes
+Miscellaneous bug fix type changes:
+* Enabling CPLUS+ no longer re-rolls skills
+* Skills UI in configs no longer outline when highlighted and have better and consistent spacing
+* Other UI spacing consistency
+* Debug logging disabled by default
 
 ## 1.0.0
 Released: 03/28/2026
