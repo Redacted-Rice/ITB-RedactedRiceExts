@@ -1623,7 +1623,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	relationshipsParent = nil
 
 	scrollContent = UiBoxLayout()
-		:vgap(5)
+		:vgap(SKILL_LIST_VGAP)
 		:width(1)
 		:addTo(scroll)
 
