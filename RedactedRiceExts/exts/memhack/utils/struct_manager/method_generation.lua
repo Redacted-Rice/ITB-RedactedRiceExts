@@ -1,6 +1,6 @@
 -- Method generation functions for structure types
 
-local logger = require(memhack.scriptPath .."utils/logger")
+local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
 
 local methodGeneration = {}
@@ -286,7 +286,7 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, hooksObj,
 	local originalSetter = struct[setterName]
 	if not originalSetter then
 		logger.logError(SUBMODULE, string.format("Setter '%s' not found on struct", setterName))
-		return
+		return nil
 	end
 
 	local fieldOrGetter = getterName or field
@@ -377,14 +377,14 @@ function methodGeneration.wrapGetterToPreserveParent(struct, getterName)
 	local originalGetter = struct[getterName]
 	if not originalGetter then
 		logger.logError(SUBMODULE, string.format("Getter '%s' not found on struct", getterName))
-		return
+		return nil
 	end
 
 	-- Get the struct type name for keying
 	local structTypeName = struct._name
 	if not structTypeName then
 		logger.logError(SUBMODULE, string.format("Struct type must have _name field for parent preservation"))
-		return
+		return nil
 	end
 
 	-- Create wrapped version

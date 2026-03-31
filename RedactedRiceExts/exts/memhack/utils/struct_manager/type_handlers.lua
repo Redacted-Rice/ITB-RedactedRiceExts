@@ -1,6 +1,6 @@
 -- Type handlers for different data types
 
-local logger = require(memhack.scriptPath .."utils/logger")
+local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
 
 -- Supported data types and their memory operations

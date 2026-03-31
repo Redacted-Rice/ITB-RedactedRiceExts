@@ -57,7 +57,7 @@
 	2. Memory at address for full struct size is readable
 --]]
 
-local logger = require(memhack.scriptPath .."utils/logger")
+local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
 
 StructManager = {}
