@@ -1,5 +1,8 @@
 -- Method generation functions for structure types
 
+local logger = require(memhack.scriptPath .."utils/logger")
+local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
+
 local methodGeneration = {}
 
 local GETTER_PREFIX = StructManager.GETTER_PREFIX
@@ -24,19 +27,22 @@ function methodGeneration._resolveSubType(obj, subType, ptrValue, fieldDef)
 		-- String subType is valid for struct names and native types (not string/bytearray)
 		actualSubType = subType
 	else
-		error(string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
+		logger.logError(SUBMODULE, string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
+		return nil
 	end
 
 	-- Check for unsupported types
 	if actualSubType == "pointer" or actualSubType == "struct" then
-		error(string.format("structure type '%s' not supported", actualSubType))
+		logger.logError(SUBMODULE, string.format("structure type '%s' not supported", actualSubType))
+		return nil
 	end
 
 	-- Types that need size - must use table format with maxLength
 	if actualSubType == "string" or actualSubType == "bytearray" then
 		if sizeToRead == nil then
-			error(string.format("subType '%s' requires table format with maxLength: { type = '%s', maxLength = <size> }",
+			logger.logError(SUBMODULE, string.format("subType '%s' requires table format with maxLength: { type = '%s', maxLength = <size> }",
 				actualSubType, actualSubType))
+			return nil
 		end
 
 		-- Use lengthFn if provided, otherwise use sizeToRead
@@ -62,7 +68,8 @@ function methodGeneration._resolveSubType(obj, subType, ptrValue, fieldDef)
 	-- Defined struct
 	local structType = StructManager._structures[actualSubType]
 	if not structType then
-		error(string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
+		logger.logError(SUBMODULE, string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
+		return nil
 	end
 	-- validate returned type
 	local result = structType.new(ptrValue, true)
@@ -170,7 +177,8 @@ function methodGeneration._resolveStructType(subType)
 	if type(subType) == "string" then
 		local resolved = StructManager._structures[subType]
 		if not resolved then
-			error(string.format("Unknown structure type: %s", subType))
+			logger.logError(SUBMODULE, string.format("Unknown structure type: %s", subType))
+			return nil
 		end
 		return resolved
 	end
@@ -277,7 +285,8 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, hooksObj,
 	end
 	local originalSetter = struct[setterName]
 	if not originalSetter then
-		error(string.format("Setter '%s' not found on struct", setterName))
+		logger.logError(SUBMODULE, string.format("Setter '%s' not found on struct", setterName))
+		return
 	end
 
 	local fieldOrGetter = getterName or field
@@ -367,13 +376,15 @@ function methodGeneration.wrapGetterToPreserveParent(struct, getterName)
 	-- Store the original getter
 	local originalGetter = struct[getterName]
 	if not originalGetter then
-		error(string.format("Getter '%s' not found on struct", getterName))
+		logger.logError(SUBMODULE, string.format("Getter '%s' not found on struct", getterName))
+		return
 	end
 
 	-- Get the struct type name for keying
 	local structTypeName = struct._name
 	if not structTypeName then
-		error(string.format("Struct type must have _name field for parent preservation"))
+		logger.logError(SUBMODULE, string.format("Struct type must have _name field for parent preservation"))
+		return
 	end
 
 	-- Create wrapped version
