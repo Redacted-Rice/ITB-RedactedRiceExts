@@ -57,6 +57,9 @@
 	2. Memory at address for full struct size is readable
 --]]
 
+local logger = require(memhack.scriptPath .."utils/logger")
+local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
+
 StructManager = {}
 
 -- Constants
@@ -132,7 +135,7 @@ end
 -- validateArg: optional vtable address (number) or validation function (function)
 function StructManager:define(name, layout, validateArg)
 	if not self._dll then
-		error("Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
+		logger.logError(SUBMODULE, "Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
 		return nil
 	end
 
@@ -149,7 +152,7 @@ function StructManager:define(name, layout, validateArg)
 			-- Custom validation function
 			validateFn = validateArg
 		else
-			error(string.format("Third parameter to define() must be a number (vtable) or function (validator), got %s", type(validateArg)))
+			logger.logError(SUBMODULE, string.format("Third parameter to define() must be a number (vtable) or function (validator), got %s", type(validateArg)))
 			return nil
 		end
 	end
@@ -170,12 +173,13 @@ end
 -- Extend an existing structure with additional fields
 function StructManager:extend(name, additionalFields)
 	if not self._dll then
-		error("Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
+		logger.logError(SUBMODULE, "Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
+		return nil
 	end
 
 	local existingStruct = self._structures[name]
 	if not existingStruct then
-		error(string.format("Cannot extend unknown structure: %s", name))
+		logger.logError(SUBMODULE, string.format("Cannot extend unknown structure: %s", name))
 		return nil
 	end
 
@@ -194,7 +198,8 @@ function StructManager:array(structType, baseAddress, count, stride)
 
 	local structSize = stride or structType:StructSize()
 	if not structSize then
-		error("Cannot create array: structure size unknown. Provide 'stride' parameter.")
+		logger.logError(SUBMODULE, "Cannot create array: structure size unknown. Provide 'stride' parameter.")
+		return {}
 	end
 
 	for i = 0, count - 1 do
