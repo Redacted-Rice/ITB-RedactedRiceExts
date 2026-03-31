@@ -1,7 +1,6 @@
 ---------- Memhack ---------
 
 For 1.1 Release:
-1. Move errors to logs for validation and other things
 2. Add more lua tests
 3. Try reverse engineering more things and add to memhack if possible
 	a. mech innate upgrades

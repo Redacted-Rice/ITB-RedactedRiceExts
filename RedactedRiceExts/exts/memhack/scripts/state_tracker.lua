@@ -16,7 +16,7 @@ local stateTracker = {}
 -- Pilot and skill state trackers
 stateTracker._pilotTrackers = {}
 stateTracker._skillTrackers = {}
-
+r max iterations specifically so we can detect
 -- Track "set" values for skill bonuses (cores/grid)
 -- Maps skill address to {coresBonus = X, gridBonus = Y}
 -- These are what external code sees when accessing skills
@@ -30,11 +30,13 @@ stateTracker._skillSetValues = {}
 -- - A custom getter function name
 function stateTracker:captureValue(obj, valOrGetter)
 	if not obj then
-		error("obj cannot be nil")
+		logger.logError(SUBMODULE, "obj cannot be nil")
+		return nil
 	end
 
 	if type(valOrGetter) ~= "string" then
-		error("valOrGetter must be a string (field name or getter function name)")
+		logger.logError(SUBMODULE, "valOrGetter must be a string (field name or getter function name)")
+		return nil
 	end
 
 	-- Check if it's a function name or field name
@@ -45,7 +47,8 @@ function stateTracker:captureValue(obj, valOrGetter)
 		-- Assume it's a field name, use standard getter
 		local getterName = StructManager:makeStdGetterName(valOrGetter)
 		if type(obj[getterName]) ~= "function" then
-			error(string.format("Getter '%s' not found on object for field '%s'", getterName, valOrGetter))
+			logger.logError(SUBMODULE, string.format("Getter '%s' not found on object for field '%s'", getterName, valOrGetter))
+			return nil
 		end
 		local result = obj[getterName](obj)
 		return result
@@ -85,7 +88,7 @@ function stateTracker:captureState(obj, stateDefinition, valsToCheck)
 			if type(obj[getterName]) == "function" then
 				capturedState[fieldName] = obj[getterName](obj)
 			else
-				error(string.format("Getter '%s' not found on object for field '%s'", getterName, fieldName))
+				logger.logError(SUBMODULE, string.format("Getter '%s' not found on object for field '%s'", getterName, fieldName))
 			end
 		end
 	end
@@ -347,10 +350,12 @@ function stateTracker:buildReentrantHookWrapper(hookName, stateDef, tracker)
 			-- or ran out of iterations
 			if iteration > MAX_ITERATIONS then
 				isExecuting = false
-				error(string.format(
+				local errorMsg = string.format(
 					"%s exceeded max iterations (%d). Possible infinite loop in hook callbacks. Aborting",
 					fireHookName, MAX_ITERATIONS
-				))
+				)
+				logger.logError(SUBMODULE, errorMsg)
+				error(errorMsg)
 				return
 			end
 

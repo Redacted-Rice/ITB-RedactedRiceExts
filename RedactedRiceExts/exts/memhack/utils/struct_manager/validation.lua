@@ -1,6 +1,7 @@
 -- Validation functions for fields and structures
 
 local logger = require(memhack.scriptPath .."utils/logger")
+local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
 local validation = {}
 
 local TYPE_HANDLERS = StructManager.TYPE_HANDLERS
@@ -8,37 +9,37 @@ local TYPE_HANDLERS = StructManager.TYPE_HANDLERS
 -- Validate field definition
 function validation.validateField(name, field)
 	if type(field) ~= "table" then
-		logger.logError(nil, string.format("Field '%s' must be a table", name))
+		logger.logError(SUBMODULE, string.format("Field '%s' must be a table", name))
 		return false
 	end
 
 	if type(field.offset) ~= "number" then
-		logger.logError(nil, string.format("Field '%s' must have a numeric 'offset'", name))
+		logger.logError(SUBMODULE, string.format("Field '%s' must have a numeric 'offset'", name))
 		return false
 	end
 
 	if not field.type then
-		logger.logError(nil, string.format("Field '%s' must have a 'type'", name))
+		logger.logError(SUBMODULE, string.format("Field '%s' must have a 'type'", name))
 		return false
 	end
 
 	if not TYPE_HANDLERS[field.type] then
-		logger.logError(nil, string.format("Field '%s' has unknown type '%s'", name, field.type))
+		logger.logError(SUBMODULE, string.format("Field '%s' has unknown type '%s'", name, field.type))
 		return false
 	end
 
 	if field.type == "bytearray" and not field.length then
-		logger.logError(nil, string.format("Field '%s' with type 'bytearray' must have a 'length'", name))
+		logger.logError(SUBMODULE, string.format("Field '%s' with type 'bytearray' must have a 'length'", name))
 		return false
 	end
 
 	if field.type == "string" and not field.maxLength then
-		logger.logError(nil, string.format("Field '%s' with type 'string' must have a 'maxLength' (including null terminator)", name))
+		logger.logError(SUBMODULE, string.format("Field '%s' with type 'string' must have a 'maxLength' (including null terminator)", name))
 		return false
 	end
 
 	if field.type == "struct" and not field.subType then
-		logger.logError(nil, string.format("Field '%s' with type 'struct' must have a 'subType'", name))
+		logger.logError(SUBMODULE, string.format("Field '%s' with type 'struct' must have a 'subType'", name))
 		return false
 	end
 	return true
@@ -47,7 +48,7 @@ end
 -- Validate structure name and all fields
 function validation.validateStructureDefinition(name, layout)
 	if type(name) ~= "string" then
-		logger.logError(nil, "Structure name must be a string")
+		logger.logError(SUBMODULE, "Structure name must be a string")
 		return false
 	end
 
@@ -55,7 +56,7 @@ function validation.validateStructureDefinition(name, layout)
 	for fieldName, field in pairs(layout) do
 		-- Skip if not a table
 		if type(field) ~= "table" then
-			logger.logError(nil, string.format("Field '%s' must be a table, got %s", fieldName, type(field)))
+			logger.logError(SUBMODULE, string.format("Field '%s' must be a table, got %s", fieldName, type(field)))
 			return false
 		end
 		
@@ -69,7 +70,7 @@ function validation.validateStructureDefinition(name, layout)
 			-- This is the vtable field we added, make sure no other fields overlap with offset 0-3
 			for otherFieldName, otherField in pairs(layout) do
 				if otherFieldName ~= "vtable" and otherField.offset ~= nil and otherField.offset < 4 then
-					logger.logError(nil, string.format("VTable field at offset 0 conflicts with field '%s' at offset %d", otherFieldName, otherField.offset))
+					logger.logError(SUBMODULE, string.format("VTable field at offset 0 conflicts with field '%s' at offset %d", otherFieldName, otherField.offset))
 					return false
 				end
 			end
@@ -90,7 +91,7 @@ function validation.validateAndMergeExtensionFields(name, existingLayout, additi
 	-- Check for duplicate field names
 	for fieldName, _ in pairs(additionalFields) do
 		if existingLayout[fieldName] then
-			logger.logError(nil, string.format("Field '%s' already exists in structure '%s'", fieldName, name))
+			logger.logError(SUBMODULE, string.format("Field '%s' already exists in structure '%s'", fieldName, name))
 			return false
 		end
 		existingLayout[fieldName] = field

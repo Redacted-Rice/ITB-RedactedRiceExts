@@ -1,4 +1,5 @@
 local logger = require(memhack.scriptPath .."utils/logger")
+local SUBMODULE = logger.register("Memhack", "Pilot", memhack.DEBUG.ENABLED)
 
 -- Validation function for ItBString structures
 -- Note this has to be local as we don't have the ItBString table yet. We can access it later
@@ -219,7 +220,7 @@ function Pilot:getLvlUpSkill(index)
 		local result = self:getLvlUpSkills():getSkill2()
 		return result
 	else
-		logger.logError(nil, string.format("Unexpected index %d. Should be 1 or 2", index))
+		logger.logError(SUBMODULE, string.format("Unexpected index %d. Should be 1 or 2", index))
 		return nil
 	end
 end
@@ -233,7 +234,7 @@ function Pilot:setLvlUpSkill(index, structOrNewVals)
 	elseif index == 2 then
 		self:getLvlUpSkills():setSkill2(structOrNewVals)
 	else
-		logger.logError(nil, string.format("Unexpected index %d. Should be 1 or 2", index))
+		logger.logError(SUBMODULE, string.format("Unexpected index %d. Should be 1 or 2", index))
 		return
 	end
 end
