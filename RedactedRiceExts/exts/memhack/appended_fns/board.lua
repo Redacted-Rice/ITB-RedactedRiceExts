@@ -1,4 +1,4 @@
-local logger = require(memhack.scriptPath .."utils/logger")
+local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "Board", memhack.DEBUG.ENABLED)
 
 local function onBoardClassInitialized(BoardClass)

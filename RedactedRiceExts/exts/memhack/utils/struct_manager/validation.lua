@@ -1,6 +1,6 @@
 -- Validation functions for fields and structures
 
-local logger = require(memhack.scriptPath .."utils/logger")
+local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
 local validation = {}
 

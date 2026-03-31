@@ -71,6 +71,7 @@ describe("Skill Constraints Module", function()
 
 		it("should register exclusions for a pilot", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health", "Move"})
+			helper.rebuildRelationships()
 
 			local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_Zoltan"]
 			assert.is_not_nil(exclusions)
@@ -80,6 +81,7 @@ describe("Skill Constraints Module", function()
 
 		it("should prevent excluded skills for a pilot", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"})
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("Pilot_Zoltan")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
@@ -89,6 +91,7 @@ describe("Skill Constraints Module", function()
 
 		it("should allow non-excluded skills for a pilot", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"})
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("Pilot_Zoltan")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Move")
@@ -98,6 +101,7 @@ describe("Skill Constraints Module", function()
 
 		it("should not affect other pilots", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Zoltan", {"Health"})
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("Pilot_Other")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
@@ -116,6 +120,7 @@ describe("Skill Constraints Module", function()
 
 		it("should register inclusions for a pilot", function()
 			plus_manager:registerPilotSkillInclusions("Pilot_Soldier", {"Special"})
+			helper.rebuildRelationships()
 
 			local inclusions = plus_manager.config.pilotSkillInclusions["Pilot_Soldier"]
 			assert.is_not_nil(inclusions)
@@ -124,6 +129,7 @@ describe("Skill Constraints Module", function()
 
 		it("should allow inclusion skills for included pilots", function()
 			plus_manager:registerPilotSkillInclusions("Pilot_Soldier", {"Special"})
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("Pilot_Soldier")
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Special")
@@ -179,6 +185,7 @@ describe("Skill Constraints Module", function()
 			}, Pilot)
 
 			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
+			helper.rebuildRelationships()
 
 			local exclusionsA = plus_manager.config.pilotSkillExclusions["Pilot_TestA"]
 			assert.is_not_nil(exclusionsA)
@@ -203,8 +210,10 @@ describe("Skill Constraints Module", function()
 
 		it("should not clear registered exclusions", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Manual", {"Health"})
+			helper.rebuildRelationships()
 
 			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
+			helper.rebuildRelationships()
 
 			local manualExclusions = plus_manager.config.pilotSkillExclusions["Pilot_Manual"]
 			assert.is_not_nil(manualExclusions)
@@ -338,6 +347,7 @@ describe("Skill Constraints Module", function()
 
 		it("should register skill exclusion", function()
 			plus_manager:registerSkillExclusion("Fire", "Ice")
+			helper.rebuildRelationships()
 
 			assert.is_not_nil(plus_manager.config.skillExclusions["Fire"])
 			assert.is_true(plus_manager.config.skillExclusions["Fire"]["Ice"])
@@ -346,6 +356,7 @@ describe("Skill Constraints Module", function()
 
 		it("should prevent mutually exclusive skills from being selected together", function()
 			plus_manager:registerSkillExclusion("Fire", "Ice")
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
 
@@ -359,6 +370,7 @@ describe("Skill Constraints Module", function()
 
 		it("should allow non-excluded skills", function()
 			plus_manager:registerSkillExclusion("Fire", "Ice")
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
 
@@ -370,6 +382,7 @@ describe("Skill Constraints Module", function()
 		it("should handle multiple exclusions for one skill", function()
 			plus_manager:registerSkillExclusion("Fire", "Ice")
 			plus_manager:registerSkillExclusion("Fire", "Water")
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
 
@@ -388,6 +401,7 @@ describe("Skill Constraints Module", function()
 		it("should handle chain exclusions", function()
 			plus_manager:registerSkillExclusion("Fire", "Ice")
 			plus_manager:registerSkillExclusion("Ice", "Water")
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
 

@@ -14,6 +14,11 @@ function M.setupGlobals()
 	_G.mod_loader = _G.mod_loader or {
 		logger = {
 			log = function(caller, ...) end
+		},
+		mods = {
+			cplus_plus_ex = {
+				resourcePath = ""
+			}
 		}
 	}
 
@@ -42,6 +47,8 @@ function M.setupGlobals()
 
 	-- Mock modApi events
 	_G.modApi = _G.modApi or {}
+	_G.modApi.currentMod = "cplus_plus_ex"
+	_G.modApi.appendAsset = function(self, ...) end
 	_G.modApi.events = _G.modApi.events or {}
 	_G.modApi.events.onSaveGame = { subscribe = function() end }
 	_G.modApi.events.onPodWindowShown = { subscribe = function() end }
@@ -51,7 +58,7 @@ function M.setupGlobals()
 	_G.modApi.events.onGameVictory = { subscribe = function() end }
 	_G.modApi.events.onMainMenuEntered = { subscribe = function() end }
 	_G.modApi.events.onHangarEntered = { subscribe = function() end }
-	_G.modApi.events.onModsFirstLoaded = { subscribe = function() end }
+	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
 	_G.modApi.events.onModsLoaded = { subscribe = function() end }
 	_G.modApi.scheduleHook = function() end
 
@@ -225,6 +232,12 @@ function M.resetState()
 	pm.config.pilotSkillInclusions = {}
 	pm.config.skillExclusions = {}
 	pm.config.skillConfigs = {}
+	
+	-- Clear code-defined relationships
+	skill_config_module.codeDefinedRelationships = {}
+	for _, relType in pairs(skill_config_module.RelationshipType) do
+		skill_config_module.codeDefinedRelationships[relType] = {}
+	end
 
 	-- Clear vanilla skills and enabled skills for test isolation
 	-- Tests will register their own skills as needed
@@ -245,6 +258,13 @@ function M.setupTestSkills(skills)
 	for _, skill in ipairs(skills) do
 		M.plus_manager:registerSkill("test", skill)
 	end
+end
+
+-- Rebuild relationships after registering exclusions/inclusions in tests
+-- This is needed because code-defined relationships are normally registered before
+-- onModsFirstLoaded fires, but tests register them after initialization
+function M.rebuildRelationships()
+	M.plus_manager._subobjects.skill_config:_rebuildRelationships()
 end
 
 -- Mock math.random with separate float and integer value arrays

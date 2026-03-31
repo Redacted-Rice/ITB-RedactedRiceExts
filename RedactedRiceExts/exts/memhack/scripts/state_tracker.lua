@@ -16,7 +16,6 @@ local stateTracker = {}
 -- Pilot and skill state trackers
 stateTracker._pilotTrackers = {}
 stateTracker._skillTrackers = {}
-r max iterations specifically so we can detect
 -- Track "set" values for skill bonuses (cores/grid)
 -- Maps skill address to {coresBonus = X, gridBonus = Y}
 -- These are what external code sees when accessing skills

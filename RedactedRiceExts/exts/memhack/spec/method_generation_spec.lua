@@ -65,18 +65,16 @@ describe("Method Generation Module", function()
 			assert.are.equal(42, retrievedChild:getValue())
 		end)
 
-		it("should error if getter not found", function()
-			assert.has_error(function()
-				methodGeneration.wrapGetterToPreserveParent(parentStruct, "nonexistentGetter")
-			end)
+		it("should return nil and log error if getter not found", function()
+			local result = methodGeneration.wrapGetterToPreserveParent(parentStruct, "nonexistentGetter")
+			assert.is_nil(result)
 		end)
 
-		it("should error if struct has no _name", function()
+		it("should return nil and log error if struct has no _name", function()
 			parentStruct._name = nil
 
-			assert.has_error(function()
-				methodGeneration.wrapGetterToPreserveParent(parentStruct, "getChild")
-			end)
+			local result = methodGeneration.wrapGetterToPreserveParent(parentStruct, "getChild")
+			assert.is_nil(result)
 		end)
 	end)
 
@@ -277,17 +275,14 @@ describe("Method Generation Module", function()
 			assert.are.equal(0, #fireCalls)
 		end)
 
-		it("should error if setter not found", function()
+		it("should return nil and log error if setter not found", function()
 			local struct = {}
 			local mockHooks = { testFireFn = function() end }
 
-			local success, err = pcall(function()
-				methodGeneration.wrapSetterToFireOnValueChange(
-					struct, "value", mockHooks, "testFireFn", "nonexistentSetter", "value")
-			end)
+			local result = methodGeneration.wrapSetterToFireOnValueChange(
+				struct, "value", mockHooks, "testFireFn", "nonexistentSetter", "value")
 
-			assert.is_false(success)
-			assert.is_not_nil(err:match("Setter 'nonexistentSetter' not found"))
+			assert.is_nil(result)
 		end)
 
 		it("should create private _noFire version of wrapped setter", function()

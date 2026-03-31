@@ -123,6 +123,7 @@ function M.setupGlobals()
 	_G.modApi.events.onGameVictory = { subscribe = function() end }
 	_G.modApi.events.onGameClassInitialized = { subscribe = function() end }
 	_G.modApi.events.onPawnClassInitialized = { subscribe = function() end }
+	_G.modApi.events.onBoardClassInitialized = { subscribe = function() end }
 	-- onModsFirstLoaded fires immediately to initialize structs
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
 
