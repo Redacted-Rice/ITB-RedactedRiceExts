@@ -35,6 +35,7 @@ describe("Skill Selection Module", function()
 
 		it("should return nil if constraints are impossible to satisfy", function()
 			plus_manager:registerPilotSkillExclusions("TestPilot", {"Health", "Move", "Grid"})
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
 			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
@@ -59,6 +60,7 @@ describe("Skill Selection Module", function()
 		it("should handle multiple exclusions and inclusions together", function()
 			plus_manager:registerPilotSkillExclusions("TestPilot", {"Health", "Move"})
 			plus_manager:registerPilotSkillInclusions("TestPilot", {"Special1", "Special2"})
+			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
 			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
@@ -365,7 +367,7 @@ describe("Skill Selection Module", function()
 			assert.equals(3, result)
 			assert.equals(3, storedSkill.saveVal)
 		end)
-		
+
 		it("should use stored saveVal if no registered", function()
 			local storedSkill = {id = "TestSkill", saveVal = 5}
 			local inMemory = 7
@@ -375,7 +377,7 @@ describe("Skill Selection Module", function()
 			assert.equals(5, result)
 			assert.equals(5, storedSkill.saveVal)
 		end)
-		
+
 		it("should use stored saveVal if registered conflicts", function()
 			registeredSkill.saveVal = 3
 			local storedSkill = {id = "TestSkill", saveVal = 5}
@@ -410,7 +412,7 @@ describe("Skill Selection Module", function()
 
 		it("should generate random saveVal when no values", function()
 			local storedSkill = {id = "TestSkill"}
-			
+
 			helper.mockMathRandomInt({3})
 
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, nil)
@@ -418,12 +420,12 @@ describe("Skill Selection Module", function()
 			assert.equals(3, result)
 			assert.equals(3, storedSkill.saveVal)
 		end)
-		
+
 		it("should generate random saveVal when all values conflict and is below saveVal", function()
 			registeredSkill.saveVal = 3
 			local storedSkill = {id = "TestSkill", saveVal = 3}
 			local inMemory = 3
-			
+
 			helper.mockMathRandomInt({2}) -- 2 is below saveVal so kept as is
 
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, 3)
@@ -431,12 +433,12 @@ describe("Skill Selection Module", function()
 			assert.equals(2, result)
 			assert.equals(2, storedSkill.saveVal)
 		end)
-		
+
 		it("should generate random saveVal when all values conflict", function()
 			registeredSkill.saveVal = 3
 			local storedSkill = {id = "TestSkill", saveVal = 3}
 			local inMemory = 3
-			
+
 			helper.mockMathRandomInt({3}) -- 3 is excluded val so it will be bumped to 4
 
 			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, 3)

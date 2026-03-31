@@ -36,3 +36,10 @@ For 1.1 Release:
 6. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
 	Could potential make for some unique pilot "skills" where they are more likely to get good skills or something
 	or giving better chances (or worse) for generic corp pilots
+
+
+---------- Mech Upgrades Ex ---------
+
+Figure out a name to call this
+Use CPLUS+ to determine when upgrades are set and then undo them to replace with custom ones
+Create a similar UI/structure to CPLUS+ to allow choosing upgrades, frequency and allowing more to be added

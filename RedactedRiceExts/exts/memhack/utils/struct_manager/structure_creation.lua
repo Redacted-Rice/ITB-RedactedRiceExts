@@ -1,6 +1,6 @@
 -- Structure creation and public API functions
 
-local logger = require(memhack.scriptPath .."utils/logger")
+local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
 
 local structureCreation = {}
