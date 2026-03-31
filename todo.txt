@@ -3,8 +3,7 @@
 For 1.1 Release:
 1. Move errors to logs for validation and other things
 2. Add more lua tests
-3. Look into adding tests on c++ side?
-4. Try reverse engineering more things and add to memhack if possible
+3. Try reverse engineering more things and add to memhack if possible
 	a. mech innate upgrades
 	b. Deploy zone (probably point list pointer in mission)
 	c. bump damage
@@ -24,6 +23,8 @@ For 1.1 Release:
 3. Skill default functions - e.g. isNotCyborg for Popular Hero
 4. Specifying defaults for things like weight and reusublity (separate for lowest possible)
 5. Hijack AddPilot to avoid searching _G for pilots?
+6. Modify to allow for selecting specific skills easily in code and selecting more than 2
+7. Max cap on skill awarded Grid Def. Defaults to 40. Configurable
 
 
 1.2 Release:
