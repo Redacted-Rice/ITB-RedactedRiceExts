@@ -1185,7 +1185,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- Get metadata for this relationship type
 	local metadata = cplus_plus_ex:getRelationshipMetadata(relationshipType)
 	if not metadata then
-		error("Invalid relationship type: " .. tostring(relationshipType))
+		logger.logError(SUBMODULE, "Invalid relationship type: " .. tostring(relationshipType))
+		return
 	end
 
 	local title = metadata.title

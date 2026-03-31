@@ -1,3 +1,5 @@
+local logger = require(memhack.scriptPath .."utils/logger")
+
 local function onGameClassInitialized(GameClass)
 	GameClass.GetMemhackObj = function(self)
 		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
@@ -14,7 +16,8 @@ local function onGameClassInitialized(GameClass)
 
 	GameClass.SetReputation = function(self, reputation)
 		if type(reputation) ~= "number" then
-			error(string.format("Reputation must be a number, got %s", type(reputation)))
+			logger.logError(nil, string.format("Reputation must be a number, got %s", type(reputation)))
+			return
 		end
 		 self:GetMemhackObj():setReputation(reputation)
 	end
@@ -22,7 +25,8 @@ local function onGameClassInitialized(GameClass)
 	-- Convenience function to add/subtract reputation
 	GameClass.AddReputation = function(self, amount)
 		if type(amount) ~= "number" then
-			error(string.format("Amount must be a number, got %s", type(amount)))
+			logger.logError(nil, string.format("Amount must be a number, got %s", type(amount)))
+			return
 		end
 		local obj = self:GetMemhackObj()
 		obj:setReputation(obj:getReputation() + amount)
@@ -57,7 +61,8 @@ local function onGameClassInitialized(GameClass)
 
 	GameClass.SetScore = function(self, score)
 		if type(score) ~= "number" then
-			error(string.format("score must be a number, got %s", type(score)))
+			logger.logError(nil, string.format("score must be a number, got %s", type(score)))
+			return
 		end
 		memhack.dll.memory.writeInt(getScoreAddr(), score)
 	end
@@ -65,7 +70,8 @@ local function onGameClassInitialized(GameClass)
 	-- Convenience function to add/subtract score
 	GameClass.AddScore = function(self, amount)
 		if type(amount) ~= "number" then
-			error(string.format("Amount must be a number, got %s", type(amount)))
+			logger.logError(nil, string.format("Amount must be a number, got %s", type(amount)))
+			return
 		end
 		local current = self:GetScore()
 		self:SetScore(current + amount)
