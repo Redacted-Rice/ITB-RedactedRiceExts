@@ -259,7 +259,9 @@ function comparison.getMatchingPattern(captures, pattern, captureIndices, analyz
 		return true
 	end
 
-	return compareCaptures(captures, indices, analyzer, name, comparator, true)
+	-- Use requireAll=false because the comparator only returns true for alignment boundaries
+	-- With requireAll=false, ANY byte matching (i.e., the boundary byte) makes the chunk match
+	return compareCaptures(captures, indices, analyzer, name, comparator, false)
 end
 
 -- Filter result ranges based on custom criteria
