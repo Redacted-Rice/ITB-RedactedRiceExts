@@ -27,7 +27,8 @@ end
 -- Supports both "0x1A" and "1A" format
 function Debug.hexToInt(hexstr)
     if type(hexstr) ~= "string" then
-        error("hexToInt expects a string, got " .. type(hexstr))
+        logger.logError(SUBMODULE, "hexToInt expects a string, got %s", type(hexstr))
+        return nil
     end
 
     if string.sub(hexstr, 1, 2) == "0x" or string.sub(hexstr, 1, 2) == "0X" then
@@ -87,7 +88,8 @@ function Debug.hexToBytes(hexStr)
 	hexStr = hexStr:gsub("%s+", ""):gsub("^0[xX]", "")
 
 	if #hexStr % 2 ~= 0 then
-		error("Hex string must have even number of characters")
+		logger.logError(SUBMODULE, "Hex string must have even number of characters")
+		return nil
 	end
 
 	local bytes = {}
@@ -107,7 +109,8 @@ end
 -- bytesPerGroup optional, number of bytes before space separator (default 4)
 function Debug.logFromMemory(address, numBytes, bytesPerLine, bytesPerGroup)
 	if not Debug._dll then
-		error("Debug utilities not initialized. Call Debug.init() first")
+		logger.logError(SUBMODULE, "Debug utilities not initialized. Call Debug.init() first")
+		return
 	end
 
 	bytesPerLine = bytesPerLine or 64
@@ -137,9 +140,7 @@ function Debug.logFromMemory(address, numBytes, bytesPerLine, bytesPerGroup)
 		-- Log address and the bytes for that line
 		local hexPart = Debug.bytesToHex(lineBytes, bytesPerGroup)
 		local offsetAddr = address + (i - 1)
-		local line = string.format("0x%08X: %s", offsetAddr, hexPart)
-
-		LOG(line)  -- Keep raw LOG for hex dump lines
+		logger.logInfo(SUBMODULE, "0x%08X: %s", offsetAddr, hexPart)
 	end
 end
 

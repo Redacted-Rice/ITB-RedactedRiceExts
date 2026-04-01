@@ -3,6 +3,9 @@
 local path = GetParentPath(...)
 local utils = require(path .. "utils")
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("memhack", "MemAnalyzer.values", false)
+
 local values = {}
 
 -- Clear any existing data enrichment from result
@@ -89,8 +92,13 @@ end
 -- processorFunc: function(range, captures, captureIndices, alignment)
 -- dataType: "all", "changes", or "unique"
 local function addData(result, ranges, processorFunc, dataType)
+	if not result then
+		logger.logError(SUBMODULE, "Result is nil")
+		return nil
+	end
+	
 	if not result._captures then
-		LOG("No captures found in result")
+		logger.logWarn(SUBMODULE, "No captures found in result")
 		return result
 	end
 

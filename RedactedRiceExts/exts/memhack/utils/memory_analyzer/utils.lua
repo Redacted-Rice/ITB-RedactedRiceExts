@@ -1,5 +1,8 @@
 -- Utility functions for memory analysis
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("memhack", "MemAnalyzer.utils", false)
+
 local utils = {}
 
 -- Read value based on alignment size
@@ -18,7 +21,8 @@ function utils.readAlignedValue(data, offset, alignment)
 		local b1, b2, b3, b4 = string.byte(data, byteIdx, byteIdx + 3)
 		return b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
 	else
-		error(string.format("Unsupported alignment: %d (use 1, 2, or 4)", alignment))
+		logger.logError(SUBMODULE, "Unsupported alignment: %d (use 1, 2, or 4)", alignment)
+		return nil
 	end
 end
 
@@ -37,7 +41,7 @@ function utils.parseCaptureIndices(captureIndices, totalCount)
 		local n = captureIndices
 		if n <= 0 then n = totalCount end
 		if n > totalCount then
-			LOG(string.format("Warning: Requested %d captures but only %d available. Using all captures.", n, totalCount))
+			logger.logWarn(SUBMODULE, "Requested %d captures but only %d available. Using all captures.", n, totalCount)
 			n = totalCount
 		end
 		local startIdx = math.max(1, totalCount - n + 1)
@@ -47,12 +51,14 @@ function utils.parseCaptureIndices(captureIndices, totalCount)
 	elseif type(captureIndices) == "table" then
 		for _, idx in ipairs(captureIndices) do
 			if idx < 1 or idx > totalCount then
-				error(string.format("Capture index %d out of range [1,%d]", idx, totalCount))
+				logger.logError(SUBMODULE, "Capture index %d out of range [1,%d]", idx, totalCount)
+				return {}
 			end
 			table.insert(indices, idx)
 		end
 	else
-		error("captureIndices must be nil, number, or array of indices")
+		logger.logError(SUBMODULE, "captureIndices must be nil, number, or array of indices")
+		return {}
 	end
 
 	return indices

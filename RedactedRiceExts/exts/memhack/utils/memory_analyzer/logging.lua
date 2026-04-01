@@ -1,5 +1,8 @@
 -- Logging functions for analysis results
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("memhack", "MemAnalyzer.logging", false)
+
 local logging = {}
 
 -- Helper to check if ranges have any data associated with them
@@ -17,7 +20,7 @@ end
 local function logRanges(ranges, rangeType, result, alignment, formatStr)
 	for i = 1, #ranges do
 		local range = ranges[i]
-		LOG(string.format("    [0x%X - 0x%X] (%d bytes)", range.start, range.endOffset, range.count))
+		logger.logInfo(SUBMODULE, "    [0x%X - 0x%X] (%d bytes)", range.start, range.endOffset, range.count)
 
 		if range.values then
 			for j = 1, #range.values do
@@ -28,7 +31,7 @@ local function logRanges(ranges, rangeType, result, alignment, formatStr)
 				end
 				-- progression[1].address is the actual address for this chunk
 				local chunkOffset = progression[1] and (progression[1].address - result._captures[1].address) or (range.start + (j-1) * alignment)
-				LOG(string.format("      0x%X: %s", chunkOffset, table.concat(values, " -> ")))
+				logger.logInfo(SUBMODULE, "      0x%X: %s", chunkOffset, table.concat(values, " -> "))
 			end
 		end
 
@@ -39,7 +42,7 @@ local function logRanges(ranges, rangeType, result, alignment, formatStr)
 				for _, vCount in ipairs(uniqueData.values) do
 					table.insert(valueStrs, string.format(formatStr .. "(%d)", vCount.value, vCount.count))
 				end
-				LOG(string.format("      0x%X: %s", uniqueData.offset, table.concat(valueStrs, ", ")))
+				logger.logInfo(SUBMODULE, "      0x%X: %s", uniqueData.offset, table.concat(valueStrs, ", "))
 			end
 		end
 	end
@@ -73,16 +76,16 @@ function logging.logChanges(result)
 	local printFiltered = (#filteredRanges > 0) and (filteredHasData or not unfilteredHasData)
 	local printUnfiltered = (#unfilteredRanges > 0) and (unfilteredHasData or not filteredHasData)
 
-	LOG(string.format("Analyzer '%s' (captures: [%s], alignment: %d): %d filtered ranges, %d unfiltered ranges",
-		name, table.concat(captureIndices, ","), alignment, #filteredRanges, #unfilteredRanges))
+	logger.logInfo(SUBMODULE, "Analyzer '%s' (captures: [%s], alignment: %d): %d filtered ranges, %d unfiltered ranges",
+		name, table.concat(captureIndices, ","), alignment, #filteredRanges, #unfilteredRanges)
 
 	if printFiltered then
-		LOG(string.format("  Filtered Ranges (%d total):", #filteredRanges))
+		logger.logInfo(SUBMODULE, "  Filtered Ranges (%d total):", #filteredRanges)
 		logRanges(filteredRanges, "filtered", result, alignment, formatStr)
 	end
 
 	if printUnfiltered then
-		LOG(string.format("  Unfiltered Ranges (%d total):", #unfilteredRanges))
+		logger.logInfo(SUBMODULE, "  Unfiltered Ranges (%d total):", #unfilteredRanges)
 		logRanges(unfilteredRanges, "unfiltered", result, alignment, formatStr)
 	end
 end
