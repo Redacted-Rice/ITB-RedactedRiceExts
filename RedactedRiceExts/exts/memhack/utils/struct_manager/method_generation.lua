@@ -27,21 +27,21 @@ function methodGeneration._resolveSubType(obj, subType, ptrValue, fieldDef)
 		-- String subType is valid for struct names and native types (not string/bytearray)
 		actualSubType = subType
 	else
-		logger.logError(SUBMODULE, string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
+		logger.logError(SUBMODULE, "Unknown structure type: %s", tostring(fieldDef.subType))
 		return nil
 	end
 
 	-- Check for unsupported types
 	if actualSubType == "pointer" or actualSubType == "struct" then
-		logger.logError(SUBMODULE, string.format("structure type '%s' not supported", actualSubType))
+		logger.logError(SUBMODULE, "structure type '%s' not supported", actualSubType)
 		return nil
 	end
 
 	-- Types that need size - must use table format with maxLength
 	if actualSubType == "string" or actualSubType == "bytearray" then
 		if sizeToRead == nil then
-			logger.logError(SUBMODULE, string.format("subType '%s' requires table format with maxLength: { type = '%s', maxLength = <size> }",
-				actualSubType, actualSubType))
+			logger.logError(SUBMODULE, "subType '%s' requires table format with maxLength: { type = '%s', maxLength = <size> }",
+				actualSubType, actualSubType)
 			return nil
 		end
 
@@ -68,7 +68,7 @@ function methodGeneration._resolveSubType(obj, subType, ptrValue, fieldDef)
 	-- Defined struct
 	local structType = StructManager._structures[actualSubType]
 	if not structType then
-		logger.logError(SUBMODULE, string.format("Unknown structure type: %s", tostring(fieldDef.subType)))
+		logger.logError(SUBMODULE, "Unknown structure type: %s", tostring(fieldDef.subType))
 		return nil
 	end
 	-- validate returned type
@@ -177,7 +177,7 @@ function methodGeneration._resolveStructType(subType)
 	if type(subType) == "string" then
 		local resolved = StructManager._structures[subType]
 		if not resolved then
-			logger.logError(SUBMODULE, string.format("Unknown structure type: %s", subType))
+			logger.logError(SUBMODULE, "Unknown structure type: %s", subType)
 			return nil
 		end
 		return resolved
@@ -285,7 +285,7 @@ function methodGeneration.wrapSetterToFireOnValueChange(struct, field, hooksObj,
 	end
 	local originalSetter = struct[setterName]
 	if not originalSetter then
-		logger.logError(SUBMODULE, string.format("Setter '%s' not found on struct", setterName))
+		logger.logError(SUBMODULE, "Setter '%s' not found on struct", setterName)
 		return nil
 	end
 
@@ -376,14 +376,14 @@ function methodGeneration.wrapGetterToPreserveParent(struct, getterName)
 	-- Store the original getter
 	local originalGetter = struct[getterName]
 	if not originalGetter then
-		logger.logError(SUBMODULE, string.format("Getter '%s' not found on struct", getterName))
+		logger.logError(SUBMODULE, "Getter '%s' not found on struct", getterName)
 		return nil
 	end
 
 	-- Get the struct type name for keying
 	local structTypeName = struct._name
 	if not structTypeName then
-		logger.logError(SUBMODULE, string.format("Struct type must have _name field for parent preservation"))
+		logger.logError(SUBMODULE, "Struct type must have _name field for parent preservation")
 		return nil
 	end
 
