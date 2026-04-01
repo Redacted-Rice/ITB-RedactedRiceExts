@@ -17,7 +17,7 @@ local function onGameClassInitialized(GameClass)
 
 	GameClass.SetReputation = function(self, reputation)
 		if type(reputation) ~= "number" then
-			logger.logError(SUBMODULE, string.format("Reputation must be a number, got %s", type(reputation)))
+			logger.logError(SUBMODULE, "Reputation must be a number, got %s", type(reputation))
 			return
 		end
 		 self:GetMemhackObj():setReputation(reputation)
@@ -26,7 +26,7 @@ local function onGameClassInitialized(GameClass)
 	-- Convenience function to add/subtract reputation
 	GameClass.AddReputation = function(self, amount)
 		if type(amount) ~= "number" then
-			logger.logError(SUBMODULE, string.format("Amount must be a number, got %s", type(amount)))
+			logger.logError(SUBMODULE, "Amount must be a number, got %s", type(amount))
 			return
 		end
 		local obj = self:GetMemhackObj()
@@ -62,7 +62,7 @@ local function onGameClassInitialized(GameClass)
 
 	GameClass.SetScore = function(self, score)
 		if type(score) ~= "number" then
-			logger.logError(SUBMODULE, string.format("score must be a number, got %s", type(score)))
+			logger.logError(SUBMODULE, "score must be a number, got %s", type(score))
 			return
 		end
 		memhack.dll.memory.writeInt(getScoreAddr(), score)
@@ -71,7 +71,7 @@ local function onGameClassInitialized(GameClass)
 	-- Convenience function to add/subtract score
 	GameClass.AddScore = function(self, amount)
 		if type(amount) ~= "number" then
-			logger.logError(SUBMODULE, string.format("Amount must be a number, got %s", type(amount)))
+			logger.logError(SUBMODULE, "Amount must be a number, got %s", type(amount))
 			return
 		end
 		local current = self:GetScore()

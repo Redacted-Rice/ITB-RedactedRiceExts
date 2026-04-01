@@ -22,7 +22,7 @@ function structureCreation.addInstanceMethods(StructType, layout)
 	function StructType:_getFieldOffset(fieldName)
 		local field = layout[fieldName]
 		if not field then
-			logger.logError(SUBMODULE, string.format("Unknown field: %s", fieldName))
+			logger.logError(SUBMODULE, "Unknown field: %s", fieldName)
 			return nil
 		end
 		return field.offset
@@ -32,7 +32,7 @@ function structureCreation.addInstanceMethods(StructType, layout)
 	function StructType:_getFieldAddress(fieldName)
 		local field = layout[fieldName]
 		if not field then
-			logger.logError(SUBMODULE, string.format("Unknown field: %s", fieldName))
+			logger.logError(SUBMODULE, "Unknown field: %s", fieldName)
 			return nil
 		end
 		return self._address + field.offset
@@ -93,7 +93,7 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 	-- Constructor
 	function StructType.new(address, doValidate)
 		if not address or address == 0 then
-			logger.logError(SUBMODULE, string.format("Invalid nil address 0 for %s", name))
+			logger.logError(SUBMODULE, "Invalid nil address 0 for %s", name)
 			return nil
 		end
 
@@ -115,7 +115,7 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 		if doValidate then
 			local success, err = instance:validate()
 			if not success then
-				logger.logError(SUBMODULE, string.format("Structure validation failed for %s at 0x%X: %s", name, address, err))
+				logger.logError(SUBMODULE, "Structure validation failed for %s at 0x%X: %s", name, address, err)
 				return nil
 			end
 		end
@@ -256,7 +256,7 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 		local result = self:_toDebugString()
 		return result
 	end
-	
+
 	function StructType.__eq(a, b)
 		return a._address == b._address
 	end
