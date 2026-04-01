@@ -23,6 +23,7 @@ function skill_constraints:init()
 	skill_selection = cplus_plus_ex._subobjects.skill_selection
 	utils = cplus_plus_ex._subobjects.utils
 
+	self:_registerSlotRestrictionConstraintFunction()
 	self:_registerReusabilityConstraintFunction()
 	self:_registerPlusExclusionInclusionConstraintFunction()
 	self:_registerSkillExclusionConstraintFunction()
@@ -52,6 +53,26 @@ end
 function skill_constraints:registerConstraintFunction(constraintFn)
 	table.insert(self.constraintFunctions, constraintFn)
 	logger.logDebug(SUBMODULE, "Registered constraint function")
+end
+
+-- This enforces slot restrictions (first only, second only, or either)
+function skill_constraints:_registerSlotRestrictionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- Calculate current slot index from number of already selected skills
+		local idx = #selectedSkills + 1
+
+		local slotRestriction = skill_config_module.config.skillConfigs[candidateSkillId].slotRestriction
+
+		if slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.FIRST and idx ~= 1 then
+			logger.logDebug(SUBMODULE, "Skill %s restricted to First slot, rejecting for slot %d", candidateSkillId, idx)
+			return false
+		elseif slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.SECOND and idx ~= 2 then
+			logger.logDebug(SUBMODULE, "Skill %s restricted to Second slot, rejecting for slot %d", candidateSkillId, idx)
+			return false
+		end
+
+		return true
+	end)
 end
 
 -- This enforces pilot exclusions (Vanilla blacklist API) and inclusion restrictions

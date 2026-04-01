@@ -64,6 +64,7 @@ skill_config.SkillConfig = {
 	enabled = false,
 	weight = cplus_plus_ex.DEFAULT_WEIGHT,
 	reusability = cplus_plus_ex.DEFAULT_REUSABILITY,
+	slotRestriction = cplus_plus_ex.DEFAULT_SLOT_RESTRICTION,
 }
 skill_config.SkillConfig.__index = skill_config.SkillConfig
 
@@ -86,8 +87,8 @@ end
 -- These are runtime changeable configuration parameters
 skill_config.config = {
 	allowReusableSkills = false, -- will be set on load by options but default to vanilla
-	skillConfigs = {}, -- skillId -> enabled, weight, reusability
-	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Weight/%
+	skillConfigs = {}, -- skillId -> enabled, weight, reusability, slotRestriction
+	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Slot, 5=Weight/%
 	categoryCollapseStates = {}, -- category name -> collapsed state
 }
 -- Track if saved config was loaded
@@ -199,6 +200,18 @@ function skill_config:setSkillConfig(skillId, config)
 				cplus_plus_ex.REUSABLILITY[utils.normalizeReusabilityToInt(curr_config.reusability)],
 				tostring(curr_config.reusability), cplus_plus_ex.REUSABLILITY[normalizeReuse],
 				tostring(normalizeReuse), skillId)
+	end
+
+	if config.slotRestriction then
+		local normalizeSlot = utils.normalizeSlotRestrictionToInt(config.slotRestriction)
+		if not normalizeSlot then
+			logger.logError(SUBMODULE, "Invalid skill slot restriction passed: " .. config.slotRestriction .. " for skill " .. skillId)
+			return
+		end
+		new_config.slotRestriction = normalizeSlot
+		logger.logDebug(SUBMODULE, "Set skill slot restriction from %s to %s for skill %s",
+				cplus_plus_ex.SLOT_RESTRICTION[utils.normalizeSlotRestrictionToInt(curr_config.slotRestriction)],
+				cplus_plus_ex.SLOT_RESTRICTION[normalizeSlot], skillId)
 	end
 
 	-- If we reached here, its a good config. Apply it

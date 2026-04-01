@@ -26,6 +26,14 @@ local REUSABLILITY_DESCRIPTIONS = {
 	"Can be selected once per pilot (default vanilla behavior)",
 	"Can be selected once per run, once one pilot gets it, none other can for that run"
 }
+local SLOT_RESTRICTION_HEADER = "Slot"
+local SLOT_RESTRICTION_NAMES = { "Any", "First", "Second" }
+local SLOT_RESTRICTION_DESCRIPTIONS = {
+	"Can appear in either skill slot (default)",
+	"Can only appear in the first skill slot",
+	"Can only appear in the second skill slot"
+}
+local SLOT_RESTRICTION_TOOLTIP = "Which skill slot this skill can appear in"
 local TOTAL_WEIGHT_HEADER = "Total: %.1f"
 local TOTAL_PERCENT_HEADER = "Total: %.1f%%"
 local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
@@ -340,7 +348,9 @@ end
 
 -- Builds a category section with tri checkbox
 -- Returns the content holder and the checkbox for updating checked state
-function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, startCollapsed)
+function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, slotRestrictionLength, startCollapsed)
+	logger.logDebug(SUBMODULE, "buildCategorySection: category=%s, skillLen=%d, reuseLen=%d, slotLen=%d",
+			category, skillLength or -1, resuabilityLength or -1, slotRestrictionLength or -1)
 	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, startCollapsed)
 
 	-- Store category name for saving collapse state
@@ -358,7 +368,7 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 		:settooltip("Enable/disable all skills in this category")
 		:addTo(headerHolder)
 
-	Ui()
+	local reusabilityHeader = Ui()
 		:widthpx(resuabilityLength):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
@@ -366,6 +376,16 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 			DecoCAlignedText(REUSABLILITY_HEADER, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
 		})
 		:settooltip("How the skill can be reused across pilots and runs")
+		:addTo(headerHolder)
+
+	local slotHeader = Ui()
+		:widthpx(slotRestrictionLength):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoCAlignedText(SLOT_RESTRICTION_HEADER, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+		})
+		:settooltip(SLOT_RESTRICTION_TOOLTIP)
 		:addTo(headerHolder)
 
 	-- Weight header with total
@@ -408,7 +428,7 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 end
 
 -- Builds a single skill entry row
-function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, onToggleCallback)
+function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, slotRestrictionLength, onToggleCallback)
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
 		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
@@ -419,8 +439,15 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 	local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 
+	-- Add values to the row
+	local enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+	self:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
+	self:buildSkillEntrySlotRestriction(entryRow, skill, skillConfigObj.slotRestriction, slotRestrictionLength)
+	self:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
+	self:buildSkillEntryLabels(entryRow, skill)
+
 	-- Store the enable checkbox for category management
-	entryRow.enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+	entryRow.enableCheckbox = enableCheckbox
 
 	return entryRow
 end
@@ -541,15 +568,15 @@ end
 
 function modify_pilot_skills_ui:_determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
-	
+
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
 	end
-	
+
 	-- Get max icon width and add spacing
 	local maxIconWidth = self:getLargestIconWidth()
 	local iconTotalWidth = maxIconWidth + (SKILL_ICON_SPACING * 2)
-	
+
 	local longestName = self:getLongestLength(names)
 	-- Extra room for Checkbox and dynamically sized icon
 	local paddedName = longestName + CHECKBOX_PADDING + iconTotalWidth
@@ -560,7 +587,15 @@ function modify_pilot_skills_ui:_determineColumnLengths()
 	-- Extra room for drop down image
 	local paddedReuse = longestReuse + DROPDOWN_PADDING
 
-	return paddedName, paddedReuse
+	local slotOptions = utils.deepcopy(SLOT_RESTRICTION_NAMES)
+	table.insert(slotOptions, SLOT_RESTRICTION_HEADER)
+	local longestSlot = self:getLongestLength(slotOptions)
+	-- Extra room for drop down image
+	local paddedSlot = longestSlot + DROPDOWN_PADDING
+
+	logger.logDebug(SUBMODULE, "Column lengths: skill=%d, reuse=%d, slot=%d", paddedName, paddedReuse, paddedSlot)
+
+	return paddedName, paddedReuse, paddedSlot
 end
 
 function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, skillLength, onToggleCallback)
@@ -685,6 +720,11 @@ function modify_pilot_skills_ui:_sortSkillsByCurrentSort(skills, currentSkillSor
 				return aConfig.reusability < bConfig.reusability
 			end
 		elseif currentSkillSort == 4 then
+			-- Sort by slot restriction then name
+			if aConfig.slotRestriction ~= bConfig.slotRestriction then
+				return aConfig.slotRestriction < bConfig.slotRestriction
+			end
+		elseif currentSkillSort == 5 then
 			-- Sort by Weight/% then name
 			if aConfig.weight ~= bConfig.weight then
 				return aConfig.weight > bConfig.weight
@@ -780,6 +820,34 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 	end
 end
 
+function modify_pilot_skills_ui:buildSkillEntrySlotRestriction(entryRow, skill, slotRestriction, slotRestrictionLength)
+	local slotRestrictionValues = {1, 2, 3}
+	local slotRestrictionStrings = SLOT_RESTRICTION_NAMES
+	local slotRestrictionTooltips = SLOT_RESTRICTION_DESCRIPTIONS
+
+	local slotRestrictionWidget = UiDropDown(slotRestrictionValues, slotRestrictionStrings, slotRestriction, slotRestrictionTooltips)
+			:widthpx(slotRestrictionLength)
+			:heightpx(40)
+			:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, DROPDOWN_BUTTON_PADDING),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(entryRow)
+
+	-- Set initial tooltip with selected option description
+	self:_updateDropdownTooltip(slotRestrictionWidget, SLOT_RESTRICTION_TOOLTIP, slotRestrictionTooltips)
+
+	-- Handle slot restriction changes
+	slotRestrictionWidget.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
+		cplus_plus_ex:setSkillConfig(skill.id, {slotRestriction = newValue})
+		cplus_plus_ex:saveConfiguration()
+		self:_updateDropdownTooltip(slotRestrictionWidget, SLOT_RESTRICTION_TOOLTIP, slotRestrictionTooltips)
+	end)
+end
+
 function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weight)
 	local weightInput = UiInputField()
 		:width(0.25):heightpx(ROW_HEIGHT)
@@ -830,30 +898,6 @@ function modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 	percentageLabels[skill.id] = percentageLabel
 end
 
--- Builds a single skill entry row
-function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, onToggleCallback)
-	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
-	if not skillConfigObj then
-		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
-		local result = Ui():width(1):heightpx(0) -- Return empty element
-		return result
-	end
-
-	local entryRow = UiWeightLayout()
-		:width(1):heightpx(ROW_HEIGHT)
-
-	-- Add values to the row
-	local enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
-	self:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
-	self:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
-	self:buildSkillEntryLabels(entryRow, skill)
-
-	-- Store the enable checkbox for category management
-	entryRow.enableCheckbox = enableCheckbox
-
-	return entryRow
-end
-
 -- Calculates total weight and percentage for a specific category
 function modify_pilot_skills_ui:calculateCategoryTotals(categorySkills, totalWeight)
 	local categoryWeight = 0
@@ -900,13 +944,13 @@ end
 
 function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	-- Add sort options to Skills Configuration header
-	local sortOptions = {"Name", "Enabled", "Reusability", "Weight/%"}
-	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, false, nil, sortOptions)
+	local sortOptions = {"Name", "Enabled", REUSABLILITY_HEADER, SLOT_RESTRICTION_HEADER, "Weight/%"}
+	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, sortOptions)
 
-	local skillLength, reuseabilityLength = self:_determineColumnLengths()
+	local skillLength, reuseabilityLength, slotRestrictionLength = self:_determineColumnLengths()
 
 	-- Track current sort option
-	-- 1 = Name, 2 = Enabled, 3 = Reusability, 4 = Weight/%
+	-- 1 = Name, 2 = Enabled, 3 = Reusability, 4 = Slot, 5 = Weight/%
 	local currentSkillSort = cplus_plus_ex.config.skillConfigSortOrder or 1
 
 	-- Set initial dropdown value
@@ -941,7 +985,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			local skills = self:_sortSkillsByCurrentSort(skillsByCategory[category], currentSkillSort)
 			-- Use saved collapse state if available, default to expanded (false = not collapsed)
 			local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
-			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, startCollapsed)
+			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, slotRestrictionLength, startCollapsed)
 
 			-- Track checkboxes for this category
 			local categorySkillCheckboxes = {}
@@ -994,7 +1038,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 					categoryCheckbox:updateCheckedState()
 				end
 
-				local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, onToggleCallback)
+				local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, slotRestrictionLength, onToggleCallback)
 					:addTo(categoryContent)
 
 				-- Track the skill's enable checkbox for category updates
@@ -1218,7 +1262,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
 		largestHeight = math.max(ROW_HEIGHT, maxSkillIconWidth)
 	end
-	
+
 	-- Use consistent spacing throughout
 	local itemSpacing = SKILL_LIST_VGAP
 	if largestHeight > ROW_HEIGHT then
@@ -1243,7 +1287,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		sortDropdown.value = sortColumn
 		sortDropdown.choice = sortColumn
 	end
-	
+
 	-- Ideally i'd avoid the circular dependency but for simplicity I'm
 	-- just predefnining the fn
 	local rebuildRelationshipList
