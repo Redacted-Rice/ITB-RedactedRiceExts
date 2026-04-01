@@ -76,7 +76,7 @@ end
 
 function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
 	if checkEarned == nil then checkEarned = true end
-	
+
 	local indices = {}
 	for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
 		local skill = pilot:getLvlUpSkill(skillIndex)
@@ -127,7 +127,7 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 				end
 			end
 		else
-			logger.logWarn(SUBMODULE, "Pilot %s is nil in isSkillOnPilots - skipping", idx)
+			logger.logWarn(SUBMODULE, "Pilot " .. idx .. " is nil in isSkillOnPilots - skipping")
 		end
 	end
 	return false
@@ -171,11 +171,11 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 				table.insert(result, {
 					pilot = pilot,
 					skillIndices = skillIndices
-				})
-			end
-		else
-			logger.logWarn(SUBMODULE, "Pilot %s is nil in getPilotsWithSkill - skipping", idx)
+			})
 		end
+	else
+		logger.logWarn(SUBMODULE, "Pilot " .. idx .. " is nil in getPilotsWithSkill - skipping")
+	end
 	end
 	return result
 end
