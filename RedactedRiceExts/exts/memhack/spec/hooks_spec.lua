@@ -275,12 +275,8 @@ describe("Hooks Module", function()
 			mockPilot._xp = 1
 			local initialChanges = {xp = {old = 0, new = 1}}
 
-			local success, err = pcall(function()
-				hooks.firePilotChangedHooks(mockPilot, initialChanges)
-			end)
+			hooks.firePilotChangedHooks(mockPilot, initialChanges)
 
-			assert.is_false(success)
-			assert.is_not_nil(err:find("exceeded max iterations"))
 			assert.are.equal(20, callCount)
 		end)
 

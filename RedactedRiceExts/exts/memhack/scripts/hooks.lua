@@ -109,11 +109,7 @@ function hooks:handleFailure(errorOrResult, creator, caller)
 	errorOrResult = errorOrResult or "<unspecified error>"
 	local message = Event.buildErrorMessage("An event callback failed: ", errorOrResult,
 			nil, creator, caller)
-	if Event.isStackOverflowError(errorOrResult) then
-		error(message)
-	else
-		LOG(message)
-	end
+	logger.logError(SUBMODULE, message)
 end
 
 -- Reusable: Build a broadcast function that fires all registered hooks

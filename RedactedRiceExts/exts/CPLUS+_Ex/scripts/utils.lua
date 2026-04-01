@@ -1,5 +1,8 @@
 -- Shared utility functions for CPLUS+ Extension
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "utils", false)
+
 local utils = {}
 
 -- Deep copy function for tables
@@ -55,6 +58,19 @@ function utils.deepcopyInPlace(copy, orig)
 		if mt then
 			setmetatable(copy, mt)
 		end
+	end
+	return copy
+end
+
+-- Shallow copy function for tables (only copies first level)
+function utils.shallowcopy(orig)
+	if type(orig) ~= 'table' then
+		return orig
+	end
+	
+	local copy = {}
+	for k, v in pairs(orig) do
+		copy[k] = v
 	end
 	return copy
 end
@@ -138,9 +154,7 @@ function utils.showErrorPopup(message)
 end
 
 function utils.logAndShowErrorPopup(message)
-	-- Log to console with ERROR level
-	LOG("CPLUS+: ERR: " .. message)
-	-- Show error popup if modApi is available
+	logger.logError(SUBMODULE, message)
 	utils.showErrorPopup(message)
 end
 
