@@ -196,7 +196,7 @@ function skill_config:setSkillConfig(skillId, config)
 			return
 		end
 		new_config.reusability = normalizeReuse
-		logger.logInfo(SUBMODULE, "Set skill reusability from %s (value=%s) to %s (value=%s) for skill %d",
+		logger.logDebug(SUBMODULE, "Set skill reusability from %s (value=%s) to %s (value=%s) for skill %s",
 				cplus_plus_ex.REUSABLILITY[utils.normalizeReusabilityToInt(curr_config.reusability)],
 				tostring(curr_config.reusability), cplus_plus_ex.REUSABLILITY[normalizeReuse],
 				tostring(normalizeReuse), skillId)

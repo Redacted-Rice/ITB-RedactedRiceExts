@@ -162,7 +162,10 @@ function skill_selection:selectRandomSkills(availableSkills, pilot, count)
 	local selectedSkills = {}
 
 	for idx = 1, count do
-		if not self:selectRandomSkill(availableSkills, pilot, idx, selectedSkills) then
+		-- Create fresh copy of available skills for each slot to avoid contamination from previous slot failures
+		local freshAvailableSkills = utils.shallowcopy(availableSkills)
+		logger.logDebug(SUBMODULE, "Selecting skill for slot %d with %d available skills", idx, #freshAvailableSkills)
+		if not self:selectRandomSkill(freshAvailableSkills, pilot, idx, selectedSkills) then
 			return nil
 		end
 	end
@@ -250,7 +253,7 @@ end
 function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 	if pilot == nil then
 		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillIdsToPilot - skipping")
-		return
+		return false
 	end
 
 	-- ensure game data is initialized
@@ -263,7 +266,7 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 	-- Apply the skills to the pilot
 	if fireHooks == nil then fireHooks = false end
 	local storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-	self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
+	return self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 end
 
 -- Main function to apply level up skills to a pilot (handles both skill slots)
@@ -273,7 +276,7 @@ end
 function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	if pilot == nil then
 		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillsToPilot - skipping")
-		return
+		return false
 	end
 
 	if fireHooks == nil then fireHooks = false end
@@ -337,8 +340,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 				skillIds = {memSkill1:getIdStr(), memSkill2:getIdStr()}
 				storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 				found = true
-				logger.logInfo(SUBMODULE, "Preserving existing skills for pilot %s (XP=%d, Level=%d) - first time with CPLUS+ active",
-					pilotId, pilotXp, pilotLevel)
+				logger.logInfo(SUBMODULE, "Preserving existing skills for pilot " .. pilotId .. " (XP=" .. pilotXp ..
+						", Level=" .. pilotLevel .. ") - first time with CPLUS+ active")
 			end
 		end
 	end
@@ -347,7 +350,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- Select 2 random skills that satisfy all registered constraint functions
 		skillIds = self:selectRandomSkills(availableSkills, pilot, 2)
 		if skillIds == nil then
-			return
+			return false
 		end
 		-- Convert to table format so we can associat saveVals and update in game state
 		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
@@ -372,7 +375,6 @@ end
 -- Internal function to validate, assign saveVals, and apply skills to the pilot
 -- Takes storedSkills structure: { {id = skill1Id}, {id = skill2Id} }
 function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
-	local availableSkills = self:_createAvailableSkills()
 	local pilotId = pilot:getIdStr()
 
 	local skill1Id = storedSkills[1].id or "<unknown>"
@@ -392,7 +394,9 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
 		skillIds[1] = nil
-		skill1Id = self:selectRandomSkill(availableSkills, pilot, 1, skillIds)
+		-- Create fresh copy of available skills for this slot to avoid contamination from other slot failures
+		local availableSkillsSlot1 = self:_createAvailableSkills()
+		skill1Id = self:selectRandomSkill(availableSkillsSlot1, pilot, 1, skillIds)
 		if not skill1Id then
 			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilotId .. " - constraints too restrictive")
 			return false
@@ -405,7 +409,9 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	if not skill2 or not skill_constraints:checkSkillConstraints(pilot, {skill1Id}, skill2Id) then
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
-		skill2Id = self:selectRandomSkill(availableSkills, pilot, 2, skillIds)
+		-- Create fresh copy of available skills for this slot to avoid contamination from other slot failures
+		local availableSkillsSlot2 = self:_createAvailableSkills()
+		skill2Id = self:selectRandomSkill(availableSkillsSlot2, pilot, 2, skillIds)
 		if not skill2Id then
 			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilotId .. " - constraints too restrictive")
 			return false
@@ -490,7 +496,7 @@ function skill_selection:applySkillsToAllPilots()
 				self:_markPerRunSkillAsUsed(skillData.id)
 			end
 		else
-			logger.logWarn(SUBMODULE, "Stored skills for pilot %s are nil in applySkillsToAllPilots - skipping", idx)
+			logger.logWarn(SUBMODULE, "Stored skills for pilot ".. idx .. " are nil in applySkillsToAllPilots - skipping")
 		end
 	end
 
@@ -518,8 +524,11 @@ function skill_selection:applySkillsToAllPilots()
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Applied skills to %d pilot(s), %d failed due to impossible constraints",
-			successCount, failCount)
+	if failCount > 0 then
+		logger.logWarn(SUBMODULE, "Applied skills to " .. successCount .. " pilot(s), " .. failCount .. " failed due to impossible constraints")
+	else
+		logger.logDebug(SUBMODULE, "Successfully applied skills to " .. successCount .. " pilot(s)")
+	end
 
 	-- Only fire post assignment hook if there were new pilots
 	if hasNewPilots then
