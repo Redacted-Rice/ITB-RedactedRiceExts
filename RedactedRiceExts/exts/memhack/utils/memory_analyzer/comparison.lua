@@ -3,6 +3,9 @@
 local path = GetParentPath(...)
 local utils = require(path .. "utils")
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("memhack", "MemAnalyzer.comparison", false)
+
 local comparison = {}
 
 -- Build both filtered and unfiltered ranges with alignment support
@@ -13,7 +16,8 @@ local comparison = {}
 local function buildRanges(size, compareFunc, alignment, requireAll)
 	alignment = alignment or 4
 	if size % alignment ~= 0 then
-		error("Size ( " .. size .. " ) must be divisible by alignment ( " .. alignment .. " )")
+		logger.logError(SUBMODULE, "Size ( %d ) must be divisible by alignment ( %d )", size, alignment)
+		return nil, nil
 	end
 
 	local filteredRanges = {}
@@ -109,12 +113,14 @@ local function compareCaptures(captures, captureIndices, analyzer, name, compara
 	local count = #captures
 
 	if count < 2 then
-		error("Need at least 2 captures to compare")
+		logger.logError(SUBMODULE, "Need at least 2 captures to compare")
+		return nil
 	end
 
 	local indices = utils.parseCaptureIndices(captureIndices, count)
 	if #indices < 2 then
-		error("Need at least 2 capture indices to compare")
+		logger.logError(SUBMODULE, "Need at least 2 capture indices to compare")
+		return nil
 	end
 
 	local selectedCaptures = {}
@@ -130,6 +136,10 @@ local function compareCaptures(captures, captureIndices, analyzer, name, compara
 		analyzer.alignment,
 		requireAll
 	)
+	
+	if not filteredRanges or not unfilteredRanges then
+		return nil
+	end
 
 	local result = {
 		name = name,
@@ -195,7 +205,8 @@ end
 -- requireAll: if true, ALL bytes in chunk must match; if false (default), ANY byte matching means chunk matches
 function comparison.getCustomChanges(captures, captureIndices, analyzer, name, comparatorFunc, requireAll)
 	if type(comparatorFunc) ~= "function" then
-		error("comparatorFunc must be a function")
+		logger.logError(SUBMODULE, "comparatorFunc must be a function")
+		return nil
 	end
 	requireAll = requireAll or false
 	return compareCaptures(captures, captureIndices, analyzer, name, comparatorFunc, requireAll)
@@ -205,18 +216,21 @@ end
 -- Unified pattern matching supporting exact values, unnamed wildcards (nil), and named wildcards ($name)
 function comparison.getMatchingPattern(captures, pattern, captureIndices, analyzer, name)
 	if type(pattern) ~= "table" then
-		error("pattern must be a table/array")
+		logger.logError(SUBMODULE, "pattern must be a table/array")
+		return nil
 	end
 
 	local count = #captures
 	if count < 1 then
-		error("Need at least 1 capture")
+		logger.logError(SUBMODULE, "Need at least 1 capture")
+		return nil
 	end
 
 	local indices = utils.parseCaptureIndices(captureIndices, count)
 
 	if #pattern ~= #indices then
-		error(string.format("Pattern length (%d) must match number of captures (%d)", #pattern, #indices))
+		logger.logError(SUBMODULE, "Pattern length (%d) must match number of captures (%d)", #pattern, #indices)
+		return nil
 	end
 
 	local comparator = function(selectedCaptures, byteIdx)
@@ -281,11 +295,13 @@ end
 -- Returns new result with only ranges/chunks that pass the filter
 function comparison.filterResult(result, filterSpec)
 	if not result then
-		error("Result is required")
+		logger.logError(SUBMODULE, "Result is required")
+		return nil
 	end
 
 	if not result._captures or #result._captures == 0 then
-		error("Result must have captures")
+		logger.logError(SUBMODULE, "Result must have captures")
+		return nil
 	end
 
 	-- Determine filter mode
@@ -293,7 +309,8 @@ function comparison.filterResult(result, filterSpec)
 	local isChunkFilter = type(filterSpec) == "table" and filterSpec.filter
 
 	if not isRangeFilter and not isChunkFilter then
-		error("filterSpec must be a function or table with 'filter' field")
+		logger.logError(SUBMODULE, "filterSpec must be a function or table with 'filter' field")
+		return nil
 	end
 
 	local captures = result._captures

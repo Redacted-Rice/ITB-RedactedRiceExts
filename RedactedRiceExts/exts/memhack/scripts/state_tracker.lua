@@ -349,12 +349,8 @@ function stateTracker:buildReentrantHookWrapper(hookName, stateDef, tracker)
 			-- or ran out of iterations
 			if iteration > MAX_ITERATIONS then
 				isExecuting = false
-				local errorMsg = string.format(
-					"%s exceeded max iterations (%d). Possible infinite loop in hook callbacks. Aborting",
-					fireHookName, MAX_ITERATIONS
-				)
-				logger.logError(SUBMODULE, errorMsg)
-				error(errorMsg)
+				logger.logError(SUBMODULE, "%s exceeded max iterations (%d). Possible infinite loop in hook callbacks. Aborting",
+					fireHookName, MAX_ITERATIONS)
 				return
 			end
 
