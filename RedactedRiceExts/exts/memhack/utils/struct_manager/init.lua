@@ -152,7 +152,8 @@ function StructManager:define(name, layout, validateArg)
 			-- Custom validation function
 			validateFn = validateArg
 		else
-			logger.logError(SUBMODULE, string.format("Third parameter to define() must be a number (vtable) or function (validator), got %s", type(validateArg)))
+			logger.logError(SUBMODULE, "Third parameter to define() must be a number (vtable) or function (validator), got %s",
+					type(validateArg))
 			return nil
 		end
 	end
@@ -179,7 +180,7 @@ function StructManager:extend(name, additionalFields)
 
 	local existingStruct = self._structures[name]
 	if not existingStruct then
-		logger.logError(SUBMODULE, string.format("Cannot extend unknown structure: %s", name))
+		logger.logError(SUBMODULE, "Cannot extend unknown structure: %s", name)
 		return nil
 	end
 

@@ -121,12 +121,12 @@ function Debug.logFromMemory(address, numBytes, bytesPerLine, bytesPerGroup)
 	-- Read the memory
 	local bytes = Debug._dll.memory.readByteArray(address, numBytes)
 	if not bytes or #bytes == 0 then
-		logger.logError(SUBMODULE, string.format("Failed to read memory at address 0x%X", address))
+		logger.logError(SUBMODULE, "Failed to read memory at address 0x%X", address)
 		return
 	end
 
 	-- Log header
-	logger.logInfo(SUBMODULE, string.format("Memory dump from 0x%X (%d bytes)", address, numBytes))
+	logger.logInfo(SUBMODULE, "Memory dump from 0x%X (%d bytes)", address, numBytes)
 
 	-- Log each line individually. LOG does not seem to like newline
 	for i = 1, numBytes, bytesPerLine do

@@ -139,7 +139,7 @@ function M.createMockPilot(params)
 	mockPilot.getLevelUpXp = function(self) return 100 end  -- Mock value
 	mockPilot.getPrevTimelines = function(self) return 0 end  -- Mock value
 	mockPilot.getAddress = makeGetter("_address")
-	
+
 	-- Add setters
 	mockPilot.setLevel = makeSetter("_level")
 	mockPilot.setXp = makeSetter("_xp")

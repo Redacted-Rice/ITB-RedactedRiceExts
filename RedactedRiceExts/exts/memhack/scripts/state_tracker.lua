@@ -46,7 +46,7 @@ function stateTracker:captureValue(obj, valOrGetter)
 		-- Assume it's a field name, use standard getter
 		local getterName = StructManager:makeStdGetterName(valOrGetter)
 		if type(obj[getterName]) ~= "function" then
-			logger.logError(SUBMODULE, string.format("Getter '%s' not found on object for field '%s'", getterName, valOrGetter))
+			logger.logError(SUBMODULE, "Getter '%s' not found on object for field '%s'", getterName, valOrGetter)
 			return nil
 		end
 		local result = obj[getterName](obj)
@@ -87,7 +87,7 @@ function stateTracker:captureState(obj, stateDefinition, valsToCheck)
 			if type(obj[getterName]) == "function" then
 				capturedState[fieldName] = obj[getterName](obj)
 			else
-				logger.logError(SUBMODULE, string.format("Getter '%s' not found on object for field '%s'", getterName, fieldName))
+				logger.logError(SUBMODULE, "Getter '%s' not found on object for field '%s'", getterName, fieldName)
 			end
 		end
 	end
