@@ -41,9 +41,13 @@ end
 --   PER_PILOT (2) - a pilot can only have this skill once - vanilla behavior
 --   PER_RUN (3) - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
 --			affect the game state in a one time only way
+-- slotRestriction is optional defines which skill slot this skill can appear in. Defaults to any
+--   ANY (1) - can appear in either slot 1 or 2 - vanilla behavior
+--   FIRST (2) - can only appear in slot 1
+--   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
-function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight, icon)
+function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, slotRestriction, weight, icon)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -54,6 +58,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		skillType = idOrTable.skillType
 		saveVal = idOrTable.saveVal
 		reusability = idOrTable.reusability
+		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
 	end
@@ -87,6 +92,16 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		reusability = cplus_plus_ex.DEFAULT_REUSABILITY
 	end
 
+	-- Validate and normalize slot restriction
+	slotRestriction = utils.normalizeSlotRestrictionToInt(slotRestriction)
+	if not slotRestriction then
+		if slotRestriction ~= nil then
+			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid slotRestriction '" .. tostring(slotRestriction) ..
+					"' 1-3 (corresponding to enum values in SLOT_RESTRICTION). Defaulting to ANY")
+		end
+		slotRestriction = cplus_plus_ex.DEFAULT_SLOT_RESTRICTION
+	end
+
 	-- Register the skill with its type and reusability included in the skill data
 	skill_registry.registeredSkills[id] = { id = id, category = category, shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
@@ -96,7 +111,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 	}
 
 	-- add a config value
-	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, weight = weight})
+	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, slotRestriction = slotRestriction, weight = weight})
 end
 
 -- Registers all vanilla skills

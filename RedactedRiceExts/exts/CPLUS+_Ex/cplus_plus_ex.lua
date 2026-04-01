@@ -30,6 +30,8 @@ cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT"
 local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
 local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
 
+cplus_plus_ex.SLOT_RESTRICTION = { [1] = "ANY", ANY = 1, [2] = "FIRST", FIRST = 2, [3] = "SECOND", SECOND = 3}
+
 -- Core skill icons since they don't have any
 local customVanillaIcons = {
 	"img/combat/icons/icon_Pilot_Health.png",
@@ -43,8 +45,8 @@ local resourcePath = mod_loader.mods[modApi.currentMod].resourcePath
 for _, iconPath in ipairs(customVanillaIcons) do
 	modApi:appendAsset(iconPath, resourcePath..iconPath)
 end
-
 cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
+cplus_plus_ex.DEFAULT_SLOT_RESTRICTION = cplus_plus_ex.SLOT_RESTRICTION.ANY
 cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
 	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
@@ -123,7 +125,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
-	
+
 	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
 	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
 	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
