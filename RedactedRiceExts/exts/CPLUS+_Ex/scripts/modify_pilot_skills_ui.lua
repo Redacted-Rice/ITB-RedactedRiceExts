@@ -673,7 +673,7 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 		end
 
 		-- Rebuild relationship and category sections to reflect enabled/disabled state
-		self:rebuildAllCategories()
+		self:rebuildAllCategoryPools()
 		self:rebuildAllRelationships()
 	end)
 
@@ -1711,14 +1711,14 @@ function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallbac
 			return true
 		end
 	)
-	btnCreateCategory:widthpx(260):heightpx(ROW_HEIGHT):addTo(controlsRow)
+	btnCreateCategory:widthpx(270):heightpx(ROW_HEIGHT):addTo(controlsRow)
 
 	-- Grid size label
 	Ui()
-		:widthpx(150):heightpx(ROW_HEIGHT)
+		:widthpx(160):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoAlign(0, 2),
-			DecoText("Grid Size:", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
+			DecoRAlignedText("Grid Size:", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
 		})
 		:addTo(controlsRow)
 
@@ -1730,7 +1730,7 @@ function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallbac
 	logger.logDebug(SUBMODULE, "Grid size dropdown: current value=%d", currentGridSize)
 
 	local gridSizeDropdown = UiDropDown(gridSizeValues, gridSizeDisplay, currentGridSize, nil)
-		:widthpx(120)
+		:widthpx(105)
 		:heightpx(40)
 		:decorate({
 			DecoButton(),
@@ -1833,7 +1833,7 @@ function modify_pilot_skills_ui:buildCategoryPoolAddSkill(parent, categoryName, 
 			return true
 		end
 	)
-	btnAddSkill:width(0.3):heightpx(ROW_HEIGHT):addTo(addSkillRow)
+	btnAddSkill:widthpx(270):heightpx(ROW_HEIGHT):addTo(addSkillRow)
 end
 
 -- Helper to build a single skill cell in category grid
@@ -1871,6 +1871,7 @@ function modify_pilot_skills_ui:buildCategorySkillCell(parent, skillId, category
 			DecoAlign(0, 2),
 			DecoText(skillName, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
 		})
+		:settooltip(GetText(skill.description) or skill.description)
 		:addTo(cellRow)
 
 	-- Remove button
@@ -1995,7 +1996,7 @@ function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, n
 		:addTo(categoryHeader)
 
 	Ui()
-		:width(0.4):heightpx(ROW_HEIGHT)
+		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
@@ -2006,13 +2007,13 @@ function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, n
 	-- Only One Per Pilot checkbox
 	local settings = cplus_plus_ex:getCategorySettings(categoryName)
 	local onlyOneCheckbox = UiCheckbox()
-		:width(0.3):heightpx(ROW_HEIGHT)
-		:settooltip("When checked, only one skill from this category can be assigned per pilot (mutual exclusion)")
+		:widthpx(270):heightpx(ROW_HEIGHT)
+		:settooltip("When checked, only one skill from this category can be assigned per pilot")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
 			DecoAlign(0, 2),
-			DecoText("Only One Per Pilot")
+			DecoText("One Per Pilot")
 		})
 		:addTo(titleRow)
 
@@ -2041,7 +2042,7 @@ function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, n
 			return true
 		end
 	)
-	btnDeleteCategory:width(0.3):heightpx(ROW_HEIGHT):addTo(titleRow)
+	btnDeleteCategory:widthpx(270):heightpx(ROW_HEIGHT):addTo(titleRow)
 
 	local categoryContent = categoryCollapse.dropdownHolder
 

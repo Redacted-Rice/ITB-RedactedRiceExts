@@ -460,7 +460,7 @@ function skill_config:resetToDefaults()
 		self.config[keys.added] = {}
 		self.config[keys.removed] = {}
 	end
-	
+
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
@@ -468,6 +468,10 @@ function skill_config:resetToDefaults()
 	self.config.categoriesAdded = {}
 	self.config.categoriesRemoved = {}
 	self.config.emptyCategories = {}
+	self.config.categorySettings = {}
+
+	-- Clear the configLoaded flag so coded enable/disable can apply
+	self.configLoaded = false
 
 	-- Rebuild active relationship and category tables from code defined sources
 	self:_rebuildRelationships()
@@ -590,7 +594,7 @@ function skill_config:loadConfiguration()
 						end
 					end
 				end
-				
+
 				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
 				skill_config.configLoaded = true
 
@@ -611,6 +615,9 @@ function skill_config:loadConfiguration()
 				if savedConfig.enableCategoryExclusions ~= nil then
 					skill_config.config.enableCategoryExclusions = savedConfig.enableCategoryExclusions
 				end
+
+				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
+				skill_config.configLoaded = true
 
 				-- Load category settings (onlyOnePerPilot, pilotInclusions, pilotExclusions)
 				if savedConfig.categorySettings then
@@ -675,6 +682,12 @@ function skill_config:_rebuildCategories()
 						pilotExclusions = settings.pilotExclusions or {}
 					}
 					logger.logDebug(SUBMODULE, "_rebuildCategories: Created category '%s'", categoryName)
+				else
+					-- Category exists, but update settings from config in case they changed
+					local settings = self.config.categorySettings[categoryName] or {}
+					self.categories[categoryName].onlyOnePerPilot = settings.onlyOnePerPilot or false
+					self.categories[categoryName].pilotInclusions = settings.pilotInclusions or {}
+					self.categories[categoryName].pilotExclusions = settings.pilotExclusions or {}
 				end
 				self.categories[categoryName].skillIds[skillId] = true
 			end
@@ -738,6 +751,13 @@ function skill_config:isSkillInCategory(skillId, categoryName)
 		return false
 	end
 	return category.skillIds[skillId] == true
+end
+
+-- Reset all category settings to defaults
+function skill_config:resetCategorySettings()
+	self.config.categorySettings = {}
+	self:_rebuildCategories()
+	return true
 end
 
 function skill_config:_countCategories()

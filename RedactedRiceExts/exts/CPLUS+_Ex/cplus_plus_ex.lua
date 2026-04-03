@@ -139,6 +139,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:isSkillInCategory(...) return skill_config:isSkillInCategory(...) end
 	function cplus_plus_ex:getCategorySettings(...) return skill_config:getCategorySettings(...) end
 	function cplus_plus_ex:setCategorySettings(...) return skill_config:setCategorySettings(...) end
+	function cplus_plus_ex:resetCategorySettings(...) return skill_config:resetCategorySettings(...) end
 
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
