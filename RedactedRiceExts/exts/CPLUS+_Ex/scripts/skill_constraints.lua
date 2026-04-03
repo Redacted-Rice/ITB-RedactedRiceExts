@@ -27,7 +27,7 @@ function skill_constraints:init()
 	self:_registerReusabilityConstraintFunction()
 	self:_registerPlusExclusionInclusionConstraintFunction()
 	self:_registerSkillExclusionConstraintFunction()
-	self:_registerPoolConstraintFunction()
+	self:_registerCategoryConstraintFunction()
 	return self
 end
 
@@ -175,27 +175,30 @@ function skill_constraints:_registerSkillExclusionConstraintFunction()
 	end)
 end
 
--- This enforces pool constraints - only one skill from each pool per pilot
-function skill_constraints:_registerPoolConstraintFunction()
+-- This enforces category constraints - only one skill from each category per pilot
+function skill_constraints:_registerCategoryConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		-- Check if pool exclusions are enabled
-		if not skill_config_module.config.enablePoolExclusions then
+		-- Check if category exclusions are enabled
+		if not skill_config_module.config.enableCategoryExclusions then
 			return true
 		end
 
 		local pilotId = pilot:getIdStr()
 
-		-- Check each pool to see if candidate and any selected skill share a pool
-		for poolName, pool in pairs(skill_config_module.pools) do
-			local candidateInPool = pool.skillIds[candidateSkillId]
+		-- Check each category to see if candidate and any selected skill share a category
+		for categoryName, category in pairs(skill_config_module.categories) do
+			-- Only enforce mutual exclusion if onlyOnePerPilot is enabled for this category
+			if category.onlyOnePerPilot then
+				local candidateInCategory = category.skillIds[candidateSkillId]
 
-			if candidateInPool then
-				-- Candidate is in this pool, check if any selected skill is also in it
-				for _, selectedSkillId in ipairs(selectedSkills) do
-					if pool.skillIds[selectedSkillId] then
-						logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (pool '%s' conflict with already selected skill %s)",
-								candidateSkillId, pilotId, poolName, selectedSkillId)
-						return false
+				if candidateInCategory then
+					-- Candidate is in this category, check if any selected skill is also in it
+					for _, selectedSkillId in ipairs(selectedSkills) do
+						if category.skillIds[selectedSkillId] then
+							logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (category '%s' conflict with already selected skill %s)",
+									candidateSkillId, pilotId, categoryName, selectedSkillId)
+							return false
+						end
 					end
 				end
 			end

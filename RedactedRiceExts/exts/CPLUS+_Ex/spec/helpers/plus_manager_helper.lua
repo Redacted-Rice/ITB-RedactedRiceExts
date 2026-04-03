@@ -189,12 +189,12 @@ function M.resetState()
 	skill_config_module.enabledSkills = {}
 	skill_config_module.enabledSkillsIds = {}
 
-	-- Reset pool state
-	skill_config_module.codeDefinedPools = {}
-	skill_config_module.pools = {}
-	skill_config_module.config.poolsAdded = {}
-	skill_config_module.config.poolsRemoved = {}
-	skill_config_module.config.emptyPools = {}
+	-- Reset category state
+	skill_config_module.codeDefinedCategories = {}
+	skill_config_module.categories = {}
+	skill_config_module.config.categoriesAdded = {}
+	skill_config_module.config.categoriesRemoved = {}
+	skill_config_module.config.emptyCategories = {}
 
 	-- Reset relationship state
 	for relType in pairs(skill_config_module.codeDefinedRelationships) do
@@ -207,7 +207,7 @@ function M.resetState()
 	skill_constraints:_registerReusabilityConstraintFunction()
 	skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
 	skill_constraints:_registerSkillExclusionConstraintFunction()
-	skill_constraints:_registerPoolConstraintFunction()
+	skill_constraints:_registerCategoryConstraintFunction()
 
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil
@@ -280,12 +280,13 @@ function M.rebuildRelationships()
 	M.plus_manager._subobjects.skill_config:_rebuildRelationships()
 end
 
--- Rebuild pools after registering skills with pools in tests
--- This is needed because pools are normally registered before
+-- Rebuild categories after registering skills with categories in tests
+-- This is needed because categories are normally registered before
 -- onModsFirstLoaded fires, but tests register them after initialization
-function M.rebuildPools()
-	M.plus_manager._subobjects.skill_config:_rebuildPools()
+function M.rebuildCategories()
+	M.plus_manager._subobjects.skill_config:_rebuildCategories()
 end
+
 
 -- Mock math.random with separate float and integer value arrays
 -- floatValues: array of values to return for math.random() calls (no args)

@@ -16,8 +16,8 @@ local expandedCollapsables = {}
 local categoryHeaderLabels = {}
 local relationshipsContainer = nil
 local relationshipsParent = nil
-local poolsContainer = nil
-local poolsParent = nil
+local categoriesContainer = nil
+local categoriesParent = nil
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -124,18 +124,18 @@ end
 -- For some actions it doesn't trigger a rebuild of relationships otherwise
 -- Its a bit clunky but its temporary for now anyways so shouldn't be a big
 -- deal
-function modify_pilot_skills_ui:rebuildAllPools()
-	-- Rebuild both pools and relationships to maintain correct order
-	if poolsContainer and poolsParent then
-		poolsContainer:detach()
+function modify_pilot_skills_ui:rebuildAllCategoryPools()
+	-- Rebuild both category pools and relationships to maintain correct order
+	if categoriesContainer and categoriesParent then
+		categoriesContainer:detach()
 	end
 	if relationshipsContainer and relationshipsParent then
 		relationshipsContainer:detach()
 	end
 
 	-- Rebuild in correct order
-	if poolsParent then
-		self:buildPools(poolsParent)
+	if categoriesParent then
+		self:buildCategories(categoriesParent)
 	end
 	if relationshipsParent then
 		self:buildRelationships(relationshipsParent)
@@ -672,8 +672,8 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			onToggleCallback()
 		end
 
-		-- Rebuild relationship and pool sections to reflect enabled/disabled state
-		self:rebuildAllPools()
+		-- Rebuild relationship and category sections to reflect enabled/disabled state
+		self:rebuildAllCategories()
 		self:rebuildAllRelationships()
 	end)
 
@@ -965,21 +965,21 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 		cplus_plus_ex:saveConfiguration()
 	end)
 
-	-- Enable pool exclusions checkbox
-	local enablePoolsCheckbox = UiCheckbox()
+	-- Enable category exclusions checkbox
+	local enableCategoriesCheckbox = UiCheckbox()
 		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("Enable pool based exclusions so only one skill from each pool can be chosen per pilot. Vanilla behavior would be disabling this")
+		:settooltip("Enable category based exclusions so only one skill from each category can be chosen per pilot. Vanilla behavior would be disabling this")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
 			DecoAlign(0, 2),
-			DecoText("Enable Pool Based Exclusions")
+			DecoText("Enable Category Based Exclusions")
 		})
 		:addTo(settingsContent)
-	enablePoolsCheckbox.checked = cplus_plus_ex.config.enablePoolExclusions
+	enableCategoriesCheckbox.checked = cplus_plus_ex.config.enableCategoryExclusions
 
-	enablePoolsCheckbox.onToggled:subscribe(function(checked)
-		cplus_plus_ex.config.enablePoolExclusions = checked
+	enableCategoriesCheckbox.onToggled:subscribe(function(checked)
+		cplus_plus_ex.config.enableCategoryExclusions = checked
 		cplus_plus_ex:saveConfiguration()
 	end)
 end
@@ -1070,8 +1070,8 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
 
-				-- Rebuild pool and relationship sections to reflect enabled/disabled state
-				self:rebuildAllPools()
+				-- Rebuild category pool and relationship sections to reflect enabled/disabled state
+				self:rebuildAllCategoryPools()
 				self:rebuildAllRelationships()
 			end
 
@@ -1657,16 +1657,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	rebuildRelationshipList()
 end
 
--- Helper to build pools container which includes skills per row and a button to create new pools
-function modify_pilot_skills_ui:buildAllPoolsSection(parent, rebuildCallback)
+-- Helper to build categories container which includes skills per row and a button to create new categories
+function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallback)
 	local controlsRow = UiWeightLayout()
 		:width(1):heightpx(ROW_HEIGHT)
 		:addTo(parent)
 
-	-- Create pool input field
-	local newPoolInput = UiInputField()
+	-- Create category input field
+	local newCategoryInput = UiInputField()
 		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("Enter new pool name/id")
+		:settooltip("Enter new category name/id")
 		:decorate({
 			DecoButton(),
 			DecoAlign(0, 2),
@@ -1678,44 +1678,44 @@ function modify_pilot_skills_ui:buildAllPoolsSection(parent, rebuildCallback)
 		})
 		:addTo(controlsRow)
 
-	newPoolInput.textfield = ""
+	newCategoryInput.textfield = ""
 
-	-- Create pool button
-	local btnCreatePool = sdlext.buildButton(
-		"Create Pool",
-		"Create a new empty skill pool",
+	-- Create category button
+	local btnCreateCategory = sdlext.buildButton(
+		"Add Category",
+		"Adds a new empty skill category",
 		function()
-			local poolName = newPoolInput.textfield:gsub("^%s*(.-)%s*$", "%1")
-			if poolName == "" then
+			local categoryName = newCategoryInput.textfield:gsub("^%s*(.-)%s*$", "%1")
+			if categoryName == "" then
 				return true
 			end
 
-			-- Check if pool already exists
-			if cplus_plus_ex:getPool(poolName) then
+			-- Check if category already exists
+			if cplus_plus_ex:getCategory(categoryName) then
 				sdlext.showButtonDialog(
-					"Pool Exists",
-					"Pool '" .. poolName .. "' already exists.",
+					"Category Exists",
+					"Category '" .. categoryName .. "' already exists.",
 					function() end,
 					{"OK"}
 				)
 				return true
 			end
 
-			-- Create empty pool by tracking it in emptyPools
-			cplus_plus_ex.config.emptyPools[poolName] = true
-			cplus_plus_ex.config.poolsCollapseStates[poolName] = false
-			newPoolInput.textfield = ""
-			logger.logInfo(SUBMODULE, "Created empty pool '%s'", poolName)
+			-- Create empty category by tracking it in emptyCategories
+			cplus_plus_ex.config.emptyCategories[categoryName] = true
+			cplus_plus_ex.config.categoriesCollapseStates[categoryName] = false
+			newCategoryInput.textfield = ""
+			logger.logInfo(SUBMODULE, "Created empty category '%s'", categoryName)
 			cplus_plus_ex:saveConfiguration()
 			rebuildCallback()
 			return true
 		end
 	)
-	btnCreatePool:widthpx(240):heightpx(ROW_HEIGHT):addTo(controlsRow)
+	btnCreateCategory:widthpx(260):heightpx(ROW_HEIGHT):addTo(controlsRow)
 
 	-- Grid size label
 	Ui()
-		:widthpx(160):heightpx(ROW_HEIGHT)
+		:widthpx(150):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoAlign(0, 2),
 			DecoText("Grid Size:", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
@@ -1725,7 +1725,7 @@ function modify_pilot_skills_ui:buildAllPoolsSection(parent, rebuildCallback)
 	local gridSizeValues = {2, 3, 4, 5}
 	local gridSizeDisplay = {"2", "3", "4", "5"}
 
-	local currentGridSize = cplus_plus_ex.config.poolsItemsPerRow or 4
+	local currentGridSize = cplus_plus_ex.config.categoriesItemsPerRow or 4
 
 	logger.logDebug(SUBMODULE, "Grid size dropdown: current value=%d", currentGridSize)
 
@@ -1742,23 +1742,23 @@ function modify_pilot_skills_ui:buildAllPoolsSection(parent, rebuildCallback)
 		:addTo(controlsRow)
 
 	gridSizeDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
-		cplus_plus_ex.config.poolsItemsPerRow = newValue
+		cplus_plus_ex.config.categoriesItemsPerRow = newValue
 		cplus_plus_ex:saveConfiguration()
 		rebuildCallback()
 	end)
 end
 
--- Helper to build add skill line in each pool to add skills to that pool
-function modify_pilot_skills_ui:buildPoolAddSkill(parent, poolName, newlyAddedPoolSkills, rebuildCallback)
-	local pool = cplus_plus_ex:getPool(poolName)
-	if not pool then return end
+-- Helper to build add skill line in each category pool to add skills to that category
+function modify_pilot_skills_ui:buildCategoryPoolAddSkill(parent, categoryName, newlyAddedCategorySkills, rebuildCallback)
+	local category = cplus_plus_ex:getCategory(categoryName)
+	if not category then return end
 
-	-- Get all enabled skills not in this pool
+	-- Get all enabled skills not in this category
 	local availableSkills = {""}  -- Start with empty entry
 	local availableSkillsMap = {}
 
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
-		if self:isItemEnabled(skillId) and not pool.skillIds[skillId] then
+		if self:isItemEnabled(skillId) and not category.skillIds[skillId] then
 			table.insert(availableSkills, skillId)
 			availableSkillsMap[skillId] = {
 				name = GetText(skill.shortName) or skill.shortName,
@@ -1782,7 +1782,7 @@ function modify_pilot_skills_ui:buildPoolAddSkill(parent, poolName, newlyAddedPo
 
 	-- Build parallel arrays for skill selection dropdown
 	local availableSkillsDisplay = {""}  -- Empty entry
-	local availableSkillsTooltips = {"Select a skill to add to this pool"}
+	local availableSkillsTooltips = {"Select a skill to add to this category"}
 	for i = 2, #availableSkills do
 		local skillId = availableSkills[i]
 		table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
@@ -1813,19 +1813,19 @@ function modify_pilot_skills_ui:buildPoolAddSkill(parent, poolName, newlyAddedPo
 
 	local btnAddSkill = sdlext.buildButton(
 		"Add Skill",
-		"Add selected skill to this pool",
+		"Add selected skill to this category",
 		function()
 			-- Don't add if empty selection
 			if selectedSkillId == "" then
 				return true
 			end
 
-			if cplus_plus_ex:addSkillToPool(selectedSkillId, poolName) then
+			if cplus_plus_ex:addSkillToCategory(selectedSkillId, categoryName) then
 				-- Track as newly added (UI-only state)
-				if not newlyAddedPoolSkills[poolName] then
-					newlyAddedPoolSkills[poolName] = {}
+				if not newlyAddedCategorySkills[categoryName] then
+					newlyAddedCategorySkills[categoryName] = {}
 				end
-				newlyAddedPoolSkills[poolName][selectedSkillId] = true
+				newlyAddedCategorySkills[categoryName][selectedSkillId] = true
 
 				cplus_plus_ex:saveConfiguration()
 				rebuildCallback()
@@ -1836,8 +1836,8 @@ function modify_pilot_skills_ui:buildPoolAddSkill(parent, poolName, newlyAddedPo
 	btnAddSkill:width(0.3):heightpx(ROW_HEIGHT):addTo(addSkillRow)
 end
 
--- Helper to build a single skill cell in pool grid
-function modify_pilot_skills_ui:buildPoolSkillCell(parent, skillId, poolName, itemsPerRow, rebuildCallback)
+-- Helper to build a single skill cell in category grid
+function modify_pilot_skills_ui:buildCategorySkillCell(parent, skillId, categoryName, itemsPerRow, rebuildCallback)
 	local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
 	local skillName = skill and (GetText(skill.shortName) or skill.shortName) or skillId
 
@@ -1876,9 +1876,9 @@ function modify_pilot_skills_ui:buildPoolSkillCell(parent, skillId, poolName, it
 	-- Remove button
 	local btnRemove = sdlext.buildButton(
 		"X",
-		"Remove " .. skillName .. " from pool",
+		"Remove " .. skillName .. " from category",
 		function()
-			cplus_plus_ex:removeSkillFromPool(skillId, poolName)
+			cplus_plus_ex:removeSkillFromCategory(skillId, categoryName)
 			cplus_plus_ex:saveConfiguration()
 			rebuildCallback()
 			return true
@@ -1887,17 +1887,17 @@ function modify_pilot_skills_ui:buildPoolSkillCell(parent, skillId, poolName, it
 	btnRemove:widthpx(30):heightpx(ROW_HEIGHT):addTo(cellRow)
 end
 
--- Helper to build skill grid for a pool
-function modify_pilot_skills_ui:buildPoolSkillGrid(parent, poolName, newlyAddedPoolSkills, rebuildCallback)
-	local pool = cplus_plus_ex:getPool(poolName)
-	if not pool then return end
+-- Helper to build skill grid for a category pool
+function modify_pilot_skills_ui:buildCategoryPoolSkillGrid(parent, categoryName, newlyAddedCategorySkills, rebuildCallback)
+	local category = cplus_plus_ex:getCategory(categoryName)
+	if not category then return end
 
 	-- Separate newly added from existing skills
 	local newlyAddedSkills = {}
 	local existingSkills = {}
-	local newlyAddedSet = newlyAddedPoolSkills[poolName] or {}
+	local newlyAddedSet = newlyAddedCategorySkills[categoryName] or {}
 
-	for skillId in pairs(pool.skillIds) do
+	for skillId in pairs(category.skillIds) do
 		-- Only include enabled skills in display
 		if self:isItemEnabled(skillId) then
 			if newlyAddedSet[skillId] then
@@ -1936,13 +1936,13 @@ function modify_pilot_skills_ui:buildPoolSkillGrid(parent, poolName, newlyAddedP
 			:addTo(parent)
 			:beginUi()
 				:width(1):heightpx(ROW_HEIGHT)
-				:decorate({DecoText("No skills in this pool.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
+				:decorate({DecoText("No skills in this category.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
 			:endUi()
 		return
 	end
 
 	-- Build grid with consistent column spacing
-	local itemsPerRow = cplus_plus_ex.config.poolsItemsPerRow
+	local itemsPerRow = cplus_plus_ex.config.categoriesItemsPerRow
 	local skillIndex = 1
 
 	while skillIndex <= #sortedSkillIds do
@@ -1954,7 +1954,7 @@ function modify_pilot_skills_ui:buildPoolSkillGrid(parent, poolName, newlyAddedP
 		for i = 1, itemsPerRow do
 			if skillIndex <= #sortedSkillIds then
 				local skillId = sortedSkillIds[skillIndex]
-				self:buildPoolSkillCell(gridRow, skillId, poolName, itemsPerRow, rebuildCallback)
+				self:buildCategorySkillCell(gridRow, skillId, categoryName, itemsPerRow, rebuildCallback)
 				skillIndex = skillIndex + 1
 			else
 				-- Empty cell to preserve grid spacing
@@ -1967,21 +1967,21 @@ function modify_pilot_skills_ui:buildPoolSkillGrid(parent, poolName, newlyAddedP
 	end
 end
 
--- Helper to build a single pool section
-function modify_pilot_skills_ui:buildPoolSection(parent, poolName, newlyAddedPoolSkills, rebuildCallback)
-	local pool = cplus_plus_ex:getPool(poolName)
-	logger.logDebug(SUBMODULE, "buildPoolSection: Building pool '%s'", poolName)
+-- Helper to build a single category pool section
+function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, newlyAddedCategorySkills, rebuildCallback)
+	local category = cplus_plus_ex:getCategory(categoryName)
+	logger.logDebug(SUBMODULE, "buildCategorySection: Building category '%s'", categoryName)
 
-	local poolCollapse, poolHeader = self:buildCollapsibleSectionBase(poolName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
-		cplus_plus_ex.config.poolsCollapseStates[poolName] or false)
+	local categoryCollapse, categoryHeader = self:buildCollapsibleSectionBase(categoryName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
+		cplus_plus_ex.config.categoriesCollapseStates[categoryName] or false)
 
 	-- Save collapse state
-	poolCollapse.poolName = poolName
-	poolCollapse.onclicked = function(cc, button)
+	categoryCollapse.categoryName = categoryName
+	categoryCollapse.onclicked = function(cc, button)
 		if button == 1 then
 			local result = self:clickCollapse(cc, button)
 			if result then
-				cplus_plus_ex.config.poolsCollapseStates[poolName] = not cc.checked
+				cplus_plus_ex.config.categoriesCollapseStates[categoryName] = not cc.checked
 				cplus_plus_ex:saveConfiguration()
 			end
 			return result
@@ -1989,30 +1989,49 @@ function modify_pilot_skills_ui:buildPoolSection(parent, poolName, newlyAddedPoo
 		return false
 	end
 
-	-- Pool title with delete button
+	-- Category title with delete button
 	local titleRow = UiWeightLayout()
 		:width(1.0):heightpx(ROW_HEIGHT)
-		:addTo(poolHeader)
+		:addTo(categoryHeader)
 
 	Ui()
-		:width(0.7):heightpx(ROW_HEIGHT)
+		:width(0.4):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
-			DecoText(poolName, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+			DecoText(categoryName, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
 		})
 		:addTo(titleRow)
 
-	local btnDeletePool = sdlext.buildButton(
-		"Delete Pool",
-		"Delete this pool and remove all skills from it",
+	-- Only One Per Pilot checkbox
+	local settings = cplus_plus_ex:getCategorySettings(categoryName)
+	local onlyOneCheckbox = UiCheckbox()
+		:width(0.3):heightpx(ROW_HEIGHT)
+		:settooltip("When checked, only one skill from this category can be assigned per pilot (mutual exclusion)")
+		:decorate({
+			DecoButton(),
+			DecoCheckbox(),
+			DecoAlign(0, 2),
+			DecoText("Only One Per Pilot")
+		})
+		:addTo(titleRow)
+
+	onlyOneCheckbox.checked = settings.onlyOnePerPilot or false
+	onlyOneCheckbox.onToggled:subscribe(function(checked)
+		cplus_plus_ex:setCategorySettings(categoryName, {onlyOnePerPilot = checked})
+		cplus_plus_ex:saveConfiguration()
+	end)
+
+	local btnDeleteCategory = sdlext.buildButton(
+		"Delete Category",
+		"Delete this category and remove all skills from it",
 		function()
 			sdlext.showButtonDialog(
 				"Confirm Delete",
-				"Delete pool '" .. poolName .. "'?",
+				"Delete category '" .. categoryName .. "'?",
 				function(btnIndex)
 					if btnIndex == 1 then
-						cplus_plus_ex:deletePool(poolName)
+						cplus_plus_ex:deleteCategory(categoryName)
 						cplus_plus_ex:saveConfiguration()
 						rebuildCallback()
 					end
@@ -2022,53 +2041,53 @@ function modify_pilot_skills_ui:buildPoolSection(parent, poolName, newlyAddedPoo
 			return true
 		end
 	)
-	btnDeletePool:width(0.3):heightpx(ROW_HEIGHT):addTo(titleRow)
+	btnDeleteCategory:width(0.3):heightpx(ROW_HEIGHT):addTo(titleRow)
 
-	local poolContent = poolCollapse.dropdownHolder
+	local categoryContent = categoryCollapse.dropdownHolder
 
 	-- Add skill control
-	self:buildPoolAddSkill(poolContent, poolName, newlyAddedPoolSkills, rebuildCallback)
+	self:buildCategoryPoolAddSkill(categoryContent, categoryName, newlyAddedCategorySkills, rebuildCallback)
 
-	-- Build grid of skills in pool
-	self:buildPoolSkillGrid(poolContent, poolName, newlyAddedPoolSkills, rebuildCallback)
+	-- Build grid of skills in category
+	self:buildCategoryPoolSkillGrid(categoryContent, categoryName, newlyAddedCategorySkills, rebuildCallback)
 end
 
--- Build the skill pools UI section
-function modify_pilot_skills_ui:buildPools(scrollContent)
-	local poolsMainSection = self:buildCollapsibleSection("Skill Pools", scrollContent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
-		"Pools group skills into logical groups where only one skill from each pool can be assigned per pilot (if pool constraints are enabled)")
+-- Build the skill categories UI section
+function modify_pilot_skills_ui:buildCategories(scrollContent)
+	local categoriesMainSection = self:buildCollapsibleSection("Skill Categories", scrollContent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
+		"Categories group skills into logical groups where only one skill from each category can be assigned per pilot (if category constraints are enabled)")
 
 	-- Store reference to the entire section box (parent of content) for rebuilding
-	poolsContainer = poolsMainSection.parent
-	poolsParent = scrollContent
+	categoriesContainer = categoriesMainSection.parent
+	categoriesParent = scrollContent
 
 	-- Top controls
-	self:buildAllPoolsSection(poolsMainSection, function() self:rebuildAllPools() end)
+	self:buildAllCategoriesSection(categoriesMainSection, function() self:rebuildAllCategoryPools() end)
 
-	-- Content container for pool sections
-	local poolsContent = UiBoxLayout()
+	-- Content container for category sections
+	local categoriesContent = UiBoxLayout()
 		:vgap(DEFAULT_VGAP)
 		:width(1)
-		:addTo(poolsMainSection)
+		:addTo(categoriesMainSection)
 
-	-- Get all pools sorted by name
-	local poolNames = cplus_plus_ex:listPools()
+	-- Get all categories sorted by name
+	local categoryNames = cplus_plus_ex:listCategories()
 
-	if #poolNames == 0 then
+	if #categoryNames == 0 then
 		UiBoxLayout()
 			:vgap(DEFAULT_VGAP)
 			:width(1)
-			:addTo(poolsContent)
+			:addTo(categoriesContent)
 			:beginUi()
 				:width(1):heightpx(ROW_HEIGHT)
-				:decorate({DecoText("No pools defined. Create a pool above or skills with pool definitions will auto-create pools.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
+				:decorate({DecoText("No categories defined. Create a category above or skills with category definitions will auto-create categories.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
 			:endUi()
 		return
 	end
 
-	-- Build each pool
-	for _, poolName in ipairs(poolNames) do
-		self:buildPoolSection(poolsContent, poolName, {}, function() self:rebuildAllPools() end)
+	-- Build each category
+	for _, categoryName in ipairs(categoryNames) do
+		self:buildCategoryPoolSection(categoriesContent, categoryName, {}, function() self:rebuildAllCategoryPools() end)
 	end
 end
 
@@ -2124,8 +2143,8 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	categoryHeaderLabels = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil
-	poolsContainer = nil
-	poolsParent = nil
+	categoriesContainer = nil
+	categoriesParent = nil
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -2135,7 +2154,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Add the settings
 	self:buildGeneralSettings(scrollContent)
 	self:buildSkillsList(scrollContent)
-	self:buildPools(scrollContent)
+	self:buildCategories(scrollContent)
 	self:buildRelationships(scrollContent)
 end
 

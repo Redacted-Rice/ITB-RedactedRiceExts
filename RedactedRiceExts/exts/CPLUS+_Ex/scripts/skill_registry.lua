@@ -57,9 +57,9 @@ end
 --   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
--- pools optional array of pool names (strings) this skill belongs to
+-- categories optional array of pool names (strings) this skill belongs to
 function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
-		defaultReusability, maxReusability, slotRestriction, weight, icon, pools)
+		defaultReusability, maxReusability, slotRestriction, weight, icon, categories)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -76,7 +76,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
-		pools = idOrTable.pools
+		categories = idOrTable.categories
 	end
 
 	-- Check if ID is already registered globally
@@ -137,30 +137,30 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = cplus_plus_ex.DEFAULT_SLOT_RESTRICTION
 	end
 
-	-- Validate pools
-	logger.logDebug(SUBMODULE, "registerSkill '%s': Validating pools, type=%s", id, type(pools))
-	if pools ~= nil then
-		if type(pools) ~= "table" then
-			logger.logWarn(SUBMODULE, "Skill '%s' has invalid pools (must be array of strings). Ignoring pools.", id)
-			pools = {}
+	-- Validate categories
+	logger.logDebug(SUBMODULE, "registerSkill '%s': Validating categories, type=%s", id, type(categories))
+	if categories ~= nil then
+		if type(categories) ~= "table" then
+			logger.logWarn(SUBMODULE, "Skill '%s' has invalid categories (must be array of strings). Ignoring categories.", id)
+			categories = {}
 		else
-			logger.logDebug(SUBMODULE, "registerSkill '%s': pools is table, checking array contents", id)
-			-- Validate all pool names are strings and rebuild array without invalid entries
-			local validPools = {}
-			for i, poolName in ipairs(pools) do
-				logger.logDebug(SUBMODULE, "  Pool[%d]: type=%s, value=%s", i, type(poolName), tostring(poolName))
-				if type(poolName) == "string" then
-					table.insert(validPools, poolName)
+			logger.logDebug(SUBMODULE, "registerSkill '%s': categories is table, checking array contents", id)
+			-- Validate all category names are strings and rebuild array without invalid entries
+			local validCategories = {}
+			for i, categoryName in ipairs(categories) do
+				logger.logDebug(SUBMODULE, "  Category[%d]: type=%s, value=%s", i, type(categoryName), tostring(categoryName))
+				if type(categoryName) == "string" then
+					table.insert(validCategories, categoryName)
 				else
-					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pool name at index %d (must be string). Ignoring this pool.", id, i)
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid category name at index %d (must be string). Ignoring this category.", id, i)
 				end
 			end
-			pools = validPools
-			logger.logDebug(SUBMODULE, "registerSkill '%s': %d valid pool(s) after validation", id, #pools)
+			categories = validCategories
+			logger.logDebug(SUBMODULE, "registerSkill '%s': %d valid category(s) after validation", id, #categories)
 		end
 	else
-		logger.logDebug(SUBMODULE, "registerSkill '%s': pools is nil, using empty array", id)
-		pools = {}
+		logger.logDebug(SUBMODULE, "registerSkill '%s': categories is nil, using empty array", id)
+		categories = {}
 	end
 
 	-- Register the skill with its type and reusability included in the skill data
@@ -173,13 +173,13 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 			icon = icon,
 	}
 
-	-- add a config value pools will be updated in setSkillConfig
-	if #pools > 0 then
-		logger.logInfo(SUBMODULE, "Registering skill '%s' with %d pool(s): %s", id, #pools, table.concat(pools, ", "))
+	-- add a config value categories will be updated in setSkillConfig
+	if #categories > 0 then
+		logger.logInfo(SUBMODULE, "Registering skill '%s' with %d category(s): %s", id, #categories, table.concat(categories, ", "))
 	end
 
 	-- add a config value with default reusability
-	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight, pools = pools})
+	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight, categories = categories})
 
 	-- Apply skill category exclusions if provided
 	if skill_cat_excl then
