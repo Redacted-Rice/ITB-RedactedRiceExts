@@ -16,6 +16,8 @@ local expandedCollapsables = {}
 local categoryHeaderLabels = {}
 local relationshipsContainer = nil
 local relationshipsParent = nil
+local poolsContainer = nil
+local poolsParent = nil
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -115,6 +117,27 @@ end
 function modify_pilot_skills_ui:rebuildAllRelationships()
 	if relationshipsContainer and relationshipsParent then
 		relationshipsContainer:detach()
+		self:buildRelationships(relationshipsParent)
+	end
+end
+
+-- For some actions it doesn't trigger a rebuild of relationships otherwise
+-- Its a bit clunky but its temporary for now anyways so shouldn't be a big
+-- deal
+function modify_pilot_skills_ui:rebuildAllPools()
+	-- Rebuild both pools and relationships to maintain correct order
+	if poolsContainer and poolsParent then
+		poolsContainer:detach()
+	end
+	if relationshipsContainer and relationshipsParent then
+		relationshipsContainer:detach()
+	end
+
+	-- Rebuild in correct order
+	if poolsParent then
+		self:buildPools(poolsParent)
+	end
+	if relationshipsParent then
 		self:buildRelationships(relationshipsParent)
 	end
 end
@@ -649,7 +672,8 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			onToggleCallback()
 		end
 
-		-- Rebuild relationship sections to reflect enabled/disabled state
+		-- Rebuild relationship and pool sections to reflect enabled/disabled state
+		self:rebuildAllPools()
 		self:rebuildAllRelationships()
 	end)
 
@@ -940,6 +964,24 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 		cplus_plus_ex.config.allowReusableSkills = checked
 		cplus_plus_ex:saveConfiguration()
 	end)
+
+	-- Enable pool exclusions checkbox
+	local enablePoolsCheckbox = UiCheckbox()
+		:width(1):heightpx(ROW_HEIGHT)
+		:settooltip("Enable pool based exclusions so only one skill from each pool can be chosen per pilot. Vanilla behavior would be disabling this")
+		:decorate({
+			DecoButton(),
+			DecoCheckbox(),
+			DecoAlign(0, 2),
+			DecoText("Enable Pool Based Exclusions")
+		})
+		:addTo(settingsContent)
+	enablePoolsCheckbox.checked = cplus_plus_ex.config.enablePoolExclusions
+
+	enablePoolsCheckbox.onToggled:subscribe(function(checked)
+		cplus_plus_ex.config.enablePoolExclusions = checked
+		cplus_plus_ex:saveConfiguration()
+	end)
 end
 
 function modify_pilot_skills_ui:buildSkillsList(scrollContent)
@@ -1028,7 +1070,8 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
 
-				-- Rebuild relationship sections to reflect enabled/disabled state
+				-- Rebuild pool and relationship sections to reflect enabled/disabled state
+				self:rebuildAllPools()
 				self:rebuildAllRelationships()
 			end
 
@@ -1048,7 +1091,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				})
 			end
 
-			-- Category checkbox click hanupdateChildrenCheckedStatedler
+			-- Category checkbox click handler
 			categoryCheckbox.onclicked = function(cc, button)
 				if button == 1 then
 					cc:updateChildrenCheckedState()
@@ -1614,6 +1657,421 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	rebuildRelationshipList()
 end
 
+-- Helper to build pools container which includes skills per row and a button to create new pools
+function modify_pilot_skills_ui:buildAllPoolsSection(parent, rebuildCallback)
+	local controlsRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(parent)
+
+	-- Create pool input field
+	local newPoolInput = UiInputField()
+		:width(1):heightpx(ROW_HEIGHT)
+		:settooltip("Enter new pool name/id")
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoInputField{
+				alignV = "center",
+				offsetX = 10,
+				offsetY = 2,
+			},
+		})
+		:addTo(controlsRow)
+
+	newPoolInput.textfield = ""
+
+	-- Create pool button
+	local btnCreatePool = sdlext.buildButton(
+		"Create Pool",
+		"Create a new empty skill pool",
+		function()
+			local poolName = newPoolInput.textfield:gsub("^%s*(.-)%s*$", "%1")
+			if poolName == "" then
+				return true
+			end
+
+			-- Check if pool already exists
+			if cplus_plus_ex:getPool(poolName) then
+				sdlext.showButtonDialog(
+					"Pool Exists",
+					"Pool '" .. poolName .. "' already exists.",
+					function() end,
+					{"OK"}
+				)
+				return true
+			end
+
+			-- Create empty pool by tracking it in emptyPools
+			cplus_plus_ex.config.emptyPools[poolName] = true
+			cplus_plus_ex.config.poolsCollapseStates[poolName] = false
+			newPoolInput.textfield = ""
+			logger.logInfo(SUBMODULE, "Created empty pool '%s'", poolName)
+			cplus_plus_ex:saveConfiguration()
+			rebuildCallback()
+			return true
+		end
+	)
+	btnCreatePool:widthpx(240):heightpx(ROW_HEIGHT):addTo(controlsRow)
+
+	-- Grid size label
+	Ui()
+		:widthpx(160):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoAlign(0, 2),
+			DecoText("Grid Size:", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
+		})
+		:addTo(controlsRow)
+
+	local gridSizeValues = {2, 3, 4, 5}
+	local gridSizeDisplay = {"2", "3", "4", "5"}
+
+	local currentGridSize = cplus_plus_ex.config.poolsItemsPerRow or 4
+
+	logger.logDebug(SUBMODULE, "Grid size dropdown: current value=%d", currentGridSize)
+
+	local gridSizeDropdown = UiDropDown(gridSizeValues, gridSizeDisplay, currentGridSize, nil)
+		:widthpx(120)
+		:heightpx(40)
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, DROPDOWN_BUTTON_PADDING),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(controlsRow)
+
+	gridSizeDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
+		cplus_plus_ex.config.poolsItemsPerRow = newValue
+		cplus_plus_ex:saveConfiguration()
+		rebuildCallback()
+	end)
+end
+
+-- Helper to build add skill line in each pool to add skills to that pool
+function modify_pilot_skills_ui:buildPoolAddSkill(parent, poolName, newlyAddedPoolSkills, rebuildCallback)
+	local pool = cplus_plus_ex:getPool(poolName)
+	if not pool then return end
+
+	-- Get all enabled skills not in this pool
+	local availableSkills = {""}  -- Start with empty entry
+	local availableSkillsMap = {}
+
+	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+		if self:isItemEnabled(skillId) and not pool.skillIds[skillId] then
+			table.insert(availableSkills, skillId)
+			availableSkillsMap[skillId] = {
+				name = GetText(skill.shortName) or skill.shortName,
+				tooltip = GetText(skill.description) or skill.description
+			}
+		end
+	end
+
+	-- Sort skills keeping empty one at index 1
+	local skillsToSort = {}
+	for i = 2, #availableSkills do
+		table.insert(skillsToSort, availableSkills[i])
+	end
+	table.sort(skillsToSort, function(a, b)
+		return (availableSkillsMap[a].name or a):lower() < (availableSkillsMap[b].name or b):lower()
+	end)
+	availableSkills = {""}
+	for _, skillId in ipairs(skillsToSort) do
+		table.insert(availableSkills, skillId)
+	end
+
+	-- Build parallel arrays for skill selection dropdown
+	local availableSkillsDisplay = {""}  -- Empty entry
+	local availableSkillsTooltips = {"Select a skill to add to this pool"}
+	for i = 2, #availableSkills do
+		local skillId = availableSkills[i]
+		table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
+		table.insert(availableSkillsTooltips, availableSkillsMap[skillId].tooltip)
+	end
+
+	local addSkillRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(parent)
+
+	local selectedSkillId = ""  -- Start with empty selection
+
+	local addSkillDropdown = UiDropDown(availableSkills, availableSkillsDisplay, selectedSkillId, availableSkillsTooltips)
+		:width(0.7)
+		:heightpx(40)
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, DROPDOWN_BUTTON_PADDING),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(addSkillRow)
+
+	addSkillDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
+		selectedSkillId = newValue
+	end)
+
+	local btnAddSkill = sdlext.buildButton(
+		"Add Skill",
+		"Add selected skill to this pool",
+		function()
+			-- Don't add if empty selection
+			if selectedSkillId == "" then
+				return true
+			end
+
+			if cplus_plus_ex:addSkillToPool(selectedSkillId, poolName) then
+				-- Track as newly added (UI-only state)
+				if not newlyAddedPoolSkills[poolName] then
+					newlyAddedPoolSkills[poolName] = {}
+				end
+				newlyAddedPoolSkills[poolName][selectedSkillId] = true
+
+				cplus_plus_ex:saveConfiguration()
+				rebuildCallback()
+			end
+			return true
+		end
+	)
+	btnAddSkill:width(0.3):heightpx(ROW_HEIGHT):addTo(addSkillRow)
+end
+
+-- Helper to build a single skill cell in pool grid
+function modify_pilot_skills_ui:buildPoolSkillCell(parent, skillId, poolName, itemsPerRow, rebuildCallback)
+	local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+	local skillName = skill and (GetText(skill.shortName) or skill.shortName) or skillId
+
+	local skillCell = UiBoxLayout()
+		:width(1.0 / itemsPerRow)
+		:heightpx(ROW_HEIGHT + 10)
+		:padding(2)
+		:addTo(parent)
+
+	local cellRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(skillCell)
+
+	-- Icon
+	if skill and skill.icon and skill.icon ~= "" then
+		local iconUi = Ui()
+			:widthpx(SKILL_ICON_TOTAL):heightpx(ROW_HEIGHT)
+
+		local surface = sdlext.getSurface({ path = skill.icon })
+		if surface then
+			local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+			iconUi:decorate({DecoSurfaceAligned(scaledSurface, "center", "center")})
+		end
+		iconUi:addTo(cellRow)
+	end
+
+	-- Name
+	Ui()
+		:width(0.6):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoAlign(0, 2),
+			DecoText(skillName, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
+		})
+		:addTo(cellRow)
+
+	-- Remove button
+	local btnRemove = sdlext.buildButton(
+		"X",
+		"Remove " .. skillName .. " from pool",
+		function()
+			cplus_plus_ex:removeSkillFromPool(skillId, poolName)
+			cplus_plus_ex:saveConfiguration()
+			rebuildCallback()
+			return true
+		end
+	)
+	btnRemove:widthpx(30):heightpx(ROW_HEIGHT):addTo(cellRow)
+end
+
+-- Helper to build skill grid for a pool
+function modify_pilot_skills_ui:buildPoolSkillGrid(parent, poolName, newlyAddedPoolSkills, rebuildCallback)
+	local pool = cplus_plus_ex:getPool(poolName)
+	if not pool then return end
+
+	-- Separate newly added from existing skills
+	local newlyAddedSkills = {}
+	local existingSkills = {}
+	local newlyAddedSet = newlyAddedPoolSkills[poolName] or {}
+
+	for skillId in pairs(pool.skillIds) do
+		-- Only include enabled skills in display
+		if self:isItemEnabled(skillId) then
+			if newlyAddedSet[skillId] then
+				table.insert(newlyAddedSkills, skillId)
+			else
+				table.insert(existingSkills, skillId)
+			end
+		end
+	end
+
+	-- Sort each group by skill name
+	local function sortBySkillName(a, b)
+		local skillA = cplus_plus_ex._subobjects.skill_registry.registeredSkills[a]
+		local skillB = cplus_plus_ex._subobjects.skill_registry.registeredSkills[b]
+		local nameA = skillA and (GetText(skillA.shortName) or skillA.shortName) or a
+		local nameB = skillB and (GetText(skillB.shortName) or skillB.shortName) or b
+		return nameA:lower() < nameB:lower()
+	end
+
+	table.sort(newlyAddedSkills, sortBySkillName)
+	table.sort(existingSkills, sortBySkillName)
+
+	-- Combine with newly added at top
+	local sortedSkillIds = {}
+	for _, skillId in ipairs(newlyAddedSkills) do
+		table.insert(sortedSkillIds, skillId)
+	end
+	for _, skillId in ipairs(existingSkills) do
+		table.insert(sortedSkillIds, skillId)
+	end
+
+	if #sortedSkillIds == 0 then
+		UiBoxLayout()
+			:vgap(DEFAULT_VGAP)
+			:width(1)
+			:addTo(parent)
+			:beginUi()
+				:width(1):heightpx(ROW_HEIGHT)
+				:decorate({DecoText("No skills in this pool.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
+			:endUi()
+		return
+	end
+
+	-- Build grid with consistent column spacing
+	local itemsPerRow = cplus_plus_ex.config.poolsItemsPerRow
+	local skillIndex = 1
+
+	while skillIndex <= #sortedSkillIds do
+		local gridRow = UiWeightLayout()
+			:width(1):heightpx(ROW_HEIGHT + 10)
+			:addTo(parent)
+
+		-- Always create itemsPerRow cells to preserve column spacing
+		for i = 1, itemsPerRow do
+			if skillIndex <= #sortedSkillIds then
+				local skillId = sortedSkillIds[skillIndex]
+				self:buildPoolSkillCell(gridRow, skillId, poolName, itemsPerRow, rebuildCallback)
+				skillIndex = skillIndex + 1
+			else
+				-- Empty cell to preserve grid spacing
+				Ui()
+					:width(1.0 / itemsPerRow)
+					:heightpx(ROW_HEIGHT + 10)
+					:addTo(gridRow)
+			end
+		end
+	end
+end
+
+-- Helper to build a single pool section
+function modify_pilot_skills_ui:buildPoolSection(parent, poolName, newlyAddedPoolSkills, rebuildCallback)
+	local pool = cplus_plus_ex:getPool(poolName)
+	logger.logDebug(SUBMODULE, "buildPoolSection: Building pool '%s'", poolName)
+
+	local poolCollapse, poolHeader = self:buildCollapsibleSectionBase(poolName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
+		cplus_plus_ex.config.poolsCollapseStates[poolName] or false)
+
+	-- Save collapse state
+	poolCollapse.poolName = poolName
+	poolCollapse.onclicked = function(cc, button)
+		if button == 1 then
+			local result = self:clickCollapse(cc, button)
+			if result then
+				cplus_plus_ex.config.poolsCollapseStates[poolName] = not cc.checked
+				cplus_plus_ex:saveConfiguration()
+			end
+			return result
+		end
+		return false
+	end
+
+	-- Pool title with delete button
+	local titleRow = UiWeightLayout()
+		:width(1.0):heightpx(ROW_HEIGHT)
+		:addTo(poolHeader)
+
+	Ui()
+		:width(0.7):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoText(poolName, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+		})
+		:addTo(titleRow)
+
+	local btnDeletePool = sdlext.buildButton(
+		"Delete Pool",
+		"Delete this pool and remove all skills from it",
+		function()
+			sdlext.showButtonDialog(
+				"Confirm Delete",
+				"Delete pool '" .. poolName .. "'?",
+				function(btnIndex)
+					if btnIndex == 1 then
+						cplus_plus_ex:deletePool(poolName)
+						cplus_plus_ex:saveConfiguration()
+						rebuildCallback()
+					end
+				end,
+				{"Yes", "No"}
+			)
+			return true
+		end
+	)
+	btnDeletePool:width(0.3):heightpx(ROW_HEIGHT):addTo(titleRow)
+
+	local poolContent = poolCollapse.dropdownHolder
+
+	-- Add skill control
+	self:buildPoolAddSkill(poolContent, poolName, newlyAddedPoolSkills, rebuildCallback)
+
+	-- Build grid of skills in pool
+	self:buildPoolSkillGrid(poolContent, poolName, newlyAddedPoolSkills, rebuildCallback)
+end
+
+-- Build the skill pools UI section
+function modify_pilot_skills_ui:buildPools(scrollContent)
+	local poolsMainSection = self:buildCollapsibleSection("Skill Pools", scrollContent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
+		"Pools group skills into logical groups where only one skill from each pool can be assigned per pilot (if pool constraints are enabled)")
+
+	-- Store reference to the entire section box (parent of content) for rebuilding
+	poolsContainer = poolsMainSection.parent
+	poolsParent = scrollContent
+
+	-- Top controls
+	self:buildAllPoolsSection(poolsMainSection, function() self:rebuildAllPools() end)
+
+	-- Content container for pool sections
+	local poolsContent = UiBoxLayout()
+		:vgap(DEFAULT_VGAP)
+		:width(1)
+		:addTo(poolsMainSection)
+
+	-- Get all pools sorted by name
+	local poolNames = cplus_plus_ex:listPools()
+
+	if #poolNames == 0 then
+		UiBoxLayout()
+			:vgap(DEFAULT_VGAP)
+			:width(1)
+			:addTo(poolsContent)
+			:beginUi()
+				:width(1):heightpx(ROW_HEIGHT)
+				:decorate({DecoText("No pools defined. Create a pool above or skills with pool definitions will auto-create pools.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
+			:endUi()
+		return
+	end
+
+	-- Build each pool
+	for _, poolName in ipairs(poolNames) do
+		self:buildPoolSection(poolsContent, poolName, {}, function() self:rebuildAllPools() end)
+	end
+end
+
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP)
 
@@ -1666,6 +2124,8 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	categoryHeaderLabels = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil
+	poolsContainer = nil
+	poolsParent = nil
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -1675,6 +2135,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Add the settings
 	self:buildGeneralSettings(scrollContent)
 	self:buildSkillsList(scrollContent)
+	self:buildPools(scrollContent)
 	self:buildRelationships(scrollContent)
 end
 

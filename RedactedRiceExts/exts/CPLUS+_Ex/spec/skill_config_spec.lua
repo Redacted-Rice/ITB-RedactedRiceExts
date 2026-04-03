@@ -139,4 +139,182 @@ describe("Skill Config Module", function()
 			assert.is_false(skill_config:isCodeDefinedRelationship(relType, "pilot1", "skill3"))
 		end)
 	end)
+
+describe("Pool Management", function()
+	before_each(function()
+		skill_config.pools = {}
+		skill_config.config.poolDescriptions = {}
+		-- Register test skills
+		helper.setupTestSkills({
+			{id = "Health", shortName = "Health", fullName = "Health", description = "Health", saveVal = -1},
+			{id = "Move", shortName = "Move", fullName = "Move", description = "Move", saveVal = -1},
+		})
+	end)
+
+
+	describe("deletePool", function()
+		it("should delete pool from all skills", function()
+			-- Add skill to pool
+			skill_config:addSkillToPool("Health", "testPool")
+			assert.is_true(skill_config:isSkillInPool("Health", "testPool"))
+
+			local result = skill_config:deletePool("testPool")
+			assert.is_true(result)
+
+			-- Verify pool removed from computed structure
+			assert.is_nil(skill_config.pools.testPool)
+
+			-- Verify pool removed from poolsAdded
+			assert.is_false(skill_config.config.poolsAdded.Health and skill_config.config.poolsAdded.Health.testPool == true)
+		end)
+
+		it("should always succeed even if pool doesn't exist", function()
+			local result = skill_config:deletePool("nonExistent")
+			assert.is_true(result)
+		end)
+	end)
+
+	describe("addSkillToPool", function()
+		it("should add a skill to a pool", function()
+			local result = skill_config:addSkillToPool("Health", "testPool")
+			assert.is_true(result)
+
+			-- Check computed structure
+			assert.is_not_nil(skill_config.pools.testPool)
+			assert.is_true(skill_config.pools.testPool.skillIds.Health)
+
+			-- Verify source of truth - pools use dictionary structure
+			assert.is_not_nil(skill_config.config.poolsAdded.Health)
+			assert.is_true(skill_config.config.poolsAdded.Health.testPool)
+		end)
+
+		it("should auto-create pool in computed structure", function()
+			local result = skill_config:addSkillToPool("Health", "autoPool")
+			assert.is_true(result)
+			assert.is_not_nil(skill_config.pools.autoPool)
+			assert.is_true(skill_config.pools.autoPool.skillIds.Health)
+		end)
+
+		it("should reject if skill doesn't exist", function()
+			local result = skill_config:addSkillToPool("FakeSkill", "testPool")
+			assert.is_false(result)
+		end)
+	end)
+
+	describe("removeSkillFromPool", function()
+		it("should remove a skill from a pool", function()
+			skill_config:addSkillToPool("Health", "testPool")
+
+			local result = skill_config:removeSkillFromPool("Health", "testPool")
+			assert.is_true(result)
+
+			-- Check computed structure
+			assert.is_false(skill_config:isSkillInPool("Health", "testPool"))
+
+			-- Verify skill's pools array is updated
+			local skillConfig = skill_config.config.skillConfigs.Health
+			local foundInArray = false
+			for _, pName in ipairs(skillConfig.pools or {}) do
+				if pName == "testPool" then
+					foundInArray = true
+					break
+				end
+			end
+			assert.is_false(foundInArray)
+		end)
+
+		it("should succeed even if pool doesn't exist", function()
+			local result = skill_config:removeSkillFromPool("Health", "nonExistent")
+			assert.is_true(result)
+		end)
+	end)
+
+	describe("isSkillInPool", function()
+		it("should check if skill is in pool", function()
+			skill_config:addSkillToPool("Health", "testPool")
+
+			assert.is_true(skill_config:isSkillInPool("Health", "testPool"))
+			assert.is_false(skill_config:isSkillInPool("Move", "testPool"))
+		end)
+
+		it("should return false for non-existent pool", function()
+			assert.is_false(skill_config:isSkillInPool("Health", "nonExistent"))
+		end)
+	end)
+
+	describe("listPools", function()
+		it("should list all pools alphabetically from computed structure", function()
+			-- Add skills to pools
+			skill_config:addSkillToPool("Health", "zPool")
+			skill_config:addSkillToPool("Health", "aPool")
+			skill_config:addSkillToPool("Move", "mPool")
+
+			local pools = skill_config:listPools()
+			-- Should have at least our 3 test pools
+			assert.are.equal(3, #pools)
+
+			-- Verify our pools are in the list and sorted
+			local foundAPool = false
+			local foundMPool = false
+			local foundZPool = false
+			for _, poolName in ipairs(pools) do
+				if poolName == "aPool" then foundAPool = true end
+				if poolName == "mPool" then foundMPool = true end
+				if poolName == "zPool" then foundZPool = true end
+			end
+			assert.is_true(foundAPool, "aPool should be in list")
+			assert.is_true(foundMPool, "mPool should be in list")
+			assert.is_true(foundZPool, "zPool should be in list")
+
+			-- Verify alphabetical sorting
+			for i = 2, #pools do
+				assert.is_true(pools[i-1] < pools[i], "Pools should be sorted alphabetically")
+			end
+		end)
+
+		it("should return empty list when no pools exist", function()
+			local pools = skill_config:listPools()
+			assert.are.equal(0, #pools)
+		end)
+	end)
+
+	describe("Incremental Pool Definition", function()
+		it("should auto-create pools when skills are registered with pool arrays", function()
+			-- Register skills with pool definitions
+			helper.setupTestSkills({
+				{id = "Skill1", shortName = "S1", fullName = "Skill 1", description = "Skill 1", saveVal = -1, pools = {"poolA", "poolB"}},
+				{id = "Skill2", shortName = "S2", fullName = "Skill 2", description = "Skill 2", saveVal = -1, pools = {"poolB", "poolC"}},
+			})
+
+			-- Need to rebuild pools after registration
+			helper.rebuildPools()
+
+			-- Pools should appear in computed structure
+			assert.is_not_nil(skill_config.pools.poolA)
+			assert.is_not_nil(skill_config.pools.poolB)
+			assert.is_not_nil(skill_config.pools.poolC)
+
+			-- Skills should be in correct pools
+			assert.is_true(skill_config.pools.poolA.skillIds.Skill1)
+			assert.is_true(skill_config.pools.poolB.skillIds.Skill1)
+			assert.is_true(skill_config.pools.poolB.skillIds.Skill2)
+			assert.is_true(skill_config.pools.poolC.skillIds.Skill2)
+		end)
+
+		it("should handle adding skills to pools via setSkillConfig", function()
+			-- Update skill config to add it to pool (this stores as code-defined)
+			skill_config:setSkillConfig("Health", {pools = {"testPool"}})
+
+			-- Need to rebuild pools after registration
+			helper.rebuildPools()
+
+			-- Verify skill is in pool
+			assert.is_true(skill_config:isSkillInPool("Health", "testPool"))
+
+			-- Verify source of truth - pools use dictionary structure
+			assert.is_not_nil(skill_config.codeDefinedPools.Health)
+			assert.is_true(skill_config.codeDefinedPools.Health.testPool)
+		end)
+	end)
+end)
 end)

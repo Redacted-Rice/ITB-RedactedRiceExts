@@ -415,4 +415,91 @@ describe("Skill Constraints Module", function()
 			assert.is_true(plus_manager:checkSkillConstraints(pilot, {"Fire"}, "Water"))
 		end)
 	end)
+
+	describe("Pool Constraints", function()
+		before_each(function()
+			-- Register vanilla skills needed for pool tests
+			-- Using vanilla skills from cplus_plus_ex.VANILLA_SKILLS
+			helper.setupTestSkills({
+				{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", saveVal = 0, pools = {"health"}},
+				{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", saveVal = 1, pools = {"move"}},
+				{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", saveVal = 2, pools = {"grid"}},
+				{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", saveVal = 3, pools = {"reactor"}},
+				{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, pools = {"boost"}},
+				{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, pools = {"boost"}},
+				{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", saveVal = 8, pools = {"health", "move"}},
+				{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, pools = {"move"}},
+			})
+			helper.rebuildPools()
+			-- Re register pool constraint to pick up test skills
+			plus_manager._subobjects.skill_constraints:_registerPoolConstraintFunction()
+		end)
+
+		it("should allow skills from different pools", function()
+			-- Health is in "health" pool, Move is in "move" pool
+			local pilot = helper.createMockPilot("TestPilot")
+
+			local result = plus_manager:checkSkillConstraints(pilot, {"Health"}, "Move")
+			assert.is_true(result)
+		end)
+
+		it("should prevent skills from the same pool when enabled", function()
+			-- Opener and Closer are both in "boost" pool
+			local pilot = helper.createMockPilot("TestPilot")
+
+			local result = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
+			assert.is_false(result)
+		end)
+
+		it("should allow skills from same pool when pool exclusions disabled", function()
+			-- Disable pool exclusions
+			local skill_config = plus_manager._subobjects.skill_config
+			skill_config.config.enablePoolExclusions = false
+
+			-- Opener and Closer are both in "boost" pool, but should be allowed
+			local pilot = helper.createMockPilot("TestPilot")
+
+			local result = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
+			assert.is_true(result)
+
+			-- Restore default
+			skill_config.config.enablePoolExclusions = true
+		end)
+
+		it("should allow skills not in any pool", function()
+			-- Grid is in its own pool, Health in "health" - no conflict
+			local pilot = helper.createMockPilot("TestPilot")
+
+			local result = plus_manager:checkSkillConstraints(pilot, {"Grid"}, "Health")
+			assert.is_true(result)
+		end)
+
+		it("should handle multiple pools correctly", function()
+			-- Skilled is in both "health" and "move" pools
+			local pilot = helper.createMockPilot("TestPilot")
+
+			-- Skilled and Health conflict via "health" pool
+			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Skilled"}, "Health"))
+
+			-- Skilled and Move conflict via "move" pool
+			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Skilled"}, "Move"))
+
+			-- Skilled and Grid don't share a pool
+			assert.is_true(plus_manager:checkSkillConstraints(pilot, {"Skilled"}, "Grid"))
+		end)
+
+		it("should handle multiple selected skills", function()
+			-- Adrenaline and Move both in "move" pool
+			local pilot = helper.createMockPilot("TestPilot")
+
+			-- Move already selected, Adrenaline should be blocked
+			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Move"}, "Adrenaline"))
+
+			-- Reactor not in "move" pool, should be allowed
+			assert.is_true(plus_manager:checkSkillConstraints(pilot, {"Move"}, "Reactor"))
+
+			-- Multiple selected, Skilled in both "health" and "move" - blocked by Move in "move" pool
+			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Move", "Reactor"}, "Skilled"))
+		end)
+	end)
 end)

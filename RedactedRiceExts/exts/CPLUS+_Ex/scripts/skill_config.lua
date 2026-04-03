@@ -87,9 +87,15 @@ end
 -- These are runtime changeable configuration parameters
 skill_config.config = {
 	allowReusableSkills = false, -- will be set on load by options but default to vanilla
+	enablePoolExclusions = true, -- Enable pool based skill exclusions
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability, slotRestriction
 	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Slot, 5=Weight/%
 	categoryCollapseStates = {}, -- category name -> collapsed state
+	emptyPools = {}, -- poolName -> true for manually created empty pools
+	poolsCollapseStates = {}, -- poolName -> collapsed state
+	poolsItemsPerRow = 4, -- Number of skills to show per row in pool grid
+	poolsAdded = {}, -- skillId -> {poolName: true} user additions
+	poolsRemoved = {}, -- skillId -> {poolName: true} user removals
 }
 -- Track if saved config was loaded
 skill_config.configLoaded = false
@@ -102,12 +108,19 @@ for relType, keys in pairs(relationshipConfigKeys) do
 	skill_config.config[keys.sortOrder] = 1  -- Sort order
 end
 
+-- configured pools put in reverse index for easy constraint checking
+skill_config.pools = {}  -- poolName -> { skillIds: {skillId: true} }
+
 -- Code defined relationships which are read and set during registration but not
 -- saved so they can be changed easily
 skill_config.codeDefinedRelationships = {}
 for _, relType in pairs(skill_config.RelationshipType) do
 	skill_config.codeDefinedRelationships[relType] = {}
 end
+
+-- Code defined pools which are read and set during registration but not saved
+--- Structure: skillId -> {poolName: true}
+skill_config.codeDefinedPools = {}
 
 -- Module state
 skill_config.enabledSkills = {}  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability, icon}
@@ -123,6 +136,7 @@ end
 -- Called after all mods are loaded
 function skill_config:_postModsLoaded()
 	self:_rebuildRelationships()
+	self:_rebuildPools()
 
 	-- Set the defaults to our registered/setup values
 	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
@@ -214,8 +228,35 @@ function skill_config:setSkillConfig(skillId, config)
 				cplus_plus_ex.SLOT_RESTRICTION[normalizeSlot], skillId)
 	end
 
+	-- Handle pools parameter
+	if config.pools ~= nil then
+		if type(config.pools) ~= "table" then
+			logger.logError(SUBMODULE, "Invalid pools passed for skill %s: must be array of strings", skillId)
+			return
+		end
+		-- Validate all pool names are strings
+		for _, poolName in ipairs(config.pools) do
+			if type(poolName) ~= "string" then
+				logger.logError(SUBMODULE, "Invalid pool name in pools for skill %s: must be string, got %s", skillId, type(poolName))
+				return
+			end
+		end
+
+		-- Store as code defined pools using dictionary structure
+		if not self.codeDefinedPools[skillId] then
+			self.codeDefinedPools[skillId] = {}
+		end
+		for _, poolName in ipairs(config.pools) do
+			self.codeDefinedPools[skillId][poolName] = true
+		end
+		if #config.pools > 0 then
+			logger.logDebug(SUBMODULE, "Set code defined pools for skill %s: %s", skillId, table.concat(config.pools, ", "))
+		end
+	end
+
 	-- If we reached here, its a good config. Apply it
 	self.config.skillConfigs[skillId] = new_config
+
 	if new_config.enabled and not curr_config.enabled then
 		self:_enableSkill_internal(skillId)
 	elseif not new_config.enabled and curr_config.enabled then
@@ -397,6 +438,11 @@ function skill_config:isCodeDefinedRelationship(relationshipType, sourceId, targ
 	return self:_relationshipExists(self.codeDefinedRelationships[relationshipType], sourceId, targetId)
 end
 
+--- Check if a skill's pool membership is code defined
+function skill_config:isCodeDefinedPool(skillId, poolName)
+	return self.codeDefinedPools[skillId] and self.codeDefinedPools[skillId][poolName] == true
+end
+
 function skill_config:_captureDefaultConfigs()
 	self.defaultConfig = utils.deepcopy(self.config)
 end
@@ -417,8 +463,14 @@ function skill_config:resetToDefaults()
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
-	-- Rebuild active relationship tables from code defined sources
+	-- Clear all user modified pools
+	self.config.poolsAdded = {}
+	self.config.poolsRemoved = {}
+	self.config.emptyPools = {}
+
+	-- Rebuild active relationship and pool tables from code defined sources
 	self:_rebuildRelationships()
+	self:_rebuildPools()
 
 	-- Rebuild enabled skills list from the reset config
 	self.enabledSkills = {}
@@ -513,6 +565,16 @@ function skill_config:loadConfiguration()
 					skill_config.config.categoryCollapseStates = utils.deepcopy(savedConfig.categoryCollapseStates)
 				end
 
+				-- Load pool collapse states
+				if savedConfig.poolsCollapseStates then
+					skill_config.config.poolsCollapseStates = utils.deepcopy(savedConfig.poolsCollapseStates)
+				end
+
+				-- Load pool grid preference
+				if savedConfig.poolsItemsPerRow then
+					skill_config.config.poolsItemsPerRow = savedConfig.poolsItemsPerRow
+				end
+
 				self:_rebuildRelationships()
 
 				-- Merge skillConfigs to update existing skill but preserve new defaults
@@ -520,6 +582,7 @@ function skill_config:loadConfiguration()
 					for skillId, savedSkillConfig in pairs(savedConfig.skillConfigs) do
 						-- Only update if skill was registered
 						if skill_config.config.skillConfigs[skillId] then
+							-- Copy saved config
 							skill_config.config.skillConfigs[skillId] = utils.deepcopy(savedSkillConfig)
 						else
 							logger.logDebug(SUBMODULE, "Ignoring saved config for removed skill: %s", skillId)
@@ -530,7 +593,27 @@ function skill_config:loadConfiguration()
 				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
 				skill_config.configLoaded = true
 
+				-- Load user pool modifications (added/removed)
+				if savedConfig.poolsAdded then
+					skill_config.config.poolsAdded = utils.deepcopy(savedConfig.poolsAdded)
+				end
+				if savedConfig.poolsRemoved then
+					skill_config.config.poolsRemoved = utils.deepcopy(savedConfig.poolsRemoved)
+				end
+
+				-- Load empty pools
+				if savedConfig.emptyPools then
+					skill_config.config.emptyPools = utils.deepcopy(savedConfig.emptyPools)
+				end
+
+				-- Load enablePoolExclusions setting
+				if savedConfig.enablePoolExclusions ~= nil then
+					skill_config.config.enablePoolExclusions = savedConfig.enablePoolExclusions
+				end
+
 				self:_rebuildEnabledSkills()
+				-- Rebuild pools from code-defined + user modifications
+				self:_rebuildPools()
 				logger.logDebug(SUBMODULE, "Loaded and merged skill configuration")
 			end
 		end
@@ -554,6 +637,262 @@ function skill_config:_rebuildEnabledSkills()
 	if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
 		cplus_plus_ex._subobjects.skill_state_tracker:_updateEnabledSkills()
 	end
+end
+
+function skill_config:_rebuildPools()
+	-- Rebuild pools from code defined and user modifications
+	self.pools = {}
+
+	if not self.config or not self.config.skillConfigs then
+		logger.logDebug(SUBMODULE, "_rebuildPools: No config or skillConfigs yet")
+		return
+	end
+
+	-- Process all registered skills
+	for skillId in pairs(self.config.skillConfigs) do
+		-- Get merged pool list for this skill
+		local mergedPools = self:_getMergedPoolsForSkill(skillId)
+
+		if #mergedPools > 0 then
+			logger.logDebug(SUBMODULE, "_rebuildPools: Skill '%s' has %d pool(s): %s",
+				skillId, #mergedPools, table.concat(mergedPools, ", "))
+
+			for _, poolName in ipairs(mergedPools) do
+				if not self.pools[poolName] then
+					self.pools[poolName] = {
+						name = poolName,
+						skillIds = {}
+					}
+					logger.logDebug(SUBMODULE, "_rebuildPools: Created pool '%s'", poolName)
+				end
+				self.pools[poolName].skillIds[skillId] = true
+			end
+		end
+	end
+
+	logger.logInfo(SUBMODULE, "Rebuilt pools index: %d pool(s)", self:_countPools())
+	for poolName, pool in pairs(self.pools) do
+		local skillCount = 0
+		for _ in pairs(pool.skillIds) do skillCount = skillCount + 1 end
+		logger.logInfo(SUBMODULE, "  Pool '%s': %d skill(s)", poolName, skillCount)
+	end
+end
+
+--- Merge code defined pools with user modifications
+--- Returns dictionary: {poolName: true}
+function skill_config:_mergePoolsForSkill(skillId, codeDefinedTable, addedTable, removedTable)
+	local merged = {}
+
+	-- Start with code defined pools
+	local codePools = codeDefinedTable[skillId] or {}
+	for poolName, _ in pairs(codePools) do
+		-- Only include if not in removed list
+		if not (removedTable[skillId] and removedTable[skillId][poolName]) then
+			merged[poolName] = true
+		end
+	end
+
+	-- Add user additions
+	local added = addedTable[skillId] or {}
+	for poolName, _ in pairs(added) do
+		merged[poolName] = true
+	end
+
+	return merged
+end
+
+--- Get merged pool list for a skill (code + added - removed) as array for convenience
+--- This is a helper that converts the dictionary to an array
+function skill_config:_getMergedPoolsForSkill(skillId)
+	local mergedDict = self:_mergePoolsForSkill(
+		skillId,
+		self.codeDefinedPools,
+		self.config.poolsAdded or {},
+		self.config.poolsRemoved or {}
+	)
+
+	-- Convert dictionary to array
+	local merged = {}
+	for poolName in pairs(mergedDict) do
+		table.insert(merged, poolName)
+	end
+
+	return merged
+end
+
+--- Check if a skill is currently in a pool (after merging code defined and user changes)
+function skill_config:isSkillInPool(skillId, poolName)
+	local pool = self.pools[poolName]
+	if not pool then
+		return false
+	end
+	return pool.skillIds[skillId] == true
+end
+
+function skill_config:_countPools()
+	local count = 0
+	for _ in pairs(self.pools) do count = count + 1 end
+	return count
+end
+
+function skill_config:deletePool(poolName)
+	-- Remove pool from all skills by updating added/removed tracking
+	for skillId in pairs(self.config.skillConfigs) do
+		-- Check if skill is currently in this pool
+		if self:isSkillInPool(skillId, poolName) then
+			-- Remove the skill from the pool
+			self:removeSkillFromPool(skillId, poolName)
+		end
+	end
+
+	-- Remove from empty pools tracking
+	self.config.emptyPools[poolName] = nil
+
+	-- Remove pool UI state
+	self.config.poolsCollapseStates[poolName] = nil
+
+	-- Rebuild is handled by removeSkillFromPool calls above
+	logger.logDebug(SUBMODULE, "Deleted pool '%s'", poolName)
+	return true
+end
+
+function skill_config:addSkillToPool(skillId, poolName)
+	if not self.config.skillConfigs[skillId] then
+		logger.logError(SUBMODULE, "Skill '%s' not registered", skillId)
+		return false
+	end
+
+	-- Get current merged pools for this skill as dictionary
+	local currentPools = self:_mergePoolsForSkill(
+		skillId,
+		self.codeDefinedPools,
+		self.config.poolsAdded,
+		self.config.poolsRemoved
+	)
+
+	-- Check if already in merged pool dictionary
+	if currentPools[poolName] then
+		logger.logDebug(SUBMODULE, "Skill '%s' already in pool '%s'", skillId, poolName)
+		return true
+	end
+
+	-- Check if this is code defined
+	local isCodeDefined = self:isCodeDefinedPool(skillId, poolName)
+
+	if isCodeDefined then
+		-- It is code defined but was removed by user adn readded so remove from removals dictionary
+		if self.config.poolsRemoved[skillId] then
+			self.config.poolsRemoved[skillId][poolName] = nil
+		end
+		logger.logDebug(SUBMODULE, "Removed '%s' from poolsRemoved for skill '%s'", poolName, skillId)
+	else
+		-- It is a user addition so add to additions dictionary
+		if not self.config.poolsAdded[skillId] then
+			self.config.poolsAdded[skillId] = {}
+		end
+		self.config.poolsAdded[skillId][poolName] = true
+		logger.logDebug(SUBMODULE, "Added '%s' to poolsAdded for skill '%s'", poolName, skillId)
+	end
+
+	-- Remove from emptyPools if it was an empty, manually created pools
+	if self.config.emptyPools[poolName] then
+		self.config.emptyPools[poolName] = nil
+	end
+
+	self:_rebuildPools()
+	return true
+end
+
+function skill_config:removeSkillFromPool(skillId, poolName)
+	if not self.config.skillConfigs[skillId] then
+		logger.logWarn(SUBMODULE, "Skill '%s' not registered", skillId)
+		return false
+	end
+
+	-- Get current merged pools for this skill
+	local currentPools = self:_mergePoolsForSkill(
+		skillId,
+		self.codeDefinedPools,
+		self.config.poolsAdded,
+		self.config.poolsRemoved
+	)
+
+	-- Check if currently in pool
+	if not currentPools[poolName] then
+		logger.logDebug(SUBMODULE, "Skill '%s' not in pool '%s'", skillId, poolName)
+		return true
+	end
+
+	-- Check if this is code defined
+	local isCodeDefined = self:isCodeDefinedPool(skillId, poolName)
+
+	if isCodeDefined then
+		-- It is code defined so add to removals dictionary
+		if not self.config.poolsRemoved[skillId] then
+			self.config.poolsRemoved[skillId] = {}
+		end
+		self.config.poolsRemoved[skillId][poolName] = true
+		logger.logDebug(SUBMODULE, "Added '%s' to poolsRemoved for skill '%s'", poolName, skillId)
+	else
+		-- It is a user addition so remove from additions dictionary
+		if self.config.poolsAdded[skillId] then
+			self.config.poolsAdded[skillId][poolName] = nil
+			logger.logDebug(SUBMODULE, "Removed '%s' from poolsAdded for skill '%s'", poolName, skillId)
+		end
+	end
+
+	self:_rebuildPools()
+	return true
+end
+
+function skill_config:getPool(poolName)
+	-- Return pool from computed index if it exists
+	if self.pools[poolName] then
+		return self.pools[poolName]
+	end
+
+	-- Return empty pool structure if it's a manually created empty pool
+	if self.config.emptyPools[poolName] then
+		return {
+			name = poolName,
+			skillIds = {}
+		}
+	end
+
+	return nil
+end
+
+function skill_config:listPools()
+	local poolNames = {}
+
+	-- Add pools with skills (from computed index)
+	for poolName in pairs(self.pools) do
+		table.insert(poolNames, poolName)
+	end
+
+	-- Add empty pools that were manually created
+	for poolName in pairs(self.config.emptyPools) do
+		local alreadyAdded = false
+		for _, existing in ipairs(poolNames) do
+			if existing == poolName then
+				alreadyAdded = true
+				break
+			end
+		end
+		if not alreadyAdded then
+			table.insert(poolNames, poolName)
+		end
+	end
+
+	table.sort(poolNames)
+	logger.logDebug(SUBMODULE, "listPools: Returning %d pool(s)", #poolNames)
+	return poolNames
+end
+
+function skill_config:isSkillInPool(skillId, poolName)
+	local pool = self.pools[poolName]
+	if not pool then return false end
+	return pool.skillIds[skillId] == true
 end
 
 return skill_config

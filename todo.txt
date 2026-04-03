@@ -23,8 +23,6 @@ For 1.1 Release:
 
 
 1.2 Release:
-1. Add support for multiple pilots with same ID?
-2. Squad inclusions/exclusions
 3. Move to GetText to be consistent/allow localization
 4. Add auto support of "auto-dictonarying" skill strings
 	Mostly just replacing test with GetText and adding a SetText. Can probably try calling GetText to see if it exists first
