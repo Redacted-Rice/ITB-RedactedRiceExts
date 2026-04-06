@@ -44,11 +44,13 @@ end
 -- the extension fails to load or is uninstalled, a suitable vanilla skill will be used
 -- instead. If not provided or out of range, a random vanilla value will be used.
 -- The save data in vanilla only supports 0-13. Anything out of range is clamped to this range
--- reusability is optional defines how the skill can be reused. Defaults to per_pilot to align with vanilla
+-- defaultReusability is optional defines the default/starting reusability. Defaults to per_pilot to align with vanilla
 --   REUSABLE (1) - can be assigned to any pilot any number of times
 --   PER_PILOT (2) - a pilot can only have this skill once - vanilla behavior
 --   PER_RUN (3) - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
 --			affect the game state in a one time only way
+-- maxReusability is optional defines the maximum (most restrictive) reusability allowed. If not set, defaults to defaultReusability
+--   This sets the lower bound on what users can configure (higher values = more restrictive)
 -- slotRestriction is optional defines which skill slot this skill can appear in. Defaults to any
 --   ANY (1) - can appear in either slot 1 or 2 - vanilla behavior
 --   FIRST (2) - can only appear in slot 1
@@ -56,7 +58,8 @@ end
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
 -- skill_cat_excl optional table/string of category names to automatically exclude this skill from
-function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, slotRestriction, weight, icon, skill_cat_excl)
+function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
+		defaultReusability, maxReusability, slotRestriction, weight, icon, skill_cat_excl)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -66,7 +69,10 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		bonuses = idOrTable.bonuses
 		skillType = idOrTable.skillType
 		saveVal = idOrTable.saveVal
-		reusability = idOrTable.reusability
+		-- allows single reusability value to be passed in as defaultReusability & maxReusability
+		defaultReusability = idOrTable.defaultReusability or idOrTable.reusability
+		-- nil will default to defaultReusability
+		maxReusability = idOrTable.maxReusability
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
@@ -93,13 +99,32 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		saveVal = -1
 	end
 
-	-- Validate and normalize reusability
-	-- First handle nil input
-	reusability = utils.normalizeReusabilityToInt(reusability)
-	if not reusability then
-		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) ..
+	-- Validate and normalize defaultReusability
+	defaultReusability = utils.normalizeReusabilityToInt(defaultReusability)
+	if not defaultReusability then
+		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid defaultReusability '" .. tostring(defaultReusability) ..
 				"' 1-3 (corresponding to enum values in REUSABLILITY). Defaulting to PER_PILOT")
-		reusability = cplus_plus_ex.DEFAULT_REUSABILITY
+		defaultReusability = cplus_plus_ex.DEFAULT_REUSABILITY
+	end
+
+	-- Validate and normalize maxReusability
+	-- If not provided, default to same as defaultReusability (no restriction beyond default)
+	if maxReusability ~= nil then
+		maxReusability = utils.normalizeReusabilityToInt(maxReusability)
+		if not maxReusability then
+			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid maxReusability '" .. tostring(maxReusability) ..
+					"' 1-3 (corresponding to enum values in REUSABLILITY). Defaulting to match defaultReusability")
+			maxReusability = defaultReusability
+		end
+	else
+		maxReusability = defaultReusability
+	end
+
+	-- Validate that defaultReusability <= maxReusability (higher numbers = more restrictive)
+	if defaultReusability > maxReusability then
+		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has defaultReusability (" .. defaultReusability ..
+				") more restrictive than maxReusability (" .. maxReusability .. "). Adjusting maxReusability to match default.")
+		maxReusability = defaultReusability
 	end
 
 	-- Validate and normalize slot restriction
@@ -116,12 +141,14 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 	skill_registry.registeredSkills[id] = { id = id, category = category, shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
-			saveVal = saveVal, reusability = reusability,
+			saveVal = saveVal,
+			defaultReusability = defaultReusability,
+			maxReusability = maxReusability,
 			icon = icon,
 	}
 
-	-- add a config value
-	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, slotRestriction = slotRestriction, weight = weight})
+	-- add a config value with default reusability
+	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight})
 
 	-- Apply skill category exclusions if provided
 	if skill_cat_excl then
