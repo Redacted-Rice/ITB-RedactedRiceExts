@@ -31,7 +31,64 @@ describe("Skill Registry Module", function()
 				description = "Test"
 			})
 
-			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].reusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].defaultReusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].maxReusability)
+		end)
+
+		it("should support separate default and max reusability", function()
+			plus_manager:registerSkill("test", {
+				id = "TestSkillSeparate",
+				shortName = "Test",
+				fullName = "Test Skill",
+				description = "Test",
+				defaultReusability = plus_manager.REUSABLILITY.REUSABLE,
+				maxReusability = plus_manager.REUSABLILITY.PER_RUN
+			})
+
+			local skill = plus_manager._subobjects.skill_registry.registeredSkills["TestSkillSeparate"]
+			assert.equals(plus_manager.REUSABLILITY.REUSABLE, skill.defaultReusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_RUN, skill.maxReusability)
+
+			-- Config should use default
+			local config = plus_manager._subobjects.skill_config.config.skillConfigs["TestSkillSeparate"]
+			assert.equals(plus_manager.REUSABLILITY.REUSABLE, config.reusability)
+
+			-- Allowed reusability should respect max
+			local allowed = plus_manager._subobjects.skill_config:getAllowedReusability("TestSkillSeparate")
+			assert.is_true(allowed[plus_manager.REUSABLILITY.REUSABLE])
+			assert.is_true(allowed[plus_manager.REUSABLILITY.PER_PILOT])
+			assert.is_true(allowed[plus_manager.REUSABLILITY.PER_RUN])
+		end)
+
+		it("should enforce that default is not more restrictive than max", function()
+			plus_manager:registerSkill("test", {
+				id = "TestSkillInvalid",
+				shortName = "Test",
+				fullName = "Test Skill",
+				description = "Test",
+				defaultReusability = plus_manager.REUSABLILITY.PER_RUN,  -- More restrictive
+				maxReusability = plus_manager.REUSABLILITY.REUSABLE      -- Less restrictive
+			})
+
+			local skill = plus_manager._subobjects.skill_registry.registeredSkills["TestSkillInvalid"]
+			-- Max should be adjusted to match default
+			assert.equals(plus_manager.REUSABLILITY.PER_RUN, skill.defaultReusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_RUN, skill.maxReusability)
+		end)
+
+		it("should support 'reusability' field name in passed table", function()
+			plus_manager:registerSkill("test", {
+				id = "TestSkillLegacy",
+				shortName = "Test",
+				fullName = "Test Skill",
+				description = "Test",
+				reusability = plus_manager.REUSABLILITY.PER_PILOT
+			})
+
+			local skill = plus_manager._subobjects.skill_registry.registeredSkills["TestSkillLegacy"]
+			-- Should map to both default and max
+			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, skill.defaultReusability)
+			assert.equals(plus_manager.REUSABLILITY.PER_PILOT, skill.maxReusability)
 		end)
 	end)
 
