@@ -16,9 +16,6 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 For 1.1 Release:
-1. First & second slot only skills
-2. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
-3. Skill default functions - e.g. isNotCyborg for Popular Hero
 4. Specifying defaults for things like weight and reusublity (separate for lowest possible)
 5. Hijack AddPilot to avoid searching _G for pilots?
 6. Modify to allow for selecting specific skills easily in code and selecting more than 2

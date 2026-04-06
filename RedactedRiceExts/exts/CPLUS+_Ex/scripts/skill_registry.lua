@@ -16,6 +16,11 @@ local utils = nil
 
 -- Module state
 skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability, icon}
+-- We defer predicates until after all the mods are loaded to ensure all pilots are available
+skill_registry.deferredPilotPredicates = {
+	exclusions = {},  -- Array of {skillIds, predicateFn}
+	inclusions = {},  -- Array of {skillIds, predicateFn}
+}
 
 -- Initialize the module
 function skill_registry:init()
@@ -28,6 +33,9 @@ end
 
 -- Called after all mods are loaded
 function skill_registry:_postModsLoaded()
+	-- Execute all deferred predicate functions
+	self:_executeDeferredPilotPredicates()
+
 	-- Read vanilla pilot exclusions to support vanilla API
 	self:_readPilotExclusionsFromGlobal()
 end
@@ -47,7 +55,8 @@ end
 --   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
-function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, slotRestriction, weight, icon)
+-- skill_cat_excl optional table/string of category names to automatically exclude this skill from
+function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, slotRestriction, weight, icon, skill_cat_excl)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -61,6 +70,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
+		skill_cat_excl = idOrTable.skill_cat_excl
 	end
 
 	-- Check if ID is already registered globally
@@ -112,6 +122,11 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 
 	-- add a config value
 	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, slotRestriction = slotRestriction, weight = weight})
+
+	-- Apply skill category exclusions if provided
+	if skill_cat_excl then
+		self:registerSkillCategoryExclusions(id, skill_cat_excl)
+	end
 end
 
 -- Registers all vanilla skills
@@ -178,6 +193,117 @@ function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
 	skillExclusionsTable[excludedSkillId][skillId] = true
 
 	logger.logDebug(SUBMODULE, "Registered exclusion: %s <-> %s", skillId, excludedSkillId)
+end
+
+-- Registers pilot skill exclusions using a predicate function
+-- Takes a list of skill ids and a function that accepts a pilot id and returns true if the exclusion should apply
+-- The function is deferred and will be executed during _postModsLoaded after all pilots are loaded
+function skill_registry:registerPilotSkillExclusionsByFunction(skillIds, predicateFn)
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
+
+	if type(predicateFn) ~= "function" then
+		logger.logError(SUBMODULE, "predicateFn must be a function")
+		return
+	end
+
+	-- Store for deferred execution
+	table.insert(self.deferredPilotPredicates.exclusions, {
+		skillIds = skillIds,
+		predicateFn = predicateFn
+	})
+
+	logger.logDebug(SUBMODULE, "Deferred exclusion predicate registered for %d skill(s)", #skillIds)
+end
+
+-- Registers pilot skill inclusions using a predicate function
+-- Takes a list of skill ids and a function that accepts a pilot id and returns true if the inclusion should apply
+-- The function is deferred and will be executed during _postModsLoaded after all pilots are loaded
+function skill_registry:registerPilotSkillInclusionsByFunction(skillIds, predicateFn)
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
+
+	if type(predicateFn) ~= "function" then
+		logger.logError(SUBMODULE, "predicateFn must be a function")
+		return
+	end
+
+	-- Store for deferred execution
+	table.insert(self.deferredPilotPredicates.inclusions, {
+		skillIds = skillIds,
+		predicateFn = predicateFn
+	})
+
+	logger.logDebug(SUBMODULE, "Deferred inclusion predicate registered for %d skill(s)", #skillIds)
+end
+
+-- Executes all deferred pilot predicate functions
+-- Called during _postModsLoaded after all mods (and pilots) are loaded
+function skill_registry:_executeDeferredPilotPredicates()
+	-- Search for all pilots once
+	local pilotIds = utils.searchForAllPilotIds()
+	local pilotCount = #pilotIds
+
+	logger.logInfo(SUBMODULE, "Executing deferred pilot predicates for %d pilot(s)", pilotCount)
+
+	-- Execute exclusion predicates
+	for _, entry in ipairs(self.deferredPilotPredicates.exclusions) do
+		local exclusionCount = 0
+		for _, pilotId in ipairs(pilotIds) do
+			local shouldExclude = entry.predicateFn(pilotId)
+			if shouldExclude then
+				self:registerPilotSkillExclusions(pilotId, entry.skillIds)
+				exclusionCount = exclusionCount + 1
+			end
+		end
+		logger.logDebug(SUBMODULE, "Applied exclusion predicate: %d pilot(s) affected for %d skill(s)",
+				exclusionCount, #entry.skillIds)
+	end
+
+	-- Execute inclusion predicates
+	for _, entry in ipairs(self.deferredPilotPredicates.inclusions) do
+		local inclusionCount = 0
+		for _, pilotId in ipairs(pilotIds) do
+			local shouldInclude = entry.predicateFn(pilotId)
+			if shouldInclude then
+				self:registerPilotSkillInclusions(pilotId, entry.skillIds)
+				inclusionCount = inclusionCount + 1
+			end
+		end
+		logger.logDebug(SUBMODULE, "Applied inclusion predicate: %d pilot(s) affected for %d skill(s)",
+				inclusionCount, #entry.skillIds)
+	end
+
+	logger.logInfo(SUBMODULE, "Completed deferred predicates: %d exclusion(s), %d inclusion(s)",
+			#self.deferredPilotPredicates.exclusions, #self.deferredPilotPredicates.inclusions)
+end
+
+-- Registers skill category exclusions
+-- Takes a skill id and a list/set of category names
+-- Adds coded skill-skill exclusions between the given skill and all skills in the specified categories
+function skill_registry:registerSkillCategoryExclusions(skillId, categories)
+	if type(categories) == "string" then
+		categories = {categories}
+	end
+
+	local categorySet = {}
+	for _, cat in ipairs(categories) do
+		categorySet[cat] = true
+	end
+	local exclusionCount = 0
+
+	-- Iterate through all registered skills and find matching categories
+	for otherSkillId, skill in pairs(self.registeredSkills) do
+		if otherSkillId ~= skillId and categorySet[skill.category] then
+			self:registerSkillExclusion(skillId, otherSkillId)
+			exclusionCount = exclusionCount + 1
+		end
+	end
+
+	logger.logInfo(SUBMODULE, "Applied category exclusions for skill %s: excluded %d skill(s) from %d categor(y/ies)",
+			skillId, exclusionCount, #categories)
 end
 
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
