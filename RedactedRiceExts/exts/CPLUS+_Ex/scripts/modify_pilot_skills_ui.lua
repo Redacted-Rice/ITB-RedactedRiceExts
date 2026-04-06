@@ -17,6 +17,10 @@ local categoryHeaderLabels = {}
 local relationshipsContainer = nil
 local relationshipsParent = nil
 
+-- Surface cache to avoid recreating images
+local surfaceCache = {}
+local scaledSurfaceCache = {}
+
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
 local REUSABLILITY_HEADER = "Reusability"
@@ -57,6 +61,25 @@ local COLLAPSE_PADDING = 46
 local PILOT_SIZE = 65
 local RELATIONSHIP_BUTTON_WIDTH = 140
 local SORT_WIDTH = 350
+
+-- Helper to get cached surface
+local function getCachedSurface(path)
+	if not surfaceCache[path] then
+		surfaceCache[path] = sdlext.getSurface({ path = path })
+	end
+	return surfaceCache[path]
+end
+
+-- Helper to get cached scaled surface for skill icons
+local function getCachedScaledSkillSurface(path)
+	if not scaledSurfaceCache[path] then
+		local surface = getCachedSurface(path)
+		if surface then
+			scaledSurfaceCache[path] = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+		end
+	end
+	return scaledSurfaceCache[path]
+end
 
 -- Dialog sizing
 local DIALOG_WIDTH_PREFERRED_PCT = 0.85
@@ -111,9 +134,126 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 	return false
 end
 
--- Rebuild all relationship sections when skills are toggled
+-- Rebuilds dropdown items after updateOptions
+local function rebuildDropdownItems(dropdown)
+	if not dropdown.dropdown then return end
+
+	local scrollarea = dropdown.dropdown.children and dropdown.dropdown.children[1]
+	if not scrollarea or not scrollarea.children then return end
+
+	local layout = scrollarea.children[1]
+	if not layout then return end
+
+	-- Clear existing items
+	while #layout.children > 0 do
+		layout.children[#layout.children]:detach()
+	end
+
+	-- Rebuild items from updated values/strings
+	for i, v in ipairs(dropdown.values) do
+		local txt = DecoRAlignedText(dropdown.strings[i] or tostring(v))
+
+		local item = Ui()
+			:width(1):heightpx(40)
+			:decorate({
+				DecoSolidHoverable(deco.colors.button, deco.colors.buttonborder),
+				DecoAlign(0, 2),
+				txt
+			})
+
+		-- Capture i in closure
+		local index = i
+		item.onclicked = function(btn, button)
+			if button == 1 then
+				local oldChoice = dropdown.choice
+				local oldValue = dropdown.value
+
+				dropdown.choice = index
+				dropdown.value = dropdown.values[index]
+
+				dropdown.optionSelected:dispatch(oldChoice, oldValue, dropdown.choice, dropdown.value)
+				dropdown:destroyDropDown()
+
+				return true
+			end
+			return false
+		end
+
+		layout:add(item)
+	end
+end
+
+-- Updates relationship dropdown contents when skill enabled state changes
+function modify_pilot_skills_ui:updateRelationshipDropdowns()
+	for relationshipType, section in pairs(relationshipSections) do
+		if section.sourceDropdown and section.targetDropdown then
+			-- Regenerate source dropdown items
+			local sourceDisplay, sourceVals, sourceTooltips = self:createDropDownItems(
+				section.sourceList,
+				section.sourceIdsSorted,
+				section.includeSourceTooltips
+			)
+
+			-- Regenerate target dropdown items
+			local targetDisplay, targetVals, targetTooltips = self:createDropDownItems(
+				section.targetList,
+				section.targetIdsSorted,
+				section.includeTargetTooltips
+			)
+
+			-- Update dropdowns and rebuild their UI items
+			section.sourceDropdown:updateOptions(sourceVals, sourceDisplay)
+			rebuildDropdownItems(section.sourceDropdown)
+
+			section.targetDropdown:updateOptions(targetVals, targetDisplay)
+			rebuildDropdownItems(section.targetDropdown)
+		end
+	end
+end
+
+-- Updates the needed fields after a skill toggles on or off
+function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
+	-- Check if skill is in any relationships - if so, rebuild all relationship sections
+	local inRelationships = false
+
+	for relationshipType, _ in pairs(cplus_plus_ex.config) do
+		if relationshipType == "pilotSkillExclusions" or
+		   relationshipType == "pilotSkillInclusions" or
+		   relationshipType == "skillExclusions" then
+			local relTable = cplus_plus_ex.config[relationshipType]
+			if relTable then
+				for sourceId, targets in pairs(relTable) do
+					if sourceId == skillId then
+						inRelationships = true
+						break
+					end
+					for targetId, _ in pairs(targets) do
+						if targetId == skillId then
+							inRelationships = true
+							break
+						end
+					end
+					if inRelationships then break end
+				end
+			end
+			if inRelationships then break end
+		end
+	end
+
+	-- If skill is in relationships, rebuild each relationship section using cached rebuild functions
+	if inRelationships then
+		for relationshipType, section in pairs(relationshipSections) do
+			if section.rebuildFunc then
+				section.rebuildFunc()
+			end
+		end
+	end
+end
+
+-- Rebuild all relationship sections when needed
 function modify_pilot_skills_ui:rebuildAllRelationships()
 	if relationshipsContainer and relationshipsParent then
+		relationshipSections = {}
 		relationshipsContainer:detach()
 		self:buildRelationships(relationshipsParent)
 	end
@@ -552,7 +692,7 @@ function modify_pilot_skills_ui:getLargestIconWidth()
 	local maxWidth = 0
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		if skill.icon and skill.icon ~= "" then
-			local surface = sdlext.getSurface({ path = skill.icon })
+			local surface = getCachedSurface(skill.icon)
 			if surface then
 				local scaledWidth = surface:w() * SKILL_ICON_SCALE + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE)
 				maxWidth = math.max(maxWidth, scaledWidth)
@@ -611,7 +751,7 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 
 	-- Add icon if available (icons are 21x21 base, scaled to display size)
 	if skill.icon and skill.icon ~= "" then
-		local surface = sdlext.getSurface({ path = skill.icon })
+		local surface = getCachedSurface(skill.icon)
 		if surface then
 			table.insert(decorations, DecoAlign(SKILL_ICON_SPACING, 0))
 			table.insert(decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
@@ -649,8 +789,8 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			onToggleCallback()
 		end
 
-		-- Rebuild relationship sections to reflect enabled/disabled state
-		self:rebuildAllRelationships()
+		-- Rebuild only affected sections using cached rebuild functions
+		self:updateAfterSkillToggle(skill.id)
 	end)
 
 	return enabledCheckbox
@@ -1028,8 +1168,12 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
 
-				-- Rebuild relationship sections to reflect enabled/disabled state
-				self:rebuildAllRelationships()
+				-- Rebuild all relationship sections after toggling category
+				for relationshipType, section in pairs(relationshipSections) do
+					if section.rebuildFunc then
+						section.rebuildFunc()
+					end
+				end
 			end
 
 			-- Build skill entries
@@ -1426,7 +1570,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	end
 
 	-- Source dropdown
-	self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
+	local sourceDropdown = self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedSource = newValue
 
@@ -1450,9 +1594,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					elseif sourceLabel == "Skill" then
 						local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
 						if skill and skill.icon and skill.icon ~= "" then
-							local surface = sdlext.getSurface({ path = skill.icon })
-							if surface then
-								local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+							local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+							if scaledSurface then
 								table.insert(currentSourceImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 							end
 						end
@@ -1470,7 +1613,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	end
 
 	-- Target dropdown
-	self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
+	local targetDropdown = self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedTarget = newValue
 
@@ -1488,9 +1631,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				if newValue ~= "All" and newValue ~= "" then
 					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
 					if skill and skill.icon and skill.icon ~= "" then
-						local surface = sdlext.getSurface({ path = skill.icon })
-						if surface then
-							local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+						local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+						if scaledSurface then
 							table.insert(currentTargetImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 						end
 					end
@@ -1612,6 +1754,27 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 	-- Build initial list
 	rebuildRelationshipList()
+
+	-- Cache the section container and rebuild function for efficient updates
+	relationshipSections[relationshipType] = {
+		container = sectionContainer,
+		sourceDropdown = sourceDropdown,
+		targetDropdown = targetDropdown,
+		sourceList = sourceList,
+		targetList = targetList,
+		sourceIdsSorted = sourceIdsSorted,
+		targetIdsSorted = targetIdsSorted,
+		includeSourceTooltips = includeSourceTooltips,
+		includeTargetTooltips = includeTargetTooltips,
+		rebuildFunc = function()
+			-- Clear and rebuild this section's list
+			-- Keep everything except the add row which is the first child
+			while #sectionContainer.children > 1 do
+				sectionContainer.children[#sectionContainer.children]:detach()
+			end
+			rebuildRelationshipList()
+		end
+	}
 end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
@@ -1666,6 +1829,8 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	categoryHeaderLabels = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil
+	-- Clear caches
+	relationshipSections = {}
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -1726,6 +1891,9 @@ function modify_pilot_skills_ui:onExit()
 	expandedCollapsables = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil
+	-- Clear surface caches to free memory
+	surfaceCache = {}
+	scaledSurfaceCache = {}
 end
 
 -- Creates the main modification dialog
