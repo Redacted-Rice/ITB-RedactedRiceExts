@@ -129,10 +129,8 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 			-- This applies to both per_pilot and per_run (per_run is stricter and includes this check)
 			for _, skillId in pairs(selectedSkills) do
 				if skillId == candidateSkillId then
-					if cplus_plus_ex.PLUS_DEBUG then
-						logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
-								reusability, candidateSkillId, pilotId)
-					end
+					logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
+							reusability, candidateSkillId, pilotId)
 					return false
 				end
 			end
@@ -140,10 +138,8 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 			-- Additional check for per_run: ensure not used by ANY pilot
 			if reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 				if skill_selection.usedSkillsPerRun[candidateSkillId] then
-					if cplus_plus_ex.PLUS_DEBUG then
-						logger.logDebug(SUBMODULE, "Prevented per_run skill %s for pilot %s (already used this run)",
-								candidateSkillId, pilotId)
-					end
+					logger.logDebug(SUBMODULE, "Prevented per_run skill %s for pilot %s (already used this run)",
+							candidateSkillId, pilotId)
 					return false
 				end
 			end
