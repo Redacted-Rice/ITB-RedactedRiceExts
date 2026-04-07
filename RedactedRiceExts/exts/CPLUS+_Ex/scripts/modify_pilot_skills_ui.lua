@@ -602,9 +602,9 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 
 	enabledCheckbox.onToggled:subscribe(function(checked)
 		if checked then
-			cplus_plus_ex:enableSkill(skill.id)
+			cplus_plus_ex:enableSkill(skill.id, true)
 		else
-			cplus_plus_ex:disableSkill(skill.id)
+			cplus_plus_ex:disableSkill(skill.id, true)
 		end
 		self:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
@@ -974,9 +974,9 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 				for _, entry in ipairs(categorySkillCheckboxes) do
 					if newState then
-						cplus_plus_ex:enableSkill(entry.skillId)
+						cplus_plus_ex:enableSkill(entry.skillId, true)
 					else
-						cplus_plus_ex:disableSkill(entry.skillId)
+						cplus_plus_ex:disableSkill(entry.skillId, true)
 					end
 					entry.checkbox.checked = newState
 				end
