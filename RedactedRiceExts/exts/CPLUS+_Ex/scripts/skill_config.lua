@@ -91,6 +91,8 @@ skill_config.config = {
 	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Slot, 5=Weight/%
 	categoryCollapseStates = {}, -- category name -> collapsed state
 }
+-- Track if saved config was loaded
+skill_config.configLoaded = false
 
 -- Initialize relationship tables using enum
 for relType, keys in pairs(relationshipConfigKeys) do
@@ -223,11 +225,19 @@ function skill_config:setSkillConfig(skillId, config)
 	logger.logDebug(SUBMODULE, "Set config for skill %s", skillId)
 end
 
-function skill_config:enableSkill(skillId)
+function skill_config:enableSkill(skillId, forceApply)
+	-- Only apply if config was not loaded from save (configLoaded flag), unless force is true (from UI)
+	if not forceApply and self.configLoaded then
+		return
+	end
 	self:setSkillConfig(skillId, {enabled = true})
 end
 
-function skill_config:disableSkill(skillId)
+function skill_config:disableSkill(skillId, forceApply)
+	-- Only apply if config was not loaded from save (configLoaded flag), unless force is true (from UI)
+	if not forceApply and self.configLoaded then
+		return
+	end
 	self:setSkillConfig(skillId, {enabled = false})
 end
 
@@ -403,6 +413,9 @@ function skill_config:resetToDefaults()
 		self.config[keys.added] = {}
 		self.config[keys.removed] = {}
 	end
+	
+	-- Clear the configLoaded flag so coded enable/disable can apply
+	self.configLoaded = false
 
 	-- Rebuild active relationship tables from code defined sources
 	self:_rebuildRelationships()
@@ -513,6 +526,9 @@ function skill_config:loadConfiguration()
 						end
 					end
 				end
+				
+				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
+				skill_config.configLoaded = true
 
 				self:_rebuildEnabledSkills()
 				logger.logDebug(SUBMODULE, "Loaded and merged skill configuration")
