@@ -121,6 +121,76 @@ function modify_pilot_skills_ui:rebuildAllRelationships()
 	end
 end
 
+-- Get the appropriate category relationship table based on relationship type
+function modify_pilot_skills_ui:_getCategoryRelationshipTable(relationshipType)
+	if relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_EXCLUSIONS then
+		return cplus_plus_ex.config.pilotCategoryExclusions
+	elseif relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_INCLUSIONS then
+		return cplus_plus_ex.config.pilotCategoryInclusions
+	elseif relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
+		return cplus_plus_ex.config.skillCategoryExclusions
+	end
+	return nil
+end
+
+-- Get category to category relationship table
+function modify_pilot_skills_ui:_getCategoryCategoryRelationshipTable(relationshipType)
+	if relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
+		return cplus_plus_ex.config.categoryCategoryExclusions
+	end
+	return nil
+end
+
+-- Helper to set/unset a relationship in a nested table
+local function modifyNestedRelationship(table, key1, key2, shouldAdd)
+	if shouldAdd then
+		if not table[key1] then
+			table[key1] = {}
+		end
+		table[key1][key2] = true
+	else
+		if table[key1] then
+			table[key1][key2] = nil
+		end
+	end
+end
+
+-- Add/Remove a category relationship
+function modify_pilot_skills_ui:_modifyCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional, shouldAdd)
+	local isSourceCategory = sourceId:match("^cat:")
+	local isTargetCategory = targetId:match("^cat:")
+	local action = shouldAdd and "Added" or "Removed"
+
+	if isSourceCategory and isTargetCategory then
+		-- Category -> Category
+		local catCatTable = self:_getCategoryCategoryRelationshipTable(relationshipType)
+		if catCatTable then
+			local sourceCat = sourceId:sub(5)
+			local targetCat = targetId:sub(5)
+
+			modifyNestedRelationship(catCatTable, sourceCat, targetCat, shouldAdd)
+			if isBidirectional then
+				modifyNestedRelationship(catCatTable, targetCat, sourceCat, shouldAdd)
+			end
+
+			logger.logDebug(SUBMODULE, "%s category-category relationship: %s ↔ %s", action, sourceCat, targetCat)
+		end
+	elseif isTargetCategory then
+		-- Source (skill/pilot) -> Category
+		local categoryTable = self:_getCategoryRelationshipTable(relationshipType)
+		if categoryTable then
+			local categoryName = targetId:sub(5)
+			modifyNestedRelationship(categoryTable, sourceId, categoryName, shouldAdd)
+			logger.logDebug(SUBMODULE, "%s category relationship: %s → Category:%s", action, sourceId, categoryName)
+		end
+	end
+end
+
+-- Add a category relationship
+function modify_pilot_skills_ui:_addCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional)
+	self:_modifyCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional, true)
+end
+
 -- For some actions it doesn't trigger a rebuild of relationships otherwise
 -- Its a bit clunky but its temporary for now anyways so shouldn't be a big
 -- deal
@@ -140,6 +210,11 @@ function modify_pilot_skills_ui:rebuildAllCategoryPools()
 	if relationshipsParent then
 		self:buildRelationships(relationshipsParent)
 	end
+end
+
+-- Remove a category relationship
+function modify_pilot_skills_ui:_removeCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional)
+	self:_modifyCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional, false)
 end
 
 function modify_pilot_skills_ui:init()
@@ -1236,7 +1311,7 @@ function modify_pilot_skills_ui:addArrowLabel(bidirectional, row)
 		:addTo(row)
 end
 
-function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, includeSkillTooltips)
+function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, includeSkillTooltips, includeCategories)
 	local listDisplay = {"", "All"}
 	local listVals = {"", "All"}
 	local listTooltips = {"", "Add entry for each item"}
@@ -1264,6 +1339,19 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 			end
 		end
 	end
+
+	-- Add categories at the end if requested
+	if includeCategories then
+		local categoryNames = cplus_plus_ex:listCategories()
+		table.sort(categoryNames)
+
+		for _, categoryName in ipairs(categoryNames) do
+			table.insert(listDisplay, "Category: " .. categoryName)
+			table.insert(listVals, "cat:" .. categoryName)
+			table.insert(listTooltips, "")
+		end
+	end
+
 	return listDisplay, listVals, listTooltips
 end
 
@@ -1291,8 +1379,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local includeSourceTooltips = sourceLabel == "Skill"
 	local includeTargetTooltips = targetLabel == "Skill"
 
-	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips)
-	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips)
+	-- Include categories in dropdowns for skill to skill relationships
+	local includeSourceCategories = (sourceLabel == "Skill" and targetLabel == "Skill")
+	local includeTargetCategories = targetLabel == "Skill"
+
+	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips, includeSourceCategories)
+	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips, includeTargetCategories)
 
 	-- Calculate dynamic icon width
 	local maxSkillIconWidth = self:getLargestIconWidth()
@@ -1336,33 +1428,40 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local rebuildRelationshipList
 
 	-- Helper function to build a single relationship row
-	local function buildRelationshipRow(sourceId, targetId)
+	local function buildRelationshipRow(sourceId, targetId, isSourceCategory, isTargetCategory)
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 			:addTo(sectionContainer)
 
-		-- Pilot portrait if its a pilot
-		if sourceLabel == "Pilot" then
+		if isSourceCategory then
+			-- Empty space for category for now
+			Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(entryRow)
+		elseif sourceLabel == "Pilot" then
 			self:addPilotImage(sourceId, entryRow)
 		elseif sourceLabel == "Skill" then
 			self:addSkillIcon(sourceId, entryRow, maxSkillIconWidth)
 		end
 
 		-- Add labels with skill tooltips if applicable
-		local sourceSkillId = sourceLabel == "Skill" and sourceId or nil
-		local targetSkillId = targetLabel == "Skill" and targetId or nil
-		self:addExistingRelLabel(sourceList[sourceId], entryRow, sourceSkillId)
+		local sourceDisplay = isSourceCategory and ("Category: " .. sourceId) or sourceList[sourceId]
+		local sourceSkillId = (not isSourceCategory and sourceLabel == "Skill") and sourceId or nil
+		local targetSkillId = (not isTargetCategory and targetLabel == "Skill") and targetId or nil
+		local targetDisplay = isTargetCategory and ("Category: " .. targetId) or targetList[targetId]
+
+		self:addExistingRelLabel(sourceDisplay, entryRow, sourceSkillId)
 		self:addArrowLabel(isBidirectional, entryRow)
 
-		-- Skill icon for target if its a skill
-		if targetLabel == "Skill" then
+		if isTargetCategory then
+			-- Empty space for category
+			Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(entryRow)
+		elseif targetLabel == "Skill" then
 			self:addSkillIcon(targetId, entryRow, maxSkillIconWidth)
 		end
 
-		self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
+		self:addExistingRelLabel(targetDisplay, entryRow, targetSkillId)
 
 		-- Remove button
-		local isCodeDefined = cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
+		local isCodeDefined = not (isSourceCategory or isTargetCategory) and cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
 		local btnText = "Remove"
 		local btnTooltip = isCodeDefined and "Remove this code defined relationship"
 				or "Remove this user added relationship"
@@ -1371,9 +1470,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			btnText,
 			btnTooltip,
 			function()
-				cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
-				if isBidirectional then
-					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
+				if isSourceCategory or isTargetCategory then
+					-- Construct full IDs with cat: prefix for removal
+					local fullSourceId = isSourceCategory and ("cat:" .. sourceId) or sourceId
+					local fullTargetId = isTargetCategory and ("cat:" .. targetId) or targetId
+					self:_removeCategoryRelationship(relationshipType, fullSourceId, fullTargetId, isBidirectional)
+				else
+					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
+					if isBidirectional then
+						cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
+					end
 				end
 
 				-- Save and rebuild
@@ -1398,12 +1504,52 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		local relationshipList = {}
 		local newItemsList = {}
 
+		-- Add normal skill relationships
 		for sourceId, targets in pairs(relationshipTable) do
 			for targetId, _ in pairs(targets) do
 				-- Only show relationships where both source and target are enabled
 				if self:isItemEnabled(sourceId) and self:isItemEnabled(targetId) then
 					local key = sourceId .. "|" .. targetId
-					local relationship = {sourceId = sourceId, targetId = targetId}
+					local relationship = {sourceId = sourceId, targetId = targetId, isSourceCategory = false, isTargetCategory = false}
+
+					-- Check if this is a newly added item
+					if newlyAddedRelationships[key] then
+						table.insert(newItemsList, relationship)
+					else
+						table.insert(relationshipList, relationship)
+					end
+				end
+			end
+		end
+
+		-- Add skill/pilot-category relationships
+		local categoryRelTable = self:_getCategoryRelationshipTable(relationshipType)
+		if categoryRelTable then
+			for sourceId, categories in pairs(categoryRelTable) do
+				for categoryName, _ in pairs(categories) do
+					-- Only show if source is enabled
+					if self:isItemEnabled(sourceId) then
+						local key = sourceId .. "|cat:" .. categoryName
+						local relationship = {sourceId = sourceId, targetId = categoryName, isSourceCategory = false, isTargetCategory = true}
+
+						-- Check if this is a newly added item
+						if newlyAddedRelationships[key] then
+							table.insert(newItemsList, relationship)
+						else
+							table.insert(relationshipList, relationship)
+						end
+					end
+				end
+			end
+		end
+
+		-- Add category to category relationships
+		local catCatTable = self:_getCategoryCategoryRelationshipTable(relationshipType)
+		if catCatTable then
+			for sourceCat, targetCategories in pairs(catCatTable) do
+				for targetCat, _ in pairs(targetCategories) do
+					local key = "cat:" .. sourceCat .. "|cat:" .. targetCat
+					local relationship = {sourceId = sourceCat, targetId = targetCat, isSourceCategory = true, isTargetCategory = true}
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
@@ -1419,37 +1565,37 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		table.sort(relationshipList, function(a, b)
 			if sortColumn == 1 then
 				-- Sort by source then target
-				local aSourceName = sourceList[a.sourceId] or ""
-				local bSourceName = sourceList[b.sourceId] or ""
+				local aSourceName = a.isSourceCategory and ("Category: " .. a.sourceId) or (sourceList[a.sourceId] or "")
+				local bSourceName = b.isSourceCategory and ("Category: " .. b.sourceId) or (sourceList[b.sourceId] or "")
 				if aSourceName:lower() ~= bSourceName:lower() then
 					return aSourceName:lower() < bSourceName:lower()
 				end
 				-- Secondary sort by target
-				local aTargetName = targetList[a.targetId] or ""
-				local bTargetName = targetList[b.targetId] or ""
+				local aTargetName = a.isTargetCategory and ("Category: " .. a.targetId) or (targetList[a.targetId] or "")
+				local bTargetName = b.isTargetCategory and ("Category: " .. b.targetId) or (targetList[b.targetId] or "")
 				return aTargetName:lower() < bTargetName:lower()
 			else
 				-- Sort by target then source
-				local aTargetName = targetList[a.targetId] or ""
-				local bTargetName = targetList[b.targetId] or ""
+				local aTargetName = a.isTargetCategory and ("Category: " .. a.targetId) or (targetList[a.targetId] or "")
+				local bTargetName = b.isTargetCategory and ("Category: " .. b.targetId) or (targetList[b.targetId] or "")
 				if aTargetName:lower() ~= bTargetName:lower() then
 					return aTargetName:lower() < bTargetName:lower()
 				end
 				-- Secondary sort by source
-				local aSourceName = sourceList[a.sourceId] or ""
-				local bSourceName = sourceList[b.sourceId] or ""
+				local aSourceName = a.isSourceCategory and ("Category: " .. a.sourceId) or (sourceList[a.sourceId] or "")
+				local bSourceName = b.isSourceCategory and ("Category: " .. b.sourceId) or (sourceList[b.sourceId] or "")
 				return aSourceName:lower() < bSourceName:lower()
 			end
 		end)
 
 		-- Build newly added items first
 		for _, relationship in ipairs(newItemsList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId, relationship.isSourceCategory, relationship.isTargetCategory)
 		end
 
 		-- Build sorted items
 		for _, relationship in ipairs(relationshipList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId, relationship.isSourceCategory, relationship.isTargetCategory)
 		end
 
 		-- Spacer
@@ -1474,7 +1620,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			selectedSource = newValue
 
 			-- Update image if we have one
-			if currentSourceImage then
+			if currentSourceImage and not newValue:match("^cat:") then
 				-- Remove old decoration
 				for i = #currentSourceImage.decorations, 1, -1 do
 					local deco = currentSourceImage.decorations[i]
@@ -1483,7 +1629,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					end
 				end
 
-				-- Add new image if not "All"
+				-- Add new image if not "All" or empty
 				if newValue ~= "All" and newValue ~= "" then
 					if sourceLabel == "Pilot" then
 						local portrait = self:getPilotPortrait(newValue)
@@ -1518,7 +1664,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			selectedTarget = newValue
 
 			-- Update skill icon if we have one
-			if currentTargetImage and targetLabel == "Skill" then
+			if currentTargetImage and targetLabel == "Skill" and not newValue:match("^cat:") then
 				-- Remove old decoration
 				for i = #currentTargetImage.decorations, 1, -1 do
 					local deco = currentTargetImage.decorations[i]
@@ -1527,7 +1673,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					end
 				end
 
-				-- Add new icon if not "All"
+				-- Add new icon if not "All" or empty
 				if newValue ~= "All" and newValue ~= "" then
 					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
 					if skill and skill.icon and skill.icon ~= "" then
@@ -1598,6 +1744,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						sourcesToAdd[sourceId] = true
 					end
 				end
+				-- Include categories for skill to skill relationships
+				if includeSourceCategories then
+					local categoryNames = cplus_plus_ex:listCategories()
+					for _, categoryName in ipairs(categoryNames) do
+						sourcesToAdd["cat:" .. categoryName] = true
+					end
+				end
 			else
 				sourcesToAdd = {[selectedSource] = true}
 			end
@@ -1606,6 +1759,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				for targetId, _ in pairs(targetList) do
 					if self:isItemEnabled(targetId) then
 						targetsToAdd[targetId] = true
+					end
+				end
+				-- Include categories in target if applicable
+				if includeTargetCategories then
+					local categoryNames = cplus_plus_ex:listCategories()
+					for _, categoryName in ipairs(categoryNames) do
+						targetsToAdd["cat:" .. categoryName] = true
 					end
 				end
 			else
@@ -1617,10 +1777,20 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				for targetId, _ in pairs(targetsToAdd) do
 					-- Skip adding to self (if all was used)
 					if not (sourceId == targetId) then
-						cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
+						-- Check if source or target is a category
+						local isSourceCategory = sourceId:match("^cat:")
+						local isTargetCategory = targetId:match("^cat:")
 
-						if isBidirectional then
-							cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
+						if isSourceCategory or isTargetCategory then
+							-- Category relationship
+							self:_addCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional)
+						else
+							-- Normal skill relationship
+							cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
+
+							if isBidirectional then
+								cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
+							end
 						end
 
 						-- Mark as newly added to show at top

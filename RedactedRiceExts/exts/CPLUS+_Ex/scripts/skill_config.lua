@@ -97,6 +97,10 @@ skill_config.config = {
 	categoriesAdded = {}, -- skillId -> {categoryName: true} user additions
 	categoriesRemoved = {}, -- skillId -> {categoryName: true} user removals
 	categorySettings = {}, -- categoryName -> {onlyOnePerPilot: bool, pilotInclusions: [], pilotExclusions: []}
+	pilotCategoryExclusions = {}, -- pilotId -> {categoryName: true}
+	pilotCategoryInclusions = {}, -- pilotId -> {categoryName: true}
+	skillCategoryExclusions = {}, -- skillId -> {categoryName: true}
+	categoryCategoryExclusions = {}, -- categoryName -> {categoryName: true}
 }
 -- Track if saved config was loaded
 skill_config.configLoaded = false
@@ -461,6 +465,12 @@ function skill_config:resetToDefaults()
 		self.config[keys.removed] = {}
 	end
 
+	-- Clear all category relationships
+	self.config.pilotCategoryExclusions = {}
+	self.config.pilotCategoryInclusions = {}
+	self.config.skillCategoryExclusions = {}
+	self.config.categoryCategoryExclusions = {}
+
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
@@ -578,6 +588,24 @@ function skill_config:loadConfiguration()
 				-- Load category grid preference
 				if savedConfig.categoriesItemsPerRow then
 					skill_config.config.categoriesItemsPerRow = savedConfig.categoriesItemsPerRow
+				end
+
+				-- Load pilot-category relationships
+				if savedConfig.pilotCategoryExclusions then
+					skill_config.config.pilotCategoryExclusions = utils.deepcopy(savedConfig.pilotCategoryExclusions)
+				end
+				if savedConfig.pilotCategoryInclusions then
+					skill_config.config.pilotCategoryInclusions = utils.deepcopy(savedConfig.pilotCategoryInclusions)
+				end
+
+				-- Load skill-category relationships
+				if savedConfig.skillCategoryExclusions then
+					skill_config.config.skillCategoryExclusions = utils.deepcopy(savedConfig.skillCategoryExclusions)
+				end
+
+				-- Load category-category relationships
+				if savedConfig.categoryCategoryExclusions then
+					skill_config.config.categoryCategoryExclusions = utils.deepcopy(savedConfig.categoryCategoryExclusions)
 				end
 
 				self:_rebuildRelationships()
