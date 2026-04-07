@@ -15,7 +15,7 @@ local skill_config = nil
 local utils = nil
 
 -- Module state
-skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability, icon}
+skill_registry.registeredSkills = {}  -- skillId -> {id, group, shortName, fullName, description, bonuses, skillType, reusability, icon}
 -- We defer predicates until after all the mods are loaded to ensure all pilots are available
 skill_registry.deferredPilotPredicates = {
 	exclusions = {},  -- Array of {skillIds, predicateFn}
@@ -57,9 +57,9 @@ end
 --   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
--- categories optional array of pool names (strings) this skill belongs to
-function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
-		defaultReusability, maxReusability, slotRestriction, weight, icon, categories)
+-- groups optional array of pool names (strings) this skill belongs to
+function skill_registry:registerSkill(group, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
+		defaultReusability, maxReusability, slotRestriction, weight, icon, groups)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -76,13 +76,13 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
-		categories = idOrTable.categories
+		groups = idOrTable.groups
 	end
 
 	-- Check if ID is already registered globally
 	if skill_registry.registeredSkills[id] ~= nil then
-		logger.logError(SUBMODULE, "Skill ID '" .. id .. "' in category '" .. category .. "' conflicts with existing skill from category '" ..
-				skill_registry.registeredSkills[id].category .. "'.")
+		logger.logError(SUBMODULE, "Skill ID '" .. id .. "' in group '" .. group .. "' conflicts with existing skill from group '" ..
+				skill_registry.registeredSkills[id].group .. "'.")
 		return
 	end
 
@@ -137,34 +137,34 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = cplus_plus_ex.DEFAULT_SLOT_RESTRICTION
 	end
 
-	-- Validate categories
-	logger.logDebug(SUBMODULE, "registerSkill '%s': Validating categories, type=%s", id, type(categories))
-	if categories ~= nil then
-		if type(categories) ~= "table" then
-			logger.logWarn(SUBMODULE, "Skill '%s' has invalid categories (must be array of strings). Ignoring categories.", id)
-			categories = {}
+	-- Validate groups
+	logger.logDebug(SUBMODULE, "registerSkill '%s': Validating groups, type=%s", id, type(groups))
+	if groups ~= nil then
+		if type(groups) ~= "table" then
+			logger.logWarn(SUBMODULE, "Skill '%s' has invalid groups (must be array of strings). Ignoring groups.", id)
+			groups = {}
 		else
-			logger.logDebug(SUBMODULE, "registerSkill '%s': categories is table, checking array contents", id)
-			-- Validate all category names are strings and rebuild array without invalid entries
-			local validCategories = {}
-			for i, categoryName in ipairs(categories) do
-				logger.logDebug(SUBMODULE, "  Category[%d]: type=%s, value=%s", i, type(categoryName), tostring(categoryName))
-				if type(categoryName) == "string" then
-					table.insert(validCategories, categoryName)
+			logger.logDebug(SUBMODULE, "registerSkill '%s': groups is table, checking array contents", id)
+			-- Validate all group names are strings and rebuild array without invalid entries
+			local validGroups = {}
+			for i, groupName in ipairs(groups) do
+				logger.logDebug(SUBMODULE, "  Group[%d]: type=%s, value=%s", i, type(groupName), tostring(groupName))
+				if type(groupName) == "string" then
+					table.insert(validGroups, groupName)
 				else
-					logger.logWarn(SUBMODULE, "Skill '%s' has invalid category name at index %d (must be string). Ignoring this category.", id, i)
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid group name at index %d (must be string). Ignoring this group.", id, i)
 				end
 			end
-			categories = validCategories
-			logger.logDebug(SUBMODULE, "registerSkill '%s': %d valid category(s) after validation", id, #categories)
+			groups = validGroups
+			logger.logDebug(SUBMODULE, "registerSkill '%s': %d valid group(s) after validation", id, #groups)
 		end
 	else
-		logger.logDebug(SUBMODULE, "registerSkill '%s': categories is nil, using empty array", id)
-		categories = {}
+		logger.logDebug(SUBMODULE, "registerSkill '%s': groups is nil, using empty array", id)
+		groups = {}
 	end
 
 	-- Register the skill with its type and reusability included in the skill data
-	skill_registry.registeredSkills[id] = { id = id, category = category, shortName = shortName, fullName = fullName, description = description,
+	skill_registry.registeredSkills[id] = { id = id, group = group, shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
 			saveVal = saveVal,
@@ -173,17 +173,17 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 			icon = icon,
 	}
 
-	-- add a config value categories will be updated in setSkillConfig
-	if #categories > 0 then
-		logger.logInfo(SUBMODULE, "Registering skill '%s' with %d category(s): %s", id, #categories, table.concat(categories, ", "))
+	-- add a config value groups will be updated in setSkillConfig
+	if #groups > 0 then
+		logger.logInfo(SUBMODULE, "Registering skill '%s' with %d group(s): %s", id, #groups, table.concat(groups, ", "))
 	end
 
 	-- add a config value with default reusability
-	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight, categories = categories})
+	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight, groups = groups})
 
-	-- Apply skill category exclusions if provided
-	if skill_cat_excl then
-		self:registerSkillCategoryExclusions(id, skill_cat_excl)
+	-- Apply skill group exclusions if provided
+	if skill_group_excl then
+		self:registerSkillGroupExclusions(id, skill_group_excl)
 	end
 end
 
@@ -340,30 +340,30 @@ function skill_registry:_executeDeferredPilotPredicates()
 			#self.deferredPilotPredicates.exclusions, #self.deferredPilotPredicates.inclusions)
 end
 
--- Registers skill category exclusions
--- Takes a skill id and a list/set of category names
--- Adds coded skill-skill exclusions between the given skill and all skills in the specified categories
-function skill_registry:registerSkillCategoryExclusions(skillId, categories)
-	if type(categories) == "string" then
-		categories = {categories}
+-- Registers skill group exclusions
+-- Takes a skill id and a list/set of group names
+-- Adds coded skill-skill exclusions between the given skill and all skills in the specified groups
+function skill_registry:registerSkillGroupExclusions(skillId, groups)
+	if type(groups) == "string" then
+		groups = {groups}
 	end
 
-	local categorySet = {}
-	for _, cat in ipairs(categories) do
-		categorySet[cat] = true
+	local groupSet = {}
+	for _, group in ipairs(groups) do
+		groupSet[group] = true
 	end
 	local exclusionCount = 0
 
-	-- Iterate through all registered skills and find matching categories
+	-- Iterate through all registered skills and find matching groups
 	for otherSkillId, skill in pairs(self.registeredSkills) do
-		if otherSkillId ~= skillId and categorySet[skill.category] then
+		if otherSkillId ~= skillId and groupSet[skill.group] then
 			self:registerSkillExclusion(skillId, otherSkillId)
 			exclusionCount = exclusionCount + 1
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Applied category exclusions for skill %s: excluded %d skill(s) from %d categor(y/ies)",
-			skillId, exclusionCount, #categories)
+	logger.logInfo(SUBMODULE, "Applied group exclusions for skill %s: excluded %d skill(s) from %d categor(y/ies)",
+			skillId, exclusionCount, #groups)
 end
 
 -- Scans global for all pilot definitions and registers their Blacklist exclusions

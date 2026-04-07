@@ -20,7 +20,7 @@ describe("Skill Registry Module", function()
 			})
 
 			assert.is_not_nil(plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"])
-			assert.equals("test", plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].category)
+			assert.equals("test", plus_manager._subobjects.skill_registry.registeredSkills["TestSkill"].group)
 		end)
 
 		it("should default reusability to PER_PILOT", function()
@@ -288,67 +288,67 @@ describe("Skill Registry Module", function()
 		end)
 	end)
 
-	describe("Skill Category Exclusions", function()
-		it("should register exclusions for all skills in specified categories", function()
+	describe("Skill Group Exclusions", function()
+		it("should register exclusions for all skills in specified groups", function()
 			helper.setupTestSkills({
-				{id = "CategoryTestSkill1", shortName = "CTS1", fullName = "CategoryTestSkill1", description = "Test"},
+				{id = "GroupTestSkill1", shortName = "CTS1", fullName = "GroupTestSkill1", description = "Test"},
 				{id = "UtilitySkill1", shortName = "US1", fullName = "UtilitySkill1", description = "Test"},
 				{id = "UtilitySkill2", shortName = "US2", fullName = "UtilitySkill2", description = "Test"},
 				{id = "DefenseSkill1", shortName = "DS1", fullName = "DefenseSkill1", description = "Test"},
 			})
 
-			-- Register the skills with specific categories
-			plus_manager._subobjects.skill_registry.registeredSkills["UtilitySkill1"].category = "Utility"
-			plus_manager._subobjects.skill_registry.registeredSkills["UtilitySkill2"].category = "Utility"
-			plus_manager._subobjects.skill_registry.registeredSkills["DefenseSkill1"].category = "Defense"
+			-- Register the skills with specific groups
+			plus_manager._subobjects.skill_registry.registeredSkills["UtilitySkill1"].group = "Utility"
+			plus_manager._subobjects.skill_registry.registeredSkills["UtilitySkill2"].group = "Utility"
+			plus_manager._subobjects.skill_registry.registeredSkills["DefenseSkill1"].group = "Defense"
 
-			-- Exclude CategoryTestSkill1 from all Utility skills
-			plus_manager._subobjects.skill_registry:registerSkillCategoryExclusions("CategoryTestSkill1", "Utility")
+			-- Exclude GroupTestSkill1 from all Utility skills
+			plus_manager._subobjects.skill_registry:registerSkillGroupExclusions("GroupTestSkill1", "Utility")
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.SKILL_EXCLUSIONS]
 
-			-- CategoryTestSkill1 should exclude both Utility skills
-			assert.is_not_nil(exclusions["CategoryTestSkill1"])
-			assert.is_true(exclusions["CategoryTestSkill1"]["UtilitySkill1"])
-			assert.is_true(exclusions["CategoryTestSkill1"]["UtilitySkill2"])
+			-- GroupTestSkill1 should exclude both Utility skills
+			assert.is_not_nil(exclusions["GroupTestSkill1"])
+			assert.is_true(exclusions["GroupTestSkill1"]["UtilitySkill1"])
+			assert.is_true(exclusions["GroupTestSkill1"]["UtilitySkill2"])
 
 			-- DefenseSkill1 should not be excluded
-			assert.is_nil(exclusions["CategoryTestSkill1"]["DefenseSkill1"])
+			assert.is_nil(exclusions["GroupTestSkill1"]["DefenseSkill1"])
 
 			-- Exclusion should be bidirectional
-			assert.is_true(exclusions["UtilitySkill1"]["CategoryTestSkill1"])
-			assert.is_true(exclusions["UtilitySkill2"]["CategoryTestSkill1"])
+			assert.is_true(exclusions["UtilitySkill1"]["GroupTestSkill1"])
+			assert.is_true(exclusions["UtilitySkill2"]["GroupTestSkill1"])
 		end)
 
-		it("should handle multiple categories in exclusion", function()
+		it("should handle multiple groups in exclusion", function()
 			helper.setupTestSkills({
-				{id = "MultiCatSkill", shortName = "MCS", fullName = "MultiCatSkill", description = "Test"},
-				{id = "Cat1Skill", shortName = "C1S", fullName = "Cat1Skill", description = "Test"},
-				{id = "Cat2Skill", shortName = "C2S", fullName = "Cat2Skill", description = "Test"},
-				{id = "Cat3Skill", shortName = "C3S", fullName = "Cat3Skill", description = "Test"},
+				{id = "MultiGroupSkill", shortName = "MCS", fullName = "MultiGroupSkill", description = "Test"},
+				{id = "Group1Skill", shortName = "C1S", fullName = "Group1Skill", description = "Test"},
+				{id = "Group2Skill", shortName = "C2S", fullName = "Group2Skill", description = "Test"},
+				{id = "Group3Skill", shortName = "C3S", fullName = "Group3Skill", description = "Test"},
 			})
 
-			plus_manager._subobjects.skill_registry.registeredSkills["Cat1Skill"].category = "Category1"
-			plus_manager._subobjects.skill_registry.registeredSkills["Cat2Skill"].category = "Category2"
-			plus_manager._subobjects.skill_registry.registeredSkills["Cat3Skill"].category = "Category3"
+			plus_manager._subobjects.skill_registry.registeredSkills["Group1Skill"].group = "Group1"
+			plus_manager._subobjects.skill_registry.registeredSkills["Group2Skill"].group = "Group2"
+			plus_manager._subobjects.skill_registry.registeredSkills["Group3Skill"].group = "Group3"
 
-			-- Exclude MultiCatSkill from both Category1 and Category2
-			plus_manager._subobjects.skill_registry:registerSkillCategoryExclusions("MultiCatSkill", {"Category1", "Category2"})
+			-- Exclude MultiGroupSkill from both Group1 and Group2
+			plus_manager._subobjects.skill_registry:registerSkillGroupExclusions("MultiGroupSkill", {"Group1", "Group2"})
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.SKILL_EXCLUSIONS]
-			assert.is_true(exclusions["MultiCatSkill"]["Cat1Skill"])
-			assert.is_true(exclusions["MultiCatSkill"]["Cat2Skill"])
-			assert.is_nil(exclusions["MultiCatSkill"]["Cat3Skill"])
+			assert.is_true(exclusions["MultiGroupSkill"]["Group1Skill"])
+			assert.is_true(exclusions["MultiGroupSkill"]["Group2Skill"])
+			assert.is_nil(exclusions["MultiGroupSkill"]["Group3Skill"])
 		end)
 
-		it("should apply category exclusions automatically during skill registration", function()
-			-- Register a skill with skill_cat_excl parameter
-			plus_manager:registerSkill("TestCategory", {
+		it("should apply group exclusions automatically during skill registration", function()
+			-- Register a skill with skill_group_excl parameter
+			plus_manager:registerSkill("TestGroup", {
 				id = "AutoExclSkill",
 				shortName = "AES",
 				fullName = "AutoExclSkill",
 				description = "Test",
-				skill_cat_excl = "Vanilla"
+				skill_group_excl = "Vanilla"
 			})
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.SKILL_EXCLUSIONS]
@@ -359,7 +359,7 @@ describe("Skill Registry Module", function()
 			local foundVanillaExclusion = false
 			for excludedSkill, _ in pairs(exclusions["AutoExclSkill"]) do
 				if plus_manager._subobjects.skill_registry.registeredSkills[excludedSkill] and
-				   plus_manager._subobjects.skill_registry.registeredSkills[excludedSkill].category == "Vanilla" then
+				   plus_manager._subobjects.skill_registry.registeredSkills[excludedSkill].group == "Vanilla" then
 					foundVanillaExclusion = true
 					break
 				end

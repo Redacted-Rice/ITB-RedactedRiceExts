@@ -140,10 +140,10 @@ describe("Skill Config Module", function()
 		end)
 	end)
 
-describe("Category Management", function()
+describe("Group Management", function()
 	before_each(function()
-		skill_config.categories = {}
-		skill_config.config.categoryDescriptions = {}
+		skill_config.groups = {}
+		skill_config.config.groupDescriptions = {}
 		-- Register test skills
 		helper.setupTestSkills({
 			{id = "Health", shortName = "Health", fullName = "Health", description = "Health", saveVal = -1},
@@ -152,70 +152,70 @@ describe("Category Management", function()
 	end)
 
 
-	describe("deleteCategory", function()
-		it("should delete category from all skills", function()
-			-- Add skill to category
-			skill_config:addSkillToCategory("Health", "testCategory")
-			assert.is_true(skill_config:isSkillInCategory("Health", "testCategory"))
+	describe("deleteGroup", function()
+		it("should delete group from all skills", function()
+			-- Add skill to group
+			skill_config:addSkillToGroup("Health", "testGroup")
+			assert.is_true(skill_config:isSkillInGroup("Health", "testGroup"))
 
-			local result = skill_config:deleteCategory("testCategory")
+			local result = skill_config:deleteGroup("testGroup")
 			assert.is_true(result)
 
-			-- Verify category removed from computed structure
-			assert.is_nil(skill_config.categories.testCategory)
+			-- Verify group removed from computed structure
+			assert.is_nil(skill_config.groups.testGroup)
 
-			-- Verify category removed from categoriesAdded
-			assert.is_false(skill_config.config.categoriesAdded.Health and skill_config.config.categoriesAdded.Health.testCategory == true)
+			-- Verify group removed from groupsAdded
+			assert.is_false(skill_config.config.groupsAdded.Health and skill_config.config.groupsAdded.Health.testGroup == true)
 		end)
 
-		it("should always succeed even if category doesn't exist", function()
-			local result = skill_config:deleteCategory("nonExistent")
+		it("should always succeed even if group doesn't exist", function()
+			local result = skill_config:deleteGroup("nonExistent")
 			assert.is_true(result)
 		end)
 	end)
 
-	describe("addSkillToCategory", function()
-		it("should add a skill to a category", function()
-			local result = skill_config:addSkillToCategory("Health", "testCategory")
+	describe("addSkillToGroup", function()
+		it("should add a skill to a group", function()
+			local result = skill_config:addSkillToGroup("Health", "testGroup")
 			assert.is_true(result)
 
 			-- Check computed structure
-			assert.is_not_nil(skill_config.categories.testCategory)
-			assert.is_true(skill_config.categories.testCategory.skillIds.Health)
+			assert.is_not_nil(skill_config.groups.testGroup)
+			assert.is_true(skill_config.groups.testGroup.skillIds.Health)
 
-			-- Verify source of truth - categories use dictionary structure
-			assert.is_not_nil(skill_config.config.categoriesAdded.Health)
-			assert.is_true(skill_config.config.categoriesAdded.Health.testCategory)
+			-- Verify source of truth - groups use dictionary structure
+			assert.is_not_nil(skill_config.config.groupsAdded.Health)
+			assert.is_true(skill_config.config.groupsAdded.Health.testGroup)
 		end)
 
-		it("should auto-create category in computed structure", function()
-			local result = skill_config:addSkillToCategory("Health", "autoCategory")
+		it("should auto-create group in computed structure", function()
+			local result = skill_config:addSkillToGroup("Health", "autoGroup")
 			assert.is_true(result)
-			assert.is_not_nil(skill_config.categories.autoCategory)
-			assert.is_true(skill_config.categories.autoCategory.skillIds.Health)
+			assert.is_not_nil(skill_config.groups.autoGroup)
+			assert.is_true(skill_config.groups.autoGroup.skillIds.Health)
 		end)
 
 		it("should reject if skill doesn't exist", function()
-			local result = skill_config:addSkillToCategory("FakeSkill", "testCategory")
+			local result = skill_config:addSkillToGroup("FakeSkill", "testGroup")
 			assert.is_false(result)
 		end)
 	end)
 
-	describe("removeSkillFromCategory", function()
-		it("should remove a skill from a category", function()
-			skill_config:addSkillToCategory("Health", "testCategory")
+	describe("removeSkillFromGroup", function()
+		it("should remove a skill from a group", function()
+			skill_config:addSkillToGroup("Health", "testGroup")
 
-			local result = skill_config:removeSkillFromCategory("Health", "testCategory")
+			local result = skill_config:removeSkillFromGroup("Health", "testGroup")
 			assert.is_true(result)
 
 			-- Check computed structure
-			assert.is_false(skill_config:isSkillInCategory("Health", "testCategory"))
+			assert.is_false(skill_config:isSkillInGroup("Health", "testGroup"))
 
-			-- Verify skill's categories array is updated
+			-- Verify skill's groups array is updated
 			local skillConfig = skill_config.config.skillConfigs.Health
 			local foundInArray = false
-			for _, pName in ipairs(skillConfig.categories or {}) do
-				if pName == "testCategory" then
+			for _, pName in ipairs(skillConfig.groups or {}) do
+				if pName == "testGroup" then
 					foundInArray = true
 					break
 				end
@@ -223,101 +223,101 @@ describe("Category Management", function()
 			assert.is_false(foundInArray)
 		end)
 
-		it("should succeed even if category doesn't exist", function()
-			local result = skill_config:removeSkillFromCategory("Health", "nonExistent")
+		it("should succeed even if group doesn't exist", function()
+			local result = skill_config:removeSkillFromGroup("Health", "nonExistent")
 			assert.is_true(result)
 		end)
 	end)
 
-	describe("isSkillInCategory", function()
-		it("should check if skill is in category", function()
-			skill_config:addSkillToCategory("Health", "testCategory")
+	describe("isSkillInGroup", function()
+		it("should check if skill is in group", function()
+			skill_config:addSkillToGroup("Health", "testGroup")
 
-			assert.is_true(skill_config:isSkillInCategory("Health", "testCategory"))
-			assert.is_false(skill_config:isSkillInCategory("Move", "testCategory"))
+			assert.is_true(skill_config:isSkillInGroup("Health", "testGroup"))
+			assert.is_false(skill_config:isSkillInGroup("Move", "testGroup"))
 		end)
 
-		it("should return false for non-existent category", function()
-			assert.is_false(skill_config:isSkillInCategory("Health", "nonExistent"))
+		it("should return false for non-existent group", function()
+			assert.is_false(skill_config:isSkillInGroup("Health", "nonExistent"))
 		end)
 	end)
 
-	describe("listCategories", function()
-		it("should list all categories alphabetically from computed structure", function()
-			-- Count categories before adding test categories (vanilla skills may have categories)
-			local categoriesBefore = skill_config:listCategories()
-			local countBefore = #categoriesBefore
+	describe("listGroups", function()
+		it("should list all groups alphabetically from computed structure", function()
+			-- Count groups before adding test groups (vanilla skills may have groups)
+			local groupsBefore = skill_config:listGroups()
+			local countBefore = #groupsBefore
 
-			-- Add skills to categories
-			skill_config:addSkillToCategory("Health", "zCategory")
-			skill_config:addSkillToCategory("Health", "aCategory")
-			skill_config:addSkillToCategory("Move", "mCategory")
+			-- Add skills to groups
+			skill_config:addSkillToGroup("Health", "zGroup")
+			skill_config:addSkillToGroup("Health", "aGroup")
+			skill_config:addSkillToGroup("Move", "mGroup")
 
-			local categories = skill_config:listCategories()
-			-- Should have 3 more categories than before
-			assert.are.equal(countBefore + 3, #categories)
+			local groups = skill_config:listGroups()
+			-- Should have 3 more groups than before
+			assert.are.equal(countBefore + 3, #groups)
 
-			-- Verify our categories are in the list and sorted
-			local foundACategory = false
-			local foundMCategory = false
-			local foundZCategory = false
-			for _, categoryName in ipairs(categories) do
-				if categoryName == "aCategory" then foundACategory = true end
-				if categoryName == "mCategory" then foundMCategory = true end
-				if categoryName == "zCategory" then foundZCategory = true end
+			-- Verify our groups are in the list and sorted
+			local foundAGroup = false
+			local foundMGroup = false
+			local foundZGroup = false
+			for _, groupName in ipairs(groups) do
+				if groupName == "aGroup" then foundAGroup = true end
+				if groupName == "mGroup" then foundMGroup = true end
+				if groupName == "zGroup" then foundZGroup = true end
 			end
-			assert.is_true(foundACategory, "aCategory should be in list")
-			assert.is_true(foundMCategory, "mCategory should be in list")
-			assert.is_true(foundZCategory, "zCategory should be in list")
+			assert.is_true(foundAGroup, "aGroup should be in list")
+			assert.is_true(foundMGroup, "mGroup should be in list")
+			assert.is_true(foundZGroup, "zGroup should be in list")
 
 			-- Verify alphabetical sorting
-			for i = 2, #categories do
-				assert.is_true(categories[i-1] < categories[i], "Categories should be sorted alphabetically")
+			for i = 2, #groups do
+				assert.is_true(groups[i-1] < groups[i], "Groups should be sorted alphabetically")
 			end
 		end)
 
-		it("should return empty list when no categories exist", function()
-			local categories = skill_config:listCategories()
-			assert.are.equal(0, #categories)
+		it("should return empty list when no groups exist", function()
+			local groups = skill_config:listGroups()
+			assert.are.equal(0, #groups)
 		end)
 	end)
 
-	describe("Incremental Category Definition", function()
-		it("should auto-create categories when skills are registered with category arrays", function()
-			-- Register skills with category definitions
+	describe("Incremental Group Definition", function()
+		it("should auto-create groups when skills are registered with group arrays", function()
+			-- Register skills with group definitions
 			helper.setupTestSkills({
-				{id = "Skill1", shortName = "S1", fullName = "Skill 1", description = "Skill 1", saveVal = -1, categories = {"categoryA", "categoryB"}},
-				{id = "Skill2", shortName = "S2", fullName = "Skill 2", description = "Skill 2", saveVal = -1, categories = {"categoryB", "categoryC"}},
+				{id = "Skill1", shortName = "S1", fullName = "Skill 1", description = "Skill 1", saveVal = -1, groups = {"groupA", "groupB"}},
+				{id = "Skill2", shortName = "S2", fullName = "Skill 2", description = "Skill 2", saveVal = -1, groups = {"groupB", "groupC"}},
 			})
 
-			-- Need to rebuild categories after registration
-			helper.rebuildCategories()
+			-- Need to rebuild groups after registration
+			helper.rebuildGroups()
 
-			-- Categories should appear in computed structure
-			assert.is_not_nil(skill_config.categories.categoryA)
-			assert.is_not_nil(skill_config.categories.categoryB)
-			assert.is_not_nil(skill_config.categories.categoryC)
+			-- Groups should appear in computed structure
+			assert.is_not_nil(skill_config.groups.groupA)
+			assert.is_not_nil(skill_config.groups.groupB)
+			assert.is_not_nil(skill_config.groups.groupC)
 
-			-- Skills should be in correct categories
-			assert.is_true(skill_config.categories.categoryA.skillIds.Skill1)
-			assert.is_true(skill_config.categories.categoryB.skillIds.Skill1)
-			assert.is_true(skill_config.categories.categoryB.skillIds.Skill2)
-			assert.is_true(skill_config.categories.categoryC.skillIds.Skill2)
+			-- Skills should be in correct groups
+			assert.is_true(skill_config.groups.groupA.skillIds.Skill1)
+			assert.is_true(skill_config.groups.groupB.skillIds.Skill1)
+			assert.is_true(skill_config.groups.groupB.skillIds.Skill2)
+			assert.is_true(skill_config.groups.groupC.skillIds.Skill2)
 		end)
 
-		it("should handle adding skills to categories via setSkillConfig", function()
-			-- Update skill config to add it to category (this stores as code-defined)
-			skill_config:setSkillConfig("Health", {categories = {"testCategory"}})
+		it("should handle adding skills to groups via setSkillConfig", function()
+			-- Update skill config to add it to group (this stores as code-defined)
+			skill_config:setSkillConfig("Health", {groups = {"testGroup"}})
 
-			-- Need to rebuild categories after registration
-			helper.rebuildCategories()
+			-- Need to rebuild groups after registration
+			helper.rebuildGroups()
 
-			-- Verify skill is in category
-			assert.is_true(skill_config:isSkillInCategory("Health", "testCategory"))
+			-- Verify skill is in group
+			assert.is_true(skill_config:isSkillInGroup("Health", "testGroup"))
 
-			-- Verify source of truth - categories use dictionary structure
-			assert.is_not_nil(skill_config.codeDefinedCategories.Health)
-			assert.is_true(skill_config.codeDefinedCategories.Health.testCategory)
+			-- Verify source of truth - groups use dictionary structure
+			assert.is_not_nil(skill_config.codeDefinedGroups.Health)
+			assert.is_true(skill_config.codeDefinedGroups.Health.testGroup)
 		end)
 	end)
 end)

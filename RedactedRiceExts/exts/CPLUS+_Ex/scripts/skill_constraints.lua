@@ -27,11 +27,11 @@ function skill_constraints:init()
 	self:_registerReusabilityConstraintFunction()
 	self:_registerPlusExclusionInclusionConstraintFunction()
 	self:_registerSkillExclusionConstraintFunction()
-	self:_registerCategoryConstraintFunction()
-	self:_registerPilotCategoryExclusionConstraintFunction()
-	self:_registerPilotCategoryInclusionConstraintFunction()
-	self:_registerSkillCategoryExclusionConstraintFunction()
-	self:_registerCategoryCategoryExclusionConstraintFunction()
+	self:_registerGroupConstraintFunction()
+	self:_registerPilotGroupExclusionConstraintFunction()
+	self:_registerPilotGroupInclusionConstraintFunction()
+	self:_registerSkillGroupExclusionConstraintFunction()
+	self:_registerGroupGroupExclusionConstraintFunction()
 	return self
 end
 
@@ -179,28 +179,28 @@ function skill_constraints:_registerSkillExclusionConstraintFunction()
 	end)
 end
 
--- This enforces category constraints - only one skill from each category per pilot
-function skill_constraints:_registerCategoryConstraintFunction()
+-- This enforces group constraints - only one skill from each group per pilot
+function skill_constraints:_registerGroupConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		-- Check if category exclusions are enabled
-		if not skill_config_module.config.enableCategoryExclusions then
+		-- Check if group exclusions are enabled
+		if not skill_config_module.config.enableGroupExclusions then
 			return true
 		end
 
 		local pilotId = pilot:getIdStr()
 
-		-- Check each category to see if candidate and any selected skill share a category
-		for categoryName, category in pairs(skill_config_module.categories) do
-			-- Only enforce mutual exclusion if onlyOnePerPilot is enabled for this category
-			if category.onlyOnePerPilot then
-				local candidateInCategory = category.skillIds[candidateSkillId]
+		-- Check each group to see if candidate and any selected skill share a group
+		for groupName, group in pairs(skill_config_module.groups) do
+			-- Only enforce mutual exclusion if onlyOnePerPilot is enabled for this group
+			if group.onlyOnePerPilot then
+				local candidateInGroup = group.skillIds[candidateSkillId]
 
-				if candidateInCategory then
-					-- Candidate is in this category, check if any selected skill is also in it
+				if candidateInGroup then
+					-- Candidate is in this group, check if any selected skill is also in it
 					for _, selectedSkillId in ipairs(selectedSkills) do
-						if category.skillIds[selectedSkillId] then
-							logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (category '%s' conflict with already selected skill %s)",
-									candidateSkillId, pilotId, categoryName, selectedSkillId)
+						if group.skillIds[selectedSkillId] then
+							logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (group '%s' conflict with already selected skill %s)",
+									candidateSkillId, pilotId, groupName, selectedSkillId)
 							return false
 						end
 					end
@@ -212,20 +212,20 @@ function skill_constraints:_registerCategoryConstraintFunction()
 	end)
 end
 
--- This enforces pilot to category exclusions
-function skill_constraints:_registerPilotCategoryExclusionConstraintFunction()
+-- This enforces pilot to group exclusions
+function skill_constraints:_registerPilotGroupExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
 
-		-- Check if pilot is excluded from any categories containing this skill
-		local excludedCategories = skill_config_module.config.pilotCategoryExclusions[pilotId]
-		if excludedCategories then
-			-- Get all categories for this skill
-			local skillCategories = skill_config_module:_getMergedCategoriesForSkill(candidateSkillId)
-			for _, categoryName in ipairs(skillCategories) do
-				if excludedCategories[categoryName] then
-					logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (excluded from category '%s')",
-							candidateSkillId, pilotId, categoryName)
+		-- Check if pilot is excluded from any groups containing this skill
+		local excludedGroups = skill_config_module.config.pilotGroupExclusions[pilotId]
+		if excludedGroups then
+			-- Get all groups for this skill
+			local skillGroups = skill_config_module:_getMergedGroupsForSkill(candidateSkillId)
+			for _, groupName in ipairs(skillGroups) do
+				if excludedGroups[groupName] then
+					logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (excluded from group '%s')",
+							candidateSkillId, pilotId, groupName)
 					return false
 				end
 			end
@@ -235,26 +235,26 @@ function skill_constraints:_registerPilotCategoryExclusionConstraintFunction()
 	end)
 end
 
--- This enforces pilot to category inclusions
-function skill_constraints:_registerPilotCategoryInclusionConstraintFunction()
+-- This enforces pilot to group inclusions
+function skill_constraints:_registerPilotGroupInclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
 
-		-- Check if pilot has any category inclusions
-		local includedCategories = skill_config_module.config.pilotCategoryInclusions[pilotId]
-		if includedCategories and next(includedCategories) then
-			-- Pilot has category inclusions, skill must be in at least one included category
-			local skillCategories = skill_config_module:_getMergedCategoriesForSkill(candidateSkillId)
+		-- Check if pilot has any group inclusions
+		local includedGroups = skill_config_module.config.pilotGroupInclusions[pilotId]
+		if includedGroups and next(includedGroups) then
+			-- Pilot has group inclusions, skill must be in at least one included group
+			local skillGroups = skill_config_module:_getMergedGroupsForSkill(candidateSkillId)
 
-			-- Check if skill is in any included category
-			for _, categoryName in ipairs(skillCategories) do
-				if includedCategories[categoryName] then
+			-- Check if skill is in any included group
+			for _, groupName in ipairs(skillGroups) do
+				if includedGroups[groupName] then
 					return true
 				end
 			end
 
-			-- Skill is not in any included category, prevent it
-			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (not in any included categories)",
+			-- Skill is not in any included group, prevent it
+			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (not in any included groups)",
 					candidateSkillId, pilotId)
 			return false
 		end
@@ -263,38 +263,38 @@ function skill_constraints:_registerPilotCategoryInclusionConstraintFunction()
 	end)
 end
 
--- Helper to check if a skill is excluded from any category in a set
+-- Helper to check if a skill is excluded from any group in a set
 -- Returns true if blocked, false if allowed
-local function isSkillExcludedFromCategories(candidateSkillId, categorySet, exclusionTable, pilotId, logContext)
+local function isSkillExcludedFromGroups(candidateSkillId, groupSet, exclusionTable, pilotId, logContext)
 	local candidateExclusions = exclusionTable[candidateSkillId]
 	if not candidateExclusions then
 		return false
 	end
 
-	for _, categoryName in ipairs(categorySet) do
-		if candidateExclusions[categoryName] then
-			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (%s excluded from category '%s')",
-					candidateSkillId, pilotId, logContext, categoryName)
+	for _, groupName in ipairs(groupSet) do
+		if candidateExclusions[groupName] then
+			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (%s excluded from group '%s')",
+					candidateSkillId, pilotId, logContext, groupName)
 			return true
 		end
 	end
 	return false
 end
 
--- Helper to check if candidate's categories are excluded by any selected skill's categories
+-- Helper to check if candidate's groups are excluded by any selected skill's groups
 -- Returns true if blocked, false if allowed
-local function areCategoriesExcluded(candidateCategories, selectedSkills, exclusionTable, candidateSkillId, pilotId, logPrefix)
-	for _, candidateCategory in ipairs(candidateCategories) do
-		local excludedCategories = exclusionTable[candidateCategory]
+local function areGroupsExcluded(candidateGroups, selectedSkills, exclusionTable, candidateSkillId, pilotId, logPrefix)
+	for _, candidateGroup in ipairs(candidateGroups) do
+		local excludedGroups = exclusionTable[candidateGroup]
 
-		if excludedCategories then
+		if excludedGroups then
 			for _, selectedSkillId in pairs(selectedSkills) do
-				local selectedSkillCategories = skill_config_module:_getMergedCategoriesForSkill(selectedSkillId)
+				local selectedSkillGroups = skill_config_module:_getMergedGroupsForSkill(selectedSkillId)
 
-				for _, selectedCategory in ipairs(selectedSkillCategories) do
-					if excludedCategories[selectedCategory] then
-						logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (%s category '%s' excluded from category '%s' of skill %s)",
-								candidateSkillId, pilotId, logPrefix, candidateCategory, selectedCategory, selectedSkillId)
+				for _, selectedGroup in ipairs(selectedSkillGroups) do
+					if excludedGroups[selectedGroup] then
+						logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (%s group '%s' excluded from group '%s' of skill %s)",
+								candidateSkillId, pilotId, logPrefix, candidateGroup, selectedGroup, selectedSkillId)
 						return true
 					end
 				end
@@ -304,25 +304,25 @@ local function areCategoriesExcluded(candidateCategories, selectedSkills, exclus
 	return false
 end
 
--- This enforces skill to category exclusions
-function skill_constraints:_registerSkillCategoryExclusionConstraintFunction()
+-- This enforces skill to group exclusions
+function skill_constraints:_registerSkillGroupExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
-		local candidateCategories = skill_config_module:_getMergedCategoriesForSkill(candidateSkillId)
+		local candidateGroups = skill_config_module:_getMergedGroupsForSkill(candidateSkillId)
 
-		-- Check candidate's exclusions against selected skills' categories
+		-- Check candidate's exclusions against selected skills' groups
 		for _, selectedSkillId in pairs(selectedSkills) do
-			local selectedSkillCategories = skill_config_module:_getMergedCategoriesForSkill(selectedSkillId)
-			if isSkillExcludedFromCategories(candidateSkillId, selectedSkillCategories,
-					skill_config_module.config.skillCategoryExclusions, pilotId, "skill") then
+			local selectedSkillGroups = skill_config_module:_getMergedGroupsForSkill(selectedSkillId)
+			if isSkillExcludedFromGroups(candidateSkillId, selectedSkillGroups,
+					skill_config_module.config.skillGroupExclusions, pilotId, "skill") then
 				return false
 			end
 		end
 
-		-- Check reverse: selected skills' exclusions against candidate's categories
+		-- Check reverse: selected skills' exclusions against candidate's groups
 		for _, selectedSkillId in pairs(selectedSkills) do
-			if isSkillExcludedFromCategories(selectedSkillId, candidateCategories,
-					skill_config_module.config.skillCategoryExclusions, pilotId, "selected skill") then
+			if isSkillExcludedFromGroups(selectedSkillId, candidateGroups,
+					skill_config_module.config.skillGroupExclusions, pilotId, "selected skill") then
 				return false
 			end
 		end
@@ -331,30 +331,30 @@ function skill_constraints:_registerSkillCategoryExclusionConstraintFunction()
 	end)
 end
 
--- This enforces category to category exclusions
-function skill_constraints:_registerCategoryCategoryExclusionConstraintFunction()
+-- This enforces group to group exclusions
+function skill_constraints:_registerGroupGroupExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
-		local candidateCategories = skill_config_module:_getMergedCategoriesForSkill(candidateSkillId)
+		local candidateGroups = skill_config_module:_getMergedGroupsForSkill(candidateSkillId)
 
-		-- Check if candidate's categories are excluded by any selected skill's categories
-		if areCategoriesExcluded(candidateCategories, selectedSkills,
-				skill_config_module.config.categoryCategoryExclusions, candidateSkillId, pilotId, "candidate") then
+		-- Check if candidate's groups are excluded by any selected skill's groups
+		if areGroupsExcluded(candidateGroups, selectedSkills,
+				skill_config_module.config.groupGroupExclusions, candidateSkillId, pilotId, "candidate") then
 			return false
 		end
 
-		-- Check reverse: if any selected skill's category is excluded from candidate's categories
+		-- Check reverse: if any selected skill's group is excluded from candidate's groups
 		for _, selectedSkillId in pairs(selectedSkills) do
-			local selectedSkillCategories = skill_config_module:_getMergedCategoriesForSkill(selectedSkillId)
+			local selectedSkillGroups = skill_config_module:_getMergedGroupsForSkill(selectedSkillId)
 
-			for _, selectedCategory in ipairs(selectedSkillCategories) do
-				local excludedCategories = skill_config_module.config.categoryCategoryExclusions[selectedCategory]
+			for _, selectedGroup in ipairs(selectedSkillGroups) do
+				local excludedGroups = skill_config_module.config.groupGroupExclusions[selectedGroup]
 
-				if excludedCategories then
-					for _, candidateCategory in ipairs(candidateCategories) do
-						if excludedCategories[candidateCategory] then
-							logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (selected category '%s' of skill %s excluded from candidate category '%s')",
-									candidateSkillId, pilotId, selectedCategory, selectedSkillId, candidateCategory)
+				if excludedGroups then
+					for _, candidateGroup in ipairs(candidateGroups) do
+						if excludedGroups[candidateGroup] then
+							logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (selected group '%s' of skill %s excluded from candidate group '%s')",
+									candidateSkillId, pilotId, selectedGroup, selectedSkillId, candidateGroup)
 							return false
 						end
 					end

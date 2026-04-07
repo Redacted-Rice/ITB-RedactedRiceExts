@@ -125,7 +125,7 @@ end
 
 function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selectedSkills)
 	while true do
-		-- Get a weighted random skill from the available category
+		-- Get a weighted random skill from the available group
 		local candidateSkillId = self:_getWeightedRandomSkillId(availableSkills)
 		if candidateSkillId == nil then
 			break
@@ -137,7 +137,7 @@ function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selected
 			selectedSkills[idx] = candidateSkillId
 			return candidateSkillId
 		else
-			-- If the skill is invalid, remove it from the category
+			-- If the skill is invalid, remove it from the group
 			for i, skillId in ipairs(availableSkills) do
 				if skillId == candidateSkillId then
 					table.remove(availableSkills, i)

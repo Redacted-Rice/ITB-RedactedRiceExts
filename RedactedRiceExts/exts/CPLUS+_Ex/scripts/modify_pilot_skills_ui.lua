@@ -13,11 +13,11 @@ local scrollContent = nil
 -- Track UI widgets for updates
 local percentageLabels = {}
 local expandedCollapsables = {}
-local categoryHeaderLabels = {}
+local groupHeaderLabels = {}
 local relationshipsContainer = nil
 local relationshipsParent = nil
-local categoriesContainer = nil
-local categoriesParent = nil
+local groupsContainer = nil
+local groupsParent = nil
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -121,22 +121,22 @@ function modify_pilot_skills_ui:rebuildAllRelationships()
 	end
 end
 
--- Get the appropriate category relationship table based on relationship type
-function modify_pilot_skills_ui:_getCategoryRelationshipTable(relationshipType)
+-- Get the appropriate group relationship table based on relationship type
+function modify_pilot_skills_ui:_getGroupRelationshipTable(relationshipType)
 	if relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_EXCLUSIONS then
-		return cplus_plus_ex.config.pilotCategoryExclusions
+		return cplus_plus_ex.config.pilotGroupExclusions
 	elseif relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_INCLUSIONS then
-		return cplus_plus_ex.config.pilotCategoryInclusions
+		return cplus_plus_ex.config.pilotGroupInclusions
 	elseif relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
-		return cplus_plus_ex.config.skillCategoryExclusions
+		return cplus_plus_ex.config.skillGroupExclusions
 	end
 	return nil
 end
 
--- Get category to category relationship table
-function modify_pilot_skills_ui:_getCategoryCategoryRelationshipTable(relationshipType)
+-- Get group to group relationship table
+function modify_pilot_skills_ui:_getGroupGroupRelationshipTable(relationshipType)
 	if relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
-		return cplus_plus_ex.config.categoryCategoryExclusions
+		return cplus_plus_ex.config.groupGroupExclusions
 	end
 	return nil
 end
@@ -155,66 +155,66 @@ local function modifyNestedRelationship(table, key1, key2, shouldAdd)
 	end
 end
 
--- Add/Remove a category relationship
-function modify_pilot_skills_ui:_modifyCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional, shouldAdd)
-	local isSourceCategory = sourceId:match("^cat:")
-	local isTargetCategory = targetId:match("^cat:")
+-- Add/Remove a group relationship
+function modify_pilot_skills_ui:_modifyGroupRelationship(relationshipType, sourceId, targetId, isBidirectional, shouldAdd)
+	local isSourceGroup = sourceId:match("^group:")
+	local isTargetGroup = targetId:match("^group:")
 	local action = shouldAdd and "Added" or "Removed"
 
-	if isSourceCategory and isTargetCategory then
-		-- Category -> Category
-		local catCatTable = self:_getCategoryCategoryRelationshipTable(relationshipType)
-		if catCatTable then
-			local sourceCat = sourceId:sub(5)
-			local targetCat = targetId:sub(5)
+	if isSourceGroup and isTargetGroup then
+		-- Group -> Group
+		local groupGroupTable = self:_getGroupGroupRelationshipTable(relationshipType)
+		if groupGroupTable then
+			local sourceGroup = sourceId:gsub("^group:", "")
+			local targetGroup = targetId:gsub("^group:", "")
 
-			modifyNestedRelationship(catCatTable, sourceCat, targetCat, shouldAdd)
+			modifyNestedRelationship(groupGroupTable, sourceGroup, targetGroup, shouldAdd)
 			if isBidirectional then
-				modifyNestedRelationship(catCatTable, targetCat, sourceCat, shouldAdd)
+				modifyNestedRelationship(groupGroupTable, targetGroup, sourceGroup, shouldAdd)
 			end
 
-			logger.logDebug(SUBMODULE, "%s category-category relationship: %s ↔ %s", action, sourceCat, targetCat)
+			logger.logDebug(SUBMODULE, "%s group-group relationship: %s ↔ %s", action, sourceGroup, targetGroup)
 		end
-	elseif isTargetCategory then
-		-- Source (skill/pilot) -> Category
-		local categoryTable = self:_getCategoryRelationshipTable(relationshipType)
-		if categoryTable then
-			local categoryName = targetId:sub(5)
-			modifyNestedRelationship(categoryTable, sourceId, categoryName, shouldAdd)
-			logger.logDebug(SUBMODULE, "%s category relationship: %s → Category:%s", action, sourceId, categoryName)
+	elseif isTargetGroup then
+		-- Source (skill/pilot) -> Group
+		local groupTable = self:_getGroupRelationshipTable(relationshipType)
+		if groupTable then
+			local groupName = targetId:gsub("^group:", "")
+			modifyNestedRelationship(groupTable, sourceId, groupName, shouldAdd)
+			logger.logDebug(SUBMODULE, "%s group relationship: %s → Group:%s", action, sourceId, groupName)
 		end
 	end
 end
 
--- Add a category relationship
-function modify_pilot_skills_ui:_addCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional)
-	self:_modifyCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional, true)
+-- Add a group relationship
+function modify_pilot_skills_ui:_addGroupRelationship(relationshipType, sourceId, targetId, isBidirectional)
+	self:_modifyGroupRelationship(relationshipType, sourceId, targetId, isBidirectional, true)
 end
 
 -- For some actions it doesn't trigger a rebuild of relationships otherwise
 -- Its a bit clunky but its temporary for now anyways so shouldn't be a big
 -- deal
-function modify_pilot_skills_ui:rebuildAllCategoryPools()
-	-- Rebuild both category pools and relationships to maintain correct order
-	if categoriesContainer and categoriesParent then
-		categoriesContainer:detach()
+function modify_pilot_skills_ui:rebuildAllGroupPools()
+	-- Rebuild both group pools and relationships to maintain correct order
+	if groupsContainer and groupsParent then
+		groupsContainer:detach()
 	end
 	if relationshipsContainer and relationshipsParent then
 		relationshipsContainer:detach()
 	end
 
 	-- Rebuild in correct order
-	if categoriesParent then
-		self:buildCategories(categoriesParent)
+	if groupsParent then
+		self:buildGroups(groupsParent)
 	end
 	if relationshipsParent then
 		self:buildRelationships(relationshipsParent)
 	end
 end
 
--- Remove a category relationship
-function modify_pilot_skills_ui:_removeCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional)
-	self:_modifyCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional, false)
+-- Remove a group relationship
+function modify_pilot_skills_ui:_removeGroupRelationship(relationshipType, sourceId, targetId, isBidirectional)
+	self:_modifyGroupRelationship(relationshipType, sourceId, targetId, isBidirectional, false)
 end
 
 function modify_pilot_skills_ui:init()
@@ -337,9 +337,9 @@ function modify_pilot_skills_ui:clickCollapse(collapsable, button)
 			self:closeCollapsable(collapsable)
 		end
 
-		-- Save collapse state if this is a category section
-		if collapsable.categoryName then
-			cplus_plus_ex.config.categoryCollapseStates[collapsable.categoryName] = not collapsable.checked
+		-- Save collapse state if this is a group section
+		if collapsable.groupName then
+			cplus_plus_ex.config.groupCollapseStates[collapsable.groupName] = not collapsable.checked
 			cplus_plus_ex:saveConfiguration()
 		end
 
@@ -444,26 +444,26 @@ function modify_pilot_skills_ui:buildCollapsibleSection(title, parent, vgap, ini
 	return collapse.dropdownHolder, sortDropdown
 end
 
--- Builds a category section with tri checkbox
+-- Builds a group section with tri checkbox
 -- Returns the content holder and the checkbox for updating checked state
-function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, slotRestrictionLength, startCollapsed)
-	logger.logDebug(SUBMODULE, "buildCategorySection: category=%s, skillLen=%d, reuseLen=%d, slotLen=%d",
-			category, skillLength or -1, resuabilityLength or -1, slotRestrictionLength or -1)
-	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, startCollapsed)
+function modify_pilot_skills_ui:buildGroupSection(group, parent, groupSkills, skillLength, resuabilityLength, slotRestrictionLength, startCollapsed)
+	logger.logDebug(SUBMODULE, "buildGroupSection: group=%s, skillLen=%d, reuseLen=%d, slotLen=%d",
+			group, skillLength or -1, resuabilityLength or -1, slotRestrictionLength or -1)
+	local collapse, headerHolder = self:buildCollapsibleSectionBase(group, parent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, startCollapsed)
 
-	-- Store category name for saving collapse state
-	collapse.categoryName = category
+	-- Store group name for saving collapse state
+	collapse.groupName = group
 
-	-- Category checkbox (tri-state)
-	local categoryCheckbox = UiTriCheckbox()
+	-- Group checkbox (tri-state)
+	local groupCheckbox = UiTriCheckbox()
 		:widthpx(skillLength):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoButton(),
 			DecoTriCheckbox(),
 			DecoAlign(0, 2),
-			DecoText(category, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+			DecoText(group, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
 		})
-		:settooltip("Enable/disable all skills in this category")
+		:settooltip("Enable/disable all skills in this group")
 		:addTo(headerHolder)
 
 	local reusabilityHeader = Ui()
@@ -487,9 +487,9 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 		:addTo(headerHolder)
 
 	-- Weight header with total
-	local categoryWeight, categoryPercentage = self:calculateCategoryTotals(categorySkills, self:calculateTotalWeight())
+	local groupWeight, groupPercentage = self:calculateGroupTotals(groupSkills, self:calculateTotalWeight())
 
-	local weightDeco = DecoCAlignedText(string.format(TOTAL_WEIGHT_HEADER, categoryWeight), nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+	local weightDeco = DecoCAlignedText(string.format(TOTAL_WEIGHT_HEADER, groupWeight), nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
 	local weightHeader = Ui()
 		:width(0.25):heightpx(ROW_HEIGHT)
 		:decorate({
@@ -497,11 +497,11 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 			DecoAlign(0, 2),
 			weightDeco
 		})
-		:settooltip("Total weight of all enabled skills in this category")
+		:settooltip("Total weight of all enabled skills in this group")
 		:addTo(headerHolder)
 
 	-- Percentage header with total
-	local percentDeco = DecoCAlignedText(string.format(TOTAL_PERCENT_HEADER, categoryPercentage), nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+	local percentDeco = DecoCAlignedText(string.format(TOTAL_PERCENT_HEADER, groupPercentage), nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
 	local percentHeader = Ui()
 		:width(0.25):heightpx(ROW_HEIGHT)
 		:decorate({
@@ -509,20 +509,20 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 			DecoAlign(0, 2),
 			percentDeco
 		})
-		:settooltip("Combined chance that any skill from this category will be selected")
+		:settooltip("Combined chance that any skill from this group will be selected")
 		:addTo(headerHolder)
 
 	-- Store references for updates
-	if not categoryHeaderLabels[category] then
-		categoryHeaderLabels[category] = {}
+	if not groupHeaderLabels[group] then
+		groupHeaderLabels[group] = {}
 	end
-	categoryHeaderLabels[category].weightDeco = weightDeco
-	categoryHeaderLabels[category].percentDeco = percentDeco
-	categoryHeaderLabels[category].skills = categorySkills
+	groupHeaderLabels[group].weightDeco = weightDeco
+	groupHeaderLabels[group].percentDeco = percentDeco
+	groupHeaderLabels[group].skills = groupSkills
 
-	collapse.categoryCheckbox = categoryCheckbox
+	collapse.groupCheckbox = groupCheckbox
 
-	return collapse.dropdownHolder, categoryCheckbox
+	return collapse.dropdownHolder, groupCheckbox
 end
 
 -- Builds a single skill entry row
@@ -544,34 +544,34 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 	self:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
 	self:buildSkillEntryLabels(entryRow, skill)
 
-	-- Store the enable checkbox for category management
+	-- Store the enable checkbox for group management
 	entryRow.enableCheckbox = enableCheckbox
 
 	return entryRow
 end
 
--- Gets all skills organized by category
--- Returns: table of category -> array like table of skills
-function modify_pilot_skills_ui:getSkillsByCategory()
-	local skillsByCategory = {}
+-- Gets all skills organized by group
+-- Returns: table of group -> array like table of skills
+function modify_pilot_skills_ui:getSkillsByGroup()
+	local skillsByGroup = {}
 
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
-		local category = skill.category or "Other"
+		local group = skill.group or "Other"
 
-		if not skillsByCategory[category] then
-			skillsByCategory[category] = {}
+		if not skillsByGroup[group] then
+			skillsByGroup[group] = {}
 		end
-		table.insert(skillsByCategory[category], skill)
+		table.insert(skillsByGroup[group], skill)
 	end
 
-	-- Sort skills within each category by short name
-	for category, skills in pairs(skillsByCategory) do
+	-- Sort skills within each group by short name
+	for group, skills in pairs(skillsByGroup) do
 		table.sort(skills, function(a, b)
 			return (GetText(a.shortName) or a.shortName):lower() < (GetText(b.shortName) or b.shortName):lower()
 		end)
 	end
 
-	return skillsByCategory
+	return skillsByGroup
 end
 
 -- calculate total weight of all enabled skills
@@ -607,18 +607,18 @@ function modify_pilot_skills_ui:updateAllPercentages()
 		end
 	end
 
-	-- Update category header totals
-	for category, headerData in pairs(categoryHeaderLabels) do
-		local categoryWeight, categoryPercentage = self:calculateCategoryTotals(headerData.skills, totalWeight)
+	-- Update group header totals
+	for group, headerData in pairs(groupHeaderLabels) do
+		local groupWeight, groupPercentage = self:calculateGroupTotals(headerData.skills, totalWeight)
 
 		-- Update weight header
 		if headerData.weightDeco then
-			headerData.weightDeco:setsurface(string.format(TOTAL_WEIGHT_HEADER, categoryWeight))
+			headerData.weightDeco:setsurface(string.format(TOTAL_WEIGHT_HEADER, groupWeight))
 		end
 
 		-- Update percentage header
 		if headerData.percentDeco then
-			headerData.percentDeco:setsurface(string.format(TOTAL_PERCENT_HEADER, categoryPercentage))
+			headerData.percentDeco:setsurface(string.format(TOTAL_PERCENT_HEADER, groupPercentage))
 		end
 	end
 end
@@ -699,7 +699,7 @@ end
 function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, skillLength, onToggleCallback)
 	local shortName = GetText(skill.shortName)
 	local description = GetText(skill.description)
-	local category = skill.category
+	local group = skill.group
 
 	local decorations = {
 		DecoButton(),
@@ -742,13 +742,13 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 		self:updateAllPercentages()
 		cplus_plus_ex:saveConfiguration()
 
-		-- Call the callback if provided for category checkbox updates
+		-- Call the callback if provided for group checkbox updates
 		if onToggleCallback then
 			onToggleCallback()
 		end
 
-		-- Rebuild relationship and category sections to reflect enabled/disabled state
-		self:rebuildAllCategoryPools()
+		-- Rebuild relationship and group sections to reflect enabled/disabled state
+		self:rebuildAllGroupPools()
 		self:rebuildAllRelationships()
 	end)
 
@@ -997,25 +997,25 @@ function modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 	percentageLabels[skill.id] = percentageLabel
 end
 
--- Calculates total weight and percentage for a specific category
-function modify_pilot_skills_ui:calculateCategoryTotals(categorySkills, totalWeight)
-	local categoryWeight = 0
-	local categoryPercentage = 0
+-- Calculates total weight and percentage for a specific group
+function modify_pilot_skills_ui:calculateGroupTotals(groupSkills, totalWeight)
+	local groupWeight = 0
+	local groupPercentage = 0
 
-	-- Calculate category weight
-	for _, skill in ipairs(categorySkills) do
+	-- Calculate group weight
+	for _, skill in ipairs(groupSkills) do
 		local skillConfig = cplus_plus_ex.config.skillConfigs[skill.id]
 		if skillConfig and skillConfig.enabled then
-			categoryWeight = categoryWeight + skillConfig.weight
+			groupWeight = groupWeight + skillConfig.weight
 		end
 	end
 
-	-- Calculate category percentage
+	-- Calculate group percentage
 	if totalWeight > 0 then
-		categoryPercentage = (categoryWeight / totalWeight) * 100
+		groupPercentage = (groupWeight / totalWeight) * 100
 	end
 
-	return categoryWeight, categoryPercentage
+	return groupWeight, groupPercentage
 end
 
 function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
@@ -1040,21 +1040,21 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 		cplus_plus_ex:saveConfiguration()
 	end)
 
-	-- Enable category exclusions checkbox
-	local enableCategoriesCheckbox = UiCheckbox()
+	-- Enable group exclusions checkbox
+	local enableGroupsCheckbox = UiCheckbox()
 		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("Enable category based exclusions so only one skill from each category can be chosen per pilot. Vanilla behavior would be disabling this")
+		:settooltip("Enable group based exclusions so only one skill from each group can be chosen per pilot. Vanilla behavior would be disabling this")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
 			DecoAlign(0, 2),
-			DecoText("Enable Category Based Exclusions")
+			DecoText("Enable Group Based Exclusions")
 		})
 		:addTo(settingsContent)
-	enableCategoriesCheckbox.checked = cplus_plus_ex.config.enableCategoryExclusions
+	enableGroupsCheckbox.checked = cplus_plus_ex.config.enableGroupExclusions
 
-	enableCategoriesCheckbox.onToggled:subscribe(function(checked)
-		cplus_plus_ex.config.enableCategoryExclusions = checked
+	enableGroupsCheckbox.onToggled:subscribe(function(checked)
+		cplus_plus_ex.config.enableGroupExclusions = checked
 		cplus_plus_ex:saveConfiguration()
 	end)
 end
@@ -1076,18 +1076,18 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 		skillsSortDropdown.choice = currentSkillSort
 	end
 
-	-- Get all skills organized by category
-	local skillsByCategory = self:getSkillsByCategory()
+	-- Get all skills organized by group
+	local skillsByGroup = self:getSkillsByGroup()
 
-	-- Sort categories alphabetically
-	local sortedCategories = {}
-	for category in pairs(skillsByCategory) do
-		table.insert(sortedCategories, category)
+	-- Sort groups alphabetically
+	local sortedGroups = {}
+	for group in pairs(skillsByGroup) do
+		table.insert(sortedGroups, group)
 	end
-	table.sort(sortedCategories)
+	table.sort(sortedGroups)
 
-	-- Function to rebuild all categories with current sort
-	local function rebuildSkillCategories()
+	-- Function to rebuild all groups with current sort
+	local function rebuildSkillGroups()
 		-- Clear existing content but keep header
 		while #skillsContent.children > 0 do
 			skillsContent.children[#skillsContent.children]:detach()
@@ -1095,24 +1095,24 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 		-- Clear tracking tables for fresh rebuild
 		percentageLabels = {}
-		categoryHeaderLabels = {}
+		groupHeaderLabels = {}
 
-		-- Build each category section
-		for _, category in ipairs(sortedCategories) do
-			local skills = self:_sortSkillsByCurrentSort(skillsByCategory[category], currentSkillSort)
+		-- Build each group section
+		for _, group in ipairs(sortedGroups) do
+			local skills = self:_sortSkillsByCurrentSort(skillsByGroup[group], currentSkillSort)
 			-- Use saved collapse state if available, default to expanded (false = not collapsed)
-			local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
-			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, slotRestrictionLength, startCollapsed)
+			local startCollapsed = cplus_plus_ex.config.groupCollapseStates[group] or false
+			local groupContent, groupCheckbox = self:buildGroupSection(group, skillsContent, skills, skillLength, reuseabilityLength, slotRestrictionLength, startCollapsed)
 
-			-- Track checkboxes for this category
-			local categorySkillCheckboxes = {}
+			-- Track checkboxes for this group
+			local groupSkillCheckboxes = {}
 
-			-- Method to update category checkbox state based on children
-			categoryCheckbox.updateCheckedState = function(cc)
+			-- Method to update group checkbox state based on children
+			groupCheckbox.updateCheckedState = function(cc)
 				local enabledCount = 0
-				local totalCount = #categorySkillCheckboxes
+				local totalCount = #groupSkillCheckboxes
 
-				for _, entry in ipairs(categorySkillCheckboxes) do
+				for _, entry in ipairs(groupSkillCheckboxes) do
 					local skillConfig = cplus_plus_ex.config.skillConfigs[entry.skillId]
 					if skillConfig and skillConfig.enabled then
 						enabledCount = enabledCount + 1
@@ -1130,10 +1130,10 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			end
 
 			-- Update all child checkboxes
-			categoryCheckbox.updateChildrenCheckedState = function(cc)
+			groupCheckbox.updateChildrenCheckedState = function(cc)
 				local newState = (cc.checked == true)
 
-				for _, entry in ipairs(categorySkillCheckboxes) do
+				for _, entry in ipairs(groupSkillCheckboxes) do
 					if newState then
 						cplus_plus_ex:enableSkill(entry.skillId, true)
 					else
@@ -1145,29 +1145,29 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
 
-				-- Rebuild category pool and relationship sections to reflect enabled/disabled state
-				self:rebuildAllCategoryPools()
+				-- Rebuild group pool and relationship sections to reflect enabled/disabled state
+				self:rebuildAllGroupPools()
 				self:rebuildAllRelationships()
 			end
 
 			-- Build skill entries
 			for _, skill in ipairs(skills) do
 				local onToggleCallback = function()
-					categoryCheckbox:updateCheckedState()
+					groupCheckbox:updateCheckedState()
 				end
 
 				local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, slotRestrictionLength, onToggleCallback)
-					:addTo(categoryContent)
+					:addTo(groupContent)
 
-				-- Track the skill's enable checkbox for category updates
-				table.insert(categorySkillCheckboxes, {
+				-- Track the skill's enable checkbox for group updates
+				table.insert(groupSkillCheckboxes, {
 					skillId = skill.id,
 					checkbox = skillEntry.enableCheckbox
 				})
 			end
 
-			-- Category checkbox click handler
-			categoryCheckbox.onclicked = function(cc, button)
+			-- Group checkbox click handler
+			groupCheckbox.onclicked = function(cc, button)
 				if button == 1 then
 					cc:updateChildrenCheckedState()
 					cc:updateCheckedState()
@@ -1177,7 +1177,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			end
 
 			-- Initial state
-			categoryCheckbox:updateCheckedState()
+			groupCheckbox:updateCheckedState()
 		end
 	end
 
@@ -1188,14 +1188,14 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			-- Save sort order preference
 			cplus_plus_ex.config.skillConfigSortOrder = value
 			cplus_plus_ex:saveConfiguration()
-			rebuildSkillCategories()
+			rebuildSkillGroups()
 			-- Update percentages after rebuild
 			self:updateAllPercentages()
 		end)
 	end
 
 	-- Initial build
-	rebuildSkillCategories()
+	rebuildSkillGroups()
 
 	-- Initial percentage calculation
 	self:updateAllPercentages()
@@ -1311,7 +1311,7 @@ function modify_pilot_skills_ui:addArrowLabel(bidirectional, row)
 		:addTo(row)
 end
 
-function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, includeSkillTooltips, includeCategories)
+function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, includeSkillTooltips, includeGroups)
 	local listDisplay = {"", "All"}
 	local listVals = {"", "All"}
 	local listTooltips = {"", "Add entry for each item"}
@@ -1340,14 +1340,14 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 		end
 	end
 
-	-- Add categories at the end if requested
-	if includeCategories then
-		local categoryNames = cplus_plus_ex:listCategories()
-		table.sort(categoryNames)
+	-- Add groups at the end if requested
+	if includeGroups then
+		local groupNames = cplus_plus_ex:listGroups()
+		table.sort(groupNames)
 
-		for _, categoryName in ipairs(categoryNames) do
-			table.insert(listDisplay, "Category: " .. categoryName)
-			table.insert(listVals, "cat:" .. categoryName)
+		for _, groupName in ipairs(groupNames) do
+			table.insert(listDisplay, "Group: " .. groupName)
+			table.insert(listVals, "group:" .. groupName)
 			table.insert(listTooltips, "")
 		end
 	end
@@ -1379,12 +1379,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local includeSourceTooltips = sourceLabel == "Skill"
 	local includeTargetTooltips = targetLabel == "Skill"
 
-	-- Include categories in dropdowns for skill to skill relationships
-	local includeSourceCategories = (sourceLabel == "Skill" and targetLabel == "Skill")
-	local includeTargetCategories = targetLabel == "Skill"
+	-- Include groups in dropdowns for skill to skill relationships
+	local includeSourceGroups = (sourceLabel == "Skill" and targetLabel == "Skill")
+	local includeTargetGroups = targetLabel == "Skill"
 
-	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips, includeSourceCategories)
-	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips, includeTargetCategories)
+	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips, includeSourceGroups)
+	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips, includeTargetGroups)
 
 	-- Calculate dynamic icon width
 	local maxSkillIconWidth = self:getLargestIconWidth()
@@ -1428,13 +1428,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local rebuildRelationshipList
 
 	-- Helper function to build a single relationship row
-	local function buildRelationshipRow(sourceId, targetId, isSourceCategory, isTargetCategory)
+	local function buildRelationshipRow(sourceId, targetId, isSourceGroup, isTargetGroup)
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 			:addTo(sectionContainer)
 
-		if isSourceCategory then
-			-- Empty space for category for now
+		if isSourceGroup then
+			-- Empty space for group for now
 			Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(entryRow)
 		elseif sourceLabel == "Pilot" then
 			self:addPilotImage(sourceId, entryRow)
@@ -1443,16 +1443,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		end
 
 		-- Add labels with skill tooltips if applicable
-		local sourceDisplay = isSourceCategory and ("Category: " .. sourceId) or sourceList[sourceId]
-		local sourceSkillId = (not isSourceCategory and sourceLabel == "Skill") and sourceId or nil
-		local targetSkillId = (not isTargetCategory and targetLabel == "Skill") and targetId or nil
-		local targetDisplay = isTargetCategory and ("Category: " .. targetId) or targetList[targetId]
+		local sourceDisplay = isSourceGroup and ("Group: " .. sourceId) or sourceList[sourceId]
+		local sourceSkillId = (not isSourceGroup and sourceLabel == "Skill") and sourceId or nil
+		local targetSkillId = (not isTargetGroup and targetLabel == "Skill") and targetId or nil
+		local targetDisplay = isTargetGroup and ("Group: " .. targetId) or targetList[targetId]
 
 		self:addExistingRelLabel(sourceDisplay, entryRow, sourceSkillId)
 		self:addArrowLabel(isBidirectional, entryRow)
 
-		if isTargetCategory then
-			-- Empty space for category
+		if isTargetGroup then
+			-- Empty space for group
 			Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(entryRow)
 		elseif targetLabel == "Skill" then
 			self:addSkillIcon(targetId, entryRow, maxSkillIconWidth)
@@ -1461,7 +1461,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		self:addExistingRelLabel(targetDisplay, entryRow, targetSkillId)
 
 		-- Remove button
-		local isCodeDefined = not (isSourceCategory or isTargetCategory) and cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
+		local isCodeDefined = not (isSourceGroup or isTargetGroup) and cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
 		local btnText = "Remove"
 		local btnTooltip = isCodeDefined and "Remove this code defined relationship"
 				or "Remove this user added relationship"
@@ -1470,11 +1470,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			btnText,
 			btnTooltip,
 			function()
-				if isSourceCategory or isTargetCategory then
-					-- Construct full IDs with cat: prefix for removal
-					local fullSourceId = isSourceCategory and ("cat:" .. sourceId) or sourceId
-					local fullTargetId = isTargetCategory and ("cat:" .. targetId) or targetId
-					self:_removeCategoryRelationship(relationshipType, fullSourceId, fullTargetId, isBidirectional)
+				if isSourceGroup or isTargetGroup then
+					-- Construct full IDs with group: prefix for removal
+					local fullSourceId = isSourceGroup and ("group:" .. sourceId) or sourceId
+					local fullTargetId = isTargetGroup and ("group:" .. targetId) or targetId
+					self:_removeGroupRelationship(relationshipType, fullSourceId, fullTargetId, isBidirectional)
 				else
 					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
 					if isBidirectional then
@@ -1510,7 +1510,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				-- Only show relationships where both source and target are enabled
 				if self:isItemEnabled(sourceId) and self:isItemEnabled(targetId) then
 					local key = sourceId .. "|" .. targetId
-					local relationship = {sourceId = sourceId, targetId = targetId, isSourceCategory = false, isTargetCategory = false}
+					local relationship = {sourceId = sourceId, targetId = targetId, isSourceGroup = false, isTargetGroup = false}
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
@@ -1522,15 +1522,15 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 		end
 
-		-- Add skill/pilot-category relationships
-		local categoryRelTable = self:_getCategoryRelationshipTable(relationshipType)
-		if categoryRelTable then
-			for sourceId, categories in pairs(categoryRelTable) do
-				for categoryName, _ in pairs(categories) do
+		-- Add skill/pilot-group relationships
+		local groupRelTable = self:_getGroupRelationshipTable(relationshipType)
+		if groupRelTable then
+			for sourceId, groups in pairs(groupRelTable) do
+				for groupName, _ in pairs(groups) do
 					-- Only show if source is enabled
 					if self:isItemEnabled(sourceId) then
-						local key = sourceId .. "|cat:" .. categoryName
-						local relationship = {sourceId = sourceId, targetId = categoryName, isSourceCategory = false, isTargetCategory = true}
+						local key = sourceId .. "|group:" .. groupName
+						local relationship = {sourceId = sourceId, targetId = groupName, isSourceGroup = false, isTargetGroup = true}
 
 						-- Check if this is a newly added item
 						if newlyAddedRelationships[key] then
@@ -1543,13 +1543,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 		end
 
-		-- Add category to category relationships
-		local catCatTable = self:_getCategoryCategoryRelationshipTable(relationshipType)
-		if catCatTable then
-			for sourceCat, targetCategories in pairs(catCatTable) do
-				for targetCat, _ in pairs(targetCategories) do
-					local key = "cat:" .. sourceCat .. "|cat:" .. targetCat
-					local relationship = {sourceId = sourceCat, targetId = targetCat, isSourceCategory = true, isTargetCategory = true}
+		-- Add group to group relationships
+		local groupGroupTable = self:_getGroupGroupRelationshipTable(relationshipType)
+		if groupGroupTable then
+			for sourceGroup, targetGroups in pairs(groupGroupTable) do
+				for targetGroup, _ in pairs(targetGroups) do
+					local key = "group:" .. sourceGroup .. "|group:" .. targetGroup
+					local relationship = {sourceId = sourceGroup, targetId = targetGroup, isSourceGroup = true, isTargetGroup = true}
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
@@ -1565,37 +1565,37 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		table.sort(relationshipList, function(a, b)
 			if sortColumn == 1 then
 				-- Sort by source then target
-				local aSourceName = a.isSourceCategory and ("Category: " .. a.sourceId) or (sourceList[a.sourceId] or "")
-				local bSourceName = b.isSourceCategory and ("Category: " .. b.sourceId) or (sourceList[b.sourceId] or "")
+				local aSourceName = a.isSourceGroup and ("Group: " .. a.sourceId) or (sourceList[a.sourceId] or "")
+				local bSourceName = b.isSourceGroup and ("Group: " .. b.sourceId) or (sourceList[b.sourceId] or "")
 				if aSourceName:lower() ~= bSourceName:lower() then
 					return aSourceName:lower() < bSourceName:lower()
 				end
 				-- Secondary sort by target
-				local aTargetName = a.isTargetCategory and ("Category: " .. a.targetId) or (targetList[a.targetId] or "")
-				local bTargetName = b.isTargetCategory and ("Category: " .. b.targetId) or (targetList[b.targetId] or "")
+				local aTargetName = a.isTargetGroup and ("Group: " .. a.targetId) or (targetList[a.targetId] or "")
+				local bTargetName = b.isTargetGroup and ("Group: " .. b.targetId) or (targetList[b.targetId] or "")
 				return aTargetName:lower() < bTargetName:lower()
 			else
 				-- Sort by target then source
-				local aTargetName = a.isTargetCategory and ("Category: " .. a.targetId) or (targetList[a.targetId] or "")
-				local bTargetName = b.isTargetCategory and ("Category: " .. b.targetId) or (targetList[b.targetId] or "")
+				local aTargetName = a.isTargetGroup and ("Group: " .. a.targetId) or (targetList[a.targetId] or "")
+				local bTargetName = b.isTargetGroup and ("Group: " .. b.targetId) or (targetList[b.targetId] or "")
 				if aTargetName:lower() ~= bTargetName:lower() then
 					return aTargetName:lower() < bTargetName:lower()
 				end
 				-- Secondary sort by source
-				local aSourceName = a.isSourceCategory and ("Category: " .. a.sourceId) or (sourceList[a.sourceId] or "")
-				local bSourceName = b.isSourceCategory and ("Category: " .. b.sourceId) or (sourceList[b.sourceId] or "")
+				local aSourceName = a.isSourceGroup and ("Group: " .. a.sourceId) or (sourceList[a.sourceId] or "")
+				local bSourceName = b.isSourceGroup and ("Group: " .. b.sourceId) or (sourceList[b.sourceId] or "")
 				return aSourceName:lower() < bSourceName:lower()
 			end
 		end)
 
 		-- Build newly added items first
 		for _, relationship in ipairs(newItemsList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId, relationship.isSourceCategory, relationship.isTargetCategory)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId, relationship.isSourceGroup, relationship.isTargetGroup)
 		end
 
 		-- Build sorted items
 		for _, relationship in ipairs(relationshipList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId, relationship.isSourceCategory, relationship.isTargetCategory)
+			buildRelationshipRow(relationship.sourceId, relationship.targetId, relationship.isSourceGroup, relationship.isTargetGroup)
 		end
 
 		-- Spacer
@@ -1620,7 +1620,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			selectedSource = newValue
 
 			-- Update image if we have one
-			if currentSourceImage and not newValue:match("^cat:") then
+			if currentSourceImage and not newValue:match("^group:") then
 				-- Remove old decoration
 				for i = #currentSourceImage.decorations, 1, -1 do
 					local deco = currentSourceImage.decorations[i]
@@ -1664,7 +1664,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			selectedTarget = newValue
 
 			-- Update skill icon if we have one
-			if currentTargetImage and targetLabel == "Skill" and not newValue:match("^cat:") then
+			if currentTargetImage and targetLabel == "Skill" and not newValue:match("^group:") then
 				-- Remove old decoration
 				for i = #currentTargetImage.decorations, 1, -1 do
 					local deco = currentTargetImage.decorations[i]
@@ -1744,11 +1744,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						sourcesToAdd[sourceId] = true
 					end
 				end
-				-- Include categories for skill to skill relationships
-				if includeSourceCategories then
-					local categoryNames = cplus_plus_ex:listCategories()
-					for _, categoryName in ipairs(categoryNames) do
-						sourcesToAdd["cat:" .. categoryName] = true
+				-- Include groups for skill to skill relationships
+				if includeSourceGroups then
+					local groupNames = cplus_plus_ex:listGroups()
+					for _, groupName in ipairs(groupNames) do
+						sourcesToAdd["group:" .. groupName] = true
 					end
 				end
 			else
@@ -1761,11 +1761,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						targetsToAdd[targetId] = true
 					end
 				end
-				-- Include categories in target if applicable
-				if includeTargetCategories then
-					local categoryNames = cplus_plus_ex:listCategories()
-					for _, categoryName in ipairs(categoryNames) do
-						targetsToAdd["cat:" .. categoryName] = true
+				-- Include groups in target if applicable
+				if includeTargetGroups then
+					local groupNames = cplus_plus_ex:listGroups()
+					for _, groupName in ipairs(groupNames) do
+						targetsToAdd["group:" .. groupName] = true
 					end
 				end
 			else
@@ -1777,13 +1777,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				for targetId, _ in pairs(targetsToAdd) do
 					-- Skip adding to self (if all was used)
 					if not (sourceId == targetId) then
-						-- Check if source or target is a category
-						local isSourceCategory = sourceId:match("^cat:")
-						local isTargetCategory = targetId:match("^cat:")
+						-- Check if source or target is a group
+						local isSourceGroup = sourceId:match("^group:")
+						local isTargetGroup = targetId:match("^group:")
 
-						if isSourceCategory or isTargetCategory then
-							-- Category relationship
-							self:_addCategoryRelationship(relationshipType, sourceId, targetId, isBidirectional)
+						if isSourceGroup or isTargetGroup then
+							-- Group relationship
+							self:_addGroupRelationship(relationshipType, sourceId, targetId, isBidirectional)
 						else
 							-- Normal skill relationship
 							cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
@@ -1827,16 +1827,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	rebuildRelationshipList()
 end
 
--- Helper to build categories container which includes skills per row and a button to create new categories
-function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallback)
+-- Helper to build groups container which includes skills per row and a button to create new groups
+function modify_pilot_skills_ui:buildAllGroupsSection(parent, rebuildCallback)
 	local controlsRow = UiWeightLayout()
 		:width(1):heightpx(ROW_HEIGHT)
 		:addTo(parent)
 
-	-- Create category input field
-	local newCategoryInput = UiInputField()
+	-- Create group input field
+	local newGroupInput = UiInputField()
 		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("Enter new category name/id")
+		:settooltip("Enter new group name/id")
 		:decorate({
 			DecoButton(),
 			DecoAlign(0, 2),
@@ -1848,40 +1848,40 @@ function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallbac
 		})
 		:addTo(controlsRow)
 
-	newCategoryInput.textfield = ""
+	newGroupInput.textfield = ""
 
-	-- Create category button
-	local btnCreateCategory = sdlext.buildButton(
-		"Add Category",
-		"Adds a new empty skill category",
+	-- Create group button
+	local btnCreateGroup = sdlext.buildButton(
+		"Add Group",
+		"Adds a new empty skill group",
 		function()
-			local categoryName = newCategoryInput.textfield:gsub("^%s*(.-)%s*$", "%1")
-			if categoryName == "" then
+			local groupName = newGroupInput.textfield:gsub("^%s*(.-)%s*$", "%1")
+			if groupName == "" then
 				return true
 			end
 
-			-- Check if category already exists
-			if cplus_plus_ex:getCategory(categoryName) then
+			-- Check if group already exists
+			if cplus_plus_ex:getGroup(groupName) then
 				sdlext.showButtonDialog(
-					"Category Exists",
-					"Category '" .. categoryName .. "' already exists.",
+					"Group Exists",
+					"Group '" .. groupName .. "' already exists.",
 					function() end,
 					{"OK"}
 				)
 				return true
 			end
 
-			-- Create empty category by tracking it in emptyCategories
-			cplus_plus_ex.config.emptyCategories[categoryName] = true
-			cplus_plus_ex.config.categoriesCollapseStates[categoryName] = false
-			newCategoryInput.textfield = ""
-			logger.logInfo(SUBMODULE, "Created empty category '%s'", categoryName)
+			-- Create empty group by tracking it in emptyGroups
+			cplus_plus_ex.config.emptyGroups[groupName] = true
+			cplus_plus_ex.config.groupsCollapseStates[groupName] = false
+			newGroupInput.textfield = ""
+			logger.logInfo(SUBMODULE, "Created empty group '%s'", groupName)
 			cplus_plus_ex:saveConfiguration()
 			rebuildCallback()
 			return true
 		end
 	)
-	btnCreateCategory:widthpx(270):heightpx(ROW_HEIGHT):addTo(controlsRow)
+	btnCreateGroup:widthpx(270):heightpx(ROW_HEIGHT):addTo(controlsRow)
 
 	-- Grid size label
 	Ui()
@@ -1895,7 +1895,7 @@ function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallbac
 	local gridSizeValues = {2, 3, 4, 5}
 	local gridSizeDisplay = {"2", "3", "4", "5"}
 
-	local currentGridSize = cplus_plus_ex.config.categoriesItemsPerRow or 4
+	local currentGridSize = cplus_plus_ex.config.groupsItemsPerRow or 4
 
 	logger.logDebug(SUBMODULE, "Grid size dropdown: current value=%d", currentGridSize)
 
@@ -1912,23 +1912,23 @@ function modify_pilot_skills_ui:buildAllCategoriesSection(parent, rebuildCallbac
 		:addTo(controlsRow)
 
 	gridSizeDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
-		cplus_plus_ex.config.categoriesItemsPerRow = newValue
+		cplus_plus_ex.config.groupsItemsPerRow = newValue
 		cplus_plus_ex:saveConfiguration()
 		rebuildCallback()
 	end)
 end
 
--- Helper to build add skill line in each category pool to add skills to that category
-function modify_pilot_skills_ui:buildCategoryPoolAddSkill(parent, categoryName, newlyAddedCategorySkills, rebuildCallback)
-	local category = cplus_plus_ex:getCategory(categoryName)
-	if not category then return end
+-- Helper to build add skill line in each group pool to add skills to that group
+function modify_pilot_skills_ui:buildGroupPoolAddSkill(parent, groupName, newlyAddedGroupSkills, rebuildCallback)
+	local group = cplus_plus_ex:getGroup(groupName)
+	if not group then return end
 
-	-- Get all enabled skills not in this category
+	-- Get all enabled skills not in this group
 	local availableSkills = {""}  -- Start with empty entry
 	local availableSkillsMap = {}
 
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
-		if self:isItemEnabled(skillId) and not category.skillIds[skillId] then
+		if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
 			table.insert(availableSkills, skillId)
 			availableSkillsMap[skillId] = {
 				name = GetText(skill.shortName) or skill.shortName,
@@ -1952,7 +1952,7 @@ function modify_pilot_skills_ui:buildCategoryPoolAddSkill(parent, categoryName, 
 
 	-- Build parallel arrays for skill selection dropdown
 	local availableSkillsDisplay = {""}  -- Empty entry
-	local availableSkillsTooltips = {"Select a skill to add to this category"}
+	local availableSkillsTooltips = {"Select a skill to add to this group"}
 	for i = 2, #availableSkills do
 		local skillId = availableSkills[i]
 		table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
@@ -1983,19 +1983,19 @@ function modify_pilot_skills_ui:buildCategoryPoolAddSkill(parent, categoryName, 
 
 	local btnAddSkill = sdlext.buildButton(
 		"Add Skill",
-		"Add selected skill to this category",
+		"Add selected skill to this group",
 		function()
 			-- Don't add if empty selection
 			if selectedSkillId == "" then
 				return true
 			end
 
-			if cplus_plus_ex:addSkillToCategory(selectedSkillId, categoryName) then
+			if cplus_plus_ex:addSkillToGroup(selectedSkillId, groupName) then
 				-- Track as newly added (UI-only state)
-				if not newlyAddedCategorySkills[categoryName] then
-					newlyAddedCategorySkills[categoryName] = {}
+				if not newlyAddedGroupSkills[groupName] then
+					newlyAddedGroupSkills[groupName] = {}
 				end
-				newlyAddedCategorySkills[categoryName][selectedSkillId] = true
+				newlyAddedGroupSkills[groupName][selectedSkillId] = true
 
 				cplus_plus_ex:saveConfiguration()
 				rebuildCallback()
@@ -2006,8 +2006,8 @@ function modify_pilot_skills_ui:buildCategoryPoolAddSkill(parent, categoryName, 
 	btnAddSkill:widthpx(270):heightpx(ROW_HEIGHT):addTo(addSkillRow)
 end
 
--- Helper to build a single skill cell in category grid
-function modify_pilot_skills_ui:buildCategorySkillCell(parent, skillId, categoryName, itemsPerRow, rebuildCallback)
+-- Helper to build a single skill cell in group grid
+function modify_pilot_skills_ui:buildGroupSkillCell(parent, skillId, groupName, itemsPerRow, rebuildCallback)
 	local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
 	local skillName = skill and (GetText(skill.shortName) or skill.shortName) or skillId
 
@@ -2047,9 +2047,9 @@ function modify_pilot_skills_ui:buildCategorySkillCell(parent, skillId, category
 	-- Remove button
 	local btnRemove = sdlext.buildButton(
 		"X",
-		"Remove " .. skillName .. " from category",
+		"Remove " .. skillName .. " from group",
 		function()
-			cplus_plus_ex:removeSkillFromCategory(skillId, categoryName)
+			cplus_plus_ex:removeSkillFromGroup(skillId, groupName)
 			cplus_plus_ex:saveConfiguration()
 			rebuildCallback()
 			return true
@@ -2058,17 +2058,17 @@ function modify_pilot_skills_ui:buildCategorySkillCell(parent, skillId, category
 	btnRemove:widthpx(30):heightpx(ROW_HEIGHT):addTo(cellRow)
 end
 
--- Helper to build skill grid for a category pool
-function modify_pilot_skills_ui:buildCategoryPoolSkillGrid(parent, categoryName, newlyAddedCategorySkills, rebuildCallback)
-	local category = cplus_plus_ex:getCategory(categoryName)
-	if not category then return end
+-- Helper to build skill grid for a group pool
+function modify_pilot_skills_ui:buildGroupPoolSkillGrid(parent, groupName, newlyAddedGroupSkills, rebuildCallback)
+	local group = cplus_plus_ex:getGroup(groupName)
+	if not group then return end
 
 	-- Separate newly added from existing skills
 	local newlyAddedSkills = {}
 	local existingSkills = {}
-	local newlyAddedSet = newlyAddedCategorySkills[categoryName] or {}
+	local newlyAddedSet = newlyAddedGroupSkills[groupName] or {}
 
-	for skillId in pairs(category.skillIds) do
+	for skillId in pairs(group.skillIds) do
 		-- Only include enabled skills in display
 		if self:isItemEnabled(skillId) then
 			if newlyAddedSet[skillId] then
@@ -2107,13 +2107,13 @@ function modify_pilot_skills_ui:buildCategoryPoolSkillGrid(parent, categoryName,
 			:addTo(parent)
 			:beginUi()
 				:width(1):heightpx(ROW_HEIGHT)
-				:decorate({DecoText("No skills in this category.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
+				:decorate({DecoText("No skills in this group.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
 			:endUi()
 		return
 	end
 
 	-- Build grid with consistent column spacing
-	local itemsPerRow = cplus_plus_ex.config.categoriesItemsPerRow
+	local itemsPerRow = cplus_plus_ex.config.groupsItemsPerRow
 	local skillIndex = 1
 
 	while skillIndex <= #sortedSkillIds do
@@ -2125,7 +2125,7 @@ function modify_pilot_skills_ui:buildCategoryPoolSkillGrid(parent, categoryName,
 		for i = 1, itemsPerRow do
 			if skillIndex <= #sortedSkillIds then
 				local skillId = sortedSkillIds[skillIndex]
-				self:buildCategorySkillCell(gridRow, skillId, categoryName, itemsPerRow, rebuildCallback)
+				self:buildGroupSkillCell(gridRow, skillId, groupName, itemsPerRow, rebuildCallback)
 				skillIndex = skillIndex + 1
 			else
 				-- Empty cell to preserve grid spacing
@@ -2138,21 +2138,21 @@ function modify_pilot_skills_ui:buildCategoryPoolSkillGrid(parent, categoryName,
 	end
 end
 
--- Helper to build a single category pool section
-function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, newlyAddedCategorySkills, rebuildCallback)
-	local category = cplus_plus_ex:getCategory(categoryName)
-	logger.logDebug(SUBMODULE, "buildCategorySection: Building category '%s'", categoryName)
+-- Helper to build a single group pool section
+function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAddedGroupSkills, rebuildCallback)
+	local group = cplus_plus_ex:getGroup(groupName)
+	logger.logDebug(SUBMODULE, "buildGroupSection: Building group '%s'", groupName)
 
-	local categoryCollapse, categoryHeader = self:buildCollapsibleSectionBase(categoryName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
-		cplus_plus_ex.config.categoriesCollapseStates[categoryName] or false)
+	local groupCollapse, groupHeader = self:buildCollapsibleSectionBase(groupName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
+		cplus_plus_ex.config.groupsCollapseStates[groupName] or false)
 
 	-- Save collapse state
-	categoryCollapse.categoryName = categoryName
-	categoryCollapse.onclicked = function(cc, button)
+	groupCollapse.groupName = groupName
+	groupCollapse.onclicked = function(cc, button)
 		if button == 1 then
 			local result = self:clickCollapse(cc, button)
 			if result then
-				cplus_plus_ex.config.categoriesCollapseStates[categoryName] = not cc.checked
+				cplus_plus_ex.config.groupsCollapseStates[groupName] = not cc.checked
 				cplus_plus_ex:saveConfiguration()
 			end
 			return result
@@ -2160,25 +2160,25 @@ function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, n
 		return false
 	end
 
-	-- Category title with delete button
+	-- Group title with delete button
 	local titleRow = UiWeightLayout()
 		:width(1.0):heightpx(ROW_HEIGHT)
-		:addTo(categoryHeader)
+		:addTo(groupHeader)
 
 	Ui()
 		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
 			DecoAlign(0, 2),
-			DecoText(categoryName, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+			DecoText(groupName, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
 		})
 		:addTo(titleRow)
 
 	-- Only One Per Pilot checkbox
-	local settings = cplus_plus_ex:getCategorySettings(categoryName)
+	local settings = cplus_plus_ex:getGroupSettings(groupName)
 	local onlyOneCheckbox = UiCheckbox()
 		:widthpx(270):heightpx(ROW_HEIGHT)
-		:settooltip("When checked, only one skill from this category can be assigned per pilot")
+		:settooltip("When checked, only one skill from this group can be assigned per pilot")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
@@ -2189,20 +2189,20 @@ function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, n
 
 	onlyOneCheckbox.checked = settings.onlyOnePerPilot or false
 	onlyOneCheckbox.onToggled:subscribe(function(checked)
-		cplus_plus_ex:setCategorySettings(categoryName, {onlyOnePerPilot = checked})
+		cplus_plus_ex:setGroupSettings(groupName, {onlyOnePerPilot = checked})
 		cplus_plus_ex:saveConfiguration()
 	end)
 
-	local btnDeleteCategory = sdlext.buildButton(
-		"Delete Category",
-		"Delete this category and remove all skills from it",
+	local btnDeleteGroup = sdlext.buildButton(
+		"Delete Group",
+		"Delete this group and remove all skills from it",
 		function()
 			sdlext.showButtonDialog(
 				"Confirm Delete",
-				"Delete category '" .. categoryName .. "'?",
+				"Delete group '" .. groupName .. "'?",
 				function(btnIndex)
 					if btnIndex == 1 then
-						cplus_plus_ex:deleteCategory(categoryName)
+						cplus_plus_ex:deleteGroup(groupName)
 						cplus_plus_ex:saveConfiguration()
 						rebuildCallback()
 					end
@@ -2212,53 +2212,53 @@ function modify_pilot_skills_ui:buildCategoryPoolSection(parent, categoryName, n
 			return true
 		end
 	)
-	btnDeleteCategory:widthpx(270):heightpx(ROW_HEIGHT):addTo(titleRow)
+	btnDeleteGroup:widthpx(270):heightpx(ROW_HEIGHT):addTo(titleRow)
 
-	local categoryContent = categoryCollapse.dropdownHolder
+	local groupContent = groupCollapse.dropdownHolder
 
 	-- Add skill control
-	self:buildCategoryPoolAddSkill(categoryContent, categoryName, newlyAddedCategorySkills, rebuildCallback)
+	self:buildGroupPoolAddSkill(groupContent, groupName, newlyAddedGroupSkills, rebuildCallback)
 
-	-- Build grid of skills in category
-	self:buildCategoryPoolSkillGrid(categoryContent, categoryName, newlyAddedCategorySkills, rebuildCallback)
+	-- Build grid of skills in group
+	self:buildGroupPoolSkillGrid(groupContent, groupName, newlyAddedGroupSkills, rebuildCallback)
 end
 
--- Build the skill categories UI section
-function modify_pilot_skills_ui:buildCategories(scrollContent)
-	local categoriesMainSection = self:buildCollapsibleSection("Skill Categories", scrollContent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
-		"Categories group skills into logical groups where only one skill from each category can be assigned per pilot (if category constraints are enabled)")
+-- Build the skill groups UI section
+function modify_pilot_skills_ui:buildGroups(scrollContent)
+	local groupsMainSection = self:buildCollapsibleSection("Skill Groups", scrollContent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
+		"Groups group skills into logical groups where only one skill from each group can be assigned per pilot (if group constraints are enabled)")
 
 	-- Store reference to the entire section box (parent of content) for rebuilding
-	categoriesContainer = categoriesMainSection.parent
-	categoriesParent = scrollContent
+	groupsContainer = groupsMainSection.parent
+	groupsParent = scrollContent
 
 	-- Top controls
-	self:buildAllCategoriesSection(categoriesMainSection, function() self:rebuildAllCategoryPools() end)
+	self:buildAllGroupsSection(groupsMainSection, function() self:rebuildAllGroupPools() end)
 
-	-- Content container for category sections
-	local categoriesContent = UiBoxLayout()
+	-- Content container for group sections
+	local groupsContent = UiBoxLayout()
 		:vgap(DEFAULT_VGAP)
 		:width(1)
-		:addTo(categoriesMainSection)
+		:addTo(groupsMainSection)
 
-	-- Get all categories sorted by name
-	local categoryNames = cplus_plus_ex:listCategories()
+	-- Get all groups sorted by name
+	local groupNames = cplus_plus_ex:listGroups()
 
-	if #categoryNames == 0 then
+	if #groupNames == 0 then
 		UiBoxLayout()
 			:vgap(DEFAULT_VGAP)
 			:width(1)
-			:addTo(categoriesContent)
+			:addTo(groupsContent)
 			:beginUi()
 				:width(1):heightpx(ROW_HEIGHT)
-				:decorate({DecoText("No categories defined. Create a category above or skills with category definitions will auto-create categories.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
+				:decorate({DecoText("No groups defined. Create a group above or skills with group definitions will auto-create groups.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
 			:endUi()
 		return
 	end
 
-	-- Build each category
-	for _, categoryName in ipairs(categoryNames) do
-		self:buildCategoryPoolSection(categoriesContent, categoryName, {}, function() self:rebuildAllCategoryPools() end)
+	-- Build each group
+	for _, groupName in ipairs(groupNames) do
+		self:buildGroupPoolSection(groupsContent, groupName, {}, function() self:rebuildAllGroupPools() end)
 	end
 end
 
@@ -2311,11 +2311,11 @@ end
 function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	percentageLabels = {}
-	categoryHeaderLabels = {}
+	groupHeaderLabels = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil
-	categoriesContainer = nil
-	categoriesParent = nil
+	groupsContainer = nil
+	groupsParent = nil
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -2325,7 +2325,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Add the settings
 	self:buildGeneralSettings(scrollContent)
 	self:buildSkillsList(scrollContent)
-	self:buildCategories(scrollContent)
+	self:buildGroups(scrollContent)
 	self:buildRelationships(scrollContent)
 end
 
@@ -2345,7 +2345,7 @@ function modify_pilot_skills_ui:buildResetConfirmation()
 					scrollContent:detach()
 					-- Clear tracking tables before rebuild
 					percentageLabels = {}
-					categoryHeaderLabels = {}
+					groupHeaderLabels = {}
 					-- Rebuild the content with fresh values
 					self:buildMainContent(parentScroll)
 				end
@@ -2373,7 +2373,7 @@ function modify_pilot_skills_ui:onExit()
 	cplus_plus_ex:saveConfiguration()
 	scrollContent = nil
 	percentageLabels = {}
-	categoryHeaderLabels = {}
+	groupHeaderLabels = {}
 	expandedCollapsables = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil

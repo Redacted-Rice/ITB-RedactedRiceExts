@@ -49,17 +49,17 @@ cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
 cplus_plus_ex.DEFAULT_SLOT_RESTRICTION = cplus_plus_ex.SLOT_RESTRICTION.ANY
 cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
-	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE, categories = {"health"} },
-	{id = "Move", icon = "img/combat/icons/icon_Pilot_Move.png", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE, categories = {"move"} },
-	{id = "Grid", icon = "img/combat/icons/icon_Pilot_Grid.png", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE, categories = {"grid"} },
-	{id = "Reactor", icon = "img/combat/icons/icon_Pilot_Reactor.png", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE, categories = {"reactor"} },
-	{id = "Opener", icon = "img/advanced/combat/icons/icon_Pilot_Opener.png", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT, categories = {"boost"} }, -- doesn't work
-	{id = "Closer", icon = "img/advanced/combat/icons/icon_Pilot_Closer.png", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT, categories = {"boost"} }, -- doesn't work
+	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE, groups = {"health"} },
+	{id = "Move", icon = "img/combat/icons/icon_Pilot_Move.png", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE, groups = {"move"} },
+	{id = "Grid", icon = "img/combat/icons/icon_Pilot_Grid.png", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE, groups = {"grid"} },
+	{id = "Reactor", icon = "img/combat/icons/icon_Pilot_Reactor.png", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE, groups = {"reactor"} },
+	{id = "Opener", icon = "img/advanced/combat/icons/icon_Pilot_Opener.png", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT, groups = {"boost"} }, -- doesn't work
+	{id = "Closer", icon = "img/advanced/combat/icons/icon_Pilot_Closer.png", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT, groups = {"boost"} }, -- doesn't work
 	{id = "Popular", icon = "img/advanced/combat/icons/icon_Pilot_Popular.png", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT }, -- doesn't work
 	{id = "Thick", icon = "img/advanced/combat/icons/icon_Pilot_Thick.png", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = PER_PILOT }, -- doesn't make sense
-	{id = "Skilled", icon = "img/advanced/combat/icons/icon_Pilot_Skilled.png", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE, categories = {"health", "move"} },
+	{id = "Skilled", icon = "img/advanced/combat/icons/icon_Pilot_Skilled.png", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE, groups = {"health", "move"} },
 	{id = "Invulnerable", icon = "img/advanced/combat/icons/icon_Pilot_Invulnerable.png", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = PER_PILOT }, -- doesn't make sense
-	{id = "Adrenaline", icon = "img/advanced/combat/icons/icon_Pilot_Adrenaline.png", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT, categories = {"move"} }, -- doesn't work
+	{id = "Adrenaline", icon = "img/advanced/combat/icons/icon_Pilot_Adrenaline.png", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT, groups = {"move"} }, -- doesn't work
 	{id = "Pain", icon = "img/advanced/combat/icons/icon_Pilot_Pain.png", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = PER_PILOT }, -- doesn't work
 	{id = "Regen", icon = "img/advanced/combat/icons/icon_Pilot_Regen.png", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = PER_PILOT }, -- doesn't work
 	{id = "Conservative", icon = "img/advanced/combat/icons/icon_Pilot_Conservative.png", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = PER_PILOT }, -- doesn't work
@@ -131,15 +131,15 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
 	function cplus_plus_ex:getRelationshipMetadata(...) return skill_config:getRelationshipMetadata(...) end
 
-	function cplus_plus_ex:deleteCategory(...) return skill_config:deleteCategory(...) end
-	function cplus_plus_ex:addSkillToCategory(...) return skill_config:addSkillToCategory(...) end
-	function cplus_plus_ex:removeSkillFromCategory(...) return skill_config:removeSkillFromCategory(...) end
-	function cplus_plus_ex:getCategory(...) return skill_config:getCategory(...) end
-	function cplus_plus_ex:listCategories(...) return skill_config:listCategories(...) end
-	function cplus_plus_ex:isSkillInCategory(...) return skill_config:isSkillInCategory(...) end
-	function cplus_plus_ex:getCategorySettings(...) return skill_config:getCategorySettings(...) end
-	function cplus_plus_ex:setCategorySettings(...) return skill_config:setCategorySettings(...) end
-	function cplus_plus_ex:resetCategorySettings(...) return skill_config:resetCategorySettings(...) end
+	function cplus_plus_ex:deleteGroup(...) return skill_config:deleteGroup(...) end
+	function cplus_plus_ex:addSkillToGroup(...) return skill_config:addSkillToGroup(...) end
+	function cplus_plus_ex:removeSkillFromGroup(...) return skill_config:removeSkillFromGroup(...) end
+	function cplus_plus_ex:getGroup(...) return skill_config:getGroup(...) end
+	function cplus_plus_ex:listGroups(...) return skill_config:listGroups(...) end
+	function cplus_plus_ex:isSkillInGroup(...) return skill_config:isSkillInGroup(...) end
+	function cplus_plus_ex:getGroupSettings(...) return skill_config:getGroupSettings(...) end
+	function cplus_plus_ex:setGroupSettings(...) return skill_config:setGroupSettings(...) end
+	function cplus_plus_ex:resetGroupSettings(...) return skill_config:resetGroupSettings(...) end
 
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
@@ -159,7 +159,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:getPilotsWithSkill(...) return skill_state_tracker:getPilotsWithSkill(...) end
 	function cplus_plus_ex:getMechsWithSkill(...) return skill_state_tracker:getMechsWithSkill(...) end
 
-	-- Get all skills by category
+	-- Get all skills by group
 	function cplus_plus_ex:getSkillsEnabled(...) return skill_state_tracker:getSkillsEnabled(...) end
 	function cplus_plus_ex:getSkillsInRun(...) return skill_state_tracker:getSkillsInRun(...) end
 	function cplus_plus_ex:getSkillObjsInRun(...) return skill_state_tracker:getSkillObjsInRun(...) end

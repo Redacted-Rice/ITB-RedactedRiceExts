@@ -189,12 +189,12 @@ function M.resetState()
 	skill_config_module.enabledSkills = {}
 	skill_config_module.enabledSkillsIds = {}
 
-	-- Reset category state
-	skill_config_module.codeDefinedCategories = {}
-	skill_config_module.categories = {}
-	skill_config_module.config.categoriesAdded = {}
-	skill_config_module.config.categoriesRemoved = {}
-	skill_config_module.config.emptyCategories = {}
+	-- Reset group state
+	skill_config_module.codeDefinedGroups = {}
+	skill_config_module.groups = {}
+	skill_config_module.config.groupsAdded = {}
+	skill_config_module.config.groupsRemoved = {}
+	skill_config_module.config.emptyGroups = {}
 
 	-- Reset relationship state
 	for relType in pairs(skill_config_module.codeDefinedRelationships) do
@@ -207,7 +207,7 @@ function M.resetState()
 	skill_constraints:_registerReusabilityConstraintFunction()
 	skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
 	skill_constraints:_registerSkillExclusionConstraintFunction()
-	skill_constraints:_registerCategoryConstraintFunction()
+	skill_constraints:_registerGroupConstraintFunction()
 
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil
@@ -280,11 +280,11 @@ function M.rebuildRelationships()
 	M.plus_manager._subobjects.skill_config:_rebuildRelationships()
 end
 
--- Rebuild categories after registering skills with categories in tests
--- This is needed because categories are normally registered before
+-- Rebuild groups after registering skills with groups in tests
+-- This is needed because groups are normally registered before
 -- onModsFirstLoaded fires, but tests register them after initialization
-function M.rebuildCategories()
-	M.plus_manager._subobjects.skill_config:_rebuildCategories()
+function M.rebuildGroups()
+	M.plus_manager._subobjects.skill_config:_rebuildGroups()
 end
 
 

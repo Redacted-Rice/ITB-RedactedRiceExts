@@ -87,20 +87,20 @@ end
 -- These are runtime changeable configuration parameters
 skill_config.config = {
 	allowReusableSkills = false, -- will be set on load by options but default to vanilla
-	enableCategoryExclusions = true, -- Enable category based skill exclusions
+	enableGroupExclusions = true, -- Enable group based skill exclusions
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability, slotRestriction
 	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Slot, 5=Weight/%
-	categoryCollapseStates = {}, -- category name -> collapsed state
-	emptyCategories = {}, -- categoryName -> true for manually created empty categories
-	categoriesCollapseStates = {}, -- categoryName -> collapsed state
-	categoriesItemsPerRow = 4, -- Number of skills to show per row in category grid
-	categoriesAdded = {}, -- skillId -> {categoryName: true} user additions
-	categoriesRemoved = {}, -- skillId -> {categoryName: true} user removals
-	categorySettings = {}, -- categoryName -> {onlyOnePerPilot: bool, pilotInclusions: [], pilotExclusions: []}
-	pilotCategoryExclusions = {}, -- pilotId -> {categoryName: true}
-	pilotCategoryInclusions = {}, -- pilotId -> {categoryName: true}
-	skillCategoryExclusions = {}, -- skillId -> {categoryName: true}
-	categoryCategoryExclusions = {}, -- categoryName -> {categoryName: true}
+	groupCollapseStates = {}, -- group name -> collapsed state
+	emptyGroups = {}, -- groupName -> true for manually created empty groups
+	groupsCollapseStates = {}, -- groupName -> collapsed state
+	groupsItemsPerRow = 4, -- Number of skills to show per row in group grid
+	groupsAdded = {}, -- skillId -> {groupName: true} user additions
+	groupsRemoved = {}, -- skillId -> {groupName: true} user removals
+	groupSettings = {}, -- groupName -> {onlyOnePerPilot: bool, pilotInclusions: [], pilotExclusions: []}
+	pilotGroupExclusions = {}, -- pilotId -> {groupName: true}
+	pilotGroupInclusions = {}, -- pilotId -> {groupName: true}
+	skillGroupExclusions = {}, -- skillId -> {groupName: true}
+	groupGroupExclusions = {}, -- groupName -> {groupName: true}
 }
 -- Track if saved config was loaded
 skill_config.configLoaded = false
@@ -113,8 +113,8 @@ for relType, keys in pairs(relationshipConfigKeys) do
 	skill_config.config[keys.sortOrder] = 1  -- Sort order
 end
 
--- configured categories put in reverse index for easy constraint checking
-skill_config.categories = {}  -- categoryName -> { skillIds: {skillId: true} }
+-- configured groups put in reverse index for easy constraint checking
+skill_config.groups = {}  -- groupName -> { skillIds: {skillId: true} }
 
 -- Code defined relationships which are read and set during registration but not
 -- saved so they can be changed easily
@@ -123,9 +123,9 @@ for _, relType in pairs(skill_config.RelationshipType) do
 	skill_config.codeDefinedRelationships[relType] = {}
 end
 
--- Code defined categories which are read and set during registration but not saved
---- Structure: skillId -> {categoryName: true}
-skill_config.codeDefinedCategories = {}
+-- Code defined groups which are read and set during registration but not saved
+--- Structure: skillId -> {groupName: true}
+skill_config.codeDefinedGroups = {}
 
 -- Module state
 skill_config.enabledSkills = {}  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability, icon}
@@ -141,7 +141,7 @@ end
 -- Called after all mods are loaded
 function skill_config:_postModsLoaded()
 	self:_rebuildRelationships()
-	self:_rebuildCategories()
+	self:_rebuildGroups()
 
 	-- Set the defaults to our registered/setup values
 	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
@@ -233,29 +233,29 @@ function skill_config:setSkillConfig(skillId, config)
 				cplus_plus_ex.SLOT_RESTRICTION[normalizeSlot], skillId)
 	end
 
-	-- Handle categories parameter
-	if config.categories ~= nil then
-		if type(config.categories) ~= "table" then
-			logger.logError(SUBMODULE, "Invalid categories passed for skill %s: must be array of strings", skillId)
+	-- Handle groups parameter
+	if config.groups ~= nil then
+		if type(config.groups) ~= "table" then
+			logger.logError(SUBMODULE, "Invalid groups passed for skill %s: must be array of strings", skillId)
 			return
 		end
-		-- Validate all category names are strings
-		for _, categoryName in ipairs(config.categories) do
-			if type(categoryName) ~= "string" then
-				logger.logError(SUBMODULE, "Invalid category name in categories for skill %s: must be string, got %s", skillId, type(categoryName))
+		-- Validate all group names are strings
+		for _, groupName in ipairs(config.groups) do
+			if type(groupName) ~= "string" then
+				logger.logError(SUBMODULE, "Invalid group name in groups for skill %s: must be string, got %s", skillId, type(groupName))
 				return
 			end
 		end
 
-		-- Store as code defined categories using dictionary structure
-		if not self.codeDefinedCategories[skillId] then
-			self.codeDefinedCategories[skillId] = {}
+		-- Store as code defined groups using dictionary structure
+		if not self.codeDefinedGroups[skillId] then
+			self.codeDefinedGroups[skillId] = {}
 		end
-		for _, categoryName in ipairs(config.categories) do
-			self.codeDefinedCategories[skillId][categoryName] = true
+		for _, groupName in ipairs(config.groups) do
+			self.codeDefinedGroups[skillId][groupName] = true
 		end
-		if #config.categories > 0 then
-			logger.logDebug(SUBMODULE, "Set code defined categories for skill %s: %s", skillId, table.concat(config.categories, ", "))
+		if #config.groups > 0 then
+			logger.logDebug(SUBMODULE, "Set code defined groups for skill %s: %s", skillId, table.concat(config.groups, ", "))
 		end
 	end
 
@@ -443,9 +443,9 @@ function skill_config:isCodeDefinedRelationship(relationshipType, sourceId, targ
 	return self:_relationshipExists(self.codeDefinedRelationships[relationshipType], sourceId, targetId)
 end
 
---- Check if a skill's category membership is code defined
-function skill_config:isCodeDefinedCategory(skillId, categoryName)
-	return self.codeDefinedCategories[skillId] and self.codeDefinedCategories[skillId][categoryName] == true
+--- Check if a skill's group membership is code defined
+function skill_config:isCodeDefinedGroup(skillId, groupName)
+	return self.codeDefinedGroups[skillId] and self.codeDefinedGroups[skillId][groupName] == true
 end
 
 function skill_config:_captureDefaultConfigs()
@@ -465,27 +465,27 @@ function skill_config:resetToDefaults()
 		self.config[keys.removed] = {}
 	end
 
-	-- Clear all category relationships
-	self.config.pilotCategoryExclusions = {}
-	self.config.pilotCategoryInclusions = {}
-	self.config.skillCategoryExclusions = {}
-	self.config.categoryCategoryExclusions = {}
+	-- Clear all group relationships
+	self.config.pilotGroupExclusions = {}
+	self.config.pilotGroupInclusions = {}
+	self.config.skillGroupExclusions = {}
+	self.config.groupGroupExclusions = {}
 
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
-	-- Clear all user modified categories
-	self.config.categoriesAdded = {}
-	self.config.categoriesRemoved = {}
-	self.config.emptyCategories = {}
-	self.config.categorySettings = {}
+	-- Clear all user modified groups
+	self.config.groupsAdded = {}
+	self.config.groupsRemoved = {}
+	self.config.emptyGroups = {}
+	self.config.groupSettings = {}
 
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
-	-- Rebuild active relationship and category tables from code defined sources
+	-- Rebuild active relationship and group tables from code defined sources
 	self:_rebuildRelationships()
-	self:_rebuildCategories()
+	self:_rebuildGroups()
 
 	-- Rebuild enabled skills list from the reset config
 	self.enabledSkills = {}
@@ -575,37 +575,37 @@ function skill_config:loadConfiguration()
 					end
 				end
 
-				-- Load category collapse states
-				if savedConfig.categoryCollapseStates then
-					skill_config.config.categoryCollapseStates = utils.deepcopy(savedConfig.categoryCollapseStates)
+				-- Load group collapse states
+				if savedConfig.groupCollapseStates then
+					skill_config.config.groupCollapseStates = utils.deepcopy(savedConfig.groupCollapseStates)
 				end
 
-				-- Load category collapse states
-				if savedConfig.categoriesCollapseStates then
-					skill_config.config.categoriesCollapseStates = utils.deepcopy(savedConfig.categoriesCollapseStates)
+				-- Load group collapse states
+				if savedConfig.groupsCollapseStates then
+					skill_config.config.groupsCollapseStates = utils.deepcopy(savedConfig.groupsCollapseStates)
 				end
 
-				-- Load category grid preference
-				if savedConfig.categoriesItemsPerRow then
-					skill_config.config.categoriesItemsPerRow = savedConfig.categoriesItemsPerRow
+				-- Load group grid preference
+				if savedConfig.groupsItemsPerRow then
+					skill_config.config.groupsItemsPerRow = savedConfig.groupsItemsPerRow
 				end
 
-				-- Load pilot-category relationships
-				if savedConfig.pilotCategoryExclusions then
-					skill_config.config.pilotCategoryExclusions = utils.deepcopy(savedConfig.pilotCategoryExclusions)
+				-- Load pilot-group relationships
+				if savedConfig.pilotGroupExclusions then
+					skill_config.config.pilotGroupExclusions = utils.deepcopy(savedConfig.pilotGroupExclusions)
 				end
-				if savedConfig.pilotCategoryInclusions then
-					skill_config.config.pilotCategoryInclusions = utils.deepcopy(savedConfig.pilotCategoryInclusions)
-				end
-
-				-- Load skill-category relationships
-				if savedConfig.skillCategoryExclusions then
-					skill_config.config.skillCategoryExclusions = utils.deepcopy(savedConfig.skillCategoryExclusions)
+				if savedConfig.pilotGroupInclusions then
+					skill_config.config.pilotGroupInclusions = utils.deepcopy(savedConfig.pilotGroupInclusions)
 				end
 
-				-- Load category-category relationships
-				if savedConfig.categoryCategoryExclusions then
-					skill_config.config.categoryCategoryExclusions = utils.deepcopy(savedConfig.categoryCategoryExclusions)
+				-- Load skill-group relationships
+				if savedConfig.skillGroupExclusions then
+					skill_config.config.skillGroupExclusions = utils.deepcopy(savedConfig.skillGroupExclusions)
+				end
+
+				-- Load group-group relationships
+				if savedConfig.groupGroupExclusions then
+					skill_config.config.groupGroupExclusions = utils.deepcopy(savedConfig.groupGroupExclusions)
 				end
 
 				self:_rebuildRelationships()
@@ -626,35 +626,35 @@ function skill_config:loadConfiguration()
 				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
 				skill_config.configLoaded = true
 
-				-- Load user category modifications (added/removed)
-				if savedConfig.categoriesAdded then
-					skill_config.config.categoriesAdded = utils.deepcopy(savedConfig.categoriesAdded)
+				-- Load user group modifications (added/removed)
+				if savedConfig.groupsAdded then
+					skill_config.config.groupsAdded = utils.deepcopy(savedConfig.groupsAdded)
 				end
-				if savedConfig.categoriesRemoved then
-					skill_config.config.categoriesRemoved = utils.deepcopy(savedConfig.categoriesRemoved)
-				end
-
-				-- Load empty categories
-				if savedConfig.emptyCategories then
-					skill_config.config.emptyCategories = utils.deepcopy(savedConfig.emptyCategories)
+				if savedConfig.groupsRemoved then
+					skill_config.config.groupsRemoved = utils.deepcopy(savedConfig.groupsRemoved)
 				end
 
-				-- Load enableCategoryExclusions setting
-				if savedConfig.enableCategoryExclusions ~= nil then
-					skill_config.config.enableCategoryExclusions = savedConfig.enableCategoryExclusions
+				-- Load empty groups
+				if savedConfig.emptyGroups then
+					skill_config.config.emptyGroups = utils.deepcopy(savedConfig.emptyGroups)
+				end
+
+				-- Load enableGroupExclusions setting
+				if savedConfig.enableGroupExclusions ~= nil then
+					skill_config.config.enableGroupExclusions = savedConfig.enableGroupExclusions
 				end
 
 				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
 				skill_config.configLoaded = true
 
-				-- Load category settings (onlyOnePerPilot, pilotInclusions, pilotExclusions)
-				if savedConfig.categorySettings then
-					skill_config.config.categorySettings = utils.deepcopy(savedConfig.categorySettings)
+				-- Load group settings (onlyOnePerPilot, pilotInclusions, pilotExclusions)
+				if savedConfig.groupSettings then
+					skill_config.config.groupSettings = utils.deepcopy(savedConfig.groupSettings)
 				end
 
 				self:_rebuildEnabledSkills()
-				-- Rebuild categories from code-defined + user modifications
-				self:_rebuildCategories()
+				-- Rebuild groups from code-defined + user modifications
+				self:_rebuildGroups()
 				logger.logDebug(SUBMODULE, "Loaded and merged skill configuration")
 			end
 		end
@@ -680,240 +680,240 @@ function skill_config:_rebuildEnabledSkills()
 	end
 end
 
-function skill_config:_rebuildCategories()
-	-- Rebuild categories from code defined and user modifications
-	self.categories = {}
+function skill_config:_rebuildGroups()
+	-- Rebuild groups from code defined and user modifications
+	self.groups = {}
 
 	if not self.config or not self.config.skillConfigs then
-		logger.logDebug(SUBMODULE, "_rebuildCategories: No config or skillConfigs yet")
+		logger.logDebug(SUBMODULE, "_rebuildGroups: No config or skillConfigs yet")
 		return
 	end
 
 	-- Process all registered skills
 	for skillId in pairs(self.config.skillConfigs) do
-		-- Get merged category list for this skill
-		local mergedCategories = self:_getMergedCategoriesForSkill(skillId)
+		-- Get merged group list for this skill
+		local mergedGroups = self:_getMergedGroupsForSkill(skillId)
 
-		if #mergedCategories > 0 then
-			logger.logDebug(SUBMODULE, "_rebuildCategories: Skill '%s' has %d category(s): %s",
-				skillId, #mergedCategories, table.concat(mergedCategories, ", "))
+		if #mergedGroups > 0 then
+			logger.logDebug(SUBMODULE, "_rebuildGroups: Skill '%s' has %d group(s): %s",
+				skillId, #mergedGroups, table.concat(mergedGroups, ", "))
 
-			for _, categoryName in ipairs(mergedCategories) do
-				if not self.categories[categoryName] then
-					-- Initialize category with settings from config or defaults
-					local settings = self.config.categorySettings[categoryName] or {}
-					self.categories[categoryName] = {
-						name = categoryName,
+			for _, groupName in ipairs(mergedGroups) do
+				if not self.groups[groupName] then
+					-- Initialize group with settings from config or defaults
+					local settings = self.config.groupSettings[groupName] or {}
+					self.groups[groupName] = {
+						name = groupName,
 						skillIds = {},
 						onlyOnePerPilot = settings.onlyOnePerPilot or false,
 						pilotInclusions = settings.pilotInclusions or {},
 						pilotExclusions = settings.pilotExclusions or {}
 					}
-					logger.logDebug(SUBMODULE, "_rebuildCategories: Created category '%s'", categoryName)
+					logger.logDebug(SUBMODULE, "_rebuildGroups: Created group '%s'", groupName)
 				else
-					-- Category exists, but update settings from config in case they changed
-					local settings = self.config.categorySettings[categoryName] or {}
-					self.categories[categoryName].onlyOnePerPilot = settings.onlyOnePerPilot or false
-					self.categories[categoryName].pilotInclusions = settings.pilotInclusions or {}
-					self.categories[categoryName].pilotExclusions = settings.pilotExclusions or {}
+					-- Group exists, but update settings from config in case they changed
+					local settings = self.config.groupSettings[groupName] or {}
+					self.groups[groupName].onlyOnePerPilot = settings.onlyOnePerPilot or false
+					self.groups[groupName].pilotInclusions = settings.pilotInclusions or {}
+					self.groups[groupName].pilotExclusions = settings.pilotExclusions or {}
 				end
-				self.categories[categoryName].skillIds[skillId] = true
+				self.groups[groupName].skillIds[skillId] = true
 			end
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Rebuilt categories index: %d category(s)", self:_countCategories())
-	for categoryName, category in pairs(self.categories) do
+	logger.logInfo(SUBMODULE, "Rebuilt groups index: %d group(s)", self:_countGroups())
+	for groupName, group in pairs(self.groups) do
 		local skillCount = 0
-		for _ in pairs(category.skillIds) do skillCount = skillCount + 1 end
-		logger.logInfo(SUBMODULE, "  Category '%s': %d skill(s)", categoryName, skillCount)
+		for _ in pairs(group.skillIds) do skillCount = skillCount + 1 end
+		logger.logInfo(SUBMODULE, "  Group '%s': %d skill(s)", groupName, skillCount)
 	end
 end
 
---- Merge code defined categories with user modifications
---- Returns dictionary: {categoryName: true}
-function skill_config:_mergeCategoriesForSkill(skillId, codeDefinedTable, addedTable, removedTable)
+--- Merge code defined groups with user modifications
+--- Returns dictionary: {groupName: true}
+function skill_config:_mergeGroupsForSkill(skillId, codeDefinedTable, addedTable, removedTable)
 	local merged = {}
 
-	-- Start with code defined categories
-	local codeCategories = codeDefinedTable[skillId] or {}
-	for categoryName, _ in pairs(codeCategories) do
+	-- Start with code defined groups
+	local codeGroups = codeDefinedTable[skillId] or {}
+	for groupName, _ in pairs(codeGroups) do
 		-- Only include if not in removed list
-		if not (removedTable[skillId] and removedTable[skillId][categoryName]) then
-			merged[categoryName] = true
+		if not (removedTable[skillId] and removedTable[skillId][groupName]) then
+			merged[groupName] = true
 		end
 	end
 
 	-- Add user additions
 	local added = addedTable[skillId] or {}
-	for categoryName, _ in pairs(added) do
-		merged[categoryName] = true
+	for groupName, _ in pairs(added) do
+		merged[groupName] = true
 	end
 
 	return merged
 end
 
---- Get merged category list for a skill (code + added - removed) as array for convenience
+--- Get merged group list for a skill (code + added - removed) as array for convenience
 --- This is a helper that converts the dictionary to an array
-function skill_config:_getMergedCategoriesForSkill(skillId)
-	local mergedDict = self:_mergeCategoriesForSkill(
+function skill_config:_getMergedGroupsForSkill(skillId)
+	local mergedDict = self:_mergeGroupsForSkill(
 		skillId,
-		self.codeDefinedCategories,
-		self.config.categoriesAdded or {},
-		self.config.categoriesRemoved or {}
+		self.codeDefinedGroups,
+		self.config.groupsAdded or {},
+		self.config.groupsRemoved or {}
 	)
 
 	-- Convert dictionary to array
 	local merged = {}
-	for categoryName in pairs(mergedDict) do
-		table.insert(merged, categoryName)
+	for groupName in pairs(mergedDict) do
+		table.insert(merged, groupName)
 	end
 
 	return merged
 end
 
---- Check if a skill is currently in a category (after merging code defined and user changes)
-function skill_config:isSkillInCategory(skillId, categoryName)
-	local category = self.categories[categoryName]
-	if not category then
+--- Check if a skill is currently in a group (after merging code defined and user changes)
+function skill_config:isSkillInGroup(skillId, groupName)
+	local group = self.groups[groupName]
+	if not group then
 		return false
 	end
-	return category.skillIds[skillId] == true
+	return group.skillIds[skillId] == true
 end
 
--- Reset all category settings to defaults
-function skill_config:resetCategorySettings()
-	self.config.categorySettings = {}
-	self:_rebuildCategories()
+-- Reset all group settings to defaults
+function skill_config:resetGroupSettings()
+	self.config.groupSettings = {}
+	self:_rebuildGroups()
 	return true
 end
 
-function skill_config:_countCategories()
+function skill_config:_countGroups()
 	local count = 0
-	for _ in pairs(self.categories) do count = count + 1 end
+	for _ in pairs(self.groups) do count = count + 1 end
 	return count
 end
 
-function skill_config:deleteCategory(categoryName)
-	-- Remove category from all skills by updating added/removed tracking
+function skill_config:deleteGroup(groupName)
+	-- Remove group from all skills by updating added/removed tracking
 	for skillId in pairs(self.config.skillConfigs) do
-		-- Check if skill is currently in this category
-		if self:isSkillInCategory(skillId, categoryName) then
-			-- Remove the skill from the category
-			self:removeSkillFromCategory(skillId, categoryName)
+		-- Check if skill is currently in this group
+		if self:isSkillInGroup(skillId, groupName) then
+			-- Remove the skill from the group
+			self:removeSkillFromGroup(skillId, groupName)
 		end
 	end
 
-	-- Remove from empty categories tracking
-	self.config.emptyCategories[categoryName] = nil
+	-- Remove from empty groups tracking
+	self.config.emptyGroups[groupName] = nil
 
-	-- Remove category UI state
-	self.config.categoriesCollapseStates[categoryName] = nil
+	-- Remove group UI state
+	self.config.groupsCollapseStates[groupName] = nil
 
-	-- Rebuild is handled by removeSkillFromCategory calls above
-	logger.logDebug(SUBMODULE, "Deleted category '%s'", categoryName)
+	-- Rebuild is handled by removeSkillFromGroup calls above
+	logger.logDebug(SUBMODULE, "Deleted group '%s'", groupName)
 	return true
 end
 
-function skill_config:addSkillToCategory(skillId, categoryName)
+function skill_config:addSkillToGroup(skillId, groupName)
 	if not self.config.skillConfigs[skillId] then
 		logger.logError(SUBMODULE, "Skill '%s' not registered", skillId)
 		return false
 	end
 
-	-- Get current merged categories for this skill as dictionary
-	local currentCategories = self:_mergeCategoriesForSkill(
+	-- Get current merged groups for this skill as dictionary
+	local currentGroups = self:_mergeGroupsForSkill(
 		skillId,
-		self.codeDefinedCategories,
-		self.config.categoriesAdded,
-		self.config.categoriesRemoved
+		self.codeDefinedGroups,
+		self.config.groupsAdded,
+		self.config.groupsRemoved
 	)
 
-	-- Check if already in merged category dictionary
-	if currentCategories[categoryName] then
-		logger.logDebug(SUBMODULE, "Skill '%s' already in category '%s'", skillId, categoryName)
+	-- Check if already in merged group dictionary
+	if currentGroups[groupName] then
+		logger.logDebug(SUBMODULE, "Skill '%s' already in group '%s'", skillId, groupName)
 		return true
 	end
 
 	-- Check if this is code defined
-	local isCodeDefined = self:isCodeDefinedCategory(skillId, categoryName)
+	local isCodeDefined = self:isCodeDefinedGroup(skillId, groupName)
 
 	if isCodeDefined then
 		-- It is code defined but was removed by user adn readded so remove from removals dictionary
-		if self.config.categoriesRemoved[skillId] then
-			self.config.categoriesRemoved[skillId][categoryName] = nil
+		if self.config.groupsRemoved[skillId] then
+			self.config.groupsRemoved[skillId][groupName] = nil
 		end
-		logger.logDebug(SUBMODULE, "Removed '%s' from categoriesRemoved for skill '%s'", categoryName, skillId)
+		logger.logDebug(SUBMODULE, "Removed '%s' from groupsRemoved for skill '%s'", groupName, skillId)
 	else
 		-- It is a user addition so add to additions dictionary
-		if not self.config.categoriesAdded[skillId] then
-			self.config.categoriesAdded[skillId] = {}
+		if not self.config.groupsAdded[skillId] then
+			self.config.groupsAdded[skillId] = {}
 		end
-		self.config.categoriesAdded[skillId][categoryName] = true
-		logger.logDebug(SUBMODULE, "Added '%s' to categoriesAdded for skill '%s'", categoryName, skillId)
+		self.config.groupsAdded[skillId][groupName] = true
+		logger.logDebug(SUBMODULE, "Added '%s' to groupsAdded for skill '%s'", groupName, skillId)
 	end
 
-	-- Remove from emptyCategories if it was an empty, manually created category
-	if self.config.emptyCategories[categoryName] then
-		self.config.emptyCategories[categoryName] = nil
+	-- Remove from emptyGroups if it was an empty, manually created group
+	if self.config.emptyGroups[groupName] then
+		self.config.emptyGroups[groupName] = nil
 	end
 
-	self:_rebuildCategories()
+	self:_rebuildGroups()
 	return true
 end
 
-function skill_config:removeSkillFromCategory(skillId, categoryName)
+function skill_config:removeSkillFromGroup(skillId, groupName)
 	if not self.config.skillConfigs[skillId] then
 		logger.logWarn(SUBMODULE, "Skill '%s' not registered", skillId)
 		return false
 	end
 
-	-- Get current merged categories for this skill
-	local currentCategories = self:_mergeCategoriesForSkill(
+	-- Get current merged groups for this skill
+	local currentGroups = self:_mergeGroupsForSkill(
 		skillId,
-		self.codeDefinedCategories,
-		self.config.categoriesAdded,
-		self.config.categoriesRemoved
+		self.codeDefinedGroups,
+		self.config.groupsAdded,
+		self.config.groupsRemoved
 	)
 
-	-- Check if currently in category
-	if not currentCategories[categoryName] then
-		logger.logDebug(SUBMODULE, "Skill '%s' not in category '%s'", skillId, categoryName)
+	-- Check if currently in group
+	if not currentGroups[groupName] then
+		logger.logDebug(SUBMODULE, "Skill '%s' not in group '%s'", skillId, groupName)
 		return true
 	end
 
 	-- Check if this is code-defined
-	local isCodeDefined = self:isCodeDefinedCategory(skillId, categoryName)
+	local isCodeDefined = self:isCodeDefinedGroup(skillId, groupName)
 
 	if isCodeDefined then
 		-- It is code defined so add to removals dictionary
-		if not self.config.categoriesRemoved[skillId] then
-			self.config.categoriesRemoved[skillId] = {}
+		if not self.config.groupsRemoved[skillId] then
+			self.config.groupsRemoved[skillId] = {}
 		end
-		self.config.categoriesRemoved[skillId][categoryName] = true
-		logger.logDebug(SUBMODULE, "Added '%s' to categoriesRemoved for skill '%s'", categoryName, skillId)
+		self.config.groupsRemoved[skillId][groupName] = true
+		logger.logDebug(SUBMODULE, "Added '%s' to groupsRemoved for skill '%s'", groupName, skillId)
 	else
 		-- It is a user addition so remove from additions dictionary
-		if self.config.categoriesAdded[skillId] then
-			self.config.categoriesAdded[skillId][categoryName] = nil
-			logger.logDebug(SUBMODULE, "Removed '%s' from categoriesAdded for skill '%s'", categoryName, skillId)
+		if self.config.groupsAdded[skillId] then
+			self.config.groupsAdded[skillId][groupName] = nil
+			logger.logDebug(SUBMODULE, "Removed '%s' from groupsAdded for skill '%s'", groupName, skillId)
 		end
 	end
 
-	self:_rebuildCategories()
+	self:_rebuildGroups()
 	return true
 end
 
-function skill_config:getCategory(categoryName)
-	-- Return category from computed index if it exists
-	if self.categories[categoryName] then
-		return self.categories[categoryName]
+function skill_config:getGroup(groupName)
+	-- Return group from computed index if it exists
+	if self.groups[groupName] then
+		return self.groups[groupName]
 	end
 
-	-- Return empty category structure if it's a manually created empty category
-	if self.config.emptyCategories[categoryName] then
+	-- Return empty group structure if it's a manually created empty group
+	if self.config.emptyGroups[groupName] then
 		return {
-			name = categoryName,
+			name = groupName,
 			skillIds = {}
 		}
 	end
@@ -921,69 +921,69 @@ function skill_config:getCategory(categoryName)
 	return nil
 end
 
-function skill_config:listCategories()
-	local categoryNames = {}
+function skill_config:listGroups()
+	local groupNames = {}
 
-	-- Add categories with skills (from computed index)
-	for categoryName in pairs(self.categories) do
-		table.insert(categoryNames, categoryName)
+	-- Add groups with skills (from computed index)
+	for groupName in pairs(self.groups) do
+		table.insert(groupNames, groupName)
 	end
 
-	-- Add empty categories that were manually created
-	for categoryName in pairs(self.config.emptyCategories) do
+	-- Add empty groups that were manually created
+	for groupName in pairs(self.config.emptyGroups) do
 		local alreadyAdded = false
-		for _, existing in ipairs(categoryNames) do
-			if existing == categoryName then
+		for _, existing in ipairs(groupNames) do
+			if existing == groupName then
 				alreadyAdded = true
 				break
 			end
 		end
 		if not alreadyAdded then
-			table.insert(categoryNames, categoryName)
+			table.insert(groupNames, groupName)
 		end
 	end
 
-	table.sort(categoryNames)
-	logger.logDebug(SUBMODULE, "listCategories: Returning %d category(s)", #categoryNames)
-	return categoryNames
+	table.sort(groupNames)
+	logger.logDebug(SUBMODULE, "listGroups: Returning %d group(s)", #groupNames)
+	return groupNames
 end
 
--- Get category settings (onlyOnePerPilot, pilotInclusions, pilotExclusions)
-function skill_config:getCategorySettings(categoryName)
-	return self.config.categorySettings[categoryName] or {
+-- Get group settings (onlyOnePerPilot, pilotInclusions, pilotExclusions)
+function skill_config:getGroupSettings(groupName)
+	return self.config.groupSettings[groupName] or {
 		onlyOnePerPilot = false,
 		pilotInclusions = {},
 		pilotExclusions = {}
 	}
 end
 
--- Update category settings
-function skill_config:setCategorySettings(categoryName, settings)
-	if not self.config.categorySettings[categoryName] then
-		self.config.categorySettings[categoryName] = {}
+-- Update group settings
+function skill_config:setGroupSettings(groupName, settings)
+	if not self.config.groupSettings[groupName] then
+		self.config.groupSettings[groupName] = {}
 	end
 
 	if settings.onlyOnePerPilot ~= nil then
-		self.config.categorySettings[categoryName].onlyOnePerPilot = settings.onlyOnePerPilot
+		self.config.groupSettings[groupName].onlyOnePerPilot = settings.onlyOnePerPilot
 	end
 
 	if settings.pilotInclusions ~= nil then
-		self.config.categorySettings[categoryName].pilotInclusions = settings.pilotInclusions
+		self.config.groupSettings[groupName].pilotInclusions = settings.pilotInclusions
 	end
 
 	if settings.pilotExclusions ~= nil then
-		self.config.categorySettings[categoryName].pilotExclusions = settings.pilotExclusions
+		self.config.groupSettings[groupName].pilotExclusions = settings.pilotExclusions
 	end
 
 	-- Rebuild to apply changes
-	self:_rebuildCategories()
+	self:_rebuildGroups()
 	return true
 end
 
-function skill_config:isSkillInCategory(skillId, categoryName)
-	local category = self.categories[categoryName]
-	if not category then return false end
-	return category.skillIds[skillId] == true
+function skill_config:isSkillInGroup(skillId, groupName)
+	local group = self.groups[groupName]
+	if not group then return false end
+	return group.skillIds[skillId] == true
 end
 
 return skill_config

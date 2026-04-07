@@ -416,38 +416,38 @@ describe("Skill Constraints Module", function()
 		end)
 	end)
 
-	describe("Category Constraints", function()
+	describe("Group Constraints", function()
 		before_each(function()
-			-- Register vanilla skills needed for category tests
+			-- Register vanilla skills needed for group tests
 			-- Using vanilla skills from cplus_plus_ex.VANILLA_SKILLS
 			helper.setupTestSkills({
-				{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", saveVal = 0, categories = {"health"}},
-				{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", saveVal = 1, categories = {"move"}},
-				{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", saveVal = 2, categories = {"grid"}},
-				{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", saveVal = 3, categories = {"reactor"}},
-				{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, categories = {"boost"}},
-				{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, categories = {"boost"}},
-				{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", saveVal = 8, categories = {"health", "move"}},
-				{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, categories = {"move"}},
+				{id = "Health", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", saveVal = 0, groups = {"health"}},
+				{id = "Move", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", saveVal = 1, groups = {"move"}},
+				{id = "Grid", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", saveVal = 2, groups = {"grid"}},
+				{id = "Reactor", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", saveVal = 3, groups = {"reactor"}},
+				{id = "Opener", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, groups = {"boost"}},
+				{id = "Closer", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, groups = {"boost"}},
+				{id = "Skilled", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", saveVal = 8, groups = {"health", "move"}},
+				{id = "Adrenaline", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, groups = {"move"}},
 			})
-			helper.rebuildCategories()
-			-- Re register category constraint to pick up test skills
-			plus_manager._subobjects.skill_constraints:_registerCategoryConstraintFunction()
+			helper.rebuildGroups()
+			-- Re register group constraint to pick up test skills
+			plus_manager._subobjects.skill_constraints:_registerGroupConstraintFunction()
 		end)
 
-		it("should allow skills from different categories", function()
-			-- Health is in "health" category, Move is in "move" category
+		it("should allow skills from different groups", function()
+			-- Health is in "health" group, Move is in "move" group
 			local pilot = helper.createMockPilot("TestPilot")
 
 			local result = plus_manager:checkSkillConstraints(pilot, {"Health"}, "Move")
 			assert.is_true(result)
 		end)
 
-		it("should prevent skills from the same category when enabled", function()
-			-- Opener and Closer are both in "boost" category
-			-- Enable mutual exclusion for this category
-			plus_manager:setCategorySettings("boost", {onlyOnePerPilot = true})
-			helper.rebuildCategories()  -- Rebuild to apply settings
+		it("should prevent skills from the same group when enabled", function()
+			-- Opener and Closer are both in "boost" group
+			-- Enable mutual exclusion for this group
+			plus_manager:setGroupSettings("boost", {onlyOnePerPilot = true})
+			helper.rebuildGroups()  -- Rebuild to apply settings
 
 			local pilot = helper.createMockPilot("TestPilot")
 
@@ -455,66 +455,66 @@ describe("Skill Constraints Module", function()
 			assert.is_false(result)
 		end)
 
-		it("should allow skills from same category when category exclusions disabled", function()
-			-- Enable mutual exclusion first, then disable category exclusions globally
-			plus_manager:setCategorySettings("boost", {onlyOnePerPilot = true})
-			helper.rebuildCategories()  -- Rebuild to apply settings
+		it("should allow skills from same group when group exclusions disabled", function()
+			-- Enable mutual exclusion first, then disable group exclusions globally
+			plus_manager:setGroupSettings("boost", {onlyOnePerPilot = true})
+			helper.rebuildGroups()  -- Rebuild to apply settings
 
 			local skill_config = plus_manager._subobjects.skill_config
-			skill_config.config.enableCategoryExclusions = false
+			skill_config.config.enableGroupExclusions = false
 
-			-- Opener and Closer are both in "boost" category, but should be allowed
+			-- Opener and Closer are both in "boost" group, but should be allowed
 			local pilot = helper.createMockPilot("TestPilot")
 
 			local result = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
 			assert.is_true(result)
 
 			-- Restore default
-			skill_config.config.enableCategoryExclusions = true
+			skill_config.config.enableGroupExclusions = true
 		end)
 
-		it("should allow skills not in any category", function()
-			-- Grid is in its own category, Health in "health" - no conflict
+		it("should allow skills not in any group", function()
+			-- Grid is in its own group, Health in "health" - no conflict
 			local pilot = helper.createMockPilot("TestPilot")
 
 			local result = plus_manager:checkSkillConstraints(pilot, {"Grid"}, "Health")
 			assert.is_true(result)
 		end)
 
-		it("should handle multiple categories correctly", function()
-			-- Skilled is in both "health" and "move" categories
-			-- Enable mutual exclusion for these categories
-			plus_manager:setCategorySettings("health", {onlyOnePerPilot = true})
-			plus_manager:setCategorySettings("move", {onlyOnePerPilot = true})
-			helper.rebuildCategories()  -- Rebuild to apply settings
+		it("should handle multiple groups correctly", function()
+			-- Skilled is in both "health" and "move" groups
+			-- Enable mutual exclusion for these groups
+			plus_manager:setGroupSettings("health", {onlyOnePerPilot = true})
+			plus_manager:setGroupSettings("move", {onlyOnePerPilot = true})
+			helper.rebuildGroups()  -- Rebuild to apply settings
 
 			local pilot = helper.createMockPilot("TestPilot")
 
-			-- Skilled and Health conflict via "health" category
+			-- Skilled and Health conflict via "health" group
 			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Skilled"}, "Health"))
 
-			-- Skilled and Move conflict via "move" category
+			-- Skilled and Move conflict via "move" group
 			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Skilled"}, "Move"))
 
-			-- Skilled and Grid don't share a category
+			-- Skilled and Grid don't share a group
 			assert.is_true(plus_manager:checkSkillConstraints(pilot, {"Skilled"}, "Grid"))
 		end)
 
 		it("should handle multiple selected skills", function()
-			-- Adrenaline and Move both in "move" category
-			-- Enable mutual exclusion for these categories
-			plus_manager:setCategorySettings("move", {onlyOnePerPilot = true})
-			plus_manager:setCategorySettings("health", {onlyOnePerPilot = true})
+			-- Adrenaline and Move both in "move" group
+			-- Enable mutual exclusion for these groups
+			plus_manager:setGroupSettings("move", {onlyOnePerPilot = true})
+			plus_manager:setGroupSettings("health", {onlyOnePerPilot = true})
 
 			local pilot = helper.createMockPilot("TestPilot")
 
 			-- Move already selected, Adrenaline should be blocked
 			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Move"}, "Adrenaline"))
 
-			-- Reactor not in "move" category, should be allowed
+			-- Reactor not in "move" group, should be allowed
 			assert.is_true(plus_manager:checkSkillConstraints(pilot, {"Move"}, "Reactor"))
 
-			-- Multiple selected, Skilled in both "health" and "move" - blocked by Move in "move" category
+			-- Multiple selected, Skilled in both "health" and "move" - blocked by Move in "move" group
 			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Move", "Reactor"}, "Skilled"))
 		end)
 	end)
