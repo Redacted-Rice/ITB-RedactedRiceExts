@@ -59,6 +59,8 @@ local COLLAPSE_PADDING = 46
 local PILOT_SIZE = 65
 local RELATIONSHIP_BUTTON_WIDTH = 140
 local SORT_WIDTH = 350
+local MAX_GROUP_ICONS = 5 -- Maximum number of skill icons to display for a group
+local GROUP_ICON_OVERLAP_SPACING = (SKILL_ICON_REL_SIZE / 2)
 
 -- Dialog sizing
 local DIALOG_WIDTH_PREFERRED_PCT = 0.85
@@ -1135,8 +1137,7 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	local pilotUi = Ui()
 		:widthpx(PILOT_SIZE - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
-	-- Always draw frame border, add portrait on top if available
-	local decorations = { DecoFrame() }
+	local decorations = {}
 
 	if pilotId and pilotId ~= "All" and pilotId ~= "" then
 		local portrait = self:getPilotPortrait(pilotId)
@@ -1159,8 +1160,7 @@ function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
 	local skillUi = Ui()
 		:widthpx(iconWidth - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
-	-- Always draw frame border, add icon on top if available
-	local decorations = { DecoFrame() }
+	local decorations = {}
 
 	if skillId and skillId ~= "All" and skillId ~= "" then
 		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
@@ -1183,9 +1183,9 @@ function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
 	return skillUi
 end
 
-function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId)
+function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId, tooltip)
 	local label = Ui()
-		:width(0.5):heightpx(ROW_HEIGHT)
+		:width(1):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(),
 			DecoAlign(0, 2),
@@ -1193,8 +1193,10 @@ function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId)
 		})
 		:addTo(row)
 
-	-- Add skill description tooltip if this is a skill
-	if skillId then
+	-- Use provided tooltip or skill description
+	if tooltip then
+		label:settooltip(tooltip)
+	elseif skillId then
 		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
 		if skill then
 			local description = GetText(skill.description) or skill.description or ""
@@ -1203,11 +1205,96 @@ function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId)
 			end
 		end
 	end
+
+	return label
 end
 
-function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, listTooltips, selectFn, row)
+-- Helper to add icon + text as a fixed width unit in relationship rows
+-- Returns the icon container for potential updates
+function modify_pilot_skills_ui:addRelationshipColumn(itemId, itemType, isGroup, displayText, skillId, tooltip, parentRow)
+	-- Create a fixed width container for icon + text
+	local columnContainer = UiWeightLayout()
+		:width(0.4):heightpx(ROW_HEIGHT)
+		:addTo(parentRow)
+
+	-- Add icon which can change size especially as a group
+	local iconContainer = nil
+	if isGroup then
+		iconContainer = self:addGroupIcons(itemId, columnContainer)
+	elseif itemType == "Pilot" then
+		iconContainer = self:addPilotImage(itemId, columnContainer)
+	elseif itemType == "Skill" then
+		-- For single skill icons, use a smaller fixed width
+		iconContainer = self:addSkillIcon(itemId, columnContainer, SKILL_ICON_REL_SIZE)
+	end
+
+	-- Add text label that takes the remaining space
+	self:addExistingRelLabel(displayText, columnContainer, skillId, tooltip)
+
+	return iconContainer
+end
+
+function modify_pilot_skills_ui:addGroupIcons(groupName, row)
+	local group = cplus_plus_ex:getGroup(groupName)
+	if not group then
+		-- Empty space if group doesn't exist
+		Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(row)
+		return nil
+	end
+
+	-- Get all enabled skills in this group
+	local groupSkillIds = {}
+	if group.skillIds then
+		for skillId in pairs(group.skillIds) do
+			if cplus_plus_ex:isSkillEnabled(skillId) then
+				table.insert(groupSkillIds, skillId)
+			end
+		end
+		table.sort(groupSkillIds)
+	end
+
+	-- Calculate number of icons to display and width needed
+	local numIconsToShow = math.min(#groupSkillIds, MAX_GROUP_ICONS)
+	local iconsWidth = numIconsToShow > 0
+		and (SKILL_ICON_REL_SIZE + ((numIconsToShow - 1) * GROUP_ICON_OVERLAP_SPACING))
+		or SKILL_ICON_REL_SIZE
+
+	-- Create container for overlapping icons with dynamic width
+	local iconsContainer = Ui()
+		:widthpx(iconsWidth):heightpx(ROW_HEIGHT)
+		:addTo(row)
+
+	-- Add overlapping skill icons
+	for i = 1, numIconsToShow do
+		local skillId = groupSkillIds[i]
+		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+		if skill and skill.icon and skill.icon ~= "" then
+			local surface = sdlext.getSurface({ path = skill.icon })
+			if surface then
+				local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+				-- Position each icon with overlap
+				local xOffset = (i - 1) * GROUP_ICON_OVERLAP_SPACING
+				Ui()
+					:widthpx(SKILL_ICON_REL_SIZE):heightpx(ROW_HEIGHT)
+					:decorate({
+						DecoAlign(xOffset, 0),
+						DecoSurfaceAligned(scaledSurface, "left", "center")
+					})
+					:addTo(iconsContainer)
+			end
+		end
+	end
+
+	-- Add some spacing
+	Ui():widthpx(BOARDER_SIZE * 2):heightpx(ROW_HEIGHT):addTo(row)
+
+	return iconsContainer
+end
+
+function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, listTooltips, selectFn, row, width)
+	width = width or 0.5
 	local dropDown = UiDropDown(listVals, listDisplay, listVals[1], listTooltips)
-		:width(0.5):heightpx(ROW_HEIGHT)
+		:width(width):heightpx(ROW_HEIGHT)
 		:settooltip()
 		:decorate({
 			DecoButton(),
@@ -1316,16 +1403,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips, includeSourceGroups)
 	local targetListDisplay, targetListVals, targetListTooltips = self:createDropDownItems(targetList, targetIdsSorted, includeTargetTooltips, includeTargetGroups)
 
-	-- Calculate dynamic icon width
-	local maxSkillIconWidth = self:getLargestIconWidth()
-
 	-- Container for this section
-	-- Determine largest height based on whether we have pilot portraits or skill icons
+	-- Determine largest height based on whether we have pilot portraits
 	local largestHeight = ROW_HEIGHT
 	if sourceLabel == "Pilot" then
 		largestHeight = PILOT_SIZE
-	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
-		largestHeight = math.max(ROW_HEIGHT, maxSkillIconWidth)
 	end
 
 	-- Use consistent spacing throughout
@@ -1357,47 +1439,66 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- just predefnining the fn
 	local rebuildRelationshipList
 
+	-- Helper function to build tooltip description for a group
+	local function buildGroupTooltip(groupName)
+		local group = cplus_plus_ex:getGroup(groupName)
+		if not group then return "" end
+
+		-- Get all enabled skills in this group
+		local groupSkillIds = {}
+		if group.skillIds then
+			for skillId in pairs(group.skillIds) do
+				if cplus_plus_ex:isSkillEnabled(skillId) then
+					table.insert(groupSkillIds, skillId)
+				end
+			end
+			table.sort(groupSkillIds)
+		end
+
+		-- Build skill names array for description
+		local skillNames = {}
+		for _, skillId in ipairs(groupSkillIds) do
+			local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+			if skill then
+				local name = GetText(skill.shortName) or skill.shortName or skillId
+				table.insert(skillNames, name)
+			end
+		end
+
+		-- Format description as "groupName: [skill1, skill2, ...]"
+		return groupName .. ": [" .. table.concat(skillNames, ", ") .. "]"
+	end
+
 	-- Helper function to build a single relationship row
 	local function buildRelationshipRow(sourceId, targetId, isSourceGroup, isTargetGroup)
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 			:addTo(sectionContainer)
 
-		if isSourceGroup then
-			-- Empty space for group for now
-			Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(entryRow)
-		elseif sourceLabel == "Pilot" then
-			self:addPilotImage(sourceId, entryRow)
-		elseif sourceLabel == "Skill" then
-			self:addSkillIcon(sourceId, entryRow, maxSkillIconWidth)
-		end
-
-		-- Add labels with skill tooltips if applicable
+		-- Prepare display data
 		local sourceDisplay = isSourceGroup and ("Group: " .. sourceId) or sourceList[sourceId]
 		local sourceSkillId = (not isSourceGroup and sourceLabel == "Skill") and sourceId or nil
-		local targetSkillId = (not isTargetGroup and targetLabel == "Skill") and targetId or nil
-		local targetDisplay = isTargetGroup and ("Group: " .. targetId) or targetList[targetId]
+		local sourceTooltip = isSourceGroup and buildGroupTooltip(sourceId) or nil
 
-		self:addExistingRelLabel(sourceDisplay, entryRow, sourceSkillId)
+		local targetDisplay = isTargetGroup and ("Group: " .. targetId) or targetList[targetId]
+		local targetSkillId = (not isTargetGroup and targetLabel == "Skill") and targetId or nil
+		local targetTooltip = isTargetGroup and buildGroupTooltip(targetId) or nil
+
+		-- Add source column (icon + text as fixed width unit)
+		self:addRelationshipColumn(sourceId, sourceLabel, isSourceGroup, sourceDisplay, sourceSkillId, sourceTooltip, entryRow)
+
+		-- Add arrow
 		self:addArrowLabel(isBidirectional, entryRow)
 
-		if isTargetGroup then
-			-- Empty space for group
-			Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(entryRow)
-		elseif targetLabel == "Skill" then
-			self:addSkillIcon(targetId, entryRow, maxSkillIconWidth)
-		end
+		-- Add target column (icon + text as fixed width unit)
+		self:addRelationshipColumn(targetId, targetLabel, isTargetGroup, targetDisplay, targetSkillId, targetTooltip, entryRow)
 
-		self:addExistingRelLabel(targetDisplay, entryRow, targetSkillId)
-
-		-- Remove button
 		local isCodeDefined = not (isSourceGroup or isTargetGroup) and cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
-		local btnText = "Remove"
 		local btnTooltip = isCodeDefined and "Remove this code defined relationship"
 				or "Remove this user added relationship"
 
 		local btnRemove = sdlext.buildButton(
-			btnText,
+			"×",
 			btnTooltip,
 			function()
 				-- Groups are stored with "group:" prefix in the same table as skills
@@ -1409,13 +1510,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, fullTargetId, fullSourceId)
 				end
 
-				-- Save and rebuild
 				cplus_plus_ex:saveConfiguration()
 				rebuildRelationshipList()
 				return true
 			end
 		)
-		btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
+		btnRemove:widthpx(40)
 			:heightpx(ROW_HEIGHT)
 			:addTo(entryRow)
 	end
@@ -1507,11 +1607,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		:width(1):heightpx(ROW_HEIGHT)
 		:addTo(sectionContainer)
 
+	-- Source column (icon + dropdown)
+	local sourceColumn = UiWeightLayout()
+		:width(0.4):heightpx(ROW_HEIGHT)
+		:addTo(addRow)
+
 	-- Source image (pilot portrait or skill icon)
 	if sourceLabel == "Pilot" then
-		currentSourceImage = self:addPilotImage(selectedSource, addRow)
+		currentSourceImage = self:addPilotImage(selectedSource, sourceColumn)
 	elseif sourceLabel == "Skill" then
-		currentSourceImage = self:addSkillIcon(selectedSource, addRow, maxSkillIconWidth)
+		currentSourceImage = self:addSkillIcon(selectedSource, sourceColumn, SKILL_ICON_REL_SIZE)
 	end
 
 	-- Source dropdown
@@ -1520,7 +1625,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			selectedSource = newValue
 
 			-- Update image if we have one
-			if currentSourceImage and not newValue:match("^group:") then
+			if currentSourceImage then
 				-- Remove old decoration
 				for i = #currentSourceImage.decorations, 1, -1 do
 					local deco = currentSourceImage.decorations[i]
@@ -1529,8 +1634,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					end
 				end
 
-				-- Add new image if not "All" or empty
-				if newValue ~= "All" and newValue ~= "" then
+				-- Add new image only if not a group, not "All", and not empty
+				if not newValue:match("^group:") and newValue ~= "All" and newValue ~= "" then
 					if sourceLabel == "Pilot" then
 						local portrait = self:getPilotPortrait(newValue)
 						if portrait then
@@ -1548,14 +1653,19 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					end
 				end
 			end
-		end, addRow)
+		end, sourceColumn, 1)
 
 	-- Arrow
 	self:addArrowLabel(isBidirectional, addRow)
 
+	-- Target column (icon + dropdown)
+	local targetColumn = UiWeightLayout()
+		:width(0.4):heightpx(ROW_HEIGHT)
+		:addTo(addRow)
+
 	-- Target image (skill icon only, since target is always skill in current relationships)
 	if targetLabel == "Skill" then
-		currentTargetImage = self:addSkillIcon(selectedTarget, addRow, maxSkillIconWidth)
+		currentTargetImage = self:addSkillIcon(selectedTarget, targetColumn, SKILL_ICON_REL_SIZE)
 	end
 
 	-- Target dropdown
@@ -1564,7 +1674,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			selectedTarget = newValue
 
 			-- Update skill icon if we have one
-			if currentTargetImage and targetLabel == "Skill" and not newValue:match("^group:") then
+			if currentTargetImage and targetLabel == "Skill" then
 				-- Remove old decoration
 				for i = #currentTargetImage.decorations, 1, -1 do
 					local deco = currentTargetImage.decorations[i]
@@ -1573,8 +1683,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					end
 				end
 
-				-- Add new icon if not "All" or empty
-				if newValue ~= "All" and newValue ~= "" then
+				-- Add new icon only if not a group, not "All", and not empty
+				if not newValue:match("^group:") and newValue ~= "All" and newValue ~= "" then
 					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
 					if skill and skill.icon and skill.icon ~= "" then
 						local surface = sdlext.getSurface({ path = skill.icon })
@@ -1585,7 +1695,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					end
 				end
 			end
-		end, addRow)
+		end, targetColumn, 1)
 
 	-- Add button
 	local btnAdd = sdlext.buildButton(
