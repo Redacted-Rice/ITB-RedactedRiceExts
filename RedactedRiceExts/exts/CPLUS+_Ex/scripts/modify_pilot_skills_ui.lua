@@ -88,6 +88,11 @@ function modify_pilot_skills_ui:getSortedIds(skillTable)
 end
 
 function modify_pilot_skills_ui:isItemEnabled(itemId)
+	-- Groups are always enabled
+	if itemId:match("^group:") then
+		return true
+	end
+
 	local skillConfig = cplus_plus_ex.config.skillConfigs[itemId]
 	if skillConfig then
 		return skillConfig.enabled
@@ -121,76 +126,6 @@ function modify_pilot_skills_ui:rebuildAllRelationships()
 	end
 end
 
--- Get the appropriate group relationship table based on relationship type
-function modify_pilot_skills_ui:_getGroupRelationshipTable(relationshipType)
-	if relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_EXCLUSIONS then
-		return cplus_plus_ex.config.pilotGroupExclusions
-	elseif relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_INCLUSIONS then
-		return cplus_plus_ex.config.pilotGroupInclusions
-	elseif relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
-		return cplus_plus_ex.config.skillGroupExclusions
-	end
-	return nil
-end
-
--- Get group to group relationship table
-function modify_pilot_skills_ui:_getGroupGroupRelationshipTable(relationshipType)
-	if relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
-		return cplus_plus_ex.config.groupGroupExclusions
-	end
-	return nil
-end
-
--- Helper to set/unset a relationship in a nested table
-local function modifyNestedRelationship(table, key1, key2, shouldAdd)
-	if shouldAdd then
-		if not table[key1] then
-			table[key1] = {}
-		end
-		table[key1][key2] = true
-	else
-		if table[key1] then
-			table[key1][key2] = nil
-		end
-	end
-end
-
--- Add/Remove a group relationship
-function modify_pilot_skills_ui:_modifyGroupRelationship(relationshipType, sourceId, targetId, isBidirectional, shouldAdd)
-	local isSourceGroup = sourceId:match("^group:")
-	local isTargetGroup = targetId:match("^group:")
-	local action = shouldAdd and "Added" or "Removed"
-
-	if isSourceGroup and isTargetGroup then
-		-- Group -> Group
-		local groupGroupTable = self:_getGroupGroupRelationshipTable(relationshipType)
-		if groupGroupTable then
-			local sourceGroup = sourceId:gsub("^group:", "")
-			local targetGroup = targetId:gsub("^group:", "")
-
-			modifyNestedRelationship(groupGroupTable, sourceGroup, targetGroup, shouldAdd)
-			if isBidirectional then
-				modifyNestedRelationship(groupGroupTable, targetGroup, sourceGroup, shouldAdd)
-			end
-
-			logger.logDebug(SUBMODULE, "%s group-group relationship: %s ↔ %s", action, sourceGroup, targetGroup)
-		end
-	elseif isTargetGroup then
-		-- Source (skill/pilot) -> Group
-		local groupTable = self:_getGroupRelationshipTable(relationshipType)
-		if groupTable then
-			local groupName = targetId:gsub("^group:", "")
-			modifyNestedRelationship(groupTable, sourceId, groupName, shouldAdd)
-			logger.logDebug(SUBMODULE, "%s group relationship: %s → Group:%s", action, sourceId, groupName)
-		end
-	end
-end
-
--- Add a group relationship
-function modify_pilot_skills_ui:_addGroupRelationship(relationshipType, sourceId, targetId, isBidirectional)
-	self:_modifyGroupRelationship(relationshipType, sourceId, targetId, isBidirectional, true)
-end
-
 -- For some actions it doesn't trigger a rebuild of relationships otherwise
 -- Its a bit clunky but its temporary for now anyways so shouldn't be a big
 -- deal
@@ -210,11 +145,6 @@ function modify_pilot_skills_ui:rebuildAllGroupPools()
 	if relationshipsParent then
 		self:buildRelationships(relationshipsParent)
 	end
-end
-
--- Remove a group relationship
-function modify_pilot_skills_ui:_removeGroupRelationship(relationshipType, sourceId, targetId, isBidirectional)
-	self:_modifyGroupRelationship(relationshipType, sourceId, targetId, isBidirectional, false)
 end
 
 function modify_pilot_skills_ui:init()
@@ -1379,8 +1309,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local includeSourceTooltips = sourceLabel == "Skill"
 	local includeTargetTooltips = targetLabel == "Skill"
 
-	-- Include groups in dropdowns for skill to skill relationships
-	local includeSourceGroups = (sourceLabel == "Skill" and targetLabel == "Skill")
+	-- Include groups in dropdowns whenever skills are included
+	local includeSourceGroups = sourceLabel == "Skill"
 	local includeTargetGroups = targetLabel == "Skill"
 
 	local listDisplay, listVals, listTooltips = self:createDropDownItems(sourceList, sourceIdsSorted, includeSourceTooltips, includeSourceGroups)
@@ -1470,16 +1400,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			btnText,
 			btnTooltip,
 			function()
-				if isSourceGroup or isTargetGroup then
-					-- Construct full IDs with group: prefix for removal
-					local fullSourceId = isSourceGroup and ("group:" .. sourceId) or sourceId
-					local fullTargetId = isTargetGroup and ("group:" .. targetId) or targetId
-					self:_removeGroupRelationship(relationshipType, fullSourceId, fullTargetId, isBidirectional)
-				else
-					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, sourceId, targetId)
-					if isBidirectional then
-						cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
-					end
+				-- Groups are stored with "group:" prefix in the same table as skills
+				local fullSourceId = isSourceGroup and ("group:" .. sourceId) or sourceId
+				local fullTargetId = isTargetGroup and ("group:" .. targetId) or targetId
+
+				cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, fullSourceId, fullTargetId)
+				if isBidirectional then
+					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, fullTargetId, fullSourceId)
 				end
 
 				-- Save and rebuild
@@ -1504,52 +1431,25 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		local relationshipList = {}
 		local newItemsList = {}
 
-		-- Add normal skill relationships
+		-- Add all relationships
 		for sourceId, targets in pairs(relationshipTable) do
 			for targetId, _ in pairs(targets) do
 				-- Only show relationships where both source and target are enabled
 				if self:isItemEnabled(sourceId) and self:isItemEnabled(targetId) then
 					local key = sourceId .. "|" .. targetId
-					local relationship = {sourceId = sourceId, targetId = targetId, isSourceGroup = false, isTargetGroup = false}
+					local isSourceGroup = sourceId:match("^group:")
+					local isTargetGroup = targetId:match("^group:")
 
-					-- Check if this is a newly added item
-					if newlyAddedRelationships[key] then
-						table.insert(newItemsList, relationship)
-					else
-						table.insert(relationshipList, relationship)
-					end
-				end
-			end
-		end
+					-- Strip "group:" prefix for display purposes only
+					local displaySourceId = isSourceGroup and sourceId:gsub("^group:", "") or sourceId
+					local displayTargetId = isTargetGroup and targetId:gsub("^group:", "") or targetId
 
-		-- Add skill/pilot-group relationships
-		local groupRelTable = self:_getGroupRelationshipTable(relationshipType)
-		if groupRelTable then
-			for sourceId, groups in pairs(groupRelTable) do
-				for groupName, _ in pairs(groups) do
-					-- Only show if source is enabled
-					if self:isItemEnabled(sourceId) then
-						local key = sourceId .. "|group:" .. groupName
-						local relationship = {sourceId = sourceId, targetId = groupName, isSourceGroup = false, isTargetGroup = true}
-
-						-- Check if this is a newly added item
-						if newlyAddedRelationships[key] then
-							table.insert(newItemsList, relationship)
-						else
-							table.insert(relationshipList, relationship)
-						end
-					end
-				end
-			end
-		end
-
-		-- Add group to group relationships
-		local groupGroupTable = self:_getGroupGroupRelationshipTable(relationshipType)
-		if groupGroupTable then
-			for sourceGroup, targetGroups in pairs(groupGroupTable) do
-				for targetGroup, _ in pairs(targetGroups) do
-					local key = "group:" .. sourceGroup .. "|group:" .. targetGroup
-					local relationship = {sourceId = sourceGroup, targetId = targetGroup, isSourceGroup = true, isTargetGroup = true}
+					local relationship = {
+						sourceId = displaySourceId,
+						targetId = displayTargetId,
+						isSourceGroup = isSourceGroup and true or false,
+						isTargetGroup = isTargetGroup and true or false
+					}
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
@@ -1744,7 +1644,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						sourcesToAdd[sourceId] = true
 					end
 				end
-				-- Include groups for skill to skill relationships
+				-- Include groups when source is skill based
 				if includeSourceGroups then
 					local groupNames = cplus_plus_ex:listGroups()
 					for _, groupName in ipairs(groupNames) do
@@ -1761,7 +1661,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						targetsToAdd[targetId] = true
 					end
 				end
-				-- Include groups in target if applicable
+				-- Include groups when target is skill based
 				if includeTargetGroups then
 					local groupNames = cplus_plus_ex:listGroups()
 					for _, groupName in ipairs(groupNames) do
@@ -1777,20 +1677,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				for targetId, _ in pairs(targetsToAdd) do
 					-- Skip adding to self (if all was used)
 					if not (sourceId == targetId) then
-						-- Check if source or target is a group
-						local isSourceGroup = sourceId:match("^group:")
-						local isTargetGroup = targetId:match("^group:")
+						-- Add relationship in exact order specified
+						cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
 
-						if isSourceGroup or isTargetGroup then
-							-- Group relationship
-							self:_addGroupRelationship(relationshipType, sourceId, targetId, isBidirectional)
-						else
-							-- Normal skill relationship
-							cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
-
-							if isBidirectional then
-								cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
-							end
+						if isBidirectional then
+							cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
 						end
 
 						-- Mark as newly added to show at top
