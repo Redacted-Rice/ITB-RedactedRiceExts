@@ -1155,32 +1155,86 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	return pilotUi
 end
 
-function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
-	iconWidth = iconWidth or SKILL_ICON_REL_SIZE
-	local skillUi = Ui()
-		:widthpx(iconWidth - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
-
-	local decorations = {}
-
-	if skillId and skillId ~= "All" and skillId ~= "" then
+-- Helper function to display one or more skill icons with consistent sizing
+function modify_pilot_skills_ui:addSkillIcons(skillIds, row)
+	local numIcons = #skillIds
+	
+	-- Load surfaces
+	local iconData = {}
+	for i = 1, numIcons do
+		local skillId = skillIds[i]
 		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
 		if skill and skill.icon and skill.icon ~= "" then
 			local surface = sdlext.getSurface({ path = skill.icon })
 			if surface then
-				-- Center the icon in the box (no hover highlight)
 				local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
-				table.insert(decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
+				table.insert(iconData, {
+					scaledSurface = scaledSurface,
+					width = scaledSurface:w()
+				})
 			end
 		end
 	end
+	
+	local numActualIcons = #iconData
+	local maxWidth, overlapSpacing, iconsWidth
+	
+	-- For single icons, adjust size based on actual icon size
+	if numActualIcons == 1 then
+		maxWidth = math.max(SKILL_ICON_REL_SIZE, iconData[1].width)
+		iconsWidth = maxWidth
+	else
+		-- For multiple icons (groups), use standard sizing
+		maxWidth = SKILL_ICON_REL_SIZE
+		overlapSpacing = GROUP_ICON_OVERLAP_SPACING
+		iconsWidth = numActualIcons > 0
+			and (SKILL_ICON_REL_SIZE + ((numActualIcons - 1) * GROUP_ICON_OVERLAP_SPACING))
+			or SKILL_ICON_REL_SIZE
+	end
 
-	skillUi:decorate(decorations)
-	skillUi:addTo(row)
+	-- Create container with calculated width
+	local container = Ui()
+		:widthpx(iconsWidth):heightpx(ROW_HEIGHT)
+		:addTo(row)
 
-	-- Add some spacing
-	Ui():widthpx(BOARDER_SIZE * 2):heightpx(ROW_HEIGHT):addTo(row)
+	-- Add each icon positioned by center point
+	for i, data in ipairs(iconData) do
+		-- Calculate center position for this icon
+		local centerX
+		if numActualIcons == 1 then
+			-- Single icon: center in container
+			centerX = iconsWidth / 2
+		else
+			-- Multiple icons: center at regular intervals
+			centerX = (SKILL_ICON_REL_SIZE / 2) + ((i - 1) * overlapSpacing)
+		end
+		
+		-- Offset to position icon centered at centerX
+		local xOffset = math.floor(centerX - (data.width / 2))
+		
+		Ui()
+			:widthpx(maxWidth):heightpx(ROW_HEIGHT)
+			:decorate({
+				DecoAlign(xOffset, 0),
+				DecoSurfaceAligned(data.scaledSurface, "left", "center")
+			})
+			:addTo(container)
+	end
 
-	return skillUi
+	return container
+end
+
+function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
+	-- Use the unified function with a single skill
+	if skillId and skillId ~= "All" and skillId ~= "" then
+		return self:addSkillIcons({skillId}, row)
+	else
+		-- Empty container for missing skills
+		local container = Ui()
+			:widthpx(SKILL_ICON_REL_SIZE):heightpx(ROW_HEIGHT)
+			:addTo(row)
+		return container
+	end
 end
 
 function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId, tooltip)
@@ -1242,53 +1296,35 @@ function modify_pilot_skills_ui:addGroupIcons(groupName, row)
 		return nil
 	end
 
-	-- Get all enabled skills in this group
-	local groupSkillIds = {}
+	-- Get all enabled skills in this group with their names for sorting
+	local groupSkills = {}
 	if group.skillIds then
 		for skillId in pairs(group.skillIds) do
 			if cplus_plus_ex:isSkillEnabled(skillId) then
-				table.insert(groupSkillIds, skillId)
-			end
-		end
-		table.sort(groupSkillIds)
-	end
-
-	-- Calculate number of icons to display and width needed
-	local numIconsToShow = math.min(#groupSkillIds, MAX_GROUP_ICONS)
-	local iconsWidth = numIconsToShow > 0
-		and (SKILL_ICON_REL_SIZE + ((numIconsToShow - 1) * GROUP_ICON_OVERLAP_SPACING))
-		or SKILL_ICON_REL_SIZE
-
-	-- Create container for overlapping icons with dynamic width
-	local iconsContainer = Ui()
-		:widthpx(iconsWidth):heightpx(ROW_HEIGHT)
-		:addTo(row)
-
-	-- Add overlapping skill icons
-	for i = 1, numIconsToShow do
-		local skillId = groupSkillIds[i]
-		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
-		if skill and skill.icon and skill.icon ~= "" then
-			local surface = sdlext.getSurface({ path = skill.icon })
-			if surface then
-				local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
-				-- Position each icon with overlap
-				local xOffset = (i - 1) * GROUP_ICON_OVERLAP_SPACING
-				Ui()
-					:widthpx(SKILL_ICON_REL_SIZE):heightpx(ROW_HEIGHT)
-					:decorate({
-						DecoAlign(xOffset, 0),
-						DecoSurfaceAligned(scaledSurface, "left", "center")
-					})
-					:addTo(iconsContainer)
+				local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+				if skill then
+					local name = GetText(skill.shortName) or skill.shortName or skillId
+					table.insert(groupSkills, {id = skillId, name = name})
+				end
 			end
 		end
 	end
 
-	-- Add some spacing
-	Ui():widthpx(BOARDER_SIZE * 2):heightpx(ROW_HEIGHT):addTo(row)
+	-- Sort alphabetically by name
+	table.sort(groupSkills, function(a, b)
+		return a.name:lower() < b.name:lower()
+	end)
 
-	return iconsContainer
+	-- Extract sorted IDs
+	local groupSkillIds = {}
+	for i, skillData in ipairs(groupSkills) do
+		if i <= MAX_GROUP_ICONS then
+			table.insert(groupSkillIds, skillData.id)
+		end
+	end
+
+	-- Use the unified function to display the icons
+	return self:addSkillIcons(groupSkillIds, row)
 end
 
 function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, listTooltips, selectFn, row, width)
@@ -1444,25 +1480,29 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		local group = cplus_plus_ex:getGroup(groupName)
 		if not group then return "" end
 
-		-- Get all enabled skills in this group
-		local groupSkillIds = {}
+		-- Get all enabled skills in this group with their names
+		local groupSkills = {}
 		if group.skillIds then
 			for skillId in pairs(group.skillIds) do
 				if cplus_plus_ex:isSkillEnabled(skillId) then
-					table.insert(groupSkillIds, skillId)
+					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+					if skill then
+						local name = GetText(skill.shortName) or skill.shortName or skillId
+						table.insert(groupSkills, {id = skillId, name = name})
+					end
 				end
 			end
-			table.sort(groupSkillIds)
 		end
+
+		-- Sort alphabetically by name
+		table.sort(groupSkills, function(a, b)
+			return a.name:lower() < b.name:lower()
+		end)
 
 		-- Build skill names array for description
 		local skillNames = {}
-		for _, skillId in ipairs(groupSkillIds) do
-			local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
-			if skill then
-				local name = GetText(skill.shortName) or skill.shortName or skillId
-				table.insert(skillNames, name)
-			end
+		for _, skillData in ipairs(groupSkills) do
+			table.insert(skillNames, skillData.name)
 		end
 
 		-- Format description as "groupName: [skill1, skill2, ...]"
