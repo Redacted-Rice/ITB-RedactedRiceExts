@@ -19,6 +19,10 @@ local relationshipsParent = nil
 local groupsContainer = nil
 local groupsParent = nil
 
+-- Surface cache to avoid recreating images
+local surfaceCache = {}
+local scaledSurfaceCache = {}
+
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
 local REUSABLILITY_HEADER = "Reusability"
@@ -61,6 +65,25 @@ local RELATIONSHIP_BUTTON_WIDTH = 140
 local SORT_WIDTH = 350
 local MAX_GROUP_ICONS = 5 -- Maximum number of skill icons to display for a group
 local GROUP_ICON_OVERLAP_SPACING = (SKILL_ICON_REL_SIZE / 2)
+
+-- Helper to get cached surface
+local function getCachedSurface(path)
+	if not surfaceCache[path] then
+		surfaceCache[path] = sdlext.getSurface({ path = path })
+	end
+	return surfaceCache[path]
+end
+
+-- Helper to get cached scaled surface for skill icons
+local function getCachedScaledSkillSurface(path)
+	if not scaledSurfaceCache[path] then
+		local surface = getCachedSurface(path)
+		if surface then
+			scaledSurfaceCache[path] = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+		end
+	end
+	return scaledSurfaceCache[path]
+end
 
 -- Dialog sizing
 local DIALOG_WIDTH_PREFERRED_PCT = 0.85
@@ -582,7 +605,7 @@ function modify_pilot_skills_ui:getLargestIconWidth()
 	local maxWidth = 0
 	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
 		if skill.icon and skill.icon ~= "" then
-			local surface = sdlext.getSurface({ path = skill.icon })
+			local surface = getCachedSurface(skill.icon)
 			if surface then
 				local scaledWidth = surface:w() * SKILL_ICON_SCALE + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE)
 				maxWidth = math.max(maxWidth, scaledWidth)
@@ -641,7 +664,7 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 
 	-- Add icon if available (icons are 21x21 base, scaled to display size)
 	if skill.icon and skill.icon ~= "" then
-		local surface = sdlext.getSurface({ path = skill.icon })
+		local surface = getCachedSurface(skill.icon)
 		if surface then
 			table.insert(decorations, DecoAlign(SKILL_ICON_SPACING, 0))
 			table.insert(decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
@@ -1684,9 +1707,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					elseif sourceLabel == "Skill" then
 						local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
 						if skill and skill.icon and skill.icon ~= "" then
-							local surface = sdlext.getSurface({ path = skill.icon })
-							if surface then
-								local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+							local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+							if scaledSurface then
 								table.insert(currentSourceImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 							end
 						end
@@ -1727,9 +1749,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				if not newValue:match("^group:") and newValue ~= "All" and newValue ~= "" then
 					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
 					if skill and skill.icon and skill.icon ~= "" then
-						local surface = sdlext.getSurface({ path = skill.icon })
-						if surface then
-							local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+						local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+						if scaledSurface then
 							table.insert(currentTargetImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 						end
 					end
@@ -2067,9 +2088,8 @@ function modify_pilot_skills_ui:buildGroupSkillCell(parent, skillId, groupName, 
 		local iconUi = Ui()
 			:widthpx(SKILL_ICON_TOTAL):heightpx(ROW_HEIGHT)
 
-		local surface = sdlext.getSurface({ path = skill.icon })
-		if surface then
-			local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+		local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+		if scaledSurface then
 			iconUi:decorate({DecoSurfaceAligned(scaledSurface, "center", "center")})
 		end
 		iconUi:addTo(cellRow)
@@ -2418,6 +2438,11 @@ function modify_pilot_skills_ui:onExit()
 	expandedCollapsables = {}
 	relationshipsContainer = nil
 	relationshipsParent = nil
+	groupsContainer = nil
+	groupsParent = nil
+	-- Clear surface caches to free memory
+	surfaceCache = {}
+	scaledSurfaceCache = {}
 end
 
 -- Creates the main modification dialog
