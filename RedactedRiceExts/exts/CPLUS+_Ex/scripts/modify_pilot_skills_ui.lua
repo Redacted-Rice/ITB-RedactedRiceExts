@@ -19,6 +19,11 @@ local relationshipsParent = nil
 local groupsContainer = nil
 local groupsParent = nil
 
+-- Cache for reusing UI containers to avoid recreating widgets each change
+-- as this was causing lag and missed clicks if clicking decently fast
+local relationshipSections = {} -- [relationshipType] = {container, rebuildFunc}
+local groupPoolSections = {} -- [groupName] = {container, rebuildFunc}
+
 -- Surface cache to avoid recreating images
 local surfaceCache = {}
 local scaledSurfaceCache = {}
@@ -143,18 +148,88 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 	return false
 end
 
--- Rebuild all relationship sections when skills are toggled
+-- Updates the needed fields after a skill toggles on or off
+function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
+	-- Check if skill is in any relationships - if so, rebuild all relationship sections
+	local inRelationships = false
+	
+	for relationshipType, _ in pairs(cplus_plus_ex.config) do
+		if relationshipType == "pilotSkillExclusions" or 
+		   relationshipType == "pilotSkillInclusions" or 
+		   relationshipType == "skillExclusions" then
+			local relTable = cplus_plus_ex.config[relationshipType]
+			if relTable then
+				for sourceId, targets in pairs(relTable) do
+					if sourceId == skillId or sourceId == "group:" .. skillId then
+						inRelationships = true
+						break
+					end
+					for targetId, _ in pairs(targets) do
+						if targetId == skillId or targetId == "group:" .. skillId then
+							inRelationships = true
+							break
+						end
+					end
+					if inRelationships then break end
+				end
+			end
+			if inRelationships then break end
+		end
+	end
+	
+	-- If skill is in relationships, rebuild each relationship section using cached rebuild functions
+	if inRelationships then
+		for relationshipType, section in pairs(relationshipSections) do
+			if section.rebuildFunc then
+				section.rebuildFunc()
+			end
+		end
+	end
+	
+	-- Check if skill is in any groups - if so, rebuild those group sections
+	for groupName, section in pairs(groupPoolSections) do
+		local group = cplus_plus_ex:getGroup(groupName)
+		if group and group.skillIds and group.skillIds[skillId] then
+			if section.rebuildFunc then
+				section.rebuildFunc()
+			end
+		end
+	end
+end
+
+-- Rebuild just the group pools section when group membership changes
+function modify_pilot_skills_ui:rebuildGroupPools()
+	if groupsContainer and groupsParent then
+		-- Clear group caches and rebuild
+		groupPoolSections = {}
+		
+		groupsContainer:detach()
+		self:buildGroups(groupsParent)
+		
+		-- After rebuilding groups, also rebuild relationships to update group icons
+		if relationshipsContainer and relationshipsParent then
+			relationshipSections = {}
+			relationshipsContainer:detach()
+			self:buildRelationships(relationshipsParent)
+		end
+	end
+end
+
+-- Rebuild all relationship sections when needed
 function modify_pilot_skills_ui:rebuildAllRelationships()
 	if relationshipsContainer and relationshipsParent then
+		relationshipSections = {}
 		relationshipsContainer:detach()
 		self:buildRelationships(relationshipsParent)
 	end
 end
 
--- For some actions it doesn't trigger a rebuild of relationships otherwise
--- Its a bit clunky but its temporary for now anyways so shouldn't be a big
--- deal
+-- Full rebuild of both for major structural changes like creating/deleting groups
 function modify_pilot_skills_ui:rebuildAllGroupPools()
+	-- Clear all caches since we're doing a full rebuild
+	relationshipSections = {}
+	groupPoolSections = {}
+	
 	-- Rebuild both group pools and relationships to maintain correct order
 	if groupsContainer and groupsParent then
 		groupsContainer:detach()
@@ -702,9 +777,8 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			onToggleCallback()
 		end
 
-		-- Rebuild relationship and group sections to reflect enabled/disabled state
-		self:rebuildAllGroupPools()
-		self:rebuildAllRelationships()
+		-- Rebuild only affected sections using cached rebuild functions
+		self:updateAfterSkillToggle(skill.id)
 	end)
 
 	return enabledCheckbox
@@ -1099,10 +1173,20 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 				self:updateAllPercentages()
 				cplus_plus_ex:saveConfiguration()
-
-				-- Rebuild group pool and relationship sections to reflect enabled/disabled state
-				self:rebuildAllGroupPools()
-				self:rebuildAllRelationships()
+				
+				-- Rebuild all relationship sections after toggling group
+				for relationshipType, section in pairs(relationshipSections) do
+					if section.rebuildFunc then
+						section.rebuildFunc()
+					end
+				end
+				
+				-- Also rebuild all group pool sections 
+				for groupName, section in pairs(groupPoolSections) do
+					if section.rebuildFunc then
+						section.rebuildFunc()
+					end
+				end
 			end
 
 			-- Build skill entries
@@ -1887,6 +1971,19 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 	-- Build initial list
 	rebuildRelationshipList()
+	
+	-- Cache the section container and rebuild function for efficient updates
+	relationshipSections[relationshipType] = {
+		container = sectionContainer,
+		rebuildFunc = function()
+			-- Clear and rebuild this section's list
+			-- Keep everything except the add row which is the first child
+			while #sectionContainer.children > 1 do
+				sectionContainer.children[#sectionContainer.children]:detach()
+			end
+			rebuildRelationshipList()
+		end
+	}
 end
 
 -- Helper to build groups container which includes skills per row and a button to create new groups
@@ -2280,8 +2377,27 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 	-- Add skill control
 	self:buildGroupPoolAddSkill(groupContent, groupName, newlyAddedGroupSkills, rebuildCallback)
 
-	-- Build grid of skills in group
-	self:buildGroupPoolSkillGrid(groupContent, groupName, newlyAddedGroupSkills, rebuildCallback)
+	-- Create a persistent container for the skill grid
+	local gridContainer = UiBoxLayout()
+		:vgap(0)
+		:width(1)
+		:addTo(groupContent)
+	
+	-- Build initial grid of skills
+	self:buildGroupPoolSkillGrid(gridContainer, groupName, newlyAddedGroupSkills, rebuildCallback)
+	
+	-- Cache the grid container and rebuild function for efficient updates
+	groupPoolSections[groupName] = {
+		container = gridContainer,
+		rebuildFunc = function()
+			-- Clear only the grid children
+			while #gridContainer.children > 0 do
+				gridContainer.children[#gridContainer.children]:detach()
+			end
+			-- Rebuild just the grid
+			self:buildGroupPoolSkillGrid(gridContainer, groupName, {}, rebuildCallback)
+		end
+	}
 end
 
 -- Build the skill groups UI section
@@ -2318,8 +2434,9 @@ function modify_pilot_skills_ui:buildGroups(scrollContent)
 	end
 
 	-- Build each group
+	-- Use rebuildGroupPools for skill add/remove
 	for _, groupName in ipairs(groupNames) do
-		self:buildGroupPoolSection(groupsContent, groupName, {}, function() self:rebuildAllGroupPools() end)
+		self:buildGroupPoolSection(groupsContent, groupName, {}, function() self:rebuildGroupPools() end)
 	end
 end
 
@@ -2377,6 +2494,9 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	relationshipsParent = nil
 	groupsContainer = nil
 	groupsParent = nil
+	-- Clear caches
+	relationshipSections = {}
+	groupPoolSections = {}
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -2440,6 +2560,9 @@ function modify_pilot_skills_ui:onExit()
 	relationshipsParent = nil
 	groupsContainer = nil
 	groupsParent = nil
+	-- Clear caches
+	relationshipSections = {}
+	groupPoolSections = {}
 	-- Clear surface caches to free memory
 	surfaceCache = {}
 	scaledSurfaceCache = {}
