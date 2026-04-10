@@ -1476,6 +1476,19 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 	local listVals = {"", "All"}
 	local listTooltips = {"", "Add entry for each item"}
 
+	-- Add groups first
+	if includeGroups then
+		local groupNames = cplus_plus_ex:listGroups()
+		table.sort(groupNames)
+
+		for _, groupName in ipairs(groupNames) do
+			table.insert(listDisplay, "Group: " .. groupName)
+			table.insert(listVals, "group:" .. groupName)
+			table.insert(listTooltips, "")
+		end
+	end
+
+	-- Then add regular items
 	-- Use presorted IDs if provided, otherwise use utils.sortByValue
 	local keysToUse = sortedIds or utils.sortByValue(dataList)
 
@@ -1497,18 +1510,6 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 			else
 				table.insert(listTooltips, "")
 			end
-		end
-	end
-
-	-- Add groups at the end if requested
-	if includeGroups then
-		local groupNames = cplus_plus_ex:listGroups()
-		table.sort(groupNames)
-
-		for _, groupName in ipairs(groupNames) do
-			table.insert(listDisplay, "Group: " .. groupName)
-			table.insert(listVals, "group:" .. groupName)
-			table.insert(listTooltips, "")
 		end
 	end
 
@@ -1708,30 +1709,37 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 		end
 
+		-- Helper function to get sort key. Groups get null char prefix to sort first
+		local function getSortKey(isGroup, id, list)
+			local name = isGroup and ("Group: " .. id) or (list[id] or "")
+			-- Prepend null char to groups so they sort before regular items
+			return isGroup and ('\0' .. name:lower()) or name:lower()
+		end
+		
 		-- Sort only the non-new items based on the selected column
 		table.sort(relationshipList, function(a, b)
 			if sortColumn == 1 then
 				-- Sort by source then target
-				local aSourceName = a.isSourceGroup and ("Group: " .. a.sourceId) or (sourceList[a.sourceId] or "")
-				local bSourceName = b.isSourceGroup and ("Group: " .. b.sourceId) or (sourceList[b.sourceId] or "")
-				if aSourceName:lower() ~= bSourceName:lower() then
-					return aSourceName:lower() < bSourceName:lower()
+				local aSourceKey = getSortKey(a.isSourceGroup, a.sourceId, sourceList)
+				local bSourceKey = getSortKey(b.isSourceGroup, b.sourceId, sourceList)
+				if aSourceKey ~= bSourceKey then
+					return aSourceKey < bSourceKey
 				end
 				-- Secondary sort by target
-				local aTargetName = a.isTargetGroup and ("Group: " .. a.targetId) or (targetList[a.targetId] or "")
-				local bTargetName = b.isTargetGroup and ("Group: " .. b.targetId) or (targetList[b.targetId] or "")
-				return aTargetName:lower() < bTargetName:lower()
+				local aTargetKey = getSortKey(a.isTargetGroup, a.targetId, targetList)
+				local bTargetKey = getSortKey(b.isTargetGroup, b.targetId, targetList)
+				return aTargetKey < bTargetKey
 			else
 				-- Sort by target then source
-				local aTargetName = a.isTargetGroup and ("Group: " .. a.targetId) or (targetList[a.targetId] or "")
-				local bTargetName = b.isTargetGroup and ("Group: " .. b.targetId) or (targetList[b.targetId] or "")
-				if aTargetName:lower() ~= bTargetName:lower() then
-					return aTargetName:lower() < bTargetName:lower()
+				local aTargetKey = getSortKey(a.isTargetGroup, a.targetId, targetList)
+				local bTargetKey = getSortKey(b.isTargetGroup, b.targetId, targetList)
+				if aTargetKey ~= bTargetKey then
+					return aTargetKey < bTargetKey
 				end
 				-- Secondary sort by source
-				local aSourceName = a.isSourceGroup and ("Group: " .. a.sourceId) or (sourceList[a.sourceId] or "")
-				local bSourceName = b.isSourceGroup and ("Group: " .. b.sourceId) or (sourceList[b.sourceId] or "")
-				return aSourceName:lower() < bSourceName:lower()
+				local aSourceKey = getSortKey(a.isSourceGroup, a.sourceId, sourceList)
+				local bSourceKey = getSortKey(b.isSourceGroup, b.sourceId, sourceList)
+				return aSourceKey < bSourceKey
 			end
 		end)
 
