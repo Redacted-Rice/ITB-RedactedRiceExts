@@ -45,8 +45,8 @@ local SLOT_RESTRICTION_DESCRIPTIONS = {
 	"Can only appear in the second skill slot"
 }
 local SLOT_RESTRICTION_TOOLTIP = "Which skill slot this skill can appear in"
-local TOTAL_WEIGHT_HEADER = "Total: %.1f"
-local TOTAL_PERCENT_HEADER = "Total: %.1f%%"
+local TOTAL_WEIGHT_HEADER = "%.1f"
+local TOTAL_PERCENT_HEADER = "%.1f%%"
 local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
 local SECRET_PILOTS = {"Pilot_Mantis","Pilot_Rock","Pilot_Zoltan"}
 
@@ -55,7 +55,7 @@ local DEFAULT_VGAP = 5
 local SKILL_LIST_VGAP = 10
 local ROW_HEIGHT = 38
 local CHECKBOX_PADDING = 40
-local SKILL_ICON_BASE_SIZE = 25
+local SKILL_ICON_BASE_SIZE = 21
 local SKILL_ICON_SCALE = 2
 local SKILL_ICON_OUTLINE = 1
 local SKILL_ICON_SPACING = 3

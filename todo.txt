@@ -17,6 +17,8 @@ For 1.1 Release:
 
 For 1.1 Release:
 3. Pool based exclusions (testing)
+	a. Blacklists as pools
+	b. Drop downs update on skill enable/disable
 
 
 1.2 Release:
