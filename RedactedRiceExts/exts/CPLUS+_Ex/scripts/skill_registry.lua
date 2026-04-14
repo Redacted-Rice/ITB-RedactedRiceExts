@@ -183,11 +183,6 @@ function skill_registry:registerSkill(group, idOrTable, shortName, fullName, des
 
 	-- add a config value with default reusability
 	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight, groups = groups})
-
-	-- Apply skill group exclusions if provided
-	if skill_group_excl then
-		self:registerSkillGroupExclusions(id, skill_group_excl)
-	end
 end
 
 -- Registers all vanilla skills
@@ -269,7 +264,6 @@ function skill_registry:registerGroup(nameOrTable, onlyOnePerPilot, skills)
 	end
 
 	logger.logDebug(SUBMODULE, "Registered group '%s'", name)
-	return true
 end
 
 -- Registers skills to groups. Can handle single or array like tables of skills/groups
@@ -602,6 +596,9 @@ function skill_registry:_readPilotVanillaExclusions(pilotIds)
 	end
 
 	logger.logInfo(SUBMODULE, "Exclusion processing complete: %d pilot(s) scanned", #pilotIds)
+
+	-- Rebuild groups after creating pools
+	skill_config:_rebuildGroups()
 
 	-- Log pilot group exclusions
 	local pilotGroupExclusionCount = 0

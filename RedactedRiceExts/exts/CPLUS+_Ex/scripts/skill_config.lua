@@ -173,12 +173,14 @@ end
 function skill_config:getAllowedReusability(skillId)
 	-- This is called by register before the skills are registered so default to all allowed
 	local minReusability = cplus_plus_ex.REUSABLILITY.REUSABLE
-	if skill_registry.registeredSkills[skillId] and skill_registry.registeredSkills[skillId].maxReusability then
-		minReusability = skill_registry.registeredSkills[skillId].maxReusability
-	end
-	local allowed = {}
+	local maxReusability = cplus_plus_ex.REUSABLILITY.PER_RUN
 
-	for val = minReusability, cplus_plus_ex.REUSABLILITY.PER_RUN do
+	if skill_registry.registeredSkills[skillId] and skill_registry.registeredSkills[skillId].maxReusability then
+		maxReusability = skill_registry.registeredSkills[skillId].maxReusability
+	end
+
+	local allowed = {}
+	for val = minReusability, maxReusability do
 		allowed[val] = true
 	end
 	return allowed
@@ -801,7 +803,6 @@ end
 function skill_config:resetGroupSettings()
 	self.config.groupSettings = {}
 	self:_rebuildGroups()
-	return true
 end
 
 function skill_config:_countGroups()
@@ -994,7 +995,6 @@ function skill_config:setGroupSettings(groupName, settings)
 
 	-- Rebuild to apply changes
 	self:_rebuildGroups()
-	return true
 end
 
 function skill_config:isSkillInGroup(skillId, groupName)

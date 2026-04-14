@@ -155,11 +155,10 @@ describe("Group Management", function()
 	describe("removeGroupFromRuntime", function()
 		it("should delete group from all skills", function()
 			-- Add skill to group
-			skill_config:addSkillToGroup("Health", "testGroup")
+			skill_config:addSkillToGroupFromRuntime("Health", "testGroup")
 			assert.is_true(skill_config:isSkillInGroup("Health", "testGroup"))
 
-			local result = skill_config:removeGroupFromRuntime("testGroup")
-			assert.is_true(result)
+			skill_config:removeGroupFromRuntime("testGroup")
 
 			-- Verify group removed from computed structure
 			assert.is_nil(skill_config.groups.testGroup)
@@ -169,14 +168,14 @@ describe("Group Management", function()
 		end)
 
 		it("should always succeed even if group doesn't exist", function()
-			local result = skill_config:removeGroupFromRuntime("nonExistent")
-			assert.is_true(result)
+			-- Should not error when removing non-existent group
+			skill_config:removeGroupFromRuntime("nonExistent")
 		end)
 	end)
 
 	describe("addSkillToGroup", function()
 		it("should add a skill to a group", function()
-			local result = skill_config:addSkillToGroup("Health", "testGroup")
+			local result = skill_config:addSkillToGroupFromRuntime("Health", "testGroup")
 			assert.is_true(result)
 
 			-- Check computed structure
@@ -189,23 +188,23 @@ describe("Group Management", function()
 		end)
 
 		it("should auto-create group in computed structure", function()
-			local result = skill_config:addSkillToGroup("Health", "autoGroup")
+			local result = skill_config:addSkillToGroupFromRuntime("Health", "autoGroup")
 			assert.is_true(result)
 			assert.is_not_nil(skill_config.groups.autoGroup)
 			assert.is_true(skill_config.groups.autoGroup.skillIds.Health)
 		end)
 
 		it("should reject if skill doesn't exist", function()
-			local result = skill_config:addSkillToGroup("FakeSkill", "testGroup")
+			local result = skill_config:addSkillToGroupFromRuntime("FakeSkill", "testGroup")
 			assert.is_false(result)
 		end)
 	end)
 
 	describe("removeSkillFromGroup", function()
 		it("should remove a skill from a group", function()
-			skill_config:addSkillToGroup("Health", "testGroup")
+			skill_config:addSkillToGroupFromRuntime("Health", "testGroup")
 
-			local result = skill_config:removeSkillFromGroup("Health", "testGroup")
+			local result = skill_config:removeSkillFromGroupFromRuntime("Health", "testGroup")
 			assert.is_true(result)
 
 			-- Check computed structure
@@ -224,14 +223,14 @@ describe("Group Management", function()
 		end)
 
 		it("should succeed even if group doesn't exist", function()
-			local result = skill_config:removeSkillFromGroup("Health", "nonExistent")
+			local result = skill_config:removeSkillFromGroupFromRuntime("Health", "nonExistent")
 			assert.is_true(result)
 		end)
 	end)
 
 	describe("isSkillInGroup", function()
 		it("should check if skill is in group", function()
-			skill_config:addSkillToGroup("Health", "testGroup")
+			skill_config:addSkillToGroupFromRuntime("Health", "testGroup")
 
 			assert.is_true(skill_config:isSkillInGroup("Health", "testGroup"))
 			assert.is_false(skill_config:isSkillInGroup("Move", "testGroup"))
@@ -249,9 +248,9 @@ describe("Group Management", function()
 			local countBefore = #groupsBefore
 
 			-- Add skills to groups
-			skill_config:addSkillToGroup("Health", "zGroup")
-			skill_config:addSkillToGroup("Health", "aGroup")
-			skill_config:addSkillToGroup("Move", "mGroup")
+			skill_config:addSkillToGroupFromRuntime("Health", "zGroup")
+			skill_config:addSkillToGroupFromRuntime("Health", "aGroup")
+			skill_config:addSkillToGroupFromRuntime("Move", "mGroup")
 
 			local groups = skill_config:listGroups()
 			-- Should have 3 more groups than before
@@ -279,6 +278,57 @@ describe("Group Management", function()
 		it("should return empty list when no groups exist", function()
 			local groups = skill_config:listGroups()
 			assert.are.equal(0, #groups)
+		end)
+	end)
+
+	describe("addGroupToRuntime", function()
+		it("should create an empty group", function()
+			skill_config:addGroupToRuntime("EmptyTestGroup")
+			
+			local group = skill_config:getGroup("EmptyTestGroup")
+			assert.is_not_nil(group)
+			assert.equals("EmptyTestGroup", group.name)
+			
+			-- Should have no skills
+			local skillCount = 0
+			for _ in pairs(group.skillIds) do
+				skillCount = skillCount + 1
+			end
+			assert.equals(0, skillCount)
+		end)
+
+		it("should list empty groups", function()
+			skill_config:addGroupToRuntime("EmptyGroup1")
+			skill_config:addGroupToRuntime("EmptyGroup2")
+			
+			local groups = skill_config:listGroups()
+			local foundEmpty1 = false
+			local foundEmpty2 = false
+			for _, groupName in ipairs(groups) do
+				if groupName == "EmptyGroup1" then foundEmpty1 = true end
+				if groupName == "EmptyGroup2" then foundEmpty2 = true end
+			end
+			assert.is_true(foundEmpty1)
+			assert.is_true(foundEmpty2)
+		end)
+	end)
+
+	describe("getGroupSettings", function()
+		it("should return default settings for group without explicit settings", function()
+			skill_config:addSkillToGroupFromRuntime("Health", "DefaultGroup")
+			
+			local settings = skill_config:getGroupSettings("DefaultGroup")
+			assert.is_not_nil(settings)
+			assert.equals(false, settings.onlyOnePerPilot)
+		end)
+
+		it("should return configured settings", function()
+			skill_config:addSkillToGroupFromRuntime("Health", "ConfiguredGroup")
+			skill_config:setGroupSettings("ConfiguredGroup", {onlyOnePerPilot = true})
+			
+			local settings = skill_config:getGroupSettings("ConfiguredGroup")
+			assert.is_not_nil(settings)
+			assert.equals(true, settings.onlyOnePerPilot)
 		end)
 	end)
 

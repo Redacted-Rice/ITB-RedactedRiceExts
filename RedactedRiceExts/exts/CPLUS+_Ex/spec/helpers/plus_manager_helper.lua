@@ -258,6 +258,9 @@ function M.resetState()
 	skill_config_module.enabledSkills = {}
 	skill_config_module.enabledSkillsIds = {}
 	pm.config.skillConfigs = {}
+	
+	-- Clear deferred predicates
+	skill_registry.deferredPilotPredicates = {exclusions = {}, inclusions = {}}
 end
 
 -- Re-export mock functions from mocks module

@@ -4,6 +4,7 @@
 
 local helper = require("helpers/plus_manager_helper")
 local plus_manager = helper.plus_manager
+local skill_config = plus_manager._subobjects.skill_config
 
 describe("Skill Constraints Module", function()
 	before_each(function()
@@ -186,16 +187,34 @@ describe("Skill Constraints Module", function()
 
 			local pilotIds = plus_manager._subobjects.utils.searchForAllPilotIds(true, true)
 			plus_manager._subobjects.skill_registry:_readPilotVanillaExclusions(pilotIds)
+			-- Rebuild relationships to populate computed structures
 			helper.rebuildRelationships()
 
-			local exclusionsA = plus_manager.config.pilotSkillExclusions["Pilot_TestA"]
-			assert.is_not_nil(exclusionsA)
-			assert.is_true(exclusionsA["Health"])
-			assert.is_true(exclusionsA["Move"])
+			-- Blacklist now creates groups and pilot group exclusions
+			local groupExclusionsA = plus_manager.config.pilotGroupExclusions["Pilot_TestA"]
+			assert.is_not_nil(groupExclusionsA)
+			-- Should be excluded from a group containing Health and Move
+			-- Verify via checking codeDefinedGroups since groups may not be in computed index
+			local hasGroup = false
+			for groupName, _ in pairs(groupExclusionsA) do
+				hasGroup = true
+				-- Check in codeDefinedGroups
+				assert.is_true(skill_config.codeDefinedGroups["Health"] ~= nil)
+				assert.is_true(skill_config.codeDefinedGroups["Health"][groupName])
+				assert.is_true(skill_config.codeDefinedGroups["Move"][groupName])
+			end
+			assert.is_true(hasGroup)
 
-			local exclusionsB = plus_manager.config.pilotSkillExclusions["Pilot_TestB"]
-			assert.is_not_nil(exclusionsB)
-			assert.is_true(exclusionsB["Grid"])
+			local groupExclusionsB = plus_manager.config.pilotGroupExclusions["Pilot_TestB"]
+			assert.is_not_nil(groupExclusionsB)
+			hasGroup = false
+			for groupName, _ in pairs(groupExclusionsB) do
+				hasGroup = true
+				-- Check in codeDefinedGroups
+				assert.is_true(skill_config.codeDefinedGroups["Grid"] ~= nil)
+				assert.is_true(skill_config.codeDefinedGroups["Grid"][groupName])
+			end
+			assert.is_true(hasGroup)
 		end)
 
 		it("should skip pilots without Blacklist", function()
@@ -446,10 +465,34 @@ describe("Skill Constraints Module", function()
 			assert.is_true(result)
 		end)
 
-		it("should prevent skills from the same group when enabled", function()
+		it("should allow multiple skills from same group by default", function()
+			-- Opener and Closer are both in "boost" group
+			-- By default, onlyOnePerPilot is NOT set, so both should be allowed
+			local pilot = helper.createMockPilot("TestPilot")
+
+			-- Verify default setting is false
+			local settings = skill_config:getGroupSettings("boost")
+			assert.equals(false, settings.onlyOnePerPilot)
+
+			local result = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
+			assert.is_true(result)
+		end)
+
+		it("should allow multiple skills from same group when onlyOnePerPilot is explicitly false", function()
+			-- Health and Skilled both in "health" group
+			skill_config:setGroupSettings("health", {onlyOnePerPilot = false})
+			helper.rebuildGroups()
+
+			local pilot = helper.createMockPilot("TestPilot")
+
+			local result = plus_manager:checkSkillConstraints(pilot, {"Health"}, "Skilled")
+			assert.is_true(result)
+		end)
+
+		it("should prevent skills from the same group when onlyOnePerPilot enabled", function()
 			-- Opener and Closer are both in "boost" group
 			-- Enable mutual exclusion for this group
-			plus_manager:setGroupSettings("boost", {onlyOnePerPilot = true})
+			skill_config:setGroupSettings("boost", {onlyOnePerPilot = true})
 			helper.rebuildGroups()  -- Rebuild to apply settings
 
 			local pilot = helper.createMockPilot("TestPilot")
@@ -458,9 +501,32 @@ describe("Skill Constraints Module", function()
 			assert.is_false(result)
 		end)
 
+		it("should toggle onlyOnePerPilot constraint dynamically", function()
+			-- Test that we can enable and disable the constraint
+			local pilot = helper.createMockPilot("TestPilot")
+
+			-- Start with constraint off (explicitly set to false to avoid state from other tests)
+			skill_config:setGroupSettings("boost", {onlyOnePerPilot = false})
+			helper.rebuildGroups()
+			local result1 = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
+			assert.is_true(result1)
+
+			-- Enable constraint
+			skill_config:setGroupSettings("boost", {onlyOnePerPilot = true})
+			helper.rebuildGroups()
+			local result2 = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
+			assert.is_false(result2)
+
+			-- Disable constraint again
+			skill_config:setGroupSettings("boost", {onlyOnePerPilot = false})
+			helper.rebuildGroups()
+			local result3 = plus_manager:checkSkillConstraints(pilot, {"Opener"}, "Closer")
+			assert.is_true(result3)
+		end)
+
 		it("should allow skills from same group when group exclusions disabled", function()
 			-- Enable mutual exclusion first, then disable group exclusions globally
-			plus_manager:setGroupSettings("boost", {onlyOnePerPilot = true})
+			skill_config:setGroupSettings("boost", {onlyOnePerPilot = true})
 			helper.rebuildGroups()  -- Rebuild to apply settings
 
 			local skill_config = plus_manager._subobjects.skill_config
@@ -487,8 +553,8 @@ describe("Skill Constraints Module", function()
 		it("should handle multiple groups correctly", function()
 			-- Skilled is in both "health" and "move" groups
 			-- Enable mutual exclusion for these groups
-			plus_manager:setGroupSettings("health", {onlyOnePerPilot = true})
-			plus_manager:setGroupSettings("move", {onlyOnePerPilot = true})
+			skill_config:setGroupSettings("health", {onlyOnePerPilot = true})
+			skill_config:setGroupSettings("move", {onlyOnePerPilot = true})
 			helper.rebuildGroups()  -- Rebuild to apply settings
 
 			local pilot = helper.createMockPilot("TestPilot")
@@ -506,8 +572,8 @@ describe("Skill Constraints Module", function()
 		it("should handle multiple selected skills", function()
 			-- Adrenaline and Move both in "move" group
 			-- Enable mutual exclusion for these groups
-			plus_manager:setGroupSettings("move", {onlyOnePerPilot = true})
-			plus_manager:setGroupSettings("health", {onlyOnePerPilot = true})
+			skill_config:setGroupSettings("move", {onlyOnePerPilot = true})
+			skill_config:setGroupSettings("health", {onlyOnePerPilot = true})
 
 			local pilot = helper.createMockPilot("TestPilot")
 
@@ -519,6 +585,31 @@ describe("Skill Constraints Module", function()
 
 			-- Multiple selected, Skilled in both "health" and "move" - blocked by Move in "move" group
 			assert.is_false(plus_manager:checkSkillConstraints(pilot, {"Move", "Reactor"}, "Skilled"))
+		end)
+
+		it("should prevent pilot from getting skills in excluded group", function()
+			helper.setupTestSkills({
+				{id = "GroupSkill1", shortName = "GS1", fullName = "GroupSkill1", description = "Test"},
+				{id = "GroupSkill2", shortName = "GS2", fullName = "GroupSkill2", description = "Test"},
+				{id = "AllowedSkill", shortName = "AS", fullName = "AllowedSkill", description = "Test"},
+			})
+
+			-- Create a group and exclude a pilot from it
+			plus_manager:registerSkillToGroup({"GroupSkill1", "GroupSkill2"}, "RestrictedGroup")
+			plus_manager:registerPilotGroupExclusion("Pilot_Restricted", "RestrictedGroup")
+			helper.rebuildGroups()
+
+			-- Re register constraint to pick up new exclusions
+			plus_manager._subobjects.skill_constraints:_registerPilotGroupExclusionConstraintFunction()
+
+			local pilot = helper.createMockPilot("Pilot_Restricted")
+
+			-- Pilot should be blocked from skills in the excluded group
+			assert.is_false(plus_manager:checkSkillConstraints(pilot, {}, "GroupSkill1"))
+			assert.is_false(plus_manager:checkSkillConstraints(pilot, {}, "GroupSkill2"))
+
+			-- Pilot should be allowed skills not in the group
+			assert.is_true(plus_manager:checkSkillConstraints(pilot, {}, "AllowedSkill"))
 		end)
 	end)
 end)

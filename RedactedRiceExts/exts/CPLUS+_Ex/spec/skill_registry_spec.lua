@@ -238,6 +238,10 @@ describe("Skill Registry Module", function()
 				{id = "TestSkillB", shortName = "TSB", fullName = "TestSkillB", description = "Test"},
 			})
 
+			-- Create test pilots in global scope
+			_G.Pilot_Artificial = setmetatable({Name = "AI Pilot"}, Pilot)
+			_G.Placeholder_Pilot = setmetatable({Name = "Placeholder"}, Pilot)
+
 			plus_manager._subobjects.skill_registry:registerPilotSkillExclusionsByFunction(
 				{"TestSkillA", "TestSkillB"},
 				function(pilotId)
@@ -254,12 +258,20 @@ describe("Skill Registry Module", function()
 			-- Both skills should be excluded for the specified pilots
 			assert.is_not_nil(exclusions["Pilot_Artificial"])
 			assert.is_not_nil(exclusions["Placeholder_Pilot"])
+
+			-- Clean up
+			_G.Pilot_Artificial = nil
+			_G.Placeholder_Pilot = nil
 		end)
 
 		it("should handle multiple predicate calls for the same skill additively", function()
 			helper.setupTestSkills({
 				{id = "TestSkillMulti", shortName = "TSM", fullName = "TestSkillMulti", description = "Test"},
 			})
+
+			-- Create test pilots in global scope
+			_G.Pilot_Artificial = setmetatable({Name = "AI Pilot"}, Pilot)
+			_G.Placeholder_Pilot = setmetatable({Name = "Placeholder"}, Pilot)
 
 			-- First source excludes from AI pilot
 			plus_manager._subobjects.skill_registry:registerPilotSkillExclusionsByFunction(
@@ -289,6 +301,10 @@ describe("Skill Registry Module", function()
 			-- Both pilots should have the exclusion applied
 			assert.is_true(exclusions["Pilot_Artificial"]["TestSkillMulti"])
 			assert.is_true(exclusions["Placeholder_Pilot"]["TestSkillMulti"])
+
+			-- Clean up
+			_G.Pilot_Artificial = nil
+			_G.Placeholder_Pilot = nil
 		end)
 	end)
 
@@ -345,15 +361,26 @@ describe("Skill Registry Module", function()
 			assert.is_nil(exclusions["MultiGroupSkill"]["Group3Skill"])
 		end)
 
-		it("should apply group exclusions automatically during skill registration", function()
-			-- Register a skill with skill_group_excl parameter
+		it("should apply group exclusions via API call", function()
+			-- First register some vanilla skills
+			helper.setupTestSkills({
+				{id = "VanillaSkill1", shortName = "VS1", fullName = "VanillaSkill1", description = "Test"},
+				{id = "VanillaSkill2", shortName = "VS2", fullName = "VanillaSkill2", description = "Test"},
+			})
+			-- Set their group to Vanilla
+			plus_manager._subobjects.skill_registry.registeredSkills["VanillaSkill1"].group = "Vanilla"
+			plus_manager._subobjects.skill_registry.registeredSkills["VanillaSkill2"].group = "Vanilla"
+
+			-- Register a skill
 			plus_manager:registerSkill("TestGroup", {
 				id = "AutoExclSkill",
 				shortName = "AES",
 				fullName = "AutoExclSkill",
-				description = "Test",
-				skill_group_excl = "Vanilla"
+				description = "Test"
 			})
+
+			-- Apply group exclusions via API
+			plus_manager._subobjects.skill_registry:registerSkillGroupExclusions("AutoExclSkill", "Vanilla")
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.SKILL_EXCLUSIONS]
 
@@ -369,6 +396,93 @@ describe("Skill Registry Module", function()
 				end
 			end
 			assert.is_true(foundVanillaExclusion, "Should exclude at least one vanilla skill")
+		end)
+	end)
+
+	describe("Group Registration APIs", function()
+		it("should register a group", function()
+			helper.setupTestSkills({
+				{id = "TestSkill1", shortName = "TS1", fullName = "TestSkill1", description = "Test"},
+				{id = "TestSkill2", shortName = "TS2", fullName = "TestSkill2", description = "Test"},
+			})
+
+			plus_manager:registerGroup("TestGroup", true, {"TestSkill1", "TestSkill2"})
+			helper.rebuildGroups()
+
+			local group = plus_manager._subobjects.skill_config:getGroup("TestGroup")
+			assert.is_not_nil(group)
+			assert.is_true(group.skillIds["TestSkill1"])
+			assert.is_true(group.skillIds["TestSkill2"])
+
+			local settings = plus_manager._subobjects.skill_config:getGroupSettings("TestGroup")
+			assert.equals(true, settings.onlyOnePerPilot)
+		end)
+
+		it("should add skills to groups via registerSkillToGroup", function()
+			helper.setupTestSkills({
+				{id = "SkillA", shortName = "SA", fullName = "SkillA", description = "Test"},
+				{id = "SkillB", shortName = "SB", fullName = "SkillB", description = "Test"},
+			})
+
+			plus_manager:registerSkillToGroup({"SkillA", "SkillB"}, "NewGroup")
+			helper.rebuildGroups()
+
+			local group = plus_manager._subobjects.skill_config:getGroup("NewGroup")
+			assert.is_not_nil(group)
+			assert.is_true(group.skillIds["SkillA"])
+			assert.is_true(group.skillIds["SkillB"])
+		end)
+
+		it("should register pilot group exclusions", function()
+			helper.setupTestSkills({
+				{id = "ExcludedSkill", shortName = "ES", fullName = "ExcludedSkill", description = "Test"},
+			})
+
+			plus_manager:registerSkillToGroup("ExcludedSkill", "ExcludedGroup")
+			plus_manager:registerPilotGroupExclusion("Pilot_Test", "ExcludedGroup")
+			helper.rebuildGroups()
+
+			local groupExclusions = plus_manager.config.pilotGroupExclusions["Pilot_Test"]
+			assert.is_not_nil(groupExclusions)
+			assert.is_true(groupExclusions["ExcludedGroup"])
+
+			-- Verify it shows in UI relationships
+			local uiExclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]
+			assert.is_not_nil(uiExclusions["Pilot_Test"])
+			assert.is_true(uiExclusions["Pilot_Test"]["group:ExcludedGroup"])
+		end)
+
+		it("should reuse existing group when blacklist matches", function()
+			helper.setupTestSkills({
+				{id = "SharedSkill1", shortName = "SS1", fullName = "SharedSkill1", description = "Test"},
+				{id = "SharedSkill2", shortName = "SS2", fullName = "SharedSkill2", description = "Test"},
+			})
+
+			-- Create a group with these skills
+			plus_manager:registerSkillToGroup({"SharedSkill1", "SharedSkill2"}, "SharedGroup")
+
+			-- Create pilots with matching blacklists
+			_G.Pilot_A = setmetatable({Name = "Pilot A", Blacklist = {"SharedSkill1", "SharedSkill2"}}, Pilot)
+			_G.Pilot_B = setmetatable({Name = "Pilot B", Blacklist = {"SharedSkill1", "SharedSkill2"}}, Pilot)
+
+			local pilotIds = plus_manager._subobjects.utils.searchForAllPilotIds(true, true)
+			plus_manager._subobjects.skill_registry:_readPilotVanillaExclusions(pilotIds)
+			helper.rebuildGroups()
+
+			-- Both pilots should be excluded from the same group
+			local groupExclusionsA = plus_manager.config.pilotGroupExclusions["Pilot_A"]
+			local groupExclusionsB = plus_manager.config.pilotGroupExclusions["Pilot_B"]
+
+			assert.is_not_nil(groupExclusionsA)
+			assert.is_not_nil(groupExclusionsB)
+
+			-- They should both reference the existing "SharedGroup"
+			assert.is_true(groupExclusionsA["SharedGroup"])
+			assert.is_true(groupExclusionsB["SharedGroup"])
+
+			-- Clean up
+			_G.Pilot_A = nil
+			_G.Pilot_B = nil
 		end)
 	end)
 end)
