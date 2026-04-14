@@ -19,6 +19,7 @@ local relationshipsContainer = nil
 local relationshipsParent = nil
 local groupsContainer = nil
 local groupsParent = nil
+local groupsContentContainer = nil
 
 -- Cache for reusing UI containers to avoid recreating widgets each change
 -- as this was causing lag and missed clicks if clicking decently fast
@@ -119,9 +120,12 @@ function modify_pilot_skills_ui:getSortedIds(skillTable)
 end
 
 function modify_pilot_skills_ui:isItemEnabled(itemId)
-	-- Groups are always enabled
+	-- Check if it's a group reference
 	if itemId:match("^group:") then
-		return true
+		local groupName = itemId:gsub("^group:", "")
+		local group = skill_config:getGroup(groupName)
+		-- Group is enabled if it exists
+		return group ~= nil
 	end
 
 	local skillConfig = cplus_plus_ex.config.skillConfigs[itemId]
@@ -147,6 +151,177 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 		return true
 	end
 	return false
+end
+
+-- Rebuilds dropdown items after updateOptions
+local function rebuildDropdownItems(dropdown)
+	if not dropdown.dropdown then return end
+	
+	local scrollarea = dropdown.dropdown.children and dropdown.dropdown.children[1]
+	if not scrollarea or not scrollarea.children then return end
+	
+	local layout = scrollarea.children[1]
+	if not layout then return end
+	
+	-- Clear existing items
+	while #layout.children > 0 do
+		layout.children[#layout.children]:detach()
+	end
+	
+	-- Rebuild items from updated values/strings
+	for i, v in ipairs(dropdown.values) do
+		local txt = DecoRAlignedText(dropdown.strings[i] or tostring(v))
+		
+		local item = Ui()
+			:width(1):heightpx(40)
+			:decorate({
+				DecoSolidHoverable(deco.colors.button, deco.colors.buttonborder),
+				DecoAlign(0, 2),
+				txt
+			})
+		
+		-- Capture i in closure
+		local index = i
+		item.onclicked = function(btn, button)
+			if button == 1 then
+				local oldChoice = dropdown.choice
+				local oldValue = dropdown.value
+				
+				dropdown.choice = index
+				dropdown.value = dropdown.values[index]
+				
+				dropdown.optionSelected:dispatch(oldChoice, oldValue, dropdown.choice, dropdown.value)
+				dropdown:destroyDropDown()
+				
+				return true
+			end
+			return false
+		end
+		
+		layout:add(item)
+	end
+end
+
+-- Updates relationship dropdown contents when skill enabled state changes or groups change
+function modify_pilot_skills_ui:updateRelationshipDropdowns()
+	for relationshipType, section in pairs(relationshipSections) do
+		if section.sourceDropdown and section.targetDropdown then
+			-- Regenerate source dropdown items
+			local sourceDisplay, sourceVals, sourceTooltips = self:createDropDownItems(
+				section.sourceList,
+				section.sourceIdsSorted,
+				section.includeSourceTooltips,
+				section.includeSourceGroups
+			)
+
+			-- Regenerate target dropdown items
+			local targetDisplay, targetVals, targetTooltips = self:createDropDownItems(
+				section.targetList,
+				section.targetIdsSorted,
+				section.includeTargetTooltips,
+				section.includeTargetGroups
+			)
+
+			-- Update dropdowns and rebuild their UI items
+			section.sourceDropdown:updateOptions(sourceVals, sourceDisplay)
+			rebuildDropdownItems(section.sourceDropdown)
+			
+			section.targetDropdown:updateOptions(targetVals, targetDisplay)
+			rebuildDropdownItems(section.targetDropdown)
+		end
+	end
+end
+
+-- Updates group pool dropdown contents when skills are enabled/disabled
+function modify_pilot_skills_ui:updateGroupPoolDropdowns()
+	local groupCount = 0
+	for _ in pairs(groupPoolSections) do groupCount = groupCount + 1 end
+	logger.logInfo(SUBMODULE, "updateGroupPoolDropdowns called, groups count: %d", groupCount)
+	
+	for groupName, section in pairs(groupPoolSections) do
+		if section.addSkillDropdown then
+			local group = skill_config:getGroup(groupName)
+			if group then
+				-- Get all enabled skills not in this group
+				local availableSkills = {""}  -- Start with empty entry
+				local availableSkillsMap = {}
+
+				for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+					if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
+						availableSkillsMap[skillId] = {
+							name = GetText(skill.shortName) or skill.shortName,
+							tooltip = GetText(skill.description) or skill.description
+						}
+					end
+				end
+
+				-- Sort skills
+				local skillsToSort = {}
+				for skillId, _ in pairs(availableSkillsMap) do
+					table.insert(skillsToSort, skillId)
+				end
+				table.sort(skillsToSort, function(a, b)
+					return (availableSkillsMap[a].name or a):lower() < (availableSkillsMap[b].name or b):lower()
+				end)
+
+				-- Build parallel arrays
+				availableSkills = {""}
+				local availableSkillsDisplay = {""}
+
+				for _, skillId in ipairs(skillsToSort) do
+					table.insert(availableSkills, skillId)
+					table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
+				end
+
+				-- Update dropdown and rebuild its UI items
+				section.addSkillDropdown:updateOptions(availableSkills, availableSkillsDisplay)
+				rebuildDropdownItems(section.addSkillDropdown)
+			end
+		end
+	end
+end
+
+-- Updates the needed fields after a group is added or removed
+function modify_pilot_skills_ui:updateAfterGroupChange(groupName)
+	-- Check if group is in any relationships - if so, rebuild all relationship sections
+	local groupPrefix = "group:" .. groupName
+	local inRelationships = false
+
+	for relationshipType, _ in pairs(cplus_plus_ex.config) do
+		if relationshipType == "pilotSkillExclusions" or
+		   relationshipType == "pilotSkillInclusions" or
+		   relationshipType == "skillExclusions" then
+			local relTable = cplus_plus_ex.config[relationshipType]
+			if relTable then
+				for sourceId, targets in pairs(relTable) do
+					if sourceId == groupPrefix then
+						inRelationships = true
+						break
+					end
+					for targetId, _ in pairs(targets) do
+						if targetId == groupPrefix then
+							inRelationships = true
+							break
+						end
+					end
+					if inRelationships then break end
+				end
+			end
+			if inRelationships then break end
+		end
+	end
+
+	-- If group is in relationships, rebuild each relationship section using cached rebuild functions
+	if inRelationships then
+		for relationshipType, section in pairs(relationshipSections) do
+			if section.rebuildFunc then
+				section.rebuildFunc()
+			end
+		end
+	end
+
+	-- Update relationship dropdowns to add/remove this group
+	self:updateRelationshipDropdowns()
 end
 
 -- Updates the needed fields after a skill toggles on or off
@@ -196,6 +371,10 @@ function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
 			end
 		end
 	end
+
+	-- Update dropdowns to reflect the enabled/disabled state
+	self:updateRelationshipDropdowns()
+	self:updateGroupPoolDropdowns()
 end
 
 -- Rebuild just the group pools section when group membership changes
@@ -213,6 +392,22 @@ function modify_pilot_skills_ui:rebuildGroupPools()
 			relationshipsContainer:detach()
 			self:buildRelationships(relationshipsParent)
 		end
+	end
+end
+
+-- Rebuild only the groups section without touching relationships
+function modify_pilot_skills_ui:rebuildGroupPoolsOnly()
+	if groupsContentContainer then
+		-- Clear group caches
+		groupPoolSections = {}
+
+		-- Clear all children from the content container
+		while #groupsContentContainer.children > 0 do
+			groupsContentContainer.children[#groupsContentContainer.children]:detach()
+		end
+
+		-- Rebuild the group sections in place
+		self:buildGroupSections()
 	end
 end
 
@@ -1188,6 +1383,10 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 						section.rebuildFunc()
 					end
 				end
+
+				-- Update all dropdowns to reflect the enabled/disabled states
+				self:updateRelationshipDropdowns()
+				self:updateGroupPoolDropdowns()
 			end
 
 			-- Build skill entries
@@ -1458,6 +1657,8 @@ function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, 
 		selectFn(oldChoice, oldValue, newChoice, newValue)
 		self:_updateDropdownTooltip(dropDown, baseTooltip, listTooltips)
 	end)
+
+	return dropDown
 end
 
 function modify_pilot_skills_ui:addArrowLabel(bidirectional, row)
@@ -1477,15 +1678,18 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 	local listVals = {"", "All"}
 	local listTooltips = {"", "Add entry for each item"}
 
-	-- Add groups first
+	-- Add groups first if they exist
 	if includeGroups then
 		local groupNames = skill_config:listGroups()
 		table.sort(groupNames)
 
 		for _, groupName in ipairs(groupNames) do
-			table.insert(listDisplay, "Group: " .. groupName)
-			table.insert(listVals, "group:" .. groupName)
-			table.insert(listTooltips, "")
+			-- Check if group still exists before adding to dropdown
+			if self:isItemEnabled("group:" .. groupName) then
+				table.insert(listDisplay, "Group: " .. groupName)
+				table.insert(listVals, "group:" .. groupName)
+				table.insert(listTooltips, "")
+			end
 		end
 	end
 
@@ -1776,7 +1980,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	end
 
 	-- Source dropdown
-	self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
+	local sourceDropdown = self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedSource = newValue
 
@@ -1824,7 +2028,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	end
 
 	-- Target dropdown
-	self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
+	local targetDropdown = self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedTarget = newValue
 
@@ -1984,6 +2188,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- Cache the section container and rebuild function for efficient updates
 	relationshipSections[relationshipType] = {
 		container = sectionContainer,
+		sourceDropdown = sourceDropdown,
+		targetDropdown = targetDropdown,
+		sourceList = sourceList,
+		targetList = targetList,
+		sourceIdsSorted = sourceIdsSorted,
+		targetIdsSorted = targetIdsSorted,
+		includeSourceTooltips = includeSourceTooltips,
+		includeTargetTooltips = includeTargetTooltips,
+		includeSourceGroups = includeSourceGroups,
+		includeTargetGroups = includeTargetGroups,
 		rebuildFunc = function()
 			-- Clear and rebuild this section's list
 			-- Keep everything except the add row which is the first child
@@ -2045,7 +2259,12 @@ function modify_pilot_skills_ui:buildAllGroupsSection(parent, rebuildCallback)
 			newGroupInput.textfield = ""
 			logger.logInfo(SUBMODULE, "Created empty group '%s'", groupName)
 			skill_config:saveConfiguration()
-			rebuildCallback()
+			
+			-- Update relationship dropdowns and visibility
+			self:updateAfterGroupChange(groupName)
+			
+			-- Rebuild only groups section to show the new group
+			self:rebuildGroupPoolsOnly()
 			return true
 		end
 	)
@@ -2172,6 +2391,8 @@ function modify_pilot_skills_ui:buildGroupPoolAddSkill(parent, groupName, newlyA
 		end
 	)
 	btnAddSkill:widthpx(270):heightpx(ROW_HEIGHT):addTo(addSkillRow)
+
+	return addSkillDropdown
 end
 
 -- Helper to build a single skill cell in group grid
@@ -2371,7 +2592,12 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 					if btnIndex == 1 then
 						skill_config:removeGroupFromRuntime(groupName)
 						skill_config:saveConfiguration()
-						rebuildCallback()
+						
+						-- Hide relationships after removing
+						self:updateAfterGroupChange(groupName)
+						
+						-- Rebuild only groups section to remove the group UI
+						self:rebuildGroupPoolsOnly()
 					end
 				end,
 				{"Yes", "No"}
@@ -2384,7 +2610,7 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 	local groupContent = groupCollapse.dropdownHolder
 
 	-- Add skill control
-	self:buildGroupPoolAddSkill(groupContent, groupName, newlyAddedGroupSkills, rebuildCallback)
+	local addSkillDropdown = self:buildGroupPoolAddSkill(groupContent, groupName, newlyAddedGroupSkills, rebuildCallback)
 
 	-- Create a persistent container for the skill grid
 	local gridContainer = UiBoxLayout()
@@ -2395,9 +2621,11 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 	-- Build initial grid of skills
 	self:buildGroupPoolSkillGrid(gridContainer, groupName, newlyAddedGroupSkills, rebuildCallback)
 
-	-- Cache the grid container and rebuild function for efficient updates
+	-- Cache the grid container, dropdown, and rebuild function for efficient updates
 	groupPoolSections[groupName] = {
 		container = gridContainer,
+		addSkillDropdown = addSkillDropdown,
+		groupName = groupName,
 		rebuildFunc = function()
 			-- Clear only the grid children
 			while #gridContainer.children > 0 do
@@ -2422,10 +2650,18 @@ function modify_pilot_skills_ui:buildGroups(scrollContent)
 	self:buildAllGroupsSection(groupsMainSection, function() self:rebuildAllGroupPools() end)
 
 	-- Content container for group sections
-	local groupsContent = UiBoxLayout()
+	groupsContentContainer = UiBoxLayout()
 		:vgap(DEFAULT_VGAP)
 		:width(1)
 		:addTo(groupsMainSection)
+
+	-- Build the actual group sections
+	self:buildGroupSections()
+end
+
+-- Builds all group sections 
+function modify_pilot_skills_ui:buildGroupSections()
+	if not groupsContentContainer then return end
 
 	-- Get all groups sorted by name
 	local groupNames = skill_config:listGroups()
@@ -2434,7 +2670,7 @@ function modify_pilot_skills_ui:buildGroups(scrollContent)
 		UiBoxLayout()
 			:vgap(DEFAULT_VGAP)
 			:width(1)
-			:addTo(groupsContent)
+			:addTo(groupsContentContainer)
 			:beginUi()
 				:width(1):heightpx(ROW_HEIGHT)
 				:decorate({DecoText("No groups defined. Create a group above or skills with group definitions will auto-create groups.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
@@ -2445,7 +2681,7 @@ function modify_pilot_skills_ui:buildGroups(scrollContent)
 	-- Build each group
 	-- Use rebuildGroupPools for skill add/remove
 	for _, groupName in ipairs(groupNames) do
-		self:buildGroupPoolSection(groupsContent, groupName, {}, function() self:rebuildGroupPools() end)
+		self:buildGroupPoolSection(groupsContentContainer, groupName, {}, function() self:rebuildGroupPools() end)
 	end
 end
 

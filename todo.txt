@@ -17,13 +17,10 @@ For 1.1 Release:
 
 For 1.1 Release:
 1. Pool based exclusions (testing)
-	b. Drop downs update on skill enable/disable
-	c. Removing a pool needs to also remove pool exclusions
 2. Add some exclusion fns & groups
 	a. cyborgs
 	b. flying cyborgs
 3. Still see some skill assignment issues if using forced slots
-
 
 
 1.2 Release:
