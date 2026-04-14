@@ -55,10 +55,10 @@ cplus_plus_ex.VANILLA_SKILLS = {
 	{id = "Reactor", icon = "img/combat/icons/icon_Pilot_Reactor.png", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE, groups = {"reactor"} },
 	{id = "Opener", icon = "img/advanced/combat/icons/icon_Pilot_Opener.png", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT, groups = {"boost"} }, -- doesn't work
 	{id = "Closer", icon = "img/advanced/combat/icons/icon_Pilot_Closer.png", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT, groups = {"boost"} }, -- doesn't work
-	{id = "Popular", icon = "img/advanced/combat/icons/icon_Pilot_Popular.png", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT }, -- doesn't work
+	{id = "Popular", icon = "img/advanced/combat/icons/icon_Pilot_Popular.png", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT, groups = {"Cyborg"} }, -- doesn't work
 	{id = "Thick", icon = "img/advanced/combat/icons/icon_Pilot_Thick.png", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = PER_PILOT }, -- doesn't make sense
 	{id = "Skilled", icon = "img/advanced/combat/icons/icon_Pilot_Skilled.png", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE, groups = {"health", "move"} },
-	{id = "Invulnerable", icon = "img/advanced/combat/icons/icon_Pilot_Invulnerable.png", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = PER_PILOT }, -- doesn't make sense
+	{id = "Invulnerable", icon = "img/advanced/combat/icons/icon_Pilot_Invulnerable.png", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = PER_PILOT, groups = {"Cyborg"} }, -- doesn't make sense
 	{id = "Adrenaline", icon = "img/advanced/combat/icons/icon_Pilot_Adrenaline.png", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT, groups = {"move"} }, -- doesn't work
 	{id = "Pain", icon = "img/advanced/combat/icons/icon_Pilot_Pain.png", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = PER_PILOT }, -- doesn't work
 	{id = "Regen", icon = "img/advanced/combat/icons/icon_Pilot_Regen.png", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = PER_PILOT }, -- doesn't work
@@ -114,33 +114,20 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
 	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
 	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
-	function cplus_plus_ex:getEnabledSkillsSet() return skill_config:getEnabledSkillsSet() end
-	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
-	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
+	function cplus_plus_ex:getEnabledSkillsAsASet() return skill_config:getEnabledSkillsAsASet() end
 
 	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints:checkSkillConstraints(...) end
 	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints:registerConstraintFunction(...) end
 
 	function cplus_plus_ex:registerSkill(...) return skill_registry:registerSkill(...) end
+	function cplus_plus_ex:registerGroup(...) return skill_registry:registerGroup(...) end
+	function cplus_plus_ex:registerSkillToGroup(...) return skill_registry:registerSkillToGroup(...) end
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
+	function cplus_plus_ex:registerPilotGroupExclusion(...) return skill_registry:registerPilotGroupExclusion(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
 
-	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
-	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
-	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
-	function cplus_plus_ex:getRelationshipMetadata(...) return skill_config:getRelationshipMetadata(...) end
-
-	function cplus_plus_ex:deleteGroup(...) return skill_config:deleteGroup(...) end
-	function cplus_plus_ex:addSkillToGroup(...) return skill_config:addSkillToGroup(...) end
-	function cplus_plus_ex:removeSkillFromGroup(...) return skill_config:removeSkillFromGroup(...) end
-	function cplus_plus_ex:getGroup(...) return skill_config:getGroup(...) end
-	function cplus_plus_ex:listGroups(...) return skill_config:listGroups(...) end
-	function cplus_plus_ex:isSkillInGroup(...) return skill_config:isSkillInGroup(...) end
-	function cplus_plus_ex:getGroupSettings(...) return skill_config:getGroupSettings(...) end
-	function cplus_plus_ex:setGroupSettings(...) return skill_config:setGroupSettings(...) end
-	function cplus_plus_ex:resetGroupSettings(...) return skill_config:resetGroupSettings(...) end
-
+	-- Functions related to applying/assigning skills
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end

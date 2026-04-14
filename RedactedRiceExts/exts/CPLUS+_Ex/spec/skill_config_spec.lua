@@ -152,13 +152,13 @@ describe("Group Management", function()
 	end)
 
 
-	describe("deleteGroup", function()
+	describe("removeGroupFromRuntime", function()
 		it("should delete group from all skills", function()
 			-- Add skill to group
 			skill_config:addSkillToGroup("Health", "testGroup")
 			assert.is_true(skill_config:isSkillInGroup("Health", "testGroup"))
 
-			local result = skill_config:deleteGroup("testGroup")
+			local result = skill_config:removeGroupFromRuntime("testGroup")
 			assert.is_true(result)
 
 			-- Verify group removed from computed structure
@@ -169,7 +169,7 @@ describe("Group Management", function()
 		end)
 
 		it("should always succeed even if group doesn't exist", function()
-			local result = skill_config:deleteGroup("nonExistent")
+			local result = skill_config:removeGroupFromRuntime("nonExistent")
 			assert.is_true(result)
 		end)
 	end)

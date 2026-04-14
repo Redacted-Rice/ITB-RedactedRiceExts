@@ -140,9 +140,6 @@ end
 
 -- Called after all mods are loaded
 function skill_config:_postModsLoaded()
-	self:_rebuildRelationships()
-	self:_rebuildGroups()
-
 	-- Set the defaults to our registered/setup values
 	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
 	self:_captureDefaultConfigs()
@@ -155,6 +152,10 @@ function skill_config:_postModsLoaded()
 
 	-- Load any saved configurations
 	self:loadConfiguration()
+
+	-- Rebuild relationships and groups after loading saved config to merge user changes
+	self:_rebuildRelationships()
+	self:_rebuildGroups()
 end
 
 -- Get all enabled skill IDs as a set (skillId -> true)
@@ -591,11 +592,26 @@ function skill_config:loadConfiguration()
 				end
 
 				-- Load pilot-group relationships
+				-- Merge saved pilot group exclusions with code defined ones
 				if savedConfig.pilotGroupExclusions then
-					skill_config.config.pilotGroupExclusions = utils.deepcopy(savedConfig.pilotGroupExclusions)
+					for pilotId, groups in pairs(savedConfig.pilotGroupExclusions) do
+						if not skill_config.config.pilotGroupExclusions[pilotId] then
+							skill_config.config.pilotGroupExclusions[pilotId] = {}
+						end
+						for groupName, value in pairs(groups) do
+							skill_config.config.pilotGroupExclusions[pilotId][groupName] = value
+						end
+					end
 				end
 				if savedConfig.pilotGroupInclusions then
-					skill_config.config.pilotGroupInclusions = utils.deepcopy(savedConfig.pilotGroupInclusions)
+					for pilotId, groups in pairs(savedConfig.pilotGroupInclusions) do
+						if not skill_config.config.pilotGroupInclusions[pilotId] then
+							skill_config.config.pilotGroupInclusions[pilotId] = {}
+						end
+						for groupName, value in pairs(groups) do
+							skill_config.config.pilotGroupInclusions[pilotId][groupName] = value
+						end
+					end
 				end
 
 				-- Load skill-group relationships
@@ -794,30 +810,9 @@ function skill_config:_countGroups()
 	return count
 end
 
-function skill_config:deleteGroup(groupName)
-	-- Remove group from all skills by updating added/removed tracking
-	for skillId in pairs(self.config.skillConfigs) do
-		-- Check if skill is currently in this group
-		if self:isSkillInGroup(skillId, groupName) then
-			-- Remove the skill from the group
-			self:removeSkillFromGroup(skillId, groupName)
-		end
-	end
-
-	-- Remove from empty groups tracking
-	self.config.emptyGroups[groupName] = nil
-
-	-- Remove group UI state
-	self.config.groupsCollapseStates[groupName] = nil
-
-	-- Rebuild is handled by removeSkillFromGroup calls above
-	logger.logDebug(SUBMODULE, "Deleted group '%s'", groupName)
-	return true
-end
-
-function skill_config:addSkillToGroup(skillId, groupName)
+function skill_config:addSkillToGroupFromRuntime(skillId, groupName)
 	if not self.config.skillConfigs[skillId] then
-		logger.logError(SUBMODULE, "Skill '%s' not registered", skillId)
+		logger.logWarn(SUBMODULE, "Skill '%s' not registered", skillId)
 		return false
 	end
 
@@ -862,7 +857,7 @@ function skill_config:addSkillToGroup(skillId, groupName)
 	return true
 end
 
-function skill_config:removeSkillFromGroup(skillId, groupName)
+function skill_config:removeSkillFromGroupFromRuntime(skillId, groupName)
 	if not self.config.skillConfigs[skillId] then
 		logger.logWarn(SUBMODULE, "Skill '%s' not registered", skillId)
 		return false
@@ -902,6 +897,28 @@ function skill_config:removeSkillFromGroup(skillId, groupName)
 
 	self:_rebuildGroups()
 	return true
+end
+
+function skill_config:addGroupToRuntime(groupName)
+	self.config.emptyGroups[groupName] = true
+	self:_rebuildGroups()
+end
+
+function skill_config:removeGroupFromRuntime(groupName)
+	-- Remove group from all skills by updating added/removed tracking
+	for skillId in pairs(self.config.skillConfigs) do
+		-- Check if skill is currently in this group
+		if self:isSkillInGroup(skillId, groupName) then
+			-- Remove the skill from the group
+			self:removeSkillFromGroupFromRuntime(skillId, groupName)
+		end
+	end
+
+	-- Remove from empty groups tracking
+	self.config.emptyGroups[groupName] = nil
+
+	-- Remove group UI state
+	self.config.groupsCollapseStates[groupName] = nil
 end
 
 function skill_config:getGroup(groupName)

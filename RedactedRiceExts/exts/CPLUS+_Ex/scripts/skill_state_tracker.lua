@@ -219,7 +219,7 @@ end
 -- Update enabled skills state and fire hooks for changes
 -- Only fires hooks if we're in a game
 function skill_state_tracker:_updateEnabledSkills()
-	local newEnabledSkills = cplus_plus_ex._subobjects.skill_config:getEnabledSkillsSet()
+	local newEnabledSkills = cplus_plus_ex._subobjects.skill_config:getEnabledSkillsAsASet()
 	local hooksToFire = {}
 
 	-- Check for newly enabled skills

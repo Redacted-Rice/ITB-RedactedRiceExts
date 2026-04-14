@@ -16,13 +16,18 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 For 1.1 Release:
-3. Pool based exclusions (testing)
-	a. Blacklists as pools
+1. Pool based exclusions (testing)
 	b. Drop downs update on skill enable/disable
+	c. Removing a pool needs to also remove pool exclusions
+2. Add some exclusion fns & groups
+	a. cyborgs
+	b. flying cyborgs
+3. Still see some skill assignment issues if using forced slots
+
 
 
 1.2 Release:
-1. Squad bases exclusions
+1. Squad bases exclusions/inclusions
 2. Modify to allow for selecting specific skills easily in code and selecting more than 2
 3. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
 

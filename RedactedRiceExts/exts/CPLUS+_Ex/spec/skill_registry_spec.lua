@@ -185,7 +185,8 @@ describe("Skill Registry Module", function()
 			assert.equals(1, #plus_manager._subobjects.skill_registry.deferredPilotPredicates.exclusions)
 
 			-- Execute deferred predicates
-			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates()
+			local pilotIds = plus_manager._subobjects.utils.searchForAllPilotIds(true, true)
+			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates(pilotIds)
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]
 
@@ -216,7 +217,8 @@ describe("Skill Registry Module", function()
 			assert.equals(1, #plus_manager._subobjects.skill_registry.deferredPilotPredicates.inclusions)
 
 			-- Execute deferred predicates
-			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates()
+			local pilotIds = plus_manager._subobjects.utils.searchForAllPilotIds(true, true)
+			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates(pilotIds)
 
 			local inclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS]
 
@@ -244,7 +246,8 @@ describe("Skill Registry Module", function()
 			)
 
 			-- Execute deferred predicates
-			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates()
+			local pilotIds = plus_manager._subobjects.utils.searchForAllPilotIds(true, true)
+			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates(pilotIds)
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]
 
@@ -278,7 +281,8 @@ describe("Skill Registry Module", function()
 			assert.equals(2, #plus_manager._subobjects.skill_registry.deferredPilotPredicates.exclusions)
 
 			-- Execute deferred predicates
-			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates()
+			local pilotIds = plus_manager._subobjects.utils.searchForAllPilotIds(true, true)
+			plus_manager._subobjects.skill_registry:_executeDeferredPilotPredicates(pilotIds)
 
 			local exclusions = plus_manager._subobjects.skill_config.codeDefinedRelationships[plus_manager._subobjects.skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]
 

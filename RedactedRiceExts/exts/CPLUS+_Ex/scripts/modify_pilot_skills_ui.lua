@@ -7,6 +7,7 @@ local modify_pilot_skills_ui = {}
 local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "SkillsUI", cplus_plus_ex.DEBUG.UI and cplus_plus_ex.DEBUG.ENABLED)
 
+local skill_config = cplus_plus_ex._subobjects.skill_config
 local utils = nil
 
 local scrollContent = nil
@@ -152,10 +153,10 @@ end
 function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
 	-- Check if skill is in any relationships - if so, rebuild all relationship sections
 	local inRelationships = false
-	
+
 	for relationshipType, _ in pairs(cplus_plus_ex.config) do
-		if relationshipType == "pilotSkillExclusions" or 
-		   relationshipType == "pilotSkillInclusions" or 
+		if relationshipType == "pilotSkillExclusions" or
+		   relationshipType == "pilotSkillInclusions" or
 		   relationshipType == "skillExclusions" then
 			local relTable = cplus_plus_ex.config[relationshipType]
 			if relTable then
@@ -176,7 +177,7 @@ function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
 			if inRelationships then break end
 		end
 	end
-	
+
 	-- If skill is in relationships, rebuild each relationship section using cached rebuild functions
 	if inRelationships then
 		for relationshipType, section in pairs(relationshipSections) do
@@ -185,10 +186,10 @@ function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
 			end
 		end
 	end
-	
+
 	-- Check if skill is in any groups - if so, rebuild those group sections
 	for groupName, section in pairs(groupPoolSections) do
-		local group = cplus_plus_ex:getGroup(groupName)
+		local group = skill_config:getGroup(groupName)
 		if group and group.skillIds and group.skillIds[skillId] then
 			if section.rebuildFunc then
 				section.rebuildFunc()
@@ -202,10 +203,10 @@ function modify_pilot_skills_ui:rebuildGroupPools()
 	if groupsContainer and groupsParent then
 		-- Clear group caches and rebuild
 		groupPoolSections = {}
-		
+
 		groupsContainer:detach()
 		self:buildGroups(groupsParent)
-		
+
 		-- After rebuilding groups, also rebuild relationships to update group icons
 		if relationshipsContainer and relationshipsParent then
 			relationshipSections = {}
@@ -229,7 +230,7 @@ function modify_pilot_skills_ui:rebuildAllGroupPools()
 	-- Clear all caches since we're doing a full rebuild
 	relationshipSections = {}
 	groupPoolSections = {}
-	
+
 	-- Rebuild both group pools and relationships to maintain correct order
 	if groupsContainer and groupsParent then
 		groupsContainer:detach()
@@ -370,7 +371,7 @@ function modify_pilot_skills_ui:clickCollapse(collapsable, button)
 		-- Save collapse state if this is a group section
 		if collapsable.groupName then
 			cplus_plus_ex.config.groupCollapseStates[collapsable.groupName] = not collapsable.checked
-			cplus_plus_ex:saveConfiguration()
+			skill_config:saveConfiguration()
 		end
 
 		return true
@@ -770,7 +771,7 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			cplus_plus_ex:disableSkill(skill.id, true)
 		end
 		self:updateAllPercentages()
-		cplus_plus_ex:saveConfiguration()
+		skill_config:saveConfiguration()
 
 		-- Call the callback if provided for group checkbox updates
 		if onToggleCallback then
@@ -792,7 +793,7 @@ function modify_pilot_skills_ui:_applyWeightChange(weightInput, skill)
 		weightInput.textfield = string.format("%.2f", value)
 		cplus_plus_ex:setSkillConfig(skill.id, {weight = value})
 		self:updateAllPercentages()
-		cplus_plus_ex:saveConfiguration()
+		skill_config:saveConfiguration()
 	else
 		-- Reset to current value if invalid
 		local currentConfig = cplus_plus_ex.config.skillConfigs[skill.id]
@@ -942,7 +943,7 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 		-- Handle reusability changes
 		reusabilityWidget.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 			cplus_plus_ex:setSkillConfig(skill.id, {reusability = newValue})
-			cplus_plus_ex:saveConfiguration()
+			skill_config:saveConfiguration()
 			self:_updateDropdownTooltip(reusabilityWidget, "Skill reusability setting", reusabilityTooltips)
 		end)
 	end
@@ -971,7 +972,7 @@ function modify_pilot_skills_ui:buildSkillEntrySlotRestriction(entryRow, skill, 
 	-- Handle slot restriction changes
 	slotRestrictionWidget.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 		cplus_plus_ex:setSkillConfig(skill.id, {slotRestriction = newValue})
-		cplus_plus_ex:saveConfiguration()
+		skill_config:saveConfiguration()
 		self:_updateDropdownTooltip(slotRestrictionWidget, SLOT_RESTRICTION_TOOLTIP, slotRestrictionTooltips)
 	end)
 end
@@ -1066,7 +1067,7 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 
 	allowDupsCheckbox.onToggled:subscribe(function(checked)
 		cplus_plus_ex.config.allowReusableSkills = checked
-		cplus_plus_ex:saveConfiguration()
+		skill_config:saveConfiguration()
 	end)
 
 	-- Enable group exclusions checkbox
@@ -1084,7 +1085,7 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 
 	enableGroupsCheckbox.onToggled:subscribe(function(checked)
 		cplus_plus_ex.config.enableGroupExclusions = checked
-		cplus_plus_ex:saveConfiguration()
+		skill_config:saveConfiguration()
 	end)
 end
 
@@ -1172,16 +1173,16 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 				end
 
 				self:updateAllPercentages()
-				cplus_plus_ex:saveConfiguration()
-				
+				skill_config:saveConfiguration()
+
 				-- Rebuild all relationship sections after toggling group
 				for relationshipType, section in pairs(relationshipSections) do
 					if section.rebuildFunc then
 						section.rebuildFunc()
 					end
 				end
-				
-				-- Also rebuild all group pool sections 
+
+				-- Also rebuild all group pool sections
 				for groupName, section in pairs(groupPoolSections) do
 					if section.rebuildFunc then
 						section.rebuildFunc()
@@ -1226,7 +1227,7 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			currentSkillSort = value
 			-- Save sort order preference
 			cplus_plus_ex.config.skillConfigSortOrder = value
-			cplus_plus_ex:saveConfiguration()
+			skill_config:saveConfiguration()
 			rebuildSkillGroups()
 			-- Update percentages after rebuild
 			self:updateAllPercentages()
@@ -1265,7 +1266,7 @@ end
 -- Helper function to display one or more skill icons with consistent sizing
 function modify_pilot_skills_ui:addSkillIcons(skillIds, row)
 	local numIcons = #skillIds
-	
+
 	-- Load surfaces
 	local iconData = {}
 	for i = 1, numIcons do
@@ -1282,10 +1283,10 @@ function modify_pilot_skills_ui:addSkillIcons(skillIds, row)
 			end
 		end
 	end
-	
+
 	local numActualIcons = #iconData
 	local maxWidth, overlapSpacing, iconsWidth
-	
+
 	-- For single icons, adjust size based on actual icon size
 	if numActualIcons == 1 then
 		maxWidth = math.max(SKILL_ICON_REL_SIZE, iconData[1].width)
@@ -1315,10 +1316,10 @@ function modify_pilot_skills_ui:addSkillIcons(skillIds, row)
 			-- Multiple icons: center at regular intervals
 			centerX = (SKILL_ICON_REL_SIZE / 2) + ((i - 1) * overlapSpacing)
 		end
-		
+
 		-- Offset to position icon centered at centerX
 		local xOffset = math.floor(centerX - (data.width / 2))
-		
+
 		Ui()
 			:widthpx(maxWidth):heightpx(ROW_HEIGHT)
 			:decorate({
@@ -1396,7 +1397,7 @@ function modify_pilot_skills_ui:addRelationshipColumn(itemId, itemType, isGroup,
 end
 
 function modify_pilot_skills_ui:addGroupIcons(groupName, row)
-	local group = cplus_plus_ex:getGroup(groupName)
+	local group = skill_config:getGroup(groupName)
 	if not group then
 		-- Empty space if group doesn't exist
 		Ui():width(0.1):heightpx(ROW_HEIGHT):addTo(row)
@@ -1478,7 +1479,7 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 
 	-- Add groups first
 	if includeGroups then
-		local groupNames = cplus_plus_ex:listGroups()
+		local groupNames = skill_config:listGroups()
 		table.sort(groupNames)
 
 		for _, groupName in ipairs(groupNames) do
@@ -1519,7 +1520,7 @@ end
 -- Builds a relationship editor section
 function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType, sourceList, targetList, sourceIdsSorted, targetIdsSorted)
 	-- Get metadata for this relationship type
-	local metadata = cplus_plus_ex:getRelationshipMetadata(relationshipType)
+	local metadata = skill_config:getRelationshipMetadata(relationshipType)
 	if not metadata then
 		logger.logError(SUBMODULE, "Invalid relationship type: " .. tostring(relationshipType))
 		return
@@ -1585,7 +1586,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 	-- Helper function to build tooltip description for a group
 	local function buildGroupTooltip(groupName)
-		local group = cplus_plus_ex:getGroup(groupName)
+		local group = skill_config:getGroup(groupName)
 		if not group then return "" end
 
 		-- Get all enabled skills in this group with their names
@@ -1641,7 +1642,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		-- Add target column (icon + text as fixed width unit)
 		self:addRelationshipColumn(targetId, targetLabel, isTargetGroup, targetDisplay, targetSkillId, targetTooltip, entryRow)
 
-		local isCodeDefined = not (isSourceGroup or isTargetGroup) and cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
+		local isCodeDefined = not (isSourceGroup or isTargetGroup) and skill_config:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
 		local btnTooltip = isCodeDefined and "Remove this code defined relationship"
 				or "Remove this user added relationship"
 
@@ -1653,12 +1654,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				local fullSourceId = isSourceGroup and ("group:" .. sourceId) or sourceId
 				local fullTargetId = isTargetGroup and ("group:" .. targetId) or targetId
 
-				cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, fullSourceId, fullTargetId)
+				skill_config:removeRelationshipFromRuntime(relationshipType, fullSourceId, fullTargetId)
 				if isBidirectional then
-					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, fullTargetId, fullSourceId)
+					skill_config:removeRelationshipFromRuntime(relationshipType, fullTargetId, fullSourceId)
 				end
 
-				cplus_plus_ex:saveConfiguration()
+				skill_config:saveConfiguration()
 				rebuildRelationshipList()
 				return true
 			end
@@ -1715,7 +1716,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			-- Prepend null char to groups so they sort before regular items
 			return isGroup and ('\0' .. name:lower()) or name:lower()
 		end
-		
+
 		-- Sort only the non-new items based on the selected column
 		table.sort(relationshipList, function(a, b)
 			if sortColumn == 1 then
@@ -1909,7 +1910,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				end
 				-- Include groups when source is skill based
 				if includeSourceGroups then
-					local groupNames = cplus_plus_ex:listGroups()
+					local groupNames = skill_config:listGroups()
 					for _, groupName in ipairs(groupNames) do
 						sourcesToAdd["group:" .. groupName] = true
 					end
@@ -1926,7 +1927,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				end
 				-- Include groups when target is skill based
 				if includeTargetGroups then
-					local groupNames = cplus_plus_ex:listGroups()
+					local groupNames = skill_config:listGroups()
 					for _, groupName in ipairs(groupNames) do
 						targetsToAdd["group:" .. groupName] = true
 					end
@@ -1941,10 +1942,10 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					-- Skip adding to self (if all was used)
 					if not (sourceId == targetId) then
 						-- Add relationship in exact order specified
-						cplus_plus_ex:addRelationshipToRuntime(relationshipType, sourceId, targetId)
+						skill_config:addRelationshipToRuntime(relationshipType, sourceId, targetId)
 
 						if isBidirectional then
-							cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
+							skill_config:addRelationshipToRuntime(relationshipType, targetId, sourceId)
 						end
 
 						-- Mark as newly added to show at top
@@ -1955,7 +1956,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 
 			-- Save and rebuild
-			cplus_plus_ex:saveConfiguration()
+			skill_config:saveConfiguration()
 			rebuildRelationshipList()
 			return true
 		end
@@ -1970,7 +1971,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			sortColumn = value
 			-- Save sort order preference
 			cplus_plus_ex.config[sortConfigKey] = value
-			cplus_plus_ex:saveConfiguration()
+			skill_config:saveConfiguration()
 			-- Clear newly added tracking when sort changes
 			newlyAddedRelationships = {}
 			rebuildRelationshipList()
@@ -1979,7 +1980,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 	-- Build initial list
 	rebuildRelationshipList()
-	
+
 	-- Cache the section container and rebuild function for efficient updates
 	relationshipSections[relationshipType] = {
 		container = sectionContainer,
@@ -2028,7 +2029,7 @@ function modify_pilot_skills_ui:buildAllGroupsSection(parent, rebuildCallback)
 			end
 
 			-- Check if group already exists
-			if cplus_plus_ex:getGroup(groupName) then
+			if skill_config:getGroup(groupName) then
 				sdlext.showButtonDialog(
 					"Group Exists",
 					"Group '" .. groupName .. "' already exists.",
@@ -2038,12 +2039,12 @@ function modify_pilot_skills_ui:buildAllGroupsSection(parent, rebuildCallback)
 				return true
 			end
 
-			-- Create empty group by tracking it in emptyGroups
-			cplus_plus_ex.config.emptyGroups[groupName] = true
+			-- Create empty group
+			skill_config:addGroupToRuntime(groupName)
 			cplus_plus_ex.config.groupsCollapseStates[groupName] = false
 			newGroupInput.textfield = ""
 			logger.logInfo(SUBMODULE, "Created empty group '%s'", groupName)
-			cplus_plus_ex:saveConfiguration()
+			skill_config:saveConfiguration()
 			rebuildCallback()
 			return true
 		end
@@ -2080,14 +2081,14 @@ function modify_pilot_skills_ui:buildAllGroupsSection(parent, rebuildCallback)
 
 	gridSizeDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 		cplus_plus_ex.config.groupsItemsPerRow = newValue
-		cplus_plus_ex:saveConfiguration()
+		skill_config:saveConfiguration()
 		rebuildCallback()
 	end)
 end
 
 -- Helper to build add skill line in each group pool to add skills to that group
 function modify_pilot_skills_ui:buildGroupPoolAddSkill(parent, groupName, newlyAddedGroupSkills, rebuildCallback)
-	local group = cplus_plus_ex:getGroup(groupName)
+	local group = skill_config:getGroup(groupName)
 	if not group then return end
 
 	-- Get all enabled skills not in this group
@@ -2157,14 +2158,14 @@ function modify_pilot_skills_ui:buildGroupPoolAddSkill(parent, groupName, newlyA
 				return true
 			end
 
-			if cplus_plus_ex:addSkillToGroup(selectedSkillId, groupName) then
+			if skill_config:addSkillToGroupFromRuntime(selectedSkillId, groupName) then
 				-- Track as newly added (UI-only state)
 				if not newlyAddedGroupSkills[groupName] then
 					newlyAddedGroupSkills[groupName] = {}
 				end
 				newlyAddedGroupSkills[groupName][selectedSkillId] = true
 
-				cplus_plus_ex:saveConfiguration()
+				skill_config:saveConfiguration()
 				rebuildCallback()
 			end
 			return true
@@ -2215,8 +2216,8 @@ function modify_pilot_skills_ui:buildGroupSkillCell(parent, skillId, groupName, 
 		"X",
 		"Remove " .. skillName .. " from group",
 		function()
-			cplus_plus_ex:removeSkillFromGroup(skillId, groupName)
-			cplus_plus_ex:saveConfiguration()
+			skill_config:removeSkillFromGroupFromRuntime(skillId, groupName)
+			skill_config:saveConfiguration()
 			rebuildCallback()
 			return true
 		end
@@ -2226,7 +2227,7 @@ end
 
 -- Helper to build skill grid for a group pool
 function modify_pilot_skills_ui:buildGroupPoolSkillGrid(parent, groupName, newlyAddedGroupSkills, rebuildCallback)
-	local group = cplus_plus_ex:getGroup(groupName)
+	local group = skill_config:getGroup(groupName)
 	if not group then return end
 
 	-- Separate newly added from existing skills
@@ -2306,7 +2307,7 @@ end
 
 -- Helper to build a single group pool section
 function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAddedGroupSkills, rebuildCallback)
-	local group = cplus_plus_ex:getGroup(groupName)
+	local group = skill_config:getGroup(groupName)
 	logger.logDebug(SUBMODULE, "buildGroupSection: Building group '%s'", groupName)
 
 	local groupCollapse, groupHeader = self:buildCollapsibleSectionBase(groupName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
@@ -2319,7 +2320,7 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 			local result = self:clickCollapse(cc, button)
 			if result then
 				cplus_plus_ex.config.groupsCollapseStates[groupName] = not cc.checked
-				cplus_plus_ex:saveConfiguration()
+				skill_config:saveConfiguration()
 			end
 			return result
 		end
@@ -2341,7 +2342,7 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 		:addTo(titleRow)
 
 	-- Only One Per Pilot checkbox
-	local settings = cplus_plus_ex:getGroupSettings(groupName)
+	local settings = skill_config:getGroupSettings(groupName)
 	local onlyOneCheckbox = UiCheckbox()
 		:widthpx(270):heightpx(ROW_HEIGHT)
 		:settooltip("When checked, only one skill from this group can be assigned per pilot")
@@ -2355,8 +2356,8 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 
 	onlyOneCheckbox.checked = settings.onlyOnePerPilot or false
 	onlyOneCheckbox.onToggled:subscribe(function(checked)
-		cplus_plus_ex:setGroupSettings(groupName, {onlyOnePerPilot = checked})
-		cplus_plus_ex:saveConfiguration()
+		skill_config:setGroupSettings(groupName, {onlyOnePerPilot = checked})
+		skill_config:saveConfiguration()
 	end)
 
 	local btnDeleteGroup = sdlext.buildButton(
@@ -2368,8 +2369,8 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 				"Delete group '" .. groupName .. "'?",
 				function(btnIndex)
 					if btnIndex == 1 then
-						cplus_plus_ex:deleteGroup(groupName)
-						cplus_plus_ex:saveConfiguration()
+						skill_config:removeGroupFromRuntime(groupName)
+						skill_config:saveConfiguration()
 						rebuildCallback()
 					end
 				end,
@@ -2390,10 +2391,10 @@ function modify_pilot_skills_ui:buildGroupPoolSection(parent, groupName, newlyAd
 		:vgap(0)
 		:width(1)
 		:addTo(groupContent)
-	
+
 	-- Build initial grid of skills
 	self:buildGroupPoolSkillGrid(gridContainer, groupName, newlyAddedGroupSkills, rebuildCallback)
-	
+
 	-- Cache the grid container and rebuild function for efficient updates
 	groupPoolSections[groupName] = {
 		container = gridContainer,
@@ -2427,7 +2428,7 @@ function modify_pilot_skills_ui:buildGroups(scrollContent)
 		:addTo(groupsMainSection)
 
 	-- Get all groups sorted by name
-	local groupNames = cplus_plus_ex:listGroups()
+	local groupNames = skill_config:listGroups()
 
 	if #groupNames == 0 then
 		UiBoxLayout()
@@ -2527,7 +2528,7 @@ function modify_pilot_skills_ui:buildResetConfirmation()
 				-- Reset configuration to defaults
 				cplus_plus_ex:resetToDefaults()
 				-- Save the reset configuration immediately
-				cplus_plus_ex:saveConfiguration()
+				skill_config:saveConfiguration()
 				-- Refresh the UI to show new values
 				if scrollContent and scrollContent.parent then
 					local parentScroll = scrollContent.parent
@@ -2559,7 +2560,7 @@ end
 
 -- Called when dialog is closed
 function modify_pilot_skills_ui:onExit()
-	cplus_plus_ex:saveConfiguration()
+	skill_config:saveConfiguration()
 	scrollContent = nil
 	percentageLabels = {}
 	groupHeaderLabels = {}
@@ -2579,7 +2580,7 @@ end
 -- Creates the main modification dialog
 function modify_pilot_skills_ui:createDialog()
 	-- Load configuration before opening dialog
-	cplus_plus_ex:loadConfiguration()
+	skill_config:loadConfiguration()
 
 	sdlext.showDialog(function(ui, quit)
 		ui.onDialogExit = function() self:onExit() end
