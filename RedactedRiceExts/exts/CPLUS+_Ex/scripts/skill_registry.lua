@@ -52,7 +52,7 @@ end
 --   PER_PILOT (2) - a pilot can only have this skill once - vanilla behavior
 --   PER_RUN (3) - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
 --			affect the game state in a one time only way
--- maxReusability is optional defines the maximum (most restrictive) reusability allowed. If not set, defaults to defaultReusability
+-- reusabilityLimit is optional defines the minimum (most permissive) reusability allowed. If not set, defaults to defaultReusability
 --   This sets the lower bound on what users can configure (higher values = more restrictive)
 -- slotRestriction is optional defines which skill slot this skill can appear in. Defaults to any
 --   ANY (1) - can appear in either slot 1 or 2 - vanilla behavior
@@ -62,7 +62,7 @@ end
 -- icon optional path to 21x21 image to display in the skills config menu
 -- groups optional array of pool names (strings) this skill belongs to
 function skill_registry:registerSkill(group, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
-		defaultReusability, maxReusability, slotRestriction, weight, icon, groups)
+		defaultReusability, reusabilityLimit, slotRestriction, weight, icon, groups)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -72,10 +72,10 @@ function skill_registry:registerSkill(group, idOrTable, shortName, fullName, des
 		bonuses = idOrTable.bonuses
 		skillType = idOrTable.skillType
 		saveVal = idOrTable.saveVal
-		-- allows single reusability value to be passed in as defaultReusability & maxReusability
+		-- allows single reusability value to be passed in as defaultReusability & reusabilityLimit
 		defaultReusability = idOrTable.defaultReusability or idOrTable.reusability
 		-- nil will default to defaultReusability
-		maxReusability = idOrTable.maxReusability
+		reusabilityLimit = idOrTable.reusabilityLimit
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
@@ -110,24 +110,24 @@ function skill_registry:registerSkill(group, idOrTable, shortName, fullName, des
 		defaultReusability = cplus_plus_ex.DEFAULT_REUSABILITY
 	end
 
-	-- Validate and normalize maxReusability
+	-- Validate and normalize reusabilityLimit
 	-- If not provided, default to same as defaultReusability (no restriction beyond default)
-	if maxReusability ~= nil then
-		maxReusability = utils.normalizeReusabilityToInt(maxReusability)
-		if not maxReusability then
-			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid maxReusability '" .. tostring(maxReusability) ..
+	if reusabilityLimit ~= nil then
+		reusabilityLimit = utils.normalizeReusabilityToInt(reusabilityLimit)
+		if not reusabilityLimit then
+			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid reusabilityLimit '" .. tostring(reusabilityLimit) ..
 					"' 1-3 (corresponding to enum values in REUSABLILITY). Defaulting to match defaultReusability")
-			maxReusability = defaultReusability
+			reusabilityLimit = defaultReusability
 		end
 	else
-		maxReusability = defaultReusability
+		reusabilityLimit = defaultReusability
 	end
 
-	-- Validate that defaultReusability <= maxReusability (higher numbers = more restrictive)
-	if defaultReusability > maxReusability then
+	-- Validate that defaultReusability >= reusabilityLimit (higher numbers = more restrictive)
+	if defaultReusability < reusabilityLimit then
 		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has defaultReusability (" .. defaultReusability ..
-				") more restrictive than maxReusability (" .. maxReusability .. "). Adjusting maxReusability to match default.")
-		maxReusability = defaultReusability
+				") less restrictive than reusabilityLimit (" .. reusabilityLimit .. "). Adjusting default to match limit.")
+		defaultReusability = reusabilityLimit
 	end
 
 	-- Validate and normalize slot restriction
@@ -172,7 +172,7 @@ function skill_registry:registerSkill(group, idOrTable, shortName, fullName, des
 			skillType = skillType or "default",
 			saveVal = saveVal,
 			defaultReusability = defaultReusability,
-			maxReusability = maxReusability,
+			reusabilityLimit = reusabilityLimit,
 			icon = icon,
 	}
 

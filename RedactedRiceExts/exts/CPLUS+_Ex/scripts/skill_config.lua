@@ -172,15 +172,13 @@ end
 -- Get allowed reusability options for a skill
 function skill_config:getAllowedReusability(skillId)
 	-- This is called by register before the skills are registered so default to all allowed
-	local minReusability = cplus_plus_ex.REUSABLILITY.REUSABLE
-	local maxReusability = cplus_plus_ex.REUSABLILITY.PER_RUN
-
-	if skill_registry.registeredSkills[skillId] and skill_registry.registeredSkills[skillId].maxReusability then
-		maxReusability = skill_registry.registeredSkills[skillId].maxReusability
+	local reusabilityLimit = cplus_plus_ex.REUSABLILITY.REUSABLE
+	if skill_registry.registeredSkills[skillId] and skill_registry.registeredSkills[skillId].reusabilityLimit then
+		reusabilityLimit = skill_registry.registeredSkills[skillId].reusabilityLimit
 	end
 
 	local allowed = {}
-	for val = minReusability, maxReusability do
+	for val = reusabilityLimit, cplus_plus_ex.REUSABLILITY.PER_RUN do
 		allowed[val] = true
 	end
 	return allowed
@@ -302,8 +300,8 @@ function skill_config:_enableSkill_internal(id)
 		self.enabledSkills[id] = skill
 		table.insert(self.enabledSkillsIds, id)
 
-		logger.logDebug(SUBMODULE, "Enabled skill: %s (type: %s, defaultReusability: %s, maxReusability: %s)",
-				id, skill.skillType, skill.defaultReusability, skill.maxReusability)
+		logger.logDebug(SUBMODULE, "Enabled skill: %s (type: %s, defaultReusability: %s, reusabilityLimit: %s)",
+				id, skill.skillType, skill.defaultReusability, skill.reusabilityLimit)
 
 		-- Trigger state update for enabled skills
 		if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then

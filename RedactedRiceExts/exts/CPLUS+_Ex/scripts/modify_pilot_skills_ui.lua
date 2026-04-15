@@ -2489,14 +2489,6 @@ function modify_pilot_skills_ui:buildGroupPoolSkillGrid(parent, groupName, newly
 	end
 
 	if #sortedSkillIds == 0 then
-		UiBoxLayout()
-			:vgap(DEFAULT_VGAP)
-			:width(1)
-			:addTo(parent)
-			:beginUi()
-				:width(1):heightpx(ROW_HEIGHT)
-				:decorate({DecoText("No skills in this group.", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)})
-			:endUi()
 		return
 	end
 
