@@ -252,7 +252,11 @@ function skill_registry:registerGroup(nameOrTable, onlyOnePerPilot, skills)
 
 	-- Store group settings if provided
 	if onlyOnePerPilot ~= nil then
-		skill_config:setGroupSettings(name, {onlyOnePerPilot = onlyOnePerPilot})
+		-- Do not overwrite user configured values
+		local existing = skill_config.config.groupSettings and skill_config.config.groupSettings[name]
+		if not existing or existing.onlyOnePerPilot == nil then
+			skill_config:setGroupSettings(name, {onlyOnePerPilot = onlyOnePerPilot})
+		end
 	end
 
 	-- Add skills to the group if provided
@@ -458,8 +462,27 @@ local function _getPilotGroupDisplayName(pilotId)
 	end
 end
 
--- Merges registered group based exclusions into collected exclusions
--- Only processes entries with "group:" prefix, expanding them to individual skills
+-- If a group exists whose name matches a pilot's display name, treat it as a
+-- pilot specific blacklist pool and exclude that pilot from that group.
+local function _applyPilotNamedGroupExclusions(self, pilotIds)
+	for _, pilotId in ipairs(pilotIds) do
+		local displayName = _getPilotGroupDisplayName(pilotId)
+		local groupExists = (skill_config.groups and skill_config.groups[displayName]) or
+			(skill_config.config and skill_config.config.emptyGroups and skill_config.config.emptyGroups[displayName])
+
+		if groupExists then
+			-- Avoid re registering if already excluded
+			local already = skill_config.config.pilotGroupExclusions[pilotId] and
+				skill_config.config.pilotGroupExclusions[pilotId][displayName] == true
+			if not already then
+				self:registerPilotGroupExclusion(pilotId, displayName)
+				logger.logDebug(SUBMODULE, "Applied pilot named group exclusion: %s excluded from '%s'", pilotId, displayName)
+			end
+		end
+	end
+end
+
+-- Merges registered pilot exclusions into collected exclusions.
 local function _mergeRegisteredExclusions(pilotExclusions, registeredExclusions)
 	local registeredCount = 0
 
@@ -572,6 +595,9 @@ function skill_registry:_readPilotVanillaExclusions(pilotIds)
 	-- Merge registered exclusions from API calls
 	local registeredExclusions = skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]
 	local registeredCount = _mergeRegisteredExclusions(pilotExclusions, registeredExclusions)
+
+	-- Apply pilot named group exclusions 
+	_applyPilotNamedGroupExclusions(self, pilotIds)
 
 	logger.logInfo(SUBMODULE, "Collected exclusions: %d pilots with blacklists, %d total registered exclusions",
 			blacklistCount, registeredCount)
