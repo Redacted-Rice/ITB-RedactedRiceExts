@@ -466,21 +466,6 @@ function skill_config:resetToDefaults()
 		self.config[keys.removed] = {}
 	end
 
-	-- Clear all group relationships
-	self.config.pilotGroupExclusions = {}
-	self.config.pilotGroupInclusions = {}
-	self.config.skillGroupExclusions = {}
-	self.config.groupGroupExclusions = {}
-
-	-- Clear the configLoaded flag so coded enable/disable can apply
-	self.configLoaded = false
-
-	-- Clear all user modified groups
-	self.config.groupsAdded = {}
-	self.config.groupsRemoved = {}
-	self.config.emptyGroups = {}
-	self.config.groupSettings = {}
-
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
