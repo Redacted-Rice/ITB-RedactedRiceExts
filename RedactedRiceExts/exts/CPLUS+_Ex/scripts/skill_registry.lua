@@ -49,8 +49,13 @@ end
 --   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
+-- constraints optional table defining relationships and constraints for this skill:
+--   groups - string or array of group names this skill belongs to
+--   skillExclusions - string or array of skill IDs that are mutually exclusive with this skill
+--   pilotExclusions - string or array of pilot IDs that cannot have this skill
+--   pilotInclusions - string or array of pilot IDs that can have this skill
 function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
-		defaultReusability, reusabilityLimit, slotRestriction, weight, icon)
+		defaultReusability, reusabilityLimit, slotRestriction, weight, icon, constraints)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -67,6 +72,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
+		constraints = idOrTable.constraints
 	end
 
 	-- Check if ID is already registered globally
@@ -139,6 +145,81 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 
 	-- add a config value with default reusability
 	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight})
+
+	-- Process constraints table if provided
+	if constraints ~= nil then
+		if type(constraints) ~= "table" then
+			logger.logWarn(SUBMODULE, "Skill '%s' has invalid constraints (must be table). Ignoring constraints.", id)
+		else
+			-- Register groups
+			if constraints.groups ~= nil then
+				if type(constraints.groups) == "string" then
+					self:registerSkillToGroup(id, constraints.groups)
+				elseif type(constraints.groups) == "table" then
+					for _, groupName in ipairs(constraints.groups) do
+						if type(groupName) == "string" then
+							self:registerSkillToGroup(id, groupName)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid group name (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid groups format (must be string or array). Ignoring.", id)
+				end
+			end
+
+			-- Register skill exclusions
+			if constraints.skillExclusions ~= nil then
+				if type(constraints.skillExclusions) == "string" then
+					self:registerSkillExclusion(id, constraints.skillExclusions)
+				elseif type(constraints.skillExclusions) == "table" then
+					for _, excludedSkillId in ipairs(constraints.skillExclusions) do
+						if type(excludedSkillId) == "string" then
+							self:registerSkillExclusion(id, excludedSkillId)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid excluded skill ID (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid skillExclusions format (must be string or array). Ignoring.", id)
+				end
+			end
+
+			-- Register pilot exclusions
+			if constraints.pilotExclusions ~= nil then
+				if type(constraints.pilotExclusions) == "string" then
+					self:registerPilotSkillExclusions(constraints.pilotExclusions, id)
+				elseif type(constraints.pilotExclusions) == "table" then
+					for _, pilotId in ipairs(constraints.pilotExclusions) do
+						if type(pilotId) == "string" then
+							self:registerPilotSkillExclusions(pilotId, id)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot ID in exclusions (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotExclusions format (must be string or array). Ignoring.", id)
+				end
+			end
+
+			-- Register pilot inclusions
+			if constraints.pilotInclusions ~= nil then
+				if type(constraints.pilotInclusions) == "string" then
+					self:registerPilotSkillInclusions(constraints.pilotInclusions, id)
+				elseif type(constraints.pilotInclusions) == "table" then
+					for _, pilotId in ipairs(constraints.pilotInclusions) do
+						if type(pilotId) == "string" then
+							self:registerPilotSkillInclusions(pilotId, id)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot ID in inclusions (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotInclusions format (must be string or array). Ignoring.", id)
+				end
+			end
+		end
+	end
 end
 
 -- Registers all vanilla skills
@@ -205,6 +286,19 @@ function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
 	skillExclusionsTable[excludedSkillId][skillId] = true
 
 	logger.logDebug(SUBMODULE, "Registered exclusion: %s <-> %s", skillId, excludedSkillId)
+end
+
+-- Register a skill as part of a group
+-- This is the code defined way to add skills to groups
+-- Groups are created implicitly when skills are added to them
+function skill_registry:registerSkillToGroup(skillId, groupName)
+	if not skill_config.codeDefinedGroups[skillId] then
+		skill_config.codeDefinedGroups[skillId] = {}
+	end
+
+	skill_config.codeDefinedGroups[skillId][groupName] = true
+
+	logger.logDebug(SUBMODULE, "Registered skill '%s' to group '%s'", skillId, groupName)
 end
 
 -- Scans global for all pilot definitions and registers their Blacklist exclusions

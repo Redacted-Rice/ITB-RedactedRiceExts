@@ -90,6 +90,13 @@ skill_config.config = {
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability, slotRestriction
 	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Slot, 5=Weight/%
 	categoryCollapseStates = {}, -- category name -> collapsed state
+	enableGroupExclusions = true, -- Main toggle for group exclusions
+	emptyGroups = {}, -- groupName -> true for manually created empty groups
+	groupsAdded = {}, -- skillId -> {groupName = true} - User added group memberships
+	groupsRemoved = {}, -- skillId -> {groupName = true} - User removed code defined group memberships
+	groupSettings = {}, -- groupName -> {enabled = bool} - Per group settings
+	groupsItemsPerRow = 4, -- Grid size for group skill display
+	groupsCollapseStates = {}, -- groupName -> collapsed state
 }
 -- Track if saved config was loaded
 skill_config.configLoaded = false
@@ -109,9 +116,13 @@ for _, relType in pairs(skill_config.RelationshipType) do
 	skill_config.codeDefinedRelationships[relType] = {}
 end
 
+-- Tracks which groups each skill is assigned to via code, not user edits
+skill_config.codeDefinedGroups = {}
+
 -- Module state
 skill_config.enabledSkills = {}  -- skillId -> {shortName, fullName, description, bonuses, skillType, reusability, icon}
 skill_config.enabledSkillsIds = {}  -- Array of skill ids enabled
+skill_config.groups = {}  -- groupName -> {name, skillIds = {skillId -> true}, enabled = bool}
 
 -- Initialize the module
 function skill_config:init()
@@ -123,6 +134,7 @@ end
 -- Called after all mods are loaded
 function skill_config:_postModsLoaded()
 	self:_rebuildRelationships()
+	self:_rebuildGroups()
 
 	-- Set the defaults to our registered/setup values
 	logger.logDebug(SUBMODULE, "Post-mods loaded: capturing default configs")
@@ -352,6 +364,96 @@ function skill_config:_rebuildRelationships()
 	logger.logDebug(SUBMODULE, "Rebuilt active relationships for constraint checking")
 end
 
+-- Merge code defined groups with user modifications for a specific skill
+function skill_config:_mergeGroupsForSkill(skillId, codeDefinedTable, addedTable, removedTable)
+	local merged = {}
+
+	-- Start with code defined groups
+	local codeGroups = codeDefinedTable[skillId] or {}
+	for groupName, _ in pairs(codeGroups) do
+		-- Only include if not in removed list
+		if not (removedTable[skillId] and removedTable[skillId][groupName]) then
+			merged[groupName] = true
+		end
+	end
+
+	-- Add user additions
+	local userGroups = addedTable[skillId] or {}
+	for groupName, _ in pairs(userGroups) do
+		merged[groupName] = true
+	end
+
+	return merged
+end
+
+-- Get merged groups for a skill as an array
+function skill_config:_getMergedGroupsForSkill(skillId)
+	local mergedDict = self:_mergeGroupsForSkill(
+		skillId,
+		self.codeDefinedGroups,
+		self.config.groupsAdded or {},
+		self.config.groupsRemoved or {}
+	)
+
+	-- Convert to array
+	local merged = {}
+	for groupName in pairs(mergedDict) do
+		table.insert(merged, groupName)
+	end
+
+	return merged
+end
+
+-- Rebuild groups index from code defined + user changes
+function skill_config:_rebuildGroups()
+	self.groups = {}
+
+	if not self.config or not self.config.skillConfigs then
+		logger.logDebug(SUBMODULE, "_rebuildGroups: No config or skillConfigs yet")
+		return
+	end
+
+	-- Process all registered skills
+	for skillId in pairs(self.config.skillConfigs) do
+		local mergedGroups = self:_getMergedGroupsForSkill(skillId)
+
+		if #mergedGroups > 0 then
+			logger.logDebug(SUBMODULE, "_rebuildGroups: Skill '%s' has %d group(s): %s",
+				skillId, #mergedGroups, table.concat(mergedGroups, ", "))
+
+			for _, groupName in ipairs(mergedGroups) do
+				if not self.groups[groupName] then
+					-- Initialize group with settings from config or defaults
+					local settings = self.config.groupSettings[groupName] or {}
+					self.groups[groupName] = {
+						name = groupName,
+						skillIds = {},
+						enabled = settings.enabled ~= false  -- Default to enabled
+					}
+					logger.logDebug(SUBMODULE, "_rebuildGroups: Created group '%s'", groupName)
+				else
+					-- Group exists, update settings from config in case they changed
+					local settings = self.config.groupSettings[groupName] or {}
+					self.groups[groupName].enabled = settings.enabled ~= false
+				end
+				self.groups[groupName].skillIds[skillId] = true
+			end
+		end
+	end
+
+	-- Count groups
+	local count = 0
+	for _ in pairs(self.groups) do count = count + 1 end
+
+	logger.logInfo(SUBMODULE, "Rebuilt groups index: %d group(s)", count)
+	for groupName, group in pairs(self.groups) do
+		local skillCount = 0
+		for _ in pairs(group.skillIds) do skillCount = skillCount + 1 end
+		logger.logInfo(SUBMODULE, "  Group '%s': %d skill(s), enabled=%s",
+			groupName, skillCount, tostring(group.enabled))
+	end
+end
+
 -- User adds a relationship
 function skill_config:addRelationshipToRuntime(relationshipType, sourceId, targetId)
 	local keys = relationshipConfigKeys[relationshipType]
@@ -417,12 +519,19 @@ function skill_config:resetToDefaults()
 		self.config[keys.added] = {}
 		self.config[keys.removed] = {}
 	end
-	
+
+	-- Clear all user modified groups
+	self.config.groupsAdded = {}
+	self.config.groupsRemoved = {}
+	self.config.emptyGroups = {}
+	self.config.groupSettings = {}
+
 	-- Clear the configLoaded flag so coded enable/disable can apply
 	self.configLoaded = false
 
-	-- Rebuild active relationship tables from code defined sources
+	-- Rebuild active relationship tables and groups from code defined sources
 	self:_rebuildRelationships()
+	self:_rebuildGroups()
 
 	-- Rebuild enabled skills list from the reset config
 	self.enabledSkills = {}
@@ -517,7 +626,37 @@ function skill_config:loadConfiguration()
 					skill_config.config.categoryCollapseStates = utils.deepcopy(savedConfig.categoryCollapseStates)
 				end
 
+				-- Load group related configuration
+				if savedConfig.enableGroupExclusions ~= nil then
+					skill_config.config.enableGroupExclusions = savedConfig.enableGroupExclusions
+				end
+
+				if savedConfig.groupsAdded then
+					skill_config.config.groupsAdded = utils.deepcopy(savedConfig.groupsAdded)
+				end
+
+				if savedConfig.groupsRemoved then
+					skill_config.config.groupsRemoved = utils.deepcopy(savedConfig.groupsRemoved)
+				end
+
+				if savedConfig.emptyGroups then
+					skill_config.config.emptyGroups = utils.deepcopy(savedConfig.emptyGroups)
+				end
+
+				if savedConfig.groupSettings then
+					skill_config.config.groupSettings = utils.deepcopy(savedConfig.groupSettings)
+				end
+
+				if savedConfig.groupsItemsPerRow then
+					skill_config.config.groupsItemsPerRow = savedConfig.groupsItemsPerRow
+				end
+
+				if savedConfig.groupsCollapseStates then
+					skill_config.config.groupsCollapseStates = utils.deepcopy(savedConfig.groupsCollapseStates)
+				end
+
 				self:_rebuildRelationships()
+				self:_rebuildGroups()
 
 				-- Merge skillConfigs to update existing skill but preserve new defaults
 				if savedConfig.skillConfigs then
@@ -530,7 +669,7 @@ function skill_config:loadConfiguration()
 						end
 					end
 				end
-				
+
 				-- Mark that we loaded a saved config so future coded enable/disable calls will be ignored
 				skill_config.configLoaded = true
 
@@ -558,6 +697,207 @@ function skill_config:_rebuildEnabledSkills()
 	if cplus_plus_ex._subobjects and cplus_plus_ex._subobjects.skill_state_tracker then
 		cplus_plus_ex._subobjects.skill_state_tracker:_updateEnabledSkills()
 	end
+end
+
+-- Check if a group membership is code defined
+function skill_config:isCodeDefinedGroup(skillId, groupName)
+	return self.codeDefinedGroups[skillId] and self.codeDefinedGroups[skillId][groupName] == true
+end
+
+function skill_config:registerSkillToGroupToRuntime(skillId, groupName)
+	if not self.config.skillConfigs[skillId] then
+		logger.logWarn(SUBMODULE, "Skill '%s' not registered", skillId)
+		return false
+	end
+
+	-- Get current merged groups for this skill as dictionary
+	local currentGroups = self:_mergeGroupsForSkill(
+		skillId,
+		self.codeDefinedGroups,
+		self.config.groupsAdded,
+		self.config.groupsRemoved
+	)
+
+	-- Check if already in merged group dictionary
+	if currentGroups[groupName] then
+		logger.logDebug(SUBMODULE, "Skill '%s' already in group '%s'", skillId, groupName)
+		return true
+	end
+
+	-- Check if this is code defined
+	local isCodeDefined = self:isCodeDefinedGroup(skillId, groupName)
+
+	if isCodeDefined then
+		-- It's code defined but was removed by user and now being readded,
+		-- so remove from groupsRemoved
+		if self.config.groupsRemoved[skillId] then
+			self.config.groupsRemoved[skillId][groupName] = nil
+			-- Clean up empty tables
+			if next(self.config.groupsRemoved[skillId]) == nil then
+				self.config.groupsRemoved[skillId] = nil
+			end
+		end
+		logger.logDebug(SUBMODULE, "Removed '%s' from groupsRemoved for skill '%s'", groupName, skillId)
+	else
+		-- User defined addition, track it
+		if not self.config.groupsAdded[skillId] then
+			self.config.groupsAdded[skillId] = {}
+		end
+		self.config.groupsAdded[skillId][groupName] = true
+		logger.logDebug(SUBMODULE, "Added '%s' to groupsAdded for skill '%s'", groupName, skillId)
+	end
+
+	-- Remove from emptyGroups if it was an empty, manually created group
+	if self.config.emptyGroups[groupName] then
+		self.config.emptyGroups[groupName] = nil
+	end
+
+	self:_rebuildGroups()
+	logger.logInfo(SUBMODULE, "Added skill '%s' to group '%s'", skillId, groupName)
+	return true
+end
+
+function skill_config:removeSkillFromGroupFromRuntime(skillId, groupName)
+	if not self.config.skillConfigs[skillId] then
+		logger.logWarn(SUBMODULE, "Skill '%s' not registered", skillId)
+		return false
+	end
+
+	-- Get current merged groups for this skill
+	local currentGroups = self:_mergeGroupsForSkill(
+		skillId,
+		self.codeDefinedGroups,
+		self.config.groupsAdded,
+		self.config.groupsRemoved
+	)
+
+	-- Check if currently in group
+	if not currentGroups[groupName] then
+		logger.logDebug(SUBMODULE, "Skill '%s' not in group '%s'", skillId, groupName)
+		return true
+	end
+
+	-- Check if this is code defined
+	local isCodeDefined = self:isCodeDefinedGroup(skillId, groupName)
+
+	if isCodeDefined then
+		-- It's code defined, so track removal
+		if not self.config.groupsRemoved[skillId] then
+			self.config.groupsRemoved[skillId] = {}
+		end
+		self.config.groupsRemoved[skillId][groupName] = true
+		logger.logDebug(SUBMODULE, "Added '%s' to groupsRemoved for skill '%s'", groupName, skillId)
+	else
+		-- User defined, remove from groupsAdded
+		if self.config.groupsAdded[skillId] then
+			self.config.groupsAdded[skillId][groupName] = nil
+			-- Clean up empty tables
+			if next(self.config.groupsAdded[skillId]) == nil then
+				self.config.groupsAdded[skillId] = nil
+			end
+		end
+		logger.logDebug(SUBMODULE, "Removed '%s' from groupsAdded for skill '%s'", groupName, skillId)
+	end
+
+	self:_rebuildGroups()
+	logger.logInfo(SUBMODULE, "Removed skill '%s' from group '%s'", skillId, groupName)
+	return true
+end
+
+function skill_config:addGroupToRuntime(groupName)
+	self.config.emptyGroups[groupName] = true
+	self:_rebuildGroups()
+	logger.logInfo(SUBMODULE, "Created empty group '%s'", groupName)
+end
+
+function skill_config:deleteGroupFromRuntime(groupName)
+	-- Remove group from all skills by updating added/removed tracking
+	for skillId in pairs(self.config.skillConfigs) do
+		-- Check if skill is currently in this group
+		if self:isSkillInGroup(skillId, groupName) then
+			-- Remove the skill from the group
+			self:removeSkillFromGroupFromRuntime(skillId, groupName)
+		end
+	end
+
+	-- Remove from empty groups tracking
+	self.config.emptyGroups[groupName] = nil
+
+	-- Remove group settings
+	self.config.groupSettings[groupName] = nil
+
+	-- Remove group UI state
+	self.config.groupsCollapseStates[groupName] = nil
+
+	logger.logInfo(SUBMODULE, "Deleted group '%s'", groupName)
+end
+
+function skill_config:getGroup(groupName)
+	-- Return group from computed index if it exists
+	if self.groups[groupName] then
+		return self.groups[groupName]
+	end
+
+	-- Return empty group structure if it's a manually created empty group
+	if self.config.emptyGroups[groupName] then
+		local settings = self.config.groupSettings[groupName] or {}
+		return {
+			name = groupName,
+			skillIds = {},
+			enabled = settings.enabled ~= false
+		}
+	end
+
+	return nil
+end
+
+function skill_config:listGroups()
+	local groupNames = {}
+
+	-- Add groups with skills from computed index
+	for groupName in pairs(self.groups) do
+		table.insert(groupNames, groupName)
+	end
+
+	-- Add empty groups that were manually created
+	for groupName in pairs(self.config.emptyGroups) do
+		local alreadyAdded = false
+		for _, existing in ipairs(groupNames) do
+			if existing == groupName then
+				alreadyAdded = true
+				break
+			end
+		end
+		if not alreadyAdded then
+			table.insert(groupNames, groupName)
+		end
+	end
+
+	table.sort(groupNames)
+	logger.logDebug(SUBMODULE, "listGroups: Returning %d group(s)", #groupNames)
+	return groupNames
+end
+
+function skill_config:setGroupEnabled(groupName, enabled)
+	if not self.config.groupSettings[groupName] then
+		self.config.groupSettings[groupName] = {}
+	end
+
+	self.config.groupSettings[groupName].enabled = enabled
+
+	-- Update the computed group if it exists
+	if self.groups[groupName] then
+		self.groups[groupName].enabled = enabled
+	end
+
+	logger.logInfo(SUBMODULE, "Set group '%s' enabled=%s", groupName, tostring(enabled))
+	return true
+end
+
+function skill_config:isSkillInGroup(skillId, groupName)
+	local group = self.groups[groupName]
+	if not group then return false end
+	return group.skillIds[skillId] == true
 end
 
 return skill_config
