@@ -27,6 +27,7 @@ function skill_constraints:init()
 	self:_registerReusabilityConstraintFunction()
 	self:_registerPlusExclusionInclusionConstraintFunction()
 	self:_registerSkillExclusionConstraintFunction()
+	self:_registerGroupExclusionConstraintFunction()
 	return self
 end
 
@@ -166,6 +167,34 @@ function skill_constraints:_registerSkillExclusionConstraintFunction()
 			end
 		end
 
+		return true
+	end)
+end
+
+-- This enforces group exclusions - only one skill from each group per pilot
+function skill_constraints:_registerGroupExclusionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- Skip if group exclusions are disabled
+		if not skill_config_module.config.enableGroupExclusions then
+			return true
+		end
+
+		local pilotId = pilot:getIdStr()
+
+		-- Find which groups the candidate skill belongs to
+		for groupName, group in pairs(skill_config_module.groups) do
+			-- Skip if group is disabled
+			if group.enabled and group.skillIds[candidateSkillId] then
+				-- Check if any already selected skill is in the same group
+				for _, selectedSkillId in pairs(selectedSkills) do
+					if group.skillIds[selectedSkillId] then
+						logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (group '%s' already has skill %s)",
+								candidateSkillId, pilotId, groupName, selectedSkillId)
+						return false
+					end
+				end
+			end
+		end
 		return true
 	end)
 end

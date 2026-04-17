@@ -118,19 +118,35 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
 	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
 
+	-- Constraint functions
 	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints:checkSkillConstraints(...) end
 	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints:registerConstraintFunction(...) end
 
+	-- Skill management functions
 	function cplus_plus_ex:registerSkill(...) return skill_registry:registerSkill(...) end
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
-
-	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
-	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
+	-- Getters for info
 	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
 	function cplus_plus_ex:getRelationshipMetadata(...) return skill_config:getRelationshipMetadata(...) end
+	-- Used by UI Only
+	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
+	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
 
+	-- Group management functions
+	function cplus_plus_ex:registerSkillToGroup(...) return skill_registry:registerSkillToGroup(...) end
+	-- Getters for info
+	function cplus_plus_ex:getGroup(...) return skill_config:getGroup(...) end
+	function cplus_plus_ex:listGroups(...) return skill_config:listGroups(...) end
+	-- Used by UI Only
+	function cplus_plus_ex:addGroupToRuntime(...) return skill_config:addGroupToRuntime(...) end
+	function cplus_plus_ex:deleteGroupFromRuntime(...) return skill_config:deleteGroupFromRuntime(...) end
+	function cplus_plus_ex:registerSkillToGroupToRuntime(...) return skill_config:registerSkillToGroupToRuntime(...) end
+	function cplus_plus_ex:removeSkillFromGroupFromRuntime(...) return skill_config:removeSkillFromGroupFromRuntime(...) end
+	function cplus_plus_ex:setGroupEnabled(...) return skill_config:setGroupEnabled(...) end
+
+	-- Skill assignment functions
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end
