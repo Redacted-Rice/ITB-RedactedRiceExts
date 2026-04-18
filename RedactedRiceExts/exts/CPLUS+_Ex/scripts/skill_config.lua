@@ -445,11 +445,11 @@ function skill_config:_rebuildGroups()
 	local count = 0
 	for _ in pairs(self.groups) do count = count + 1 end
 
-	logger.logInfo(SUBMODULE, "Rebuilt groups index: %d group(s)", count)
+	logger.logDebug(SUBMODULE, "Rebuilt groups index: %d group(s)", count)
 	for groupName, group in pairs(self.groups) do
 		local skillCount = 0
 		for _ in pairs(group.skillIds) do skillCount = skillCount + 1 end
-		logger.logInfo(SUBMODULE, "  Group '%s': %d skill(s), enabled=%s",
+		logger.logDebug(SUBMODULE, "  Group '%s': %d skill(s), enabled=%s",
 			groupName, skillCount, tostring(group.enabled))
 	end
 end

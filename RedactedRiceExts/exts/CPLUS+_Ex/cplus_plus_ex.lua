@@ -103,7 +103,6 @@ end
 -- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
 -- Returns the pawn struct if it exists and has Class == "TechnoVek", otherwise returns nil
 function cplus_plus_ex.getTechnoVekPawn(pilotId)
-	LOG("CHECK PILOT "..pilotId)
 	if not pilotId or type(pilotId) ~= "string" then
 		return nil
 	end
@@ -113,12 +112,10 @@ function cplus_plus_ex.getTechnoVekPawn(pilotId)
 	if not pawnName then
 		return nil
 	end
-	LOG("PAWN")
 	
 	-- Check if the pawn exists and is a TechnoVek
 	local pawn = _G[pawnName]
 	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
-		LOG("TECHO PAWN")
 		return pawn
 	end
 	
