@@ -100,6 +100,44 @@ function cplus_plus_ex:initModules()
 	modify_pilot_skills_ui:init()
 end
 
+-- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
+-- Returns the pawn struct if it exists and has Class == "TechnoVek", otherwise returns nil
+function cplus_plus_ex.getTechnoVekPawn(pilotId)
+	LOG("CHECK PILOT "..pilotId)
+	if not pilotId or type(pilotId) ~= "string" then
+		return nil
+	end
+	
+	-- Extract pawn name from pilot ID (e.g., "Pilot_BeetleMech" -> "BeetleMech")
+	local pawnName = pilotId:match("^Pilot_(.+)$")
+	if not pawnName then
+		return nil
+	end
+	LOG("PAWN")
+	
+	-- Check if the pawn exists and is a TechnoVek
+	local pawn = _G[pawnName]
+	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
+		LOG("TECHO PAWN")
+		return pawn
+	end
+	
+	return nil
+end
+
+-- Checks if a pilot ID corresponds to a cyborg pilot
+-- Cyborgs are identified by their pawn having Class == "TechnoVek"
+function cplus_plus_ex.isCyborg(pilotId)
+	return cplus_plus_ex.getTechnoVekPawn(pilotId) ~= nil
+end
+
+-- Checks if a pilot ID corresponds to a flying cyborg
+-- This checks both that the pilot is a cyborg AND that their pawn has Flying = true
+function cplus_plus_ex.isFlyingCyborg(pilotId)
+	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Flying == true
+end
+
 function cplus_plus_ex:exposeAPI()
 	-- Expose commonly used submodules/data at root level for easier external access
 	self.hooks = hooks

@@ -16,6 +16,8 @@ local utils = nil
 
 -- Module state
 skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability, icon}
+skill_registry.pilotExclusionFunctions = {}  -- skillId -> array of functions(pilotId) that return true if pilot should be excluded
+skill_registry.pilotInclusionFunctions = {}  -- skillId -> array of functions(pilotId) that return true if pilot should be included
 
 -- Initialize the module
 function skill_registry:init()
@@ -28,8 +30,14 @@ end
 
 -- Called after all mods are loaded
 function skill_registry:_postModsLoaded()
+	-- Get all pilot IDs
+	local allPilotIds = utils.searchForAllPilotIds()
+	
 	-- Read vanilla pilot exclusions to support vanilla API
-	self:_readPilotExclusionsFromGlobal()
+	self:_readPilotExclusionsFromGlobal(allPilotIds)
+	
+	-- Expand function based pilot exclusions/inclusions into actual pilot IDs
+	self:_expandPilotConstraintFunctions(allPilotIds)
 end
 
 -- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
@@ -185,16 +193,23 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 				end
 			end
 
-			-- Register pilot exclusions
+			-- Register pilot exclusions (can be strings or functions)
 			if constraints.pilotExclusions ~= nil then
 				if type(constraints.pilotExclusions) == "string" then
 					self:registerPilotSkillExclusions(constraints.pilotExclusions, id)
 				elseif type(constraints.pilotExclusions) == "table" then
-					for _, pilotId in ipairs(constraints.pilotExclusions) do
-						if type(pilotId) == "string" then
-							self:registerPilotSkillExclusions(pilotId, id)
+					for _, pilotIdOrFn in ipairs(constraints.pilotExclusions) do
+						if type(pilotIdOrFn) == "string" then
+							self:registerPilotSkillExclusions(pilotIdOrFn, id)
+						elseif type(pilotIdOrFn) == "function" then
+							-- Store function based exclusions separately
+							if not self.pilotExclusionFunctions[id] then
+								self.pilotExclusionFunctions[id] = {}
+							end
+							table.insert(self.pilotExclusionFunctions[id], pilotIdOrFn)
+							logger.logDebug(SUBMODULE, "Registered function based pilot exclusion for skill '%s'", id)
 						else
-							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot ID in exclusions (must be string). Ignoring.", id)
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot exclusion (must be string or function). Ignoring.", id)
 						end
 					end
 				else
@@ -202,16 +217,23 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 				end
 			end
 
-			-- Register pilot inclusions
+			-- Register pilot inclusions (can be strings or functions)
 			if constraints.pilotInclusions ~= nil then
 				if type(constraints.pilotInclusions) == "string" then
 					self:registerPilotSkillInclusions(constraints.pilotInclusions, id)
 				elseif type(constraints.pilotInclusions) == "table" then
-					for _, pilotId in ipairs(constraints.pilotInclusions) do
-						if type(pilotId) == "string" then
-							self:registerPilotSkillInclusions(pilotId, id)
+					for _, pilotIdOrFn in ipairs(constraints.pilotInclusions) do
+						if type(pilotIdOrFn) == "string" then
+							self:registerPilotSkillInclusions(pilotIdOrFn, id)
+						elseif type(pilotIdOrFn) == "function" then
+							-- Store function based inclusions separately
+							if not self.pilotInclusionFunctions[id] then
+								self.pilotInclusionFunctions[id] = {}
+							end
+							table.insert(self.pilotInclusionFunctions[id], pilotIdOrFn)
+							logger.logDebug(SUBMODULE, "Registered function based pilot inclusion for skill '%s'", id)
 						else
-							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot ID in inclusions (must be string). Ignoring.", id)
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot inclusion (must be string or function). Ignoring.", id)
 						end
 					end
 				else
@@ -304,7 +326,7 @@ end
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
 -- This maintains the vanilla method of defining pilot exclusions to be compatible
 -- without any specific changes for using this extension
-function skill_registry:_readPilotExclusionsFromGlobal()
+function skill_registry:_readPilotExclusionsFromGlobal(allPilotIds)
 	if _G.Pilot == nil then
 		logger.logError(SUBMODULE, "Pilot class not found, skipping exclusion registration")
 		return
@@ -313,26 +335,63 @@ function skill_registry:_readPilotExclusionsFromGlobal()
 	local pilotCount = 0
 	local exclusionCount = 0
 
-	-- Scan _G for all Pilot instances using metatable check
-	-- This assumes all pilots are created via Pilot:new (e.g. via CreatePilot()) which
-	-- will automatically set the metatable to Pilot
-	for key, value in pairs(_G) do
-		if type(key) == "string" and type(value) == "table" and getmetatable(value) == _G.Pilot then
-			pilotCount = pilotCount + 1
+	for _, pilotId in pairs(allPilotIds) do
+		local pilot = _G[pilotId]
 
-			-- Check if the pilot has a Blacklist array
-			if value.Blacklist ~= nil and type(value.Blacklist) == "table" and #value.Blacklist > 0 then
-				-- Register the blacklist as auto loaded exclusions
-				self:registerPilotSkillExclusions(key, value.Blacklist)
-				exclusionCount = exclusionCount + 1
+		-- Check if the pilot has a Blacklist array
+		if pilot.Blacklist ~= nil and type(pilot.Blacklist) == "table" and #pilot.Blacklist > 0 then
+			-- Register the blacklist as auto loaded exclusions
+			self:registerPilotSkillExclusions(pilotId, pilot.Blacklist)
+			exclusionCount = exclusionCount + 1
 
-				logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #value.Blacklist, key)
+			logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #pilot.Blacklist, key)
+		end
+	end
+
+	logger.logInfo(SUBMODULE, "Scanned " .. #allPilotIds .. " pilot(s), registered exclusions for " ..
+			exclusionCount .. " pilot(s)")
+end
+
+-- Expands function based pilot constraints into actual pilot IDs after all mods are loaded
+function skill_registry:_expandPilotConstraintFunctions(allPilotIds)
+	if _G.Pilot == nil then
+		logger.logError(SUBMODULE, "Pilot class not found, skipping function expansion")
+		return
+	end
+	
+	local exclusionExpansions = 0
+	local inclusionExpansions = 0
+
+	-- Expand exclusion functions
+	for skillId, exclusionFns in pairs(self.pilotExclusionFunctions) do
+		for _, fn in ipairs(exclusionFns) do
+			for _, pilotId in ipairs(allPilotIds) do
+				if fn(pilotId) then
+					self:registerPilotSkillExclusions(pilotId, skillId)
+					exclusionExpansions = exclusionExpansions + 1
+					logger.logDebug(SUBMODULE, "Function expanded: excluded pilot %s from skill %s", pilotId, skillId)
+				end
 			end
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Scanned " .. pilotCount .. " pilot(s), registered exclusions for " ..
-			exclusionCount .. " pilot(s)")
+	-- Expand inclusion functions
+	for skillId, inclusionFns in pairs(self.pilotInclusionFunctions) do
+		for _, fn in ipairs(inclusionFns) do
+			for _, pilotId in ipairs(allPilotIds) do
+				if fn(pilotId) then
+					self:registerPilotSkillInclusions(pilotId, skillId)
+					inclusionExpansions = inclusionExpansions + 1
+					logger.logDebug(SUBMODULE, "Function expanded: included pilot %s for skill %s", pilotId, skillId)
+				end
+			end
+		end
+	end
+
+	if exclusionExpansions > 0 or inclusionExpansions > 0 then
+		logger.logInfo(SUBMODULE, "Expanded pilot constraint functions: %d exclusions, %d inclusions", 
+				exclusionExpansions, inclusionExpansions)
+	end
 end
 
 return skill_registry
