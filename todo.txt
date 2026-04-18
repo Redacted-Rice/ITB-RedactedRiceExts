@@ -16,25 +16,13 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 For 1.1 Release:
-1. First & second slot only skills
-2. Categoricial/pool based exclusions - e.g. movement, boosted, armor, etc
-3. Skill default functions - e.g. isNotCyborg for Popular Hero
-4. Specifying defaults for things like weight and reusublity (separate for lowest possible)
-5. Hijack AddPilot to avoid searching _G for pilots?
-6. Modify to allow for selecting specific skills easily in code and selecting more than 2
-7. Max cap on skill awarded Grid Def. Defaults to 40. Configurable
+Testing
 
 
 1.2 Release:
-1. Add support for multiple pilots with same ID?
-2. Squad inclusions/exclusions
-3. Move to GetText to be consistent/allow localization
-4. Add auto support of "auto-dictonarying" skill strings
-	Mostly just replacing test with GetText and adding a SetText. Can probably try calling GetText to see if it exists first
-5. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
-6. Consider per pilot weights? Maybe have a drop down for switching between all pilots and a specific one?
-	Could potential make for some unique pilot "skills" where they are more likely to get good skills or something
-	or giving better chances (or worse) for generic corp pilots
+1. Squad bases exclusions/inclusions
+2. Modify to allow for selecting specific skills easily in code and selecting more than 2
+3. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
 
 
 ---------- Mech Upgrades Ex ---------
