@@ -47,8 +47,8 @@ local SLOT_RESTRICTION_DESCRIPTIONS = {
 	"Can only appear in the second skill slot"
 }
 local SLOT_RESTRICTION_TOOLTIP = "Which skill slot this skill can appear in"
-local TOTAL_WEIGHT_HEADER = "Total: %.1f"
-local TOTAL_PERCENT_HEADER = "Total: %.1f%%"
+local TOTAL_WEIGHT_HEADER = "%.1f"
+local TOTAL_PERCENT_HEADER = "%.1f%%"
 local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
 local SECRET_PILOTS = {"Pilot_Mantis","Pilot_Rock","Pilot_Zoltan"}
 
@@ -1152,7 +1152,8 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 	-- Enable group exclusions checkbox
 	local enableGroupsCheckbox = UiCheckbox()
 		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("When enabled, only one skill from each enabled group can be assigned per pilot")
+		:settooltip("When unchecked, group constraints won't be applied. If checked, "..
+				"groups constraint will be applied for enabled groups")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
@@ -1362,7 +1363,7 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 		:widthpx(PILOT_SIZE - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
 	-- Always draw frame border, add portrait on top if available
-	local decorations = { DecoFrame() }
+	local decorations = { }
 
 	if pilotId and pilotId ~= "All" and pilotId ~= "" then
 		local portrait = self:getPilotPortrait(pilotId)
@@ -1386,7 +1387,7 @@ function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
 		:widthpx(iconWidth - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
 	-- Always draw frame border, add icon on top if available
-	local decorations = { DecoFrame() }
+	local decorations = {  }
 
 	if skillId and skillId ~= "All" and skillId ~= "" then
 		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
@@ -2139,7 +2140,8 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 	-- Enable/disable checkbox
 	local enableCheckbox = UiCheckbox()
 		:widthpx(270):heightpx(ROW_HEIGHT)
-		:settooltip("When checked, this group's exclusion is active")
+		:settooltip("When checked, if top level Enable Group Exclusions is also "..
+				"checked then only one skill from this group can be assigned per pilot")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
