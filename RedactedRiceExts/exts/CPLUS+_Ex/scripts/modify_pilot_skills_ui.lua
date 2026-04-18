@@ -190,6 +190,19 @@ local function rebuildDropdownItems(dropdown)
 
 		layout:add(item)
 	end
+
+	-- Clear the needs rebuild flag
+	dropdown.needsRebuild = false
+end
+
+-- Marks a dropdown as needing a rebuild next time it's opened
+local function markDropdownDirty(dropdown)
+	dropdown.needsRebuild = true
+
+	-- If dropdown is currently open, rebuild immediately
+	if dropdown.dropdown then
+		rebuildDropdownItems(dropdown)
+	end
 end
 
 -- Updates relationship dropdown contents when skill enabled state changes
@@ -252,12 +265,13 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 				includeTargetTooltips
 			)
 
-			-- Update dropdowns and rebuild their UI items
+			-- Update dropdown data
 			section.sourceDropdown:updateOptions(sourceVals, sourceDisplay)
-			rebuildDropdownItems(section.sourceDropdown)
-
 			section.targetDropdown:updateOptions(targetVals, targetDisplay)
-			rebuildDropdownItems(section.targetDropdown)
+
+			-- Mark dropdowns as needing rebuild
+			markDropdownDirty(section.sourceDropdown)
+			markDropdownDirty(section.targetDropdown)
 		end
 	end
 end
@@ -1440,6 +1454,16 @@ function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, 
 		self:_updateDropdownTooltip(dropDown, baseTooltip, listTooltips)
 	end)
 
+	-- Wrap createDropDown to rebuild items if dirty when opened
+	local originalCreateDropDown = dropDown.createDropDown
+	dropDown.createDropDown = function(self)
+		originalCreateDropDown(self)
+		-- Rebuild items if they were marked as needing update
+		if self.needsRebuild then
+			rebuildDropdownItems(self)
+		end
+	end
+
 	return dropDown
 end
 
@@ -2238,6 +2262,16 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 		selectedSkillId = newValue
 	end)
 
+	-- Wrap createDropDown to rebuild items if dirty when opened
+	local originalCreateDropDown = addSkillDropdown.createDropDown
+	addSkillDropdown.createDropDown = function(self)
+		originalCreateDropDown(self)
+		-- Rebuild items if they were marked as needing update
+		if self.needsRebuild then
+			rebuildDropdownItems(self)
+		end
+	end
+
 	local btnAddSkill = sdlext.buildButton(
 		"Add Skill",
 		"Add selected skill to this group",
@@ -2408,9 +2442,11 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 					table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
 				end
 
-				-- Update dropdown and rebuild its UI items
+				-- Update dropdown data
 				section.addSkillDropdown:updateOptions(availableSkills, availableSkillsDisplay)
-				rebuildDropdownItems(section.addSkillDropdown)
+
+				-- Mark dropdown as needing rebuild
+				markDropdownDirty(section.addSkillDropdown)
 			end
 		end
 	end
