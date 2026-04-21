@@ -276,56 +276,14 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 	end
 end
 
--- Updates the needed fields after a skill toggles on or off
-function modify_pilot_skills_ui:updateAfterSkillToggle(skillId)
-	-- Check if skill is a source in any relationships - only rebuild if so
-	local isRelationshipSource = false
-
-	for relationshipType, _ in pairs(cplus_plus_ex.config) do
-		if relationshipType == "pilotSkillExclusions" or
-		   relationshipType == "pilotSkillInclusions" or
-		   relationshipType == "skillExclusions" then
-			local relTable = cplus_plus_ex.config[relationshipType]
-			if relTable and relTable[skillId] then
-				isRelationshipSource = true
-				break
-			end
-		end
-	end
-
-	-- Only rebuild relationship sections if this skill is a source
-	-- Otherwise just update dropdowns
-	if isRelationshipSource then
-		for relationshipType, section in pairs(relationshipSections) do
-			if section.rebuildFunc then
-				section.rebuildFunc()
-			end
-		end
-	end
-
-	-- Check if skill is in any groups - if so, rebuild only those specific group grids
-	for groupName, section in pairs(groupSections) do
-		local group = cplus_plus_ex:getGroup(groupName)
-		if group and group.skillIds and group.skillIds[skillId] then
-			if section.rebuildFunc then
-				section.rebuildFunc()
-			end
-		end
-	end
-
+-- Called when a skill is enabled or disabled in the Skills Configuration section
+function modify_pilot_skills_ui:skillEnableChanged(skillId, enabled)
+	logger.logInfo(SUBMODULE, "skillEnableChanged called: skillId=%s, enabled=%s", skillId, tostring(enabled))
 	-- Always update dropdowns to reflect the enabled/disabled state
 	self:updateRelationshipDropdowns()
 	self:updateGroupDropdowns()
 end
 
--- Rebuild all relationship sections when needed
-function modify_pilot_skills_ui:rebuildAllRelationships()
-	if relationshipsContainer and relationshipsParent then
-		relationshipSections = {}
-		relationshipsContainer:detach()
-		self:buildRelationships(relationshipsParent)
-	end
-end
 
 function modify_pilot_skills_ui:init()
 	utils = cplus_plus_ex._subobjects.utils
@@ -857,8 +815,8 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			onToggleCallback()
 		end
 
-		-- Rebuild only affected sections using cached rebuild functions
-		self:updateAfterSkillToggle(skill.id)
+		-- Notify that skill enabled state changed
+		self:skillEnableChanged(skill.id, checked)
 	end)
 
 	return enabledCheckbox
@@ -882,68 +840,6 @@ function modify_pilot_skills_ui:_applyWeightChange(weightInput, skill)
 	end
 end
 
--- Sort skills based on current sort option
-function modify_pilot_skills_ui:_sortSkillsByCurrentSort(skills, currentSkillSort)
-	local sortedSkills = {}
-	for _, skill in ipairs(skills) do
-		-- Only include valid skill objects with an id
-		if skill and skill.id then
-			table.insert(sortedSkills, skill)
-		end
-	end
-
-	table.sort(sortedSkills, function(a, b)
-		-- Safety checks
-		if not a or not a.id then return false end
-		if not b or not b.id then return true end
-
-		local aConfig = cplus_plus_ex.config.skillConfigs[a.id]
-		local bConfig = cplus_plus_ex.config.skillConfigs[b.id]
-
-		-- Get names
-		local aName = ""
-		if a.shortName then
-			aName = GetText(a.shortName) or a.shortName or ""
-		end
-		local bName = ""
-		if b.shortName then
-			bName = GetText(b.shortName) or b.shortName or ""
-		end
-
-		-- Fallback to name if either config is missing
-		if not aConfig or not bConfig then
-			return aName:lower() < bName:lower()
-		end
-
-		-- 1 falls down to the default (name)
-		-- Each option sorts primary then falls back to name (secondary)
-		if currentSkillSort == 2 then
-			-- Sort by enabled then name
-			if aConfig.enabled ~= bConfig.enabled then
-				return aConfig.enabled
-			end
-		elseif currentSkillSort == 3 then
-			-- Sort by reusability then name
-			if aConfig.reusability ~= bConfig.reusability then
-				return aConfig.reusability < bConfig.reusability
-			end
-		elseif currentSkillSort == 4 then
-			-- Sort by slot restriction then name
-			if aConfig.slotRestriction ~= bConfig.slotRestriction then
-				return aConfig.slotRestriction < bConfig.slotRestriction
-			end
-		elseif currentSkillSort == 5 then
-			-- Sort by Weight/% then name
-			if aConfig.weight ~= bConfig.weight then
-				return aConfig.weight > bConfig.weight
-			end
-		end
-		-- Fallback to name
-		return aName:lower() < bName:lower()
-	end)
-
-	return sortedSkills
-end
 
 -- Update tooltip for a dropdown with base message and choice-specific tooltip
 function modify_pilot_skills_ui:_updateDropdownTooltip(widget, baseTooltip, tooltips)
@@ -1177,21 +1073,10 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 end
 
 function modify_pilot_skills_ui:buildSkillsList(scrollContent)
-	-- Add sort options to Skills Configuration header
-	local sortOptions = {"Name", "Enabled", REUSABLILITY_HEADER, SLOT_RESTRICTION_HEADER, "Weight/%"}
-	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, sortOptions)
+	-- Build skills configuration section without sort dropdown - always sort alphabetically
+	local skillsContent = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, nil)
 
 	local skillLength, reuseabilityLength, slotRestrictionLength = self:_determineColumnLengths()
-
-	-- Track current sort option
-	-- 1 = Name, 2 = Enabled, 3 = Reusability, 4 = Slot, 5 = Weight/%
-	local currentSkillSort = cplus_plus_ex.config.skillConfigSortOrder or 1
-
-	-- Set initial dropdown value
-	if skillsSortDropdown then
-		skillsSortDropdown.value = currentSkillSort
-		skillsSortDropdown.choice = currentSkillSort
-	end
 
 	-- Get all skills organized by category
 	local skillsByCategory = self:getSkillsByCategory()
@@ -1203,156 +1088,104 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	end
 	table.sort(sortedCategories)
 
-	-- Function to rebuild all categories with current sort
-	local function rebuildSkillCategories()
-		-- Clear existing content but keep header
-		while #skillsContent.children > 0 do
-			skillsContent.children[#skillsContent.children]:detach()
+	-- Build each category section - always sorted alphabetically by name
+	for _, category in ipairs(sortedCategories) do
+		-- Skills within categories are already sorted alphabetically in getSkillsByCategory
+		local skills = skillsByCategory[category]
+		-- Use saved collapse state if available, default to expanded (false = not collapsed)
+		local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
+		local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, slotRestrictionLength, startCollapsed)
+
+		-- Track checkboxes for this category
+		local categorySkillCheckboxes = {}
+
+		-- Method to update category checkbox state based on children
+		categoryCheckbox.updateCheckedState = function(cc)
+			local enabledCount = 0
+			local totalCount = #categorySkillCheckboxes
+
+			for _, entry in ipairs(categorySkillCheckboxes) do
+				local skillConfig = cplus_plus_ex.config.skillConfigs[entry.skillId]
+				if skillConfig and skillConfig.enabled then
+					enabledCount = enabledCount + 1
+				end
+			end
+
+			-- Set tri state based on enabled count
+			if enabledCount == totalCount and totalCount > 0 then
+				cc.checked = true
+			elseif enabledCount == 0 then
+				cc.checked = false
+			else
+				cc.checked = "mixed"
+			end
 		end
 
-		-- Clear tracking tables for fresh rebuild
-		percentageLabels = {}
-		categoryHeaderLabels = {}
+		-- Update all child checkboxes
+		categoryCheckbox.updateChildrenCheckedState = function(cc)
+			local profile = profileStart("updateChildrenCheckedState(category)")
+			local newState = (cc.checked == true)
 
-		-- Build each category section
-		for _, category in ipairs(sortedCategories) do
-			local skills = self:_sortSkillsByCurrentSort(skillsByCategory[category], currentSkillSort)
-			-- Use saved collapse state if available, default to expanded (false = not collapsed)
-			local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
-			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, slotRestrictionLength, startCollapsed)
-
-			-- Track checkboxes for this category
-			local categorySkillCheckboxes = {}
-
-			-- Method to update category checkbox state based on children
-			categoryCheckbox.updateCheckedState = function(cc)
-				local enabledCount = 0
-				local totalCount = #categorySkillCheckboxes
-
-				for _, entry in ipairs(categorySkillCheckboxes) do
-					local skillConfig = cplus_plus_ex.config.skillConfigs[entry.skillId]
-					if skillConfig and skillConfig.enabled then
-						enabledCount = enabledCount + 1
-					end
-				end
-
-				-- Set tri-state based on enabled count
-				if enabledCount == totalCount and totalCount > 0 then
-					cc.checked = true
-				elseif enabledCount == 0 then
-					cc.checked = false
+			-- Batch update all skills in category without triggering individual updates
+			for _, entry in ipairs(categorySkillCheckboxes) do
+				if newState then
+					cplus_plus_ex:enableSkill(entry.skillId, true)
 				else
-					cc.checked = "mixed"
+					cplus_plus_ex:disableSkill(entry.skillId, true)
+				end
+				entry.checkbox.checked = newState
+			end
+
+			-- Now update UI once for the entire category change
+			for relationshipType, section in pairs(relationshipSections) do
+				if section.populateFunc then
+					section.populateFunc()
 				end
 			end
 
-			-- Update all child checkboxes
-			categoryCheckbox.updateChildrenCheckedState = function(cc)
-				local newState = (cc.checked == true)
-
-				-- Track if any toggled skills are relationship sources
-				local needsRelationshipRebuild = false
-				local affectedGroups = {}
-
-				for _, entry in ipairs(categorySkillCheckboxes) do
-					if newState then
-						cplus_plus_ex:enableSkill(entry.skillId, true)
-					else
-						cplus_plus_ex:disableSkill(entry.skillId, true)
-					end
-					entry.checkbox.checked = newState
-
-					-- Check if this skill is a relationship source
-					for relationshipType, _ in pairs(cplus_plus_ex.config) do
-						if relationshipType == "pilotSkillExclusions" or
-						   relationshipType == "pilotSkillInclusions" or
-						   relationshipType == "skillExclusions" then
-							local relTable = cplus_plus_ex.config[relationshipType]
-							if relTable and relTable[entry.skillId] then
-								needsRelationshipRebuild = true
-							end
-						end
-					end
-
-					-- Track which groups contain this skill
-					for groupName, section in pairs(groupSections) do
-						local group = cplus_plus_ex:getGroup(groupName)
-						if group and group.skillIds and group.skillIds[entry.skillId] then
-							affectedGroups[groupName] = section
-						end
-					end
+			for groupName, section in pairs(groupSections) do
+				if section.populateFunc then
+					section.populateFunc()
 				end
-
-				self:updateAllPercentages()
-				cplus_plus_ex:saveConfiguration()
-
-				-- Only rebuild relationship sections if needed
-				if needsRelationshipRebuild then
-					for relationshipType, section in pairs(relationshipSections) do
-						if section.rebuildFunc then
-							section.rebuildFunc()
-						end
-					end
-				end
-
-				-- Only rebuild affected group sections
-				for groupName, section in pairs(affectedGroups) do
-					if section.rebuildFunc then
-						section.rebuildFunc()
-					end
-				end
-
-				-- Always update dropdowns
-				self:updateRelationshipDropdowns()
-				self:updateGroupDropdowns()
 			end
 
-			-- Build skill entries
-			for _, skill in ipairs(skills) do
-				local onToggleCallback = function()
-					categoryCheckbox:updateCheckedState()
-				end
-
-				local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, slotRestrictionLength, onToggleCallback)
-					:addTo(categoryContent)
-
-				-- Track the skill's enable checkbox for category updates
-				table.insert(categorySkillCheckboxes, {
-					skillId = skill.id,
-					checkbox = skillEntry.enableCheckbox
-				})
-			end
-
-			-- Category checkbox click hanupdateChildrenCheckedStatedler
-			categoryCheckbox.onclicked = function(cc, button)
-				if button == 1 then
-					cc:updateChildrenCheckedState()
-					cc:updateCheckedState()
-					return true
-				end
-				return false
-			end
-
-			-- Initial state
-			categoryCheckbox:updateCheckedState()
-		end
-	end
-
-	-- Subscribe to sort dropdown changes
-	if skillsSortDropdown then
-		skillsSortDropdown.optionSelected:subscribe(function(_, _, choice, value)
-			currentSkillSort = value
-			-- Save sort order preference
-			cplus_plus_ex.config.skillConfigSortOrder = value
-			cplus_plus_ex:saveConfiguration()
-			rebuildSkillCategories()
-			-- Update percentages after rebuild
+			self:updateRelationshipDropdowns()
+			self:updateGroupDropdowns()
 			self:updateAllPercentages()
-		end)
-	end
+			cplus_plus_ex:saveConfiguration()
 
-	-- Initial build
-	rebuildSkillCategories()
+			profileEnd(profile)
+		end
+
+		-- Build skill entries
+		for _, skill in ipairs(skills) do
+			local onToggleCallback = function()
+				categoryCheckbox:updateCheckedState()
+			end
+
+			local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, slotRestrictionLength, onToggleCallback)
+				:addTo(categoryContent)
+
+			-- Track the skill's enable checkbox for category updates
+			table.insert(categorySkillCheckboxes, {
+				skillId = skill.id,
+				checkbox = skillEntry.enableCheckbox
+			})
+		end
+
+		-- Category checkbox click handler
+		categoryCheckbox.onclicked = function(cc, button)
+			if button == 1 then
+				cc:updateChildrenCheckedState()
+				cc:updateCheckedState()
+				return true
+			end
+			return false
+		end
+
+		-- Initial state
+		categoryCheckbox:updateCheckedState()
+	end
 
 	-- Initial percentage calculation
 	self:updateAllPercentages()

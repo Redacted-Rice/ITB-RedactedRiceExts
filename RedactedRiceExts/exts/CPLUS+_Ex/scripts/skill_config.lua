@@ -88,7 +88,6 @@ end
 skill_config.config = {
 	allowReusableSkills = false, -- will be set on load by options but default to vanilla
 	skillConfigs = {}, -- skillId -> enabled, weight, reusability, slotRestriction
-	skillConfigSortOrder = 1, -- 1=Name, 2=Enabled, 3=Reusability, 4=Slot, 5=Weight/%
 	categoryCollapseStates = {}, -- category name -> collapsed state
 	enableGroupExclusions = true, -- Main toggle for group exclusions
 	emptyGroups = {}, -- groupName -> true for manually created empty groups
@@ -601,11 +600,6 @@ function skill_config:loadConfiguration()
 				-- Update simple boolean flags
 				if savedConfig.allowReusableSkills ~= nil then
 					skill_config.config.allowReusableSkills = savedConfig.allowReusableSkills
-				end
-
-				-- Update UI sort preferences
-				if savedConfig.skillConfigSortOrder then
-					skill_config.config.skillConfigSortOrder = savedConfig.skillConfigSortOrder
 				end
 
 				-- Load relationship sort orders and added/removed tables
