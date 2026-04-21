@@ -105,7 +105,7 @@ for relType, keys in pairs(relationshipConfigKeys) do
 	skill_config.config[relType] = {}  -- Active runtime relationships
 	skill_config.config[keys.added] = {}  -- User added relationships
 	skill_config.config[keys.removed] = {}  -- User removed, code defined relationships
-	skill_config.config[keys.sortOrder] = 1  -- Sort order
+	skill_config.config[keys.sortOrder] = 1  -- Sort order (1 = first column, 2 = second column)
 end
 
 -- Code defined relationships which are read and set during registration but not
