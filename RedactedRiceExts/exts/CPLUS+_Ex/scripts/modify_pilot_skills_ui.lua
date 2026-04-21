@@ -14,17 +14,19 @@ local scrollContent = nil
 local percentageLabels = {}
 local expandedCollapsables = {}
 local categoryHeaderLabels = {}
-local relationshipsContainer = nil
-local relationshipsParent = nil
 
 -- Cache for relationship sections to enable efficient dropdown updates
-local relationshipSections = {} -- [relationshipType] = {container, sourceDropdown, targetDropdown, relationshipType, sourceLabel, targetLabel, rebuildFunc}
+local relationshipSections = {} -- [relationshipType] = {container, sourceDropdown, targetDropdown, relationshipType, sourceLabel, targetLabel, relationshipRows, populateFunc, sortDropdown}
+-- Maps to store precreated UI elements for relationships
+local relationshipRows = {} -- [relationshipType] = {[sourceId|targetId] = {row, sourceId, targetId}}
 
 -- Cache for group sections to enable efficient dropdown updates
 local groupsContainer = nil
 local groupsParent = nil
 local groupsContentContainer = nil
-local groupSections = {} -- [groupName] = {container, addSkillDropdown, rebuildFunc}
+local groupSections = {} -- [groupName] = {container, addSkillDropdown, gridContainer, cells, populateFunc}
+local groupCells = {} -- [groupName] = {[skillId] = {cell, skillId}}
+local newlyAddedGroups = {} -- Track newly added groups to show at top
 
 -- Surface cache to avoid recreating images
 local surfaceCache = {}
@@ -279,6 +281,21 @@ end
 -- Called when a skill is enabled or disabled in the Skills Configuration section
 function modify_pilot_skills_ui:skillEnableChanged(skillId, enabled)
 	logger.logInfo(SUBMODULE, "skillEnableChanged called: skillId=%s, enabled=%s", skillId, tostring(enabled))
+
+	-- Repopulate all relationship sections
+	for relationshipType, section in pairs(relationshipSections) do
+		if section.populateFunc then
+			section.populateFunc()
+		end
+	end
+
+	-- Repopulate all group sections showing/hiding cells based on enabled state
+	for groupName, section in pairs(groupSections) do
+		if section.populateFunc then
+			section.populateFunc()
+		end
+	end
+
 	-- Always update dropdowns to reflect the enabled/disabled state
 	self:updateRelationshipDropdowns()
 	self:updateGroupDropdowns()
@@ -1361,7 +1378,6 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 	local title = metadata.title
 	local sectionTooltip = metadata.tooltip
-	local sortConfigKey = metadata.sortOrder
 	local sourceLabel = metadata.sourceLabel
 	local targetLabel = metadata.targetLabel
 	local isBidirectional = metadata.isBidirectional
@@ -1400,13 +1416,16 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local sortOptions = {"First Column", "Second Column"}
 	local sectionContainer, sortDropdown = self:buildCollapsibleSection(title, parent, itemSpacing, itemSpacing, false, sectionTooltip, sortOptions)
 
+	-- Get metadata for sort order config key
+	local sortConfigKey = metadata.sortOrder
+
 	-- State for the add dropdowns and sorting
 	local selectedSource = listVals[1]
 	local selectedTarget = targetListVals[1]
 	local currentSourceImage = nil
 	local currentTargetImage = nil
-	local sortColumn = cplus_plus_ex.config[sortConfigKey] or 1  -- Load saved sort order (1 = source, 2 = target)
-	local newlyAddedRelationships = {}  -- Track newly added items to show at top
+	local sortColumn = cplus_plus_ex.config[sortConfigKey] or 1  -- Load saved sort order
+	local newlyAddedRelationships = {}  -- Track newly added items to show at top  which will cleared on next repopulate
 
 	-- Set initial dropdown value
 	if sortDropdown then
@@ -1414,15 +1433,19 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		sortDropdown.choice = sortColumn
 	end
 
-	-- Ideally i'd avoid the circular dependency but for simplicity I'm
-	-- just predefnining the fn
-	local rebuildRelationshipList
+	-- Initialize relationship rows map for this type
+	if not relationshipRows[relationshipType] then
+		relationshipRows[relationshipType] = {}
+	end
+	local rowsMap = relationshipRows[relationshipType]
 
-	-- Helper function to build a single relationship row
-	local function buildRelationshipRow(sourceId, targetId)
+	-- Forward declare populate function
+	local populateRelationshipList
+
+	-- Helper function to create a single relationship row UI element
+	local function createRelationshipRow(sourceId, targetId)
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
-			:addTo(sectionContainer)
 
 		-- Pilot portrait if its a pilot
 		if sourceLabel == "Pilot" then
@@ -1459,25 +1482,34 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
 				end
 
-				-- Save and rebuild
+				-- Remove UI element from map
+				local key = sourceId .. "|" .. targetId
+				if rowsMap[key] then
+					rowsMap[key].row:detach()
+					rowsMap[key] = nil
+				end
+
+				-- Save and repopulate
 				cplus_plus_ex:saveConfiguration()
-				rebuildRelationshipList()
+				populateRelationshipList()
 				return true
 			end
 		)
 		btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
 			:heightpx(ROW_HEIGHT)
 			:addTo(entryRow)
+
+		return entryRow
 	end
 
-	-- Function to rebuild the list of existing relationships
-	rebuildRelationshipList = function()
+	-- Function to populate/repopulate the list using existing UI elements
+	populateRelationshipList = function()
 		-- Clear existing list (remove all but the add row)
 		while #sectionContainer.children > 1 do
 			sectionContainer.children[#sectionContainer.children]:detach()
 		end
 
-		-- Collect all relationships into a list for sorting
+		-- Collect all relationships into lists for sorting
 		local relationshipList = {}
 		local newItemsList = {}
 
@@ -1486,19 +1518,29 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				-- Only show relationships where both source and target are enabled
 				if self:isItemEnabled(sourceId) and self:isItemEnabled(targetId) then
 					local key = sourceId .. "|" .. targetId
-					local relationship = {sourceId = sourceId, targetId = targetId}
+					-- Ensure UI element exists for this relationship
+					if not rowsMap[key] then
+						rowsMap[key] = {
+							row = createRelationshipRow(sourceId, targetId),
+							sourceId = sourceId,
+							targetId = targetId
+						}
+					end
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
-						table.insert(newItemsList, relationship)
+						table.insert(newItemsList, {sourceId = sourceId, targetId = targetId, key = key})
 					else
-						table.insert(relationshipList, relationship)
+						table.insert(relationshipList, {sourceId = sourceId, targetId = targetId, key = key})
 					end
 				end
 			end
 		end
 
-		-- Sort only the non-new items based on the selected column
+		-- Clear newly added tracking so next repopulate they go to natural order
+		newlyAddedRelationships = {}
+
+		-- Sort non new items based on current sort column
 		table.sort(relationshipList, function(a, b)
 			if sortColumn == 1 then
 				-- Sort by source then target
@@ -1525,14 +1567,14 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 		end)
 
-		-- Build newly added items first
+		-- Add newly added items first (at the top)
 		for _, relationship in ipairs(newItemsList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId)
+			rowsMap[relationship.key].row:addTo(sectionContainer)
 		end
 
-		-- Build sorted items
+		-- Add sorted rows back to container
 		for _, relationship in ipairs(relationshipList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId)
+			rowsMap[relationship.key].row:addTo(sectionContainer)
 		end
 
 		-- Spacer
@@ -1704,16 +1746,24 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 							cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
 						end
 
-						-- Mark as newly added to show at top
+						-- Create UI element for this relationship and mark as newly added
 						local key = sourceId .. "|" .. targetId
+						if not rowsMap[key] then
+							rowsMap[key] = {
+								row = createRelationshipRow(sourceId, targetId),
+								sourceId = sourceId,
+								targetId = targetId
+							}
+						end
+						-- Mark as newly added to show at top
 						newlyAddedRelationships[key] = true
 					end
 				end
 			end
 
-			-- Save and rebuild
+			-- Save and repopulate
 			cplus_plus_ex:saveConfiguration()
-			rebuildRelationshipList()
+			populateRelationshipList()
 			return true
 		end
 	)
@@ -1730,14 +1780,15 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			cplus_plus_ex:saveConfiguration()
 			-- Clear newly added tracking when sort changes
 			newlyAddedRelationships = {}
-			rebuildRelationshipList()
+			-- Repopulate with new sort order
+			populateRelationshipList()
 		end)
 	end
 
 	-- Build initial list
-	rebuildRelationshipList()
+	populateRelationshipList()
 
-	-- Cache the section container and rebuild function for efficient updates
+	-- Cache the section container and populate function for efficient updates
 	relationshipSections[relationshipType] = {
 		container = sectionContainer,
 		sourceDropdown = sourceDropdown,
@@ -1745,23 +1796,14 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		relationshipType = relationshipType,
 		sourceLabel = sourceLabel,
 		targetLabel = targetLabel,
-		rebuildFunc = function()
-			-- Clear and rebuild this section's list
-			-- Keep everything except the add row which is the first child
-			while #sectionContainer.children > 1 do
-				sectionContainer.children[#sectionContainer.children]:detach()
-			end
-			rebuildRelationshipList()
-		end
+		relationshipRows = rowsMap,
+		populateFunc = populateRelationshipList,
+		sortDropdown = sortDropdown
 	}
 end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP)
-
-	-- Store reference to the entire section box (parent of content) for rebuilding
-	relationshipsContainer = relationshipsContent.parent
-	relationshipsParent = scrollContent
 
 	-- Get lists for dropdowns (now includes sorted IDs)
 	local pilotData, pilotIdsSorted = self:getPilotsData()
@@ -1855,8 +1897,12 @@ function modify_pilot_skills_ui:buildGroups(parent)
 			cplus_plus_ex.config.groupsCollapseStates[groupName] = false
 			newGroupInput.textfield = ""
 			cplus_plus_ex:saveConfiguration()
-			-- Rebuild only group sections
-			self:rebuildGroupsOnly()
+			-- Build section for new group
+			self:buildGroupSection(groupsContentContainer, groupName)
+			-- Mark as newly added
+			newlyAddedGroups[groupName] = true
+			-- Repopulate all groups
+			self:populateAllGroups()
 			return true
 		end
 	)
@@ -1889,8 +1935,12 @@ function modify_pilot_skills_ui:buildGroups(parent)
 	gridSizeDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 		cplus_plus_ex.config.groupsItemsPerRow = newValue
 		cplus_plus_ex:saveConfiguration()
-		-- Rebuild only group sections
-		self:rebuildGroupsOnly()
+		-- Repopulate all groups with new grid size
+		for groupName, section in pairs(groupSections) do
+			if section.populateFunc then
+				section.populateFunc()
+			end
+		end
 	end)
 
 	-- Content container for group sections
@@ -1903,35 +1953,66 @@ function modify_pilot_skills_ui:buildGroups(parent)
 	self:buildGroupSections()
 end
 
--- Rebuild only the group sections, not the entire groups UI
-function modify_pilot_skills_ui:rebuildGroupsOnly()
-	if groupsContentContainer then
-		-- Clear group caches
-		groupSections = {}
-
-		-- Clear all children from the content container
-		while #groupsContentContainer.children > 0 do
-			groupsContentContainer.children[#groupsContentContainer.children]:detach()
-		end
-
-		-- Rebuild the group sections in place
-		self:buildGroupSections()
-	end
-end
-
 -- Build all group sections
 function modify_pilot_skills_ui:buildGroupSections()
 	if not groupsContentContainer then return end
 
 	local groupNames = cplus_plus_ex:listGroups()
 
-	-- If no groups, just return without adding any UI
-	if #groupNames == 0 then
-		return
-	end
-
+	-- Build sections for all groups
 	for _, groupName in ipairs(groupNames) do
 		self:buildGroupSection(groupsContentContainer, groupName)
+	end
+
+	-- Initial populate
+	self:populateAllGroups()
+end
+
+-- Populate/repopulate all group sections
+function modify_pilot_skills_ui:populateAllGroups()
+	if not groupsContentContainer then return end
+
+	-- Clear container
+	while #groupsContentContainer.children > 0 do
+		groupsContentContainer.children[#groupsContentContainer.children]:detach()
+	end
+
+	local groupNames = cplus_plus_ex:listGroups()
+	local newGroups = {}
+	local existingGroups = {}
+
+	-- Separate newly added from existing
+	for _, groupName in ipairs(groupNames) do
+		if newlyAddedGroups[groupName] then
+			table.insert(newGroups, groupName)
+		else
+			table.insert(existingGroups, groupName)
+		end
+	end
+
+	-- Clear newly added tracking
+	newlyAddedGroups = {}
+
+	-- Add newly added groups first
+	for _, groupName in ipairs(newGroups) do
+		if groupSections[groupName] then
+			groupSections[groupName].container:addTo(groupsContentContainer)
+			-- Populate this group's grid
+			if groupSections[groupName].populateFunc then
+				groupSections[groupName].populateFunc()
+			end
+		end
+	end
+
+	-- Add existing groups in sorted order
+	for _, groupName in ipairs(existingGroups) do
+		if groupSections[groupName] then
+			groupSections[groupName].container:addTo(groupsContentContainer)
+			-- Populate this group's grid
+			if groupSections[groupName].populateFunc then
+				groupSections[groupName].populateFunc()
+			end
+		end
 	end
 end
 
@@ -1940,7 +2021,12 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 	local group = cplus_plus_ex:getGroup(groupName)
 	if not group then return end
 
-	local groupCollapse, groupHeader = self:buildCollapsibleSectionBase(groupName, parent, DEFAULT_VGAP, DEFAULT_VGAP,
+	-- Create main container (detached initially, will be added by populateAllGroups)
+	local sectionContainer = UiBoxLayout()
+		:vgap(DEFAULT_VGAP)
+		:width(1)
+
+	local groupCollapse, groupHeader = self:buildCollapsibleSectionBase(groupName, sectionContainer, DEFAULT_VGAP, DEFAULT_VGAP,
 		cplus_plus_ex.config.groupsCollapseStates[groupName] or false)
 
 	-- Save collapse state
@@ -2001,7 +2087,13 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 					if btnIndex == 1 then
 						cplus_plus_ex:deleteGroupFromRuntime(groupName)
 						cplus_plus_ex:saveConfiguration()
-						self:rebuildGroupsOnly()
+						-- Remove from maps and repopulate
+						if groupSections[groupName] then
+							groupSections[groupName].container:detach()
+							groupSections[groupName] = nil
+						end
+						groupCells[groupName] = nil
+						self:populateAllGroups()
 					end
 				end,
 				{"Yes", "No"}
@@ -2022,22 +2114,93 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 		:width(1)
 		:addTo(groupContent)
 
-	-- Build grid of skills in group
-	self:buildGroupSkillGrid(gridContainer, groupName)
+	-- Initialize cells map for this group
+	if not groupCells[groupName] then
+		groupCells[groupName] = {}
+	end
 
-	-- Cache group section for dropdown/grid updates
+	-- Create cells for all skills in this group
+	self:createGroupCells(groupName)
+
+	-- Forward declare populate function
+	local populateGroupGrid
+
+	-- Function to populate/repopulate the grid
+	populateGroupGrid = function()
+		-- Clear grid
+		while #gridContainer.children > 0 do
+			gridContainer.children[#gridContainer.children]:detach()
+		end
+
+		local group = cplus_plus_ex:getGroup(groupName)
+		if not group then return end
+
+		-- Get all skills in this group
+		local skillIds = {}
+		for skillId in pairs(group.skillIds) do
+			table.insert(skillIds, skillId)
+		end
+
+		-- Sort by name
+		table.sort(skillIds, function(a, b)
+			local skillA = cplus_plus_ex._subobjects.skill_registry.registeredSkills[a]
+			local skillB = cplus_plus_ex._subobjects.skill_registry.registeredSkills[b]
+			local nameA = skillA and (GetText(skillA.shortName) or skillA.shortName) or a
+			local nameB = skillB and (GetText(skillB.shortName) or skillB.shortName) or b
+			return nameA:lower() < nameB:lower()
+		end)
+
+		-- Filter to only enabled skills for display
+		local enabledSkillIds = {}
+		for _, skillId in ipairs(skillIds) do
+			if self:isItemEnabled(skillId) then
+				table.insert(enabledSkillIds, skillId)
+			end
+		end
+
+		-- Build grid with blanks to fill
+		local itemsPerRow = cplus_plus_ex.config.groupsItemsPerRow
+		local skillIndex = 1
+
+		-- Always show grid even if empty
+		if #enabledSkillIds == 0 then
+			return -- No cells to show
+		end
+
+		while skillIndex <= #enabledSkillIds do
+			local gridRow = UiWeightLayout()
+				:width(1):heightpx(ROW_HEIGHT + 10)
+				:addTo(gridContainer)
+
+			for i = 1, itemsPerRow do
+				if skillIndex <= #enabledSkillIds then
+					local skillId = enabledSkillIds[skillIndex]
+					-- Add the pre created cell with dynamic width
+					if groupCells[groupName] and groupCells[groupName][skillId] then
+						groupCells[groupName][skillId].cell
+							:width(1.0 / itemsPerRow)
+							:addTo(gridRow)
+					end
+					skillIndex = skillIndex + 1
+				else
+					-- Empty cell to preserve grid spacing
+					Ui()
+						:width(1.0 / itemsPerRow)
+						:heightpx(ROW_HEIGHT + 10)
+						:addTo(gridRow)
+				end
+			end
+		end
+	end
+
+	-- Cache group section
 	groupSections[groupName] = {
-		container = gridContainer,
+		container = sectionContainer,
 		addSkillDropdown = addSkillDropdown,
 		groupName = groupName,
-		rebuildFunc = function()
-			-- Clear only the grid children
-			while #gridContainer.children > 0 do
-				gridContainer.children[#gridContainer.children]:detach()
-			end
-			-- Rebuild just the grid
-			self:buildGroupSkillGrid(gridContainer, groupName)
-		end
+		gridContainer = gridContainer,
+		cells = groupCells[groupName],
+		populateFunc = populateGroupGrid
 	}
 end
 
@@ -2117,9 +2280,19 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 
 			if cplus_plus_ex:registerSkillToGroupToRuntime(selectedSkillId, groupName) then
 				cplus_plus_ex:saveConfiguration()
-				-- Rebuild only this group's grid
-				if groupSections[groupName] and groupSections[groupName].rebuildFunc then
-					groupSections[groupName].rebuildFunc()
+				-- Create cell for the new skill
+				if not groupCells[groupName] then
+					groupCells[groupName] = {}
+				end
+				if not groupCells[groupName][selectedSkillId] then
+					groupCells[groupName][selectedSkillId] = {
+						cell = self:createGroupSkillCell(selectedSkillId, groupName),
+						skillId = selectedSkillId
+					}
+				end
+				-- Repopulate only this group's grid
+				if groupSections[groupName] and groupSections[groupName].populateFunc then
+					groupSections[groupName].populateFunc()
 				end
 				-- Update all group dropdowns after adding skill
 				self:updateGroupDropdowns()
@@ -2132,68 +2305,31 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 	return addSkillDropdown
 end
 
--- Build grid of skills in a group
-function modify_pilot_skills_ui:buildGroupSkillGrid(parent, groupName)
+-- Create all cells for skills in a group
+function modify_pilot_skills_ui:createGroupCells(groupName)
 	local group = cplus_plus_ex:getGroup(groupName)
 	if not group then return end
 
-	-- Get all enabled skills in this group
-	local skillIds = {}
+	-- Create cells for all skills in the group
 	for skillId in pairs(group.skillIds) do
-		if self:isItemEnabled(skillId) then
-			table.insert(skillIds, skillId)
-		end
-	end
-
-	-- Sort by name
-	table.sort(skillIds, function(a, b)
-		local skillA = cplus_plus_ex._subobjects.skill_registry.registeredSkills[a]
-		local skillB = cplus_plus_ex._subobjects.skill_registry.registeredSkills[b]
-		local nameA = skillA and (GetText(skillA.shortName) or skillA.shortName) or a
-		local nameB = skillB and (GetText(skillB.shortName) or skillB.shortName) or b
-		return nameA:lower() < nameB:lower()
-	end)
-
-	-- If no skills, just return without adding any UI
-	if #skillIds == 0 then
-		return
-	end
-
-	-- Build grid
-	local itemsPerRow = cplus_plus_ex.config.groupsItemsPerRow
-	local skillIndex = 1
-
-	while skillIndex <= #skillIds do
-		local gridRow = UiWeightLayout()
-			:width(1):heightpx(ROW_HEIGHT + 10)
-			:addTo(parent)
-
-		for i = 1, itemsPerRow do
-			if skillIndex <= #skillIds then
-				local skillId = skillIds[skillIndex]
-				self:buildGroupSkillCell(gridRow, skillId, groupName, itemsPerRow)
-				skillIndex = skillIndex + 1
-			else
-				-- Empty cell to preserve grid spacing
-				Ui()
-					:width(1.0 / itemsPerRow)
-					:heightpx(ROW_HEIGHT + 10)
-					:addTo(gridRow)
-			end
+		if not groupCells[groupName][skillId] then
+			groupCells[groupName][skillId] = {
+				cell = self:createGroupSkillCell(skillId, groupName),
+				skillId = skillId
+			}
 		end
 	end
 end
 
--- Build a single skill cell in a group grid
-function modify_pilot_skills_ui:buildGroupSkillCell(parent, skillId, groupName, itemsPerRow)
+-- Create a single skill cell in a group grid
+function modify_pilot_skills_ui:createGroupSkillCell(skillId, groupName)
 	local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
 	local skillName = skill and (GetText(skill.shortName) or skill.shortName) or skillId
 
+	-- Note: width will be set dynamically when added to grid based on itemsPerRow
 	local skillCell = UiBoxLayout()
-		:width(1.0 / itemsPerRow)
 		:heightpx(ROW_HEIGHT + 10)
 		:padding(2)
-		:addTo(parent)
 
 	local cellRow = UiWeightLayout()
 		:width(1):heightpx(ROW_HEIGHT)
@@ -2228,9 +2364,14 @@ function modify_pilot_skills_ui:buildGroupSkillCell(parent, skillId, groupName, 
 		function()
 			cplus_plus_ex:removeSkillFromGroupFromRuntime(skillId, groupName)
 			cplus_plus_ex:saveConfiguration()
-			-- Rebuild only this group's grid
-			if groupSections[groupName] and groupSections[groupName].rebuildFunc then
-				groupSections[groupName].rebuildFunc()
+			-- Remove cell from map
+			if groupCells[groupName] and groupCells[groupName][skillId] then
+				groupCells[groupName][skillId].cell:detach()
+				groupCells[groupName][skillId] = nil
+			end
+			-- Repopulate only this group's grid
+			if groupSections[groupName] and groupSections[groupName].populateFunc then
+				groupSections[groupName].populateFunc()
 			end
 			-- Update all group dropdowns after removing skill
 			self:updateGroupDropdowns()
@@ -2238,6 +2379,8 @@ function modify_pilot_skills_ui:buildGroupSkillCell(parent, skillId, groupName, 
 		end
 	)
 	btnRemove:widthpx(30):heightpx(ROW_HEIGHT):addTo(cellRow)
+
+	return skillCell
 end
 
 -- Updates group dropdown contents when skills are enabled/disabled
@@ -2291,14 +2434,15 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	percentageLabels = {}
 	categoryHeaderLabels = {}
-	relationshipsContainer = nil
-	relationshipsParent = nil
 	groupsContainer = nil
 	groupsParent = nil
 	groupsContentContainer = nil
 	-- Clear caches
 	relationshipSections = {}
+	relationshipRows = {}
 	groupSections = {}
+	groupCells = {}
+	newlyAddedGroups = {}
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -2358,8 +2502,9 @@ function modify_pilot_skills_ui:onExit()
 	percentageLabels = {}
 	categoryHeaderLabels = {}
 	expandedCollapsables = {}
-	relationshipsContainer = nil
-	relationshipsParent = nil
+	relationshipRows = {}
+	groupCells = {}
+	newlyAddedGroups = {}
 	-- Clear surface caches to free memory
 	surfaceCache = {}
 	scaledSurfaceCache = {}
