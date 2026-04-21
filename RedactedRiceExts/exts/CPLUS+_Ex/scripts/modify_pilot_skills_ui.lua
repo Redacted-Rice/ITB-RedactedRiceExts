@@ -16,15 +16,13 @@ local expandedCollapsables = {}
 local categoryHeaderLabels = {}
 
 -- Cache for relationship sections to enable efficient dropdown updates
-local relationshipSections = {} -- [relationshipType] = {container, sourceDropdown, targetDropdown, relationshipType, sourceLabel, targetLabel, relationshipRows, populateFunc, sortDropdown}
+local relationshipSections = {} -- [relationshipType] = {sourceDropdown, targetDropdown, sourceLabel, targetLabel, populateFunc}
 -- Maps to store precreated UI elements for relationships
 local relationshipRows = {} -- [relationshipType] = {[sourceId|targetId] = {row, sourceId, targetId}}
 
 -- Cache for group sections to enable efficient dropdown updates
-local groupsContainer = nil
-local groupsParent = nil
 local groupsContentContainer = nil
-local groupSections = {} -- [groupName] = {container, addSkillDropdown, gridContainer, cells, populateFunc}
+local groupSections = {} -- [groupName] = {container, addSkillDropdown, populateFunc}
 local groupCells = {} -- [groupName] = {[skillId] = {cell, skillId}}
 local newlyAddedGroups = {} -- Track newly added groups to show at top
 
@@ -146,6 +144,8 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 end
 
 -- Rebuilds dropdown items after updateOptions
+-- Rebuilds dropdown items after updateOptions is called
+-- Only rebuilds if the dropdown is currently open
 local function rebuildDropdownItems(dropdown)
 	if not dropdown.dropdown then return end
 
@@ -191,19 +191,6 @@ local function rebuildDropdownItems(dropdown)
 		end
 
 		layout:add(item)
-	end
-
-	-- Clear the needs rebuild flag
-	dropdown.needsRebuild = false
-end
-
--- Marks a dropdown as needing a rebuild next time it's opened
-local function markDropdownDirty(dropdown)
-	dropdown.needsRebuild = true
-
-	-- If dropdown is currently open, rebuild immediately
-	if dropdown.dropdown then
-		rebuildDropdownItems(dropdown)
 	end
 end
 
@@ -271,9 +258,9 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 			section.sourceDropdown:updateOptions(sourceVals, sourceDisplay)
 			section.targetDropdown:updateOptions(targetVals, targetDisplay)
 
-			-- Mark dropdowns as needing rebuild
-			markDropdownDirty(section.sourceDropdown)
-			markDropdownDirty(section.targetDropdown)
+			-- Rebuild dropdown items if currently open
+			rebuildDropdownItems(section.sourceDropdown)
+			rebuildDropdownItems(section.targetDropdown)
 		end
 	end
 end
@@ -604,8 +591,6 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 	categoryHeaderLabels[category].weightDeco = weightDeco
 	categoryHeaderLabels[category].percentDeco = percentDeco
 	categoryHeaderLabels[category].skills = categorySkills
-
-	collapse.categoryCheckbox = categoryCheckbox
 
 	return collapse.dropdownHolder, categoryCheckbox
 end
@@ -1305,16 +1290,6 @@ function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, 
 		self:_updateDropdownTooltip(dropDown, baseTooltip, listTooltips)
 	end)
 
-	-- Wrap createDropDown to rebuild items if dirty when opened
-	local originalCreateDropDown = dropDown.createDropDown
-	dropDown.createDropDown = function(self)
-		originalCreateDropDown(self)
-		-- Rebuild items if they were marked as needing update
-		if self.needsRebuild then
-			rebuildDropdownItems(self)
-		end
-	end
-
 	return dropDown
 end
 
@@ -1788,17 +1763,13 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- Build initial list
 	populateRelationshipList()
 
-	-- Cache the section container and populate function for efficient updates
+	-- Cache only what's needed for updates
 	relationshipSections[relationshipType] = {
-		container = sectionContainer,
 		sourceDropdown = sourceDropdown,
 		targetDropdown = targetDropdown,
-		relationshipType = relationshipType,
 		sourceLabel = sourceLabel,
 		targetLabel = targetLabel,
-		relationshipRows = rowsMap,
-		populateFunc = populateRelationshipList,
-		sortDropdown = sortDropdown
+		populateFunc = populateRelationshipList
 	}
 end
 
@@ -1848,10 +1819,6 @@ end
 function modify_pilot_skills_ui:buildGroups(parent)
 	local groupsMainSection = self:buildCollapsibleSection("Skill Groups", parent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
 		"Create groups of skills where only one skill from each enabled group can be assigned per pilot")
-
-	-- Store references for rebuilding
-	groupsContainer = groupsMainSection.parent
-	groupsParent = parent
 
 	-- Create new group controls
 	local controlsRow = UiWeightLayout()
@@ -2193,13 +2160,10 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 		end
 	end
 
-	-- Cache group section
+	-- Cache only what's needed for updates
 	groupSections[groupName] = {
 		container = sectionContainer,
 		addSkillDropdown = addSkillDropdown,
-		groupName = groupName,
-		gridContainer = gridContainer,
-		cells = groupCells[groupName],
 		populateFunc = populateGroupGrid
 	}
 end
@@ -2259,16 +2223,6 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 	addSkillDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
 		selectedSkillId = newValue
 	end)
-
-	-- Wrap createDropDown to rebuild items if dirty when opened
-	local originalCreateDropDown = addSkillDropdown.createDropDown
-	addSkillDropdown.createDropDown = function(self)
-		originalCreateDropDown(self)
-		-- Rebuild items if they were marked as needing update
-		if self.needsRebuild then
-			rebuildDropdownItems(self)
-		end
-	end
 
 	local btnAddSkill = sdlext.buildButton(
 		"Add Skill",
@@ -2423,8 +2377,8 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 				-- Update dropdown data
 				section.addSkillDropdown:updateOptions(availableSkills, availableSkillsDisplay)
 
-				-- Mark dropdown as needing rebuild
-				markDropdownDirty(section.addSkillDropdown)
+				-- Rebuild dropdown items if currently open
+				rebuildDropdownItems(section.addSkillDropdown)
 			end
 		end
 	end
@@ -2434,8 +2388,6 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	percentageLabels = {}
 	categoryHeaderLabels = {}
-	groupsContainer = nil
-	groupsParent = nil
 	groupsContentContainer = nil
 	-- Clear caches
 	relationshipSections = {}
@@ -2502,7 +2454,10 @@ function modify_pilot_skills_ui:onExit()
 	percentageLabels = {}
 	categoryHeaderLabels = {}
 	expandedCollapsables = {}
+	groupsContentContainer = nil
+	relationshipSections = {}
 	relationshipRows = {}
+	groupSections = {}
 	groupCells = {}
 	newlyAddedGroups = {}
 	-- Clear surface caches to free memory
