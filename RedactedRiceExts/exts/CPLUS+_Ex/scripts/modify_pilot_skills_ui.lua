@@ -25,6 +25,7 @@ local groupsContentContainer = nil
 local groupSections = {} -- [groupName] = {container, addSkillDropdown, populateFunc}
 local groupCells = {} -- [groupName] = {[skillId] = {cell, skillId}}
 local newlyAddedGroups = {} -- Track newly added groups to show at top
+local groupAddSequence = 0 -- Counter to maintain group addition order
 
 -- Surface cache to avoid recreating images
 local surfaceCache = {}
@@ -1397,7 +1398,8 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local currentSourceImage = nil
 	local currentTargetImage = nil
 	local sortColumn = cplus_plus_ex.config[sortConfigKey] or 1  -- Load saved sort order
-	local newlyAddedRelationships = {}  -- Track newly added items to show at top  which will cleared on next repopulate
+	local newlyAddedRelationships = {}  -- Track newly added items to show at top. Cleared only when sort changes
+	local addSequence = 0  -- Counter to maintain addition order. Most recent = highest number
 
 	-- Set initial dropdown value
 	if sortDropdown then
@@ -1501,7 +1503,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
-						table.insert(newItemsList, {sourceId = sourceId, targetId = targetId, key = key})
+						table.insert(newItemsList, {sourceId = sourceId, targetId = targetId, key = key, sequence = newlyAddedRelationships[key]})
 					else
 						table.insert(relationshipList, {sourceId = sourceId, targetId = targetId, key = key})
 					end
@@ -1509,8 +1511,10 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 		end
 
-		-- Clear newly added tracking so next repopulate they go to natural order
-		newlyAddedRelationships = {}
+		-- Sort newly added items by sequence. Most recent first = highest number
+		table.sort(newItemsList, function(a, b)
+			return a.sequence > b.sequence
+		end)
 
 		-- Sort non new items based on current sort column
 		table.sort(relationshipList, function(a, b)
@@ -1727,8 +1731,9 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 								targetId = targetId
 							}
 						end
-						-- Mark as newly added to show at top
-						newlyAddedRelationships[key] = true
+						-- Mark as newly added to show at top with sequence number
+						addSequence = addSequence + 1
+						newlyAddedRelationships[key] = addSequence
 					end
 				end
 			end
@@ -1752,6 +1757,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			cplus_plus_ex:saveConfiguration()
 			-- Clear newly added tracking when sort changes
 			newlyAddedRelationships = {}
+			addSequence = 0
 			-- Repopulate with new sort order
 			populateRelationshipList()
 		end)
@@ -1863,8 +1869,9 @@ function modify_pilot_skills_ui:buildGroups(parent)
 			cplus_plus_ex:saveConfiguration()
 			-- Build section for new group
 			self:buildGroupSection(groupsContentContainer, groupName)
-			-- Mark as newly added
-			newlyAddedGroups[groupName] = true
+			-- Mark as newly added with sequence number
+			groupAddSequence = groupAddSequence + 1
+			newlyAddedGroups[groupName] = groupAddSequence
 			-- Repopulate all groups
 			self:populateAllGroups()
 			return true
@@ -1948,17 +1955,20 @@ function modify_pilot_skills_ui:populateAllGroups()
 	-- Separate newly added from existing
 	for _, groupName in ipairs(groupNames) do
 		if newlyAddedGroups[groupName] then
-			table.insert(newGroups, groupName)
+			table.insert(newGroups, {name = groupName, sequence = newlyAddedGroups[groupName]})
 		else
 			table.insert(existingGroups, groupName)
 		end
 	end
 
-	-- Clear newly added tracking
-	newlyAddedGroups = {}
+	-- Sort newly added groups by sequence. Most recent first = highest number
+	table.sort(newGroups, function(a, b)
+		return a.sequence > b.sequence
+	end)
 
 	-- Add newly added groups first
-	for _, groupName in ipairs(newGroups) do
+	for _, groupData in ipairs(newGroups) do
+		local groupName = groupData.name
 		if groupSections[groupName] then
 			groupSections[groupName].container:addTo(groupsContentContainer)
 			-- Populate this group's grid
@@ -2392,6 +2402,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	groupSections = {}
 	groupCells = {}
 	newlyAddedGroups = {}
+	groupAddSequence = 0
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -2457,6 +2468,7 @@ function modify_pilot_skills_ui:onExit()
 	groupSections = {}
 	groupCells = {}
 	newlyAddedGroups = {}
+	groupAddSequence = 0
 	-- Clear surface caches to free memory
 	surfaceCache = {}
 	scaledSurfaceCache = {}
