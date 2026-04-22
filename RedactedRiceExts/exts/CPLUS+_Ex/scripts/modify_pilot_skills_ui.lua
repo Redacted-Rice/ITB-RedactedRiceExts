@@ -1125,7 +1125,6 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 
 		-- Update all child checkboxes
 		categoryCheckbox.updateChildrenCheckedState = function(cc)
-			local profile = profileStart("updateChildrenCheckedState(category)")
 			local newState = (cc.checked == true)
 
 			-- Batch update all skills in category without triggering individual updates
@@ -1155,8 +1154,6 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 			self:updateGroupDropdowns()
 			self:updateAllPercentages()
 			cplus_plus_ex:saveConfiguration()
-
-			profileEnd(profile)
 		end
 
 		-- Build skill entries
