@@ -2214,9 +2214,7 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 		:width(1):heightpx(ROW_HEIGHT)
 		:addTo(parent)
 
-	local selectedSkillId = ""
-
-	local addSkillDropdown = UiDropDown(availableSkills, availableSkillsDisplay, selectedSkillId, nil)
+	local addSkillDropdown = UiDropDown(availableSkills, availableSkillsDisplay, "", nil)
 		:width(0.7):heightpx(40)
 		:decorate({
 			DecoButton(),
@@ -2227,19 +2225,25 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 		})
 		:addTo(addSkillRow)
 
-	addSkillDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
-		selectedSkillId = newValue
-	end)
-
 	local btnAddSkill = sdlext.buildButton(
 		"Add Skill",
 		"Add selected skill to this group",
 		function()
+			local selectedSkillId = addSkillDropdown.value or ""
 			if selectedSkillId == "" then
 				return true
 			end
 
 			if cplus_plus_ex:registerSkillToGroupToRuntime(selectedSkillId, groupName) then
+				-- Find the current index of selected skill before updating
+				local currentIndex = nil
+				for i, skillId in ipairs(addSkillDropdown.values) do
+					if skillId == selectedSkillId then
+						currentIndex = i
+						break
+					end
+				end
+
 				cplus_plus_ex:saveConfiguration()
 				-- Create cell for the new skill
 				if not groupCells[groupName] then
@@ -2257,6 +2261,26 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 				end
 				-- Update all group dropdowns after adding skill
 				self:updateGroupDropdowns()
+
+				-- Auto select the next available skill
+				if addSkillDropdown.values and #addSkillDropdown.values > 1 then
+					-- Try to select the skill at the same index, or previous if we removed the last one
+					local newIndex = currentIndex
+					if newIndex and newIndex > #addSkillDropdown.values then
+						newIndex = #addSkillDropdown.values
+					end
+					if newIndex and newIndex >= 1 and newIndex <= #addSkillDropdown.values then
+						addSkillDropdown.value = addSkillDropdown.values[newIndex]
+						addSkillDropdown.choice = newIndex
+					else
+						addSkillDropdown.value = ""
+						addSkillDropdown.choice = 1
+					end
+				else
+					-- No skills available
+					addSkillDropdown.value = ""
+					addSkillDropdown.choice = 1
+				end
 			end
 			return true
 		end
@@ -2383,6 +2407,29 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 
 				-- Update dropdown data
 				section.addSkillDropdown:updateOptions(availableSkills, availableSkillsDisplay)
+
+				-- Check if current selection is still valid after update
+				local currentValue = section.addSkillDropdown.value
+				local isValidSelection = false
+				for _, skillId in ipairs(availableSkills) do
+					if skillId == currentValue then
+						isValidSelection = true
+						break
+					end
+				end
+
+				-- If current selection is no longer valid, select first available item
+				if not isValidSelection then
+					if #availableSkills > 1 then
+						-- Select first non-empty item
+						section.addSkillDropdown.value = availableSkills[2]
+						section.addSkillDropdown.choice = 2
+					else
+						-- No skills available, select empty
+						section.addSkillDropdown.value = ""
+						section.addSkillDropdown.choice = 1
+					end
+				end
 
 				-- Rebuild dropdown items if currently open
 				rebuildDropdownItems(section.addSkillDropdown)
