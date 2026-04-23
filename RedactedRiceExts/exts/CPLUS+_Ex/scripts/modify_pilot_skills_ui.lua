@@ -1051,8 +1051,7 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 	-- Enable group exclusions checkbox
 	local enableGroupsCheckbox = UiCheckbox()
 		:width(1):heightpx(ROW_HEIGHT)
-		:settooltip("When unchecked, group constraints won't be applied. If checked, "..
-				"groups constraint will be applied for enabled groups")
+		:settooltip("If checked, no pilot will be assigned more than one skill from any single enabled group. If unchecked NO groups will be enabled (even if they are checked).")
 		:decorate({
 			DecoButton(),
 			DecoCheckbox(),
