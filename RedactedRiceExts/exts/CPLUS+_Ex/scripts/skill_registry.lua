@@ -291,6 +291,26 @@ function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
 	)
 end
 
+-- Registers squad skill exclusions
+-- Takes squad id and list of skill ids to exclude for all pilots in that squad
+function skill_registry:registerSquadSkillExclusions(squadId, skillIds)
+	self:_registerPilotSkillRelationship(
+			skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS],
+			squadId, skillIds, "exclusion"
+	)
+end
+
+-- Registers squad skill inclusions
+-- Takes squad id and list of skill ids to include for all pilots in that squad
+-- This is only needed for specific inclusion skills. Any default
+-- enabled, non-excluded skill will be available as well as any added here
+function skill_registry:registerSquadSkillInclusions(squadId, skillIds)
+	self:_registerPilotSkillRelationship(
+			skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS],
+			squadId, skillIds, "inclusion"
+	)
+end
+
 -- Registers a skill to skill exclusion
 -- Takes two skill ids that cannot be selected for the same pilot
 function skill_registry:registerSkillExclusion(skillId, excludedSkillId)

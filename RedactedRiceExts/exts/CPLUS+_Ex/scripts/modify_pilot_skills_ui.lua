@@ -30,6 +30,8 @@ local groupAddSequence = 0 -- Counter to maintain group addition order
 -- Surface cache to avoid recreating images
 local surfaceCache = {}
 local scaledSurfaceCache = {}
+local squadIconCache = {} -- Cache for squad icons at 2x scale
+local enabledSquadIds = {} -- Set of enabled squad IDs
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -69,8 +71,13 @@ local DROPDOWN_BUTTON_PADDING = 33
 local COLLAPSE_BTN_PADDING = 40
 local COLLAPSE_PADDING = 46
 local PILOT_SIZE = 65
+local PILOT_PORTRAIT_SCALE = 1
+local SQUAD_ICON_SCALE = 2  -- Squad icons are same scale as pilots
 local RELATIONSHIP_BUTTON_WIDTH = 140
 local SORT_WIDTH = 350
+
+local SquadWidth = 0  -- Will be updated dynamically on startup
+local SquadHeight = 0  -- Will be updated dynamically on startup
 
 -- Helper to get cached surface
 local function getCachedSurface(path)
@@ -89,6 +96,65 @@ local function getCachedScaledSkillSurface(path)
 		end
 	end
 	return scaledSurfaceCache[path]
+end
+
+-- Helper to get cached pilot portrait
+local function getCachedPilotPortrait(pilotId)
+	if not surfaceCache[pilotId] then
+		-- Get portrait 
+		local portrait = _G[pilotId].Portrait
+		local path
+		if portrait == "" then
+			local advanced = list_contains(ADVANCED_PILOTS, pilotId)
+			local prefix = advanced and "img/advanced/portraits/pilots/" or "img/portraits/pilots/"
+			path = prefix .. pilotId .. ".png"
+		else
+			path = "img/portraits/" .. portrait .. ".png"
+		end
+		
+		surfaceCache[pilotId] = sdlext.getSurface({
+			path = path,
+			scale = PILOT_PORTRAIT_SCALE
+		})
+	end
+	return surfaceCache[pilotId]
+end
+
+-- Helper to get cached squad icon with proper palette
+local function getCachedSquadIcon(squadId)
+	if not squadIconCache[squadId] then
+		-- Find the squad index in modApi.mod_squads
+		for i = 1, #modApi.mod_squads do
+			local squad = modApi.mod_squads[i]
+			if squad and squad.id == squadId then
+				local iconPath = modApi.squad_icon[i] or "resources/mods/squads/unknown.png"
+				local surface = sdlext.getSurface({ path = iconPath, scale = SQUAD_ICON_SCALE })
+				
+				-- Apply palette for vanilla squads
+				if i > 1 and i <= modApi.constants.VANILLA_SQUADS then
+					local squadPalettes = sdlext.squadPalettes()
+					local colorTable = {}
+					for j = 1, #squadPalettes[1] do
+						colorTable[(j - 1) * 2 + 1] = squadPalettes[1][j]
+						colorTable[(j - 1) * 2 + 2] = squadPalettes[i][j]
+					end
+					surface = sdl.colormapped(surface, colorTable)
+				end
+				
+				squadIconCache[squadId] = surface
+				break
+			end
+		end
+		
+		-- Fallback to unknown squad icon if not found
+		if not squadIconCache[squadId] then
+			squadIconCache[squadId] = sdlext.getSurface({
+				path = "resources/mods/squads/unknown.png",
+				scale = SQUAD_ICON_SCALE
+			})
+		end
+	end
+	return squadIconCache[squadId]
 end
 
 -- Dialog sizing
@@ -141,6 +207,12 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 		end
 		return true
 	end
+
+	-- Check if it's a squad
+	if enabledSquadIds[itemId] then
+		return true
+	end
+
 	return false
 end
 
@@ -205,6 +277,9 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 			if section.sourceLabel == "Pilot" then
 				-- Get current pilot data
 				sourceList, sourceIdsSorted = self:getPilotsData()
+			elseif section.sourceLabel == "Squad" then
+				-- Get current squad data
+				sourceList, sourceIdsSorted = self:getSquadsData()
 			elseif section.sourceLabel == "Skill" then
 				-- Get current skill data
 				local skillData, exlusionSkillData, inclusionSkillData,
@@ -222,6 +297,9 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 			if section.targetLabel == "Pilot" then
 				-- Get current pilot data
 				targetList, targetIdsSorted = self:getPilotsData()
+			elseif section.targetLabel == "Squad" then
+				-- Get current squad data
+				targetList, targetIdsSorted = self:getSquadsData()
 			elseif section.targetLabel == "Skill" then
 				-- Get current skill data
 				local skillData, exlusionSkillData, inclusionSkillData,
@@ -322,6 +400,24 @@ function modify_pilot_skills_ui:getPilotsData()
 	return pilotData, ids
 end
 
+function modify_pilot_skills_ui:getSquadsData()
+	local squadData = {}
+	
+	-- Only include enabled squads from cached enabledSquadIds set
+	local modSquadsCount = #modApi.mod_squads
+	for i = 1, modSquadsCount do
+		local squad = modApi.mod_squads[i]
+		if squad and squad.id and enabledSquadIds[squad.id] then
+			-- Get squad name from squad_text
+			local squadName = modApi.squad_text[(i - 1) * 2 + 1] or squad[1] or squad.id
+			squadData[squad.id] = squadName
+		end
+	end
+	
+	local ids = self:getSortedIds(squadData)
+	return squadData, ids
+end
+
 function modify_pilot_skills_ui:getSkillsData()
 	local skills = {}
 	local defaultSkills = {}
@@ -341,23 +437,8 @@ function modify_pilot_skills_ui:getSkillsData()
 	       self:getSortedIds(skills), self:getSortedIds(defaultSkills), self:getSortedIds(inclusionSkills)
 end
 
-function modify_pilot_skills_ui:getPilotPortrait(pilotId, scale)
-	scale = scale or 1  -- Default scale to 1
-
-	-- Get portrait (taken from pilot deck selector)
-	local portrait = _G[pilotId].Portrait
-	if portrait == "" then
-		local advanced = list_contains(ADVANCED_PILOTS, pilotId)
-		local prefix = advanced and "img/advanced/portraits/pilots/" or "img/portraits/pilots/"
-		path = prefix .. pilotId .. ".png"
-	else
-		path = "img/portraits/" .. portrait .. ".png"
-	end
-
-	return sdlext.getSurface({
-		path = path,
-		scale = scale
-	})
+function modify_pilot_skills_ui:getPilotPortrait(pilotId)
+	return getCachedPilotPortrait(pilotId)
 end
 
 -- Helper to close collapse section
@@ -1213,6 +1294,29 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 	return pilotUi
 end
 
+function modify_pilot_skills_ui:addSquadImage(squadId, row)
+	-- Use actual surface dimensions for proper sizing
+	local squadIcon
+	if squadId and squadId ~= "All" and squadId ~= "" then
+		squadIcon = getCachedSquadIcon(squadId)
+	end
+	
+	local width = SquadWidth
+	local squadUi = Ui()
+		:widthpx(width):heightpx(ROW_HEIGHT)
+
+	if squadIcon then
+		squadUi:decorate({ DecoSurfaceAligned(squadIcon, "center", "center") })
+	end
+
+	squadUi:addTo(row)
+
+	-- Add minimal spacing
+	Ui():widthpx(BOARDER_SIZE):heightpx(ROW_HEIGHT):addTo(row)
+
+	return squadUi
+end
+
 function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
 	iconWidth = iconWidth or SKILL_ICON_REL_SIZE
 	local skillUi = Ui()
@@ -1369,10 +1473,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local maxSkillIconWidth = self:getLargestIconWidth()
 
 	-- Container for this section
-	-- Determine largest height based on whether we have pilot portraits or skill icons
+	-- Determine largest height based on whether we have pilot portraits, squad icons, or skill icons
 	local largestHeight = ROW_HEIGHT
 	if sourceLabel == "Pilot" then
 		largestHeight = PILOT_SIZE
+	elseif sourceLabel == "Squad" then
+		largestHeight = SquadHeight
 	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
 		largestHeight = math.max(ROW_HEIGHT, maxSkillIconWidth)
 	end
@@ -1420,9 +1526,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 
-		-- Pilot portrait if its a pilot
+		-- Pilot portrait, squad icon, or skill icon
 		if sourceLabel == "Pilot" then
 			self:addPilotImage(sourceId, entryRow)
+		elseif sourceLabel == "Squad" then
+			self:addSquadImage(sourceId, entryRow)
 		elseif sourceLabel == "Skill" then
 			self:addSkillIcon(sourceId, entryRow, maxSkillIconWidth)
 		end
@@ -1561,9 +1669,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		:width(1):heightpx(ROW_HEIGHT)
 		:addTo(sectionContainer)
 
-	-- Source image (pilot portrait or skill icon)
+	-- Source image (pilot portrait, squad icon, or skill icon)
 	if sourceLabel == "Pilot" then
 		currentSourceImage = self:addPilotImage(selectedSource, addRow)
+	elseif sourceLabel == "Squad" then
+		currentSourceImage = self:addSquadImage(selectedSource, addRow)
 	elseif sourceLabel == "Skill" then
 		currentSourceImage = self:addSkillIcon(selectedSource, addRow, maxSkillIconWidth)
 	end
@@ -1589,6 +1699,11 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 						local portrait = self:getPilotPortrait(newValue)
 						if portrait then
 							table.insert(currentSourceImage.decorations, DecoSurface(portrait))
+						end
+					elseif sourceLabel == "Squad" then
+						local squadIcon = getCachedSquadIcon(newValue)
+						if squadIcon then
+							table.insert(currentSourceImage.decorations, DecoSurfaceAligned(squadIcon, "center", "center"))
 						end
 					elseif sourceLabel == "Skill" then
 						local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
@@ -1801,6 +1916,31 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 			pilotData,
 			inclusionSkillData,
 			pilotIdsSorted,
+			inclusionSkillIdsSorted
+		)
+	end
+
+	-- Get squad data
+	local squadData, squadIdsSorted = self:getSquadsData()
+
+	-- Squad Skill Exclusions
+	self:buildRelationshipEditor(
+		relationshipsContent,
+		cplus_plus_ex.RelationshipType.SQUAD_SKILL_EXCLUSIONS,
+		squadData,
+		exlusionSkillData,
+		squadIdsSorted,
+		exlusionSkillIdsSorted
+	)
+
+	if #inclusionSkillData > 0 then
+		-- Squad Skill Inclusions
+		self:buildRelationshipEditor(
+			relationshipsContent,
+			cplus_plus_ex.RelationshipType.SQUAD_SKILL_INCLUSIONS,
+			squadData,
+			inclusionSkillData,
+			squadIdsSorted,
 			inclusionSkillIdsSorted
 		)
 	end
@@ -2438,6 +2578,39 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 end
 
 function modify_pilot_skills_ui:buildMainContent(scroll)
+	-- Build set of enabled squad IDs from squadIndices
+	enabledSquadIds = {}
+	if modApi.squadIndices then
+		for i = 1, modApi.constants.MAX_SQUADS do
+			if modApi.squadIndices[i] then
+				local squadIndex = modApi.squadIndices[i]
+				local squad = modApi.mod_squads[squadIndex]
+				if squad and squad.id then
+					enabledSquadIds[squad.id] = true
+				end
+			end
+		end
+	else
+		-- If squadIndices not initialized, use first 14 squads
+		for i = 1, math.min(modApi.constants.MAX_SQUADS, #modApi.mod_squads) do
+			local squad = modApi.mod_squads[i]
+			if squad and squad.id then
+				enabledSquadIds[squad.id] = true
+			end
+		end
+	end
+	
+	-- Calculate max squad icon size based on enabled squad icons only
+	local maxSquadWidth = 0
+	local maxSquadHeight = 0
+	for squadId, _ in pairs(enabledSquadIds) do
+		local squadIcon = getCachedSquadIcon(squadId)
+		if squadIcon then
+			SquadWidth = math.max(maxSquadWidth, squadIcon:w())
+			SquadHeight = math.max(maxSquadHeight, squadIcon:h())
+		end
+	end
+	
 	-- Clear tracking tables
 	percentageLabels = {}
 	categoryHeaderLabels = {}
@@ -2518,6 +2691,8 @@ function modify_pilot_skills_ui:onExit()
 	-- Clear surface caches to free memory
 	surfaceCache = {}
 	scaledSurfaceCache = {}
+	squadIconCache = {}
+	enabledSquadIds = {}
 end
 
 -- Creates the main modification dialog
