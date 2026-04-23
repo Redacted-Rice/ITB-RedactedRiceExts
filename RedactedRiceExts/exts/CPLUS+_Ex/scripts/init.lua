@@ -7,7 +7,7 @@ local extension = {
 	gameVersion = "1.2.93",
 	dependencies = {
         modApiExt = "1.24",
-        redactedrice_memhack = "1.0.0",
+        redactedrice_memhack = "1.1.0",
     },
 	isExtension = true,
 }
