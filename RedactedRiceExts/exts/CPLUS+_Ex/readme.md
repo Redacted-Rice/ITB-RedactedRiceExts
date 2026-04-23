@@ -11,7 +11,25 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.0.2
+Latest release: 1.1.0
+
+## 1.1.0
+Released: XX/XX/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.1.0
+
+### Notes
+* Significant optimization of UI to make it more responsive
+* Added Group based skill exclusions where only one skill from the group will be selected per pilot
+* Added slot restrictions for skills
+* Added support for function defined coded exclusions
+    * Added IsCyborg and IsFlyingCyborg fns for these
+* Support default reusability vs reusibility limit for skills
+* Fixed some confusing logs
 
 ## 1.0.2
 Released: 04/10/2026

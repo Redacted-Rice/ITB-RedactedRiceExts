@@ -332,6 +332,11 @@ function skill_registry:_readPilotExclusionsFromGlobal(allPilotIds)
 		return
 	end
 
+	-- If allPilotIds not provided, search for them
+	if allPilotIds == nil then
+		allPilotIds = utils.searchForAllPilotIds()
+	end
+
 	local pilotCount = 0
 	local exclusionCount = 0
 
