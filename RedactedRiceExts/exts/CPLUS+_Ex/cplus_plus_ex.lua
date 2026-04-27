@@ -112,19 +112,19 @@ function cplus_plus_ex.getTechnoVekPawn(pilotId)
 	if not pilotId or type(pilotId) ~= "string" then
 		return nil
 	end
-	
+
 	-- Extract pawn name from pilot ID (e.g., "Pilot_BeetleMech" -> "BeetleMech")
 	local pawnName = pilotId:match("^Pilot_(.+)$")
 	if not pawnName then
 		return nil
 	end
-	
+
 	-- Check if the pawn exists and is a TechnoVek
 	local pawn = _G[pawnName]
 	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
 		return pawn
 	end
-	
+
 	return nil
 end
 
@@ -150,42 +150,29 @@ function cplus_plus_ex:exposeAPI()
 	self.RelationshipType = skill_config.RelationshipType
 
 	-- Expose API functions that delegate to submodules
-	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
-	function cplus_plus_ex:enableSkill(...) return skill_config:enableSkill(...) end
-	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
-	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
-	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
-	function cplus_plus_ex:getEnabledSkillsSet() return skill_config:getEnabledSkillsSet() end
-	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
-	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
-
-	-- Constraint functions
-	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints:checkSkillConstraints(...) end
-	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints:registerConstraintFunction(...) end
-
-	-- Skill management functions
+	-- Regisration
 	function cplus_plus_ex:registerSkill(...) return skill_registry:registerSkill(...) end
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
-	-- Getters for info
-	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
-	function cplus_plus_ex:getRelationshipMetadata(...) return skill_config:getRelationshipMetadata(...) end
-	-- Used by UI Only
-	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
-	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
-
-	-- Group management functions
 	function cplus_plus_ex:registerSkillToGroup(...) return skill_registry:registerSkillToGroup(...) end
-	-- Getters for info
+
+	-- Config
+	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
+	function cplus_plus_ex:enableSkill(...) return skill_config:enableSkill(...) end
+	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
+	function cplus_plus_ex:setGroupEnabled(...) return skill_config:setGroupEnabled(...) end
+	function cplus_plus_ex:getEnabledSkillsSet() return skill_config:getEnabledSkillsSet() end
+	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
 	function cplus_plus_ex:getGroup(...) return skill_config:getGroup(...) end
 	function cplus_plus_ex:listGroups(...) return skill_config:listGroups(...) end
-	-- Used by UI Only
-	function cplus_plus_ex:addGroupToRuntime(...) return skill_config:addGroupToRuntime(...) end
-	function cplus_plus_ex:deleteGroupFromRuntime(...) return skill_config:deleteGroupFromRuntime(...) end
-	function cplus_plus_ex:registerSkillToGroupToRuntime(...) return skill_config:registerSkillToGroupToRuntime(...) end
-	function cplus_plus_ex:removeSkillFromGroupFromRuntime(...) return skill_config:removeSkillFromGroupFromRuntime(...) end
-	function cplus_plus_ex:setGroupEnabled(...) return skill_config:setGroupEnabled(...) end
+	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
+	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
+	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
+
+	-- Constraint functions
+	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints:checkSkillConstraints(...) end
+	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints:registerConstraintFunction(...) end
 
 	-- Skill assignment functions
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
