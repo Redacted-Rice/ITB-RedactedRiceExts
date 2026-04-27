@@ -34,6 +34,7 @@ Released: XX/XX/2026
 * Logging and error handle updates
 
 #### CPLUS+ Ex v1.1.0
+* Base classes from More+
 * UI Optimization
 * Slot restrictions for skills
 * Group based exclusions

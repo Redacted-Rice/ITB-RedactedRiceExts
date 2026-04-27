@@ -23,6 +23,7 @@ compatible with:
 * memhack       1.1.0
 
 ### Notes
+* Added base classes for skills from More+
 * Significant optimization of UI to make it more responsive
 * Added Group based skill exclusions where only one skill from the group will be selected per pilot
 * Added slot restrictions for skills

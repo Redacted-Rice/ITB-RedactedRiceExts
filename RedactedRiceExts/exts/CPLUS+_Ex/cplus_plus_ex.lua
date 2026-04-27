@@ -76,6 +76,12 @@ cplus_plus_ex._subobjects.hooks = require(path.."scripts/hooks")
 cplus_plus_ex._subobjects.skill_state_tracker = require(path.."scripts/skill_state_tracker")
 cplus_plus_ex._subobjects.modify_pilot_skills_ui = require(path.."scripts/modify_pilot_skills_ui")
 
+-- Load base classes for custom skills
+cplus_plus_ex.baseClasses = {}
+cplus_plus_ex.baseClasses.SkillTrait = require(path.."scripts/base_classes/skill_trait")
+cplus_plus_ex.baseClasses.SkillActive = require(path.."scripts/base_classes/skill_active")
+cplus_plus_ex.baseClasses.SkillEffectModifier = require(path.."scripts/base_classes/skill_effect_modifier")
+
 -- Local references to submodules for convenient access in this file
 local utils = cplus_plus_ex._subobjects.utils
 local skill_registry = cplus_plus_ex._subobjects.skill_registry
