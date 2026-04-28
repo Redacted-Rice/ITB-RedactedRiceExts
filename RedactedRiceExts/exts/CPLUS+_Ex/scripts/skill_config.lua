@@ -872,19 +872,35 @@ function skill_config:listGroups()
 	return groupNames
 end
 
-function skill_config:setGroupEnabled(groupName, enabled)
+function skill_config:enableGroup(groupName)
 	if not self.config.groupSettings[groupName] then
 		self.config.groupSettings[groupName] = {}
 	end
 
-	self.config.groupSettings[groupName].enabled = enabled
+	self.config.groupSettings[groupName].enabled = true
 
 	-- Update the computed group if it exists
 	if self.groups[groupName] then
-		self.groups[groupName].enabled = enabled
+		self.groups[groupName].enabled = true
 	end
 
-	logger.logInfo(SUBMODULE, "Set group '%s' enabled=%s", groupName, tostring(enabled))
+	logger.logInfo(SUBMODULE, "Enabled group '%s'", groupName)
+	return true
+end
+
+function skill_config:disableGroup(groupName)
+	if not self.config.groupSettings[groupName] then
+		self.config.groupSettings[groupName] = {}
+	end
+
+	self.config.groupSettings[groupName].enabled = false
+
+	-- Update the computed group if it exists
+	if self.groups[groupName] then
+		self.groups[groupName].enabled = false
+	end
+
+	logger.logInfo(SUBMODULE, "Disabled group '%s'", groupName)
 	return true
 end
 
