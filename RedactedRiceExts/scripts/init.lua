@@ -2,7 +2,7 @@
 local extension =  {
 	id = "redactedrice_exts",
 	name = "Redacted Rice Extensions",
-	version = "1.0.2",
+	version = "1.1.0",
 	icon = "icon.png",
 	description = "Extensions originally made to support mods by Redacted Rice",
 	submodFolders = {"exts/"},

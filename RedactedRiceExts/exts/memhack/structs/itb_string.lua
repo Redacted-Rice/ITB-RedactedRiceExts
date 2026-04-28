@@ -1,3 +1,6 @@
+local logger = memhack.logger
+local SUBMODULE = logger.register("Memhack", "ItBString", memhack.DEBUG.ENABLED)
+
 -- Constants for union types
 local ITB_STRING_LOCAL = 0x0F
 local ITB_STRING_REMOTE = 0x1F
@@ -89,7 +92,7 @@ ItBString[selfGetter] = function(self)
 		local result = self:_getStrRemote()
 		return result
 	end
-	error(string.format("UnionType was unexepected value: %d", uType))
+	logger.logError(SUBMODULE, "UnionType was unexepected value: %d", uType)
 	return nil
 end
 
@@ -100,7 +103,7 @@ ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
 		-- value and use that
 		str = strOrStruct:get()
 	end
-	
+
 	-- Some menus (e.g. the post mission, level up skill notification window) don't use
 	-- the lua dictionary/GetText function... For simplicity and consistency, by default
 	-- just un-dictionary-ificate strings. This may cause oddities if you try to replace
@@ -110,7 +113,7 @@ ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
 	if ItBString.AutoUndictionary and not skipUndictionary and IsText(str) then
 		oldStr = str
 		str = GetText(str)
-		LOG("Un-dictionary text %s to %s", oldStr, str)
+		logger.logDebug(SUBMODULE, "Un-dictionary text %s to %s", oldStr, str)
 	end
 
 	local length = #str

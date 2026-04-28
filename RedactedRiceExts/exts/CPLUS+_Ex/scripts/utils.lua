@@ -1,5 +1,8 @@
 -- Shared utility functions for CPLUS+ Extension
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("CPLUS+", "utils", false)
+
 local utils = {}
 
 -- Deep copy function for tables
@@ -59,6 +62,19 @@ function utils.deepcopyInPlace(copy, orig)
 	return copy
 end
 
+-- Shallow copy function for tables (only copies first level)
+function utils.shallowcopy(orig)
+	if type(orig) ~= 'table' then
+		return orig
+	end
+	
+	local copy = {}
+	for k, v in pairs(orig) do
+		copy[k] = v
+	end
+	return copy
+end
+
 -- Helper function to convert a set-like table to a comma-separated string
 -- Used for logging skill lists
 function utils.setToString(setTable)
@@ -98,8 +114,36 @@ function utils.normalizeReusabilityToInt(reusability)
 	return nil
 end
 
+-- Normalize slot restriction value to integer constant
+function utils.normalizeSlotRestrictionToInt(slotRestriction)
+	if slotRestriction == nil then
+		return nil
+	end
+
+	if type(slotRestriction) == "number" then
+		if slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.ANY or
+				slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.FIRST or
+				slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.SECOND then
+			return slotRestriction
+		end
+		return nil
+	end
+
+	if type(slotRestriction) == "string" then
+		if slotRestriction == "ANY" or slotRestriction == "any" then
+			return cplus_plus_ex.SLOT_RESTRICTION.ANY
+		elseif slotRestriction == "FIRST" or slotRestriction == "first" then
+			return cplus_plus_ex.SLOT_RESTRICTION.FIRST
+		elseif slotRestriction == "SECOND" or slotRestriction == "second" then
+			return cplus_plus_ex.SLOT_RESTRICTION.SECOND
+		end
+	end
+
+	return nil
+end
+
 -- Shows an error popup to the user
--- TODO: There is a simpler way to do this in modAPI alread
+-- TODO: There is a simpler way to do this in modAPI already
 function utils.showErrorPopup(message)
 	sdlext.showButtonDialog(
 		"CPLUS+ Ex Error",
@@ -110,9 +154,7 @@ function utils.showErrorPopup(message)
 end
 
 function utils.logAndShowErrorPopup(message)
-	-- Log to console with ERROR level
-	LOG("CPLUS+: ERR: " .. message)
-	-- Show error popup if modApi is available
+	logger.logError(SUBMODULE, message)
 	utils.showErrorPopup(message)
 end
 

@@ -10,7 +10,7 @@ describe("Structure Verification", function()
 		-- Initialize memhack with mock DLL
 		memhack = helper.initMemhack()
 		structManager = memhack.structManager
-		
+
 		-- Enhance mock memory for verification tests
 		local originalReadPointer = memhack.dll.memory.readPointer
 		memhack.dll.memory.readPointer = function(addr)
@@ -19,7 +19,7 @@ describe("Structure Verification", function()
 			if addr == 0x2000 then return 0x12345678 end  -- Wrong vtable
 			return originalReadPointer(addr)
 		end
-		
+
 		local originalReadInt = memhack.dll.memory.readInt
 		memhack.dll.memory.readInt = function(addr)
 			-- Mock: return specific values for testing
@@ -77,14 +77,13 @@ describe("Structure Verification", function()
 			assert.equals("int", TestStruct._layout.vtable.type)
 		end)
 
-		it("should throw error on auto verify failure", function()
+		it("should return nil and log error on auto verify failure", function()
 			local TestStruct = structManager:define("TestStruct4", {
 				value = { offset = 0x10, type = "int" },
 			}, 0x00000042)  -- vtable as second parameter
 
-			assert.has_error(function()
-				TestStruct.new(0x2000, true)  -- Auto-verify enabled
-			end)
+			local result = TestStruct.new(0x2000, true)  -- Auto-verify enabled
+			assert.is_nil(result)
 		end)
 	end)
 
@@ -97,7 +96,7 @@ describe("Structure Verification", function()
 				end
 				return false, "Value out of range"
 			end
-			
+
 			local TestStruct = structManager:define("TestStruct5", {
 				value = { offset = 0x10, type = "int" },
 			}, validateFunc)  -- validation function as second parameter
@@ -117,7 +116,7 @@ describe("Structure Verification", function()
 				end
 				return false, "Value out of range: " .. val
 			end
-			
+
 			local TestStruct = structManager:define("TestStruct6", {
 				value = { offset = 0x10, type = "int" },
 			}, validateFunc)  -- validation function as second parameter
@@ -141,12 +140,12 @@ describe("Structure Verification", function()
 			local validatedInstance, err = TestStruct.validate(0x1000)
 			assert.is_not_nil(validatedInstance)
 			assert.is_nil(err)
-			
+
 			validatedInstance, err = TestStruct:validate(0x1000)
 			assert.is_not_nil(validatedInstance)
 			assert.is_nil(err)
 		end)
-		
+
 		it("should fail verification when address is 0", function()
 			local TestStruct = structManager:define("TestStruct8", {
 				value = { offset = 0x10, type = "int" },
@@ -173,12 +172,11 @@ describe("Structure Verification", function()
 	end)
 
 	describe("Validation Errors", function()
-		it("should error when verify arg is not a number or function", function()
-			assert.has_error(function()
-				structManager:define("TestStruct10", {
-					value = { offset = 0x10, type = "int" },
-				}, "not a number or function")
-			end)
+		it("should return nil and log error when verify arg is not a number or function", function()
+			local result = structManager:define("TestStruct10", {
+				value = { offset = 0x10, type = "int" },
+			}, "not a number or function")
+			assert.is_nil(result)
 		end)
 	end)
 end)

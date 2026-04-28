@@ -9,14 +9,14 @@ local path = GetParentPath(...)
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
 	ENABLED = false,  -- Disable/enable all debug logging
-	TRIGGER_EVENTS = true,
+	TRIGGER_EVENTS = false,
 	CONFIG = true,
 	REGISTRY = true,
 	SELECTION = true,
 	CONSTRAINTS = true,
-	STATE_TRACKER = true,
-	TIME_TRAVELER = true,
-	HOOKS = true,
+	STATE_TRACKER = false,
+	TIME_TRAVELER = false,
+	HOOKS = false,
 	UI = false,
 }
 
@@ -29,6 +29,8 @@ cplus_plus_ex.MAX_SKILL_SLOTS = 2  -- Maximum number of skill slots per pilot
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
 local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
 local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
+
+cplus_plus_ex.SLOT_RESTRICTION = { [1] = "ANY", ANY = 1, [2] = "FIRST", FIRST = 2, [3] = "SECOND", SECOND = 3}
 
 -- Core skill icons since they don't have any
 local customVanillaIcons = {
@@ -43,8 +45,8 @@ local resourcePath = mod_loader.mods[modApi.currentMod].resourcePath
 for _, iconPath in ipairs(customVanillaIcons) do
 	modApi:appendAsset(iconPath, resourcePath..iconPath)
 end
-
 cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
+cplus_plus_ex.DEFAULT_SLOT_RESTRICTION = cplus_plus_ex.SLOT_RESTRICTION.ANY
 cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
 	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
@@ -74,6 +76,12 @@ cplus_plus_ex._subobjects.hooks = require(path.."scripts/hooks")
 cplus_plus_ex._subobjects.skill_state_tracker = require(path.."scripts/skill_state_tracker")
 cplus_plus_ex._subobjects.modify_pilot_skills_ui = require(path.."scripts/modify_pilot_skills_ui")
 
+-- Load base classes for custom skills
+cplus_plus_ex.baseClasses = {}
+cplus_plus_ex.baseClasses.SkillTrait = require(path.."scripts/base_classes/skill_trait")
+cplus_plus_ex.baseClasses.SkillActive = require(path.."scripts/base_classes/skill_active")
+cplus_plus_ex.baseClasses.SkillEffectModifier = require(path.."scripts/base_classes/skill_effect_modifier")
+
 -- Local references to submodules for convenient access in this file
 local utils = cplus_plus_ex._subobjects.utils
 local skill_registry = cplus_plus_ex._subobjects.skill_registry
@@ -96,6 +104,45 @@ function cplus_plus_ex:initModules()
 	skill_selection:init()
 	time_traveler:init()
 	modify_pilot_skills_ui:init()
+
+	-- Initialize base skill classes
+	self.baseClasses.SkillTrait:baseInit()
+	self.baseClasses.SkillActive:baseInit()
+end
+
+-- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
+-- Returns the pawn struct if it exists and has Class == "TechnoVek", otherwise returns nil
+function cplus_plus_ex.getTechnoVekPawn(pilotId)
+	if not pilotId or type(pilotId) ~= "string" then
+		return nil
+	end
+
+	-- Extract pawn name from pilot ID (e.g., "Pilot_BeetleMech" -> "BeetleMech")
+	local pawnName = pilotId:match("^Pilot_(.+)$")
+	if not pawnName then
+		return nil
+	end
+
+	-- Check if the pawn exists and is a TechnoVek
+	local pawn = _G[pawnName]
+	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
+		return pawn
+	end
+
+	return nil
+end
+
+-- Checks if a pilot ID corresponds to a cyborg pilot
+-- Cyborgs are identified by their pawn having Class == "TechnoVek"
+function cplus_plus_ex.isCyborg(pilotId)
+	return cplus_plus_ex.getTechnoVekPawn(pilotId) ~= nil
+end
+
+-- Checks if a pilot ID corresponds to a flying cyborg
+-- This checks both that the pilot is a cyborg AND that their pawn has Flying = true
+function cplus_plus_ex.isFlyingCyborg(pilotId)
+	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Flying == true
 end
 
 function cplus_plus_ex:exposeAPI()
@@ -107,28 +154,32 @@ function cplus_plus_ex:exposeAPI()
 	self.RelationshipType = skill_config.RelationshipType
 
 	-- Expose API functions that delegate to submodules
-	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
-	function cplus_plus_ex:enableSkill(...) return skill_config:enableSkill(...) end
-	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
-	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
-	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
-	function cplus_plus_ex:getEnabledSkillsSet() return skill_config:getEnabledSkillsSet() end
-	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
-	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
-
-	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints:checkSkillConstraints(...) end
-	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints:registerConstraintFunction(...) end
-
+	-- Regisration
 	function cplus_plus_ex:registerSkill(...) return skill_registry:registerSkill(...) end
 	function cplus_plus_ex:registerPilotSkillExclusions(...) return skill_registry:registerPilotSkillExclusions(...) end
 	function cplus_plus_ex:registerPilotSkillInclusions(...) return skill_registry:registerPilotSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
-	
-	function cplus_plus_ex:addRelationshipToRuntime(...) return skill_config:addRelationshipToRuntime(...) end
-	function cplus_plus_ex:removeRelationshipFromRuntime(...) return skill_config:removeRelationshipFromRuntime(...) end
-	function cplus_plus_ex:isCodeDefinedRelationship(...) return skill_config:isCodeDefinedRelationship(...) end
-	function cplus_plus_ex:getRelationshipMetadata(...) return skill_config:getRelationshipMetadata(...) end
+	function cplus_plus_ex:registerSkillToGroup(...) return skill_registry:registerSkillToGroup(...) end
 
+	-- Config
+	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
+	function cplus_plus_ex:enableSkill(...) return skill_config:enableSkill(...) end
+	function cplus_plus_ex:disableSkill(...) return skill_config:disableSkill(...) end
+	function cplus_plus_ex:enableGroup(...) return skill_config:enableGroup(...) end
+	function cplus_plus_ex:disableGroup(...) return skill_config:disableGroup(...) end
+	function cplus_plus_ex:getEnabledSkillsSet() return skill_config:getEnabledSkillsSet() end
+	function cplus_plus_ex:getAllowedReusability(...) return skill_config:getAllowedReusability(...) end
+	function cplus_plus_ex:getGroup(...) return skill_config:getGroup(...) end
+	function cplus_plus_ex:listGroups(...) return skill_config:listGroups(...) end
+	function cplus_plus_ex:saveConfiguration() return skill_config:saveConfiguration() end
+	function cplus_plus_ex:loadConfiguration() return skill_config:loadConfiguration() end
+	function cplus_plus_ex:resetToDefaults() return skill_config:resetToDefaults() end
+
+	-- Constraint functions
+	function cplus_plus_ex:registerConstraintFunction(...) return skill_constraints:registerConstraintFunction(...) end
+	function cplus_plus_ex:checkSkillConstraints(...) return skill_constraints:checkSkillConstraints(...) end
+
+	-- Skill assignment functions
 	function cplus_plus_ex:applySkillsToPilot(...) return skill_selection:applySkillsToPilot(...) end
 	function cplus_plus_ex:applySkillIdsToPilot(...) return skill_selection:applySkillIdsToPilot(...) end
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end
@@ -136,28 +187,25 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
 
 	-- Skill state checking functions
-	function cplus_plus_ex:isSkillEnabled(...) return skill_state_tracker:isSkillEnabled(...) end
-	function cplus_plus_ex:isSkillInRun(...) return skill_state_tracker:isSkillInRun(...) end
-	function cplus_plus_ex:isSkillActive(...) return skill_state_tracker:isSkillActive(...) end
-	function cplus_plus_ex:isSkillOnPawn(...) return skill_state_tracker:isSkillOnPawn(...) end
-	function cplus_plus_ex:isSkillOnPilot(...) return skill_state_tracker:isSkillOnPilot(...) end
-	function cplus_plus_ex:isSkillOnPilots(...) return skill_state_tracker:isSkillOnPilots(...) end
-
-	-- Get pilots/mechs with skills
-	function cplus_plus_ex:getPilotsWithSkill(...) return skill_state_tracker:getPilotsWithSkill(...) end
-	function cplus_plus_ex:getMechsWithSkill(...) return skill_state_tracker:getMechsWithSkill(...) end
-
-	-- Get all skills by category
 	function cplus_plus_ex:getSkillsEnabled(...) return skill_state_tracker:getSkillsEnabled(...) end
+	function cplus_plus_ex:isSkillEnabled(...) return skill_state_tracker:isSkillEnabled(...) end
+
 	function cplus_plus_ex:getSkillsInRun(...) return skill_state_tracker:getSkillsInRun(...) end
 	function cplus_plus_ex:getSkillObjsInRun(...) return skill_state_tracker:getSkillObjsInRun(...) end
+	function cplus_plus_ex:isSkillInRun(...) return skill_state_tracker:isSkillInRun(...) end
+
 	function cplus_plus_ex:getSkillsActive(...) return skill_state_tracker:getSkillsActive(...) end
 	function cplus_plus_ex:getSkillObjsActive(...) return skill_state_tracker:getSkillObjsActive(...) end
+	function cplus_plus_ex:isSkillActive(...) return skill_state_tracker:isSkillActive(...) end
+	function cplus_plus_ex:getMechsWithSkill(...) return skill_state_tracker:getMechsWithSkill(...) end
+	function cplus_plus_ex:isSkillOnPawn(...) return skill_state_tracker:isSkillOnPawn(...) end
 
-	-- Pilot skill tracking helpers
-	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
+	function cplus_plus_ex:getPilotsWithSkill(...) return skill_state_tracker:getPilotsWithSkill(...) end
 	function cplus_plus_ex:getPilotEarnedSkillIndexes(...) return skill_state_tracker:getPilotEarnedSkillIndexes(...) end
 	function cplus_plus_ex:getPilotSkillIndices(...) return skill_state_tracker:getPilotSkillIndices(...) end
+	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
+	function cplus_plus_ex:isSkillOnPilot(...) return skill_state_tracker:isSkillOnPilot(...) end
+	function cplus_plus_ex:isSkillOnPilots(...) return skill_state_tracker:isSkillOnPilots(...) end
 
 	-- Wrapper for potentialTimeTravelers since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end

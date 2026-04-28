@@ -2,12 +2,12 @@ local extension = {
 	id = "redactedrice_cplus_plus",
 	name = "CPLUS+ Ex (Pilot Extension)",
 	icon = "img/icon.png",
-	version = "1.0.2",
+	version = "1.1.0",
 	modApiVersion = "2.9.5",
 	gameVersion = "1.2.93",
 	dependencies = {
         modApiExt = "1.24",
-        redactedrice_memhack = "1.0.0",
+        redactedrice_memhack = "1.1.0",
     },
 	isExtension = true,
 }

@@ -1,3 +1,6 @@
+local logger = memhack.logger
+local SUBMODULE = logger.register("Memhack", "Board", memhack.DEBUG.ENABLED)
+
 local function onBoardClassInitialized(BoardClass)
 	BoardClass.GetMemhackObj = function(self)
 		if not self.memhackObj or memhack.dll.memory.getUserdataAddr(self) ~= self.memhackObj._address then
@@ -14,7 +17,8 @@ local function onBoardClassInitialized(BoardClass)
 
 	BoardClass.SetPodLandingPoint = function(self, point)
 		if type(point) ~= "userdata"  and getmetatable(v) == Point then
-			error(string.format("Point must be... a point. Got type %s", type(point)))
+			logger.logError(SUBMODULE, "Point must be... a point. Got type %s", type(point))
+			return
 		end
 		 self:GetMemhackObj():setPodLandingLoc(point)
 	end

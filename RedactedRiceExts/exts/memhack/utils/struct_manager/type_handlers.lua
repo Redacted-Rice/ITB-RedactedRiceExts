@@ -1,5 +1,8 @@
 -- Type handlers for different data types
 
+local logger = memhack.logger
+local SUBMODULE = logger.register("Memhack", "StructManager", memhack.DEBUG.ENABLED)
+
 -- Supported data types and their memory operations
 local typeHandlers = {
 	byte = {
@@ -60,14 +63,16 @@ local typeHandlers = {
 	string = {
 		read = function(address, maxLength)
 			if not maxLength then
-				error("string type requires a 'maxLength' field (including null terminator)")
+				logger.logError(SUBMODULE, "string type requires a 'maxLength' field (including null terminator)")
+				return nil
 			end
 			local result = StructManager._dll.memory.readNullTermString(address, maxLength)
 			return result
 		end,
 		write = function(address, value, maxLength)
 			if not maxLength then
-				error("string type requires a 'maxLength' field (including null terminator)")
+				logger.logError(SUBMODULE, "string type requires a 'maxLength' field (including null terminator)")
+				return
 			end
 			StructManager._dll.memory.writeNullTermString(address, value, maxLength)
 		end,
@@ -88,7 +93,8 @@ local typeHandlers = {
 	bytearray = {
 		read = function(address, length)
 			if not length then
-				error("bytearray type requires a 'length' field")
+				logger.logError(SUBMODULE, "bytearray type requires a 'length' field")
+				return nil
 			end
 			local result = StructManager._dll.memory.readByteArray(address, length)
 			return result
@@ -103,12 +109,13 @@ local typeHandlers = {
 		read = function(address, subType)
 			-- This function is not directly used; getters handle struct wrapping
 			if not subType then
-				error("struct type requires a 'subType' field")
+				logger.logError(SUBMODULE, "struct type requires a 'subType' field")
+				return nil
 			end
 			return address  -- Return the address for wrapping
 		end,
 		write = function(address, value, subType)
-			error("Cannot write entire struct directly. Modify individual fields instead.")
+			logger.logError(SUBMODULE, "Cannot write entire struct directly. Modify individual fields instead.")
 		end,
 		size = nil  -- Size determined by the struct definition
 	}

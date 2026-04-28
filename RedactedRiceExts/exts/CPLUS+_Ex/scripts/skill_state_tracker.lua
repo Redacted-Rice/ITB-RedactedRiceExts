@@ -76,7 +76,7 @@ end
 
 function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
 	if checkEarned == nil then checkEarned = true end
-	
+
 	local indices = {}
 	for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
 		local skill = pilot:getLvlUpSkill(skillIndex)
@@ -127,7 +127,7 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 				end
 			end
 		else
-			logger.logWarn(SUBMODULE, "Pilot %s is nil in isSkillOnPilots - skipping", idx)
+			logger.logWarn(SUBMODULE, "Pilot " .. idx .. " is nil in isSkillOnPilots - skipping")
 		end
 	end
 	return false
@@ -171,11 +171,11 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 				table.insert(result, {
 					pilot = pilot,
 					skillIndices = skillIndices
-				})
-			end
-		else
-			logger.logWarn(SUBMODULE, "Pilot %s is nil in getPilotsWithSkill - skipping", idx)
+			})
 		end
+	else
+		logger.logWarn(SUBMODULE, "Pilot " .. idx .. " is nil in getPilotsWithSkill - skipping")
+	end
 	end
 	return result
 end
@@ -219,12 +219,6 @@ end
 -- Update enabled skills state and fire hooks for changes
 -- Only fires hooks if we're in a game
 function skill_state_tracker:_updateEnabledSkills()
-	if not Game then
-		-- No game active, clear all enabled skills
-		self._enabledSkills = {}
-		return
-	end
-
 	local newEnabledSkills = cplus_plus_ex._subobjects.skill_config:getEnabledSkillsSet()
 	local hooksToFire = {}
 
@@ -245,11 +239,13 @@ function skill_state_tracker:_updateEnabledSkills()
 	-- Update state
 	self._enabledSkills = newEnabledSkills
 
-	-- Fire all queued hooks in order
-	for _, hook in ipairs(hooksToFire) do
-		logger.logDebug(SUBMODULE, "Skill Enabled: %s is %s - Firing hooks...", hook.skillId,
-				(hook.enabled and "enabled" or "disabled"))
-		hooks.fireSkillEnabledHooks(hook.skillId, hook.enabled)
+	-- Only fire hooks if we're in a game
+	if Game then
+		for _, hook in ipairs(hooksToFire) do
+			logger.logDebug(SUBMODULE, "Skill Enabled: %s is %s - Firing hooks...", hook.skillId,
+					(hook.enabled and "enabled" or "disabled"))
+			hooks.fireSkillEnabledHooks(hook.skillId, hook.enabled)
+		end
 	end
 end
 

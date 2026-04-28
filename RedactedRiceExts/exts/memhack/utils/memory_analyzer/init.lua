@@ -8,6 +8,10 @@ local path = GetParentPath(...)
 local MemoryAnalyzer = {}
 MemoryAnalyzer.__index = MemoryAnalyzer
 
+-- Register with logging system
+local logger = memhack.logger
+local SUBMODULE = logger.register("memhack", "MemAnalyzer", false)
+
 -- Load analysis submodules
 local comparison = require(path .. "comparison")
 local values = require(path .. "values")
@@ -29,7 +33,8 @@ end
 --    alignment: byte alignment for change detection (1=byte, 4=4-byte groups, default 4)
 function MemoryAnalyzer.new(id, size, options)
 	if MemoryAnalyzer._memoryAnalyzers[id] then
-		error(string.format("Memory analyzer with ID '%s' already exists", id))
+		logger.logError(SUBMODULE, "Memory analyzer with ID '%s' already exists", id)
+		return nil
 	end
 
 	options = options or {}
@@ -43,7 +48,8 @@ function MemoryAnalyzer.new(id, size, options)
 	instance.alignment = options.alignment or 4  -- Default 4-byte alignment
 
 	if instance.size % instance.alignment ~= 0 then
-		error(string.format("Size (%d) must be divisible by alignment (%d)", instance.size, instance.alignment))
+		logger.logError(SUBMODULE, "Size (%d) must be divisible by alignment (%d)", instance.size, instance.alignment)
+		return nil
 	end
 
 	-- Enable/disable and rate limiting
@@ -94,21 +100,22 @@ end
 -- Returns baseAddr on success, nil on failure
 function MemoryAnalyzer:_checkCanCapture(baseAddress)
 	if not self.enabled then
-		LOG("Analyzer is disabled. Capture aborted.")
+		logger.logWarn(SUBMODULE, "Analyzer is disabled. Capture aborted.")
 		return nil
 	end
 
 	if self.rateLimit > 0 then
 		local now = os.time()
 		if (now - self._lastCaptureTime) < self.rateLimit then
-			LOG("Rate limit exceeded. Capture aborted.")
+			logger.logWarn(SUBMODULE, "Rate limit exceeded. Capture aborted.")
 			return nil
 		end
 	end
 
 	local baseAddr = baseAddress or self._lastBaseAddress
 	if not baseAddr then
-		error("No base address available for capture")
+		logger.logError(SUBMODULE, "No base address available for capture")
+		return nil
 	end
 
 	return baseAddr
@@ -121,7 +128,8 @@ function MemoryAnalyzer:_resolveAddress(baseAddr)
 	for i, offset in ipairs(chain) do
 		local ptr = MemoryAnalyzer._dll.memory.readPointer(addr)
 		if not ptr or ptr == 0 then
-			error(string.format("Failed to resolve pointer at 0x%X (offset index %d)", addr, i))
+			logger.logError(SUBMODULE, "Failed to resolve pointer at 0x%X (offset index %d)", addr, i)
+			return nil
 		end
 		addr = ptr + offset
 	end
@@ -140,9 +148,14 @@ function MemoryAnalyzer:capture(baseAddress)
 	self._lastCaptureTime = os.time()
 
 	local addr = self:_resolveAddress(baseAddr)
+	if not addr then
+		return nil
+	end
+	
 	local data = MemoryAnalyzer._dll.memory.readByteArray(addr, self.size)
 	if not data then
-		error(string.format("Failed to read memory at 0x%X", addr))
+		logger.logError(SUBMODULE, "Failed to read memory at 0x%X", addr)
+		return nil
 	end
 
 	local captureData = {
@@ -171,7 +184,8 @@ end
 -- Get capture by index (1-based)
 function MemoryAnalyzer:getCapture(index)
 	if index < 1 or index > #self._captures then
-		error(string.format("Capture index %d out of range [1,%d]", index, #self._captures))
+		logger.logError(SUBMODULE, "Capture index %d out of range [1,%d]", index, #self._captures)
+		return nil
 	end
 	return self._captures[index]
 end
@@ -179,9 +193,11 @@ end
 -- Remove capture by index (1-based)
 function MemoryAnalyzer:removeCapture(index)
 	if index < 1 or index > #self._captures then
-		error(string.format("Capture index %d out of range [1,%d]", index, #self._captures))
+		logger.logError(SUBMODULE, "Capture index %d out of range [1,%d]", index, #self._captures)
+		return false
 	end
 	table.remove(self._captures, index)
+	return true
 end
 
 -- List all captures with basic info
@@ -224,7 +240,7 @@ end
 -- Returns: {filtered=ranges that changed, unfiltered=ranges that didn't}
 function MemoryAnalyzer:getChangedOnce(captureIndices, resultId)
 	local result = comparison.getChangedOnce(self._captures, captureIndices, self, self.id)
-	if resultId then
+	if result and resultId then
 		self._results[resultId] = result
 	end
 	return result
@@ -236,7 +252,7 @@ end
 -- Returns: {filtered=ranges that changed every time, unfiltered=ranges that didn't}
 function MemoryAnalyzer:getChangedEvery(captureIndices, resultId)
 	local result = comparison.getChangedEvery(self._captures, captureIndices, self, self.id)
-	if resultId then
+	if result and resultId then
 		self._results[resultId] = result
 	end
 	return result
@@ -248,7 +264,7 @@ end
 -- Returns: {filtered=ranges that never changed, unfiltered=ranges that did}
 function MemoryAnalyzer:getUnchanged(captureIndices, resultId)
 	local result = comparison.getUnchanged(self._captures, captureIndices, self, self.id)
-	if resultId then
+	if result and resultId then
 		self._results[resultId] = result
 	end
 	return result
@@ -261,7 +277,7 @@ end
 -- Returns: {filtered=ranges that match comparator, unfiltered=ranges that don't}
 function MemoryAnalyzer:getCustomChanges(captureIndices, comparatorFunc, resultId)
 	local result = comparison.getCustomChanges(self._captures, captureIndices, self, self.id, comparatorFunc)
-	if resultId then
+	if result and resultId then
 		self._results[resultId] = result
 	end
 	return result
@@ -278,7 +294,7 @@ end
 -- Returns: {filtered=ranges matching pattern, unfiltered=ranges not matching}
 function MemoryAnalyzer:getMatchingPattern(pattern, captureIndices, resultId)
 	local result = comparison.getMatchingPattern(self._captures, pattern, captureIndices, self, self.id)
-	if resultId then
+	if result and resultId then
 		self._results[resultId] = result
 	end
 	return result
@@ -296,7 +312,8 @@ function MemoryAnalyzer:_addDataHelper(result, analysisFunc, ranges)
 		resultId = result
 		result = self._results[resultId]
 		if not result then
-			error("Result ID not found: " .. resultId)
+			logger.logError(SUBMODULE, "Result ID not found: %s", resultId)
+			return nil
 		end
 	end
 
@@ -337,12 +354,14 @@ function MemoryAnalyzer:log(result)
 	if type(result) == "string" then
 		result = self._results[result]
 		if not result then
-			error("Result ID not found")
+			logger.logError(SUBMODULE, "Result ID not found")
+			return
 		end
 	end
 
 	if not result then
-		error("Result is nil")
+		logger.logError(SUBMODULE, "Result is nil")
+		return
 	end
 
 	logging.logChanges(result)
@@ -360,7 +379,8 @@ function MemoryAnalyzer:filterResult(result, filterSpec, resultId)
 	if type(result) == "string" then
 		result = self._results[result]
 		if not result then
-			error("Result ID not found")
+			logger.logError(SUBMODULE, "Result ID not found")
+			return nil
 		end
 	end
 

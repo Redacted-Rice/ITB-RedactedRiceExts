@@ -8,14 +8,30 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "SkillsUI", cplus_plus_ex.DEBUG.UI and cplus_plus_ex.DEBUG.ENABLED)
 
 local utils = nil
+local skill_config = nil
+local skill_registry = nil
 
 local scrollContent = nil
 -- Track UI widgets for updates
 local percentageLabels = {}
 local expandedCollapsables = {}
 local categoryHeaderLabels = {}
-local relationshipsContainer = nil
-local relationshipsParent = nil
+
+-- Cache for relationship sections to enable efficient dropdown updates
+local relationshipSections = {} -- [relationshipType] = {sourceDropdown, targetDropdown, sourceLabel, targetLabel, populateFunc}
+-- Maps to store precreated UI elements for relationships
+local relationshipRows = {} -- [relationshipType] = {[sourceId|targetId] = {row, sourceId, targetId}}
+
+-- Cache for group sections to enable efficient dropdown updates
+local groupsContentContainer = nil
+local groupSections = {} -- [groupName] = {container, addSkillDropdown, populateFunc}
+local groupCells = {} -- [groupName] = {[skillId] = {cell, skillId}}
+local newlyAddedGroups = {} -- Track newly added groups to show at top
+local groupAddSequence = 0 -- Counter to maintain group addition order
+
+-- Surface cache to avoid recreating images
+local surfaceCache = {}
+local scaledSurfaceCache = {}
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -26,8 +42,16 @@ local REUSABLILITY_DESCRIPTIONS = {
 	"Can be selected once per pilot (default vanilla behavior)",
 	"Can be selected once per run, once one pilot gets it, none other can for that run"
 }
-local TOTAL_WEIGHT_HEADER = "Total: %.1f"
-local TOTAL_PERCENT_HEADER = "Total: %.1f%%"
+local SLOT_RESTRICTION_HEADER = "Slot"
+local SLOT_RESTRICTION_NAMES = { "Any", "First", "Second" }
+local SLOT_RESTRICTION_DESCRIPTIONS = {
+	"Can appear in either skill slot (default)",
+	"Can only appear in the first skill slot",
+	"Can only appear in the second skill slot"
+}
+local SLOT_RESTRICTION_TOOLTIP = "Which skill slot this skill can appear in"
+local TOTAL_WEIGHT_HEADER = "%.1f"
+local TOTAL_PERCENT_HEADER = "%.1f%%"
 local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
 local SECRET_PILOTS = {"Pilot_Mantis","Pilot_Rock","Pilot_Zoltan"}
 
@@ -49,6 +73,25 @@ local COLLAPSE_PADDING = 46
 local PILOT_SIZE = 65
 local RELATIONSHIP_BUTTON_WIDTH = 140
 local SORT_WIDTH = 350
+
+-- Helper to get cached surface
+local function getCachedSurface(path)
+	if not surfaceCache[path] then
+		surfaceCache[path] = sdlext.getSurface({ path = path })
+	end
+	return surfaceCache[path]
+end
+
+-- Helper to get cached scaled surface for skill icons
+local function getCachedScaledSkillSurface(path)
+	if not scaledSurfaceCache[path] then
+		local surface = getCachedSurface(path)
+		if surface then
+			scaledSurfaceCache[path] = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+		end
+	end
+	return scaledSurfaceCache[path]
+end
 
 -- Dialog sizing
 local DIALOG_WIDTH_PREFERRED_PCT = 0.85
@@ -103,16 +146,156 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 	return false
 end
 
--- Rebuild all relationship sections when skills are toggled
-function modify_pilot_skills_ui:rebuildAllRelationships()
-	if relationshipsContainer and relationshipsParent then
-		relationshipsContainer:detach()
-		self:buildRelationships(relationshipsParent)
+-- Rebuilds dropdown items after updateOptions
+-- Rebuilds dropdown items after updateOptions is called
+-- Only rebuilds if the dropdown is currently open
+local function rebuildDropdownItems(dropdown)
+	if not dropdown.dropdown then return end
+
+	local scrollarea = dropdown.dropdown.children and dropdown.dropdown.children[1]
+	if not scrollarea or not scrollarea.children then return end
+
+	local layout = scrollarea.children[1]
+	if not layout then return end
+
+	-- Clear existing items
+	while #layout.children > 0 do
+		layout.children[#layout.children]:detach()
+	end
+
+	-- Rebuild items from updated values/strings
+	for i, v in ipairs(dropdown.values) do
+		local txt = DecoRAlignedText(dropdown.strings[i] or tostring(v))
+
+		local item = Ui()
+			:width(1):heightpx(40)
+			:decorate({
+				DecoSolidHoverable(deco.colors.button, deco.colors.buttonborder),
+				DecoAlign(0, 2),
+				txt
+			})
+
+		-- Capture i in closure
+		local index = i
+		item.onclicked = function(btn, button)
+			if button == 1 then
+				local oldChoice = dropdown.choice
+				local oldValue = dropdown.value
+
+				dropdown.choice = index
+				dropdown.value = dropdown.values[index]
+
+				dropdown.optionSelected:dispatch(oldChoice, oldValue, dropdown.choice, dropdown.value)
+				dropdown:destroyDropDown()
+
+				return true
+			end
+			return false
+		end
+
+		layout:add(item)
 	end
 end
 
+-- Updates relationship dropdown contents when skill enabled state changes
+function modify_pilot_skills_ui:updateRelationshipDropdowns()
+	for relationshipType, section in pairs(relationshipSections) do
+		if section.sourceDropdown and section.targetDropdown then
+			-- Dynamically regenerate source and target lists based on current enabled state
+			local sourceList, targetList, sourceIdsSorted, targetIdsSorted
+
+			if section.sourceLabel == "Pilot" then
+				-- Get current pilot data
+				sourceList, sourceIdsSorted = self:getPilotsData()
+			elseif section.sourceLabel == "Skill" then
+				-- Get current skill data
+				local skillData, exlusionSkillData, inclusionSkillData,
+				      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = self:getSkillsData()
+
+				if relationshipType == skill_config.RelationshipType.SKILL_EXCLUSIONS then
+					sourceList = exlusionSkillData
+					sourceIdsSorted = exlusionSkillIdsSorted
+				else
+					sourceList = skillData
+					sourceIdsSorted = skillIdsSorted
+				end
+			end
+
+			if section.targetLabel == "Pilot" then
+				-- Get current pilot data
+				targetList, targetIdsSorted = self:getPilotsData()
+			elseif section.targetLabel == "Skill" then
+				-- Get current skill data
+				local skillData, exlusionSkillData, inclusionSkillData,
+				      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = self:getSkillsData()
+
+				if relationshipType == skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS then
+					targetList = exlusionSkillData
+					targetIdsSorted = exlusionSkillIdsSorted
+				elseif relationshipType == skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS then
+					targetList = inclusionSkillData
+					targetIdsSorted = inclusionSkillIdsSorted
+				else
+					targetList = exlusionSkillData
+					targetIdsSorted = exlusionSkillIdsSorted
+				end
+			end
+
+			-- Create dropdown items with current enabled state
+			local includeSourceTooltips = section.sourceLabel == "Skill"
+			local includeTargetTooltips = section.targetLabel == "Skill"
+
+			local sourceDisplay, sourceVals, sourceTooltips = self:createDropDownItems(
+				sourceList,
+				sourceIdsSorted,
+				includeSourceTooltips
+			)
+
+			local targetDisplay, targetVals, targetTooltips = self:createDropDownItems(
+				targetList,
+				targetIdsSorted,
+				includeTargetTooltips
+			)
+
+			-- Update dropdown data
+			section.sourceDropdown:updateOptions(sourceVals, sourceDisplay)
+			section.targetDropdown:updateOptions(targetVals, targetDisplay)
+
+			-- Rebuild dropdown items if currently open
+			rebuildDropdownItems(section.sourceDropdown)
+			rebuildDropdownItems(section.targetDropdown)
+		end
+	end
+end
+
+-- Called when a skill is enabled or disabled in the Skills Configuration section
+function modify_pilot_skills_ui:skillEnableChanged(skillId, enabled)
+	logger.logInfo(SUBMODULE, "skillEnableChanged called: skillId=%s, enabled=%s", skillId, tostring(enabled))
+
+	-- Repopulate all relationship sections
+	for relationshipType, section in pairs(relationshipSections) do
+		if section.populateFunc then
+			section.populateFunc()
+		end
+	end
+
+	-- Repopulate all group sections showing/hiding cells based on enabled state
+	for groupName, section in pairs(groupSections) do
+		if section.populateFunc then
+			section.populateFunc()
+		end
+	end
+
+	-- Always update dropdowns to reflect the enabled/disabled state
+	self:updateRelationshipDropdowns()
+	self:updateGroupDropdowns()
+end
+
+
 function modify_pilot_skills_ui:init()
 	utils = cplus_plus_ex._subobjects.utils
+	skill_config = cplus_plus_ex._subobjects.skill_config
+	skill_registry = cplus_plus_ex._subobjects.skill_registry
 	sdlext.addModContent(
         "Modify Pilot Abilities",
         function()
@@ -148,7 +331,7 @@ function modify_pilot_skills_ui:getSkillsData()
 	local defaultSkills = {}
 	local inclusionSkills = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		local skillName = GetText(skill.shortName) or skill.shortName
 		skills[skillId] = skillName
 		if skill.skillType == "inclusion" then
@@ -340,7 +523,9 @@ end
 
 -- Builds a category section with tri checkbox
 -- Returns the content holder and the checkbox for updating checked state
-function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, startCollapsed)
+function modify_pilot_skills_ui:buildCategorySection(category, parent, categorySkills, skillLength, resuabilityLength, slotRestrictionLength, startCollapsed)
+	logger.logDebug(SUBMODULE, "buildCategorySection: category=%s, skillLen=%d, reuseLen=%d, slotLen=%d",
+			category, skillLength or -1, resuabilityLength or -1, slotRestrictionLength or -1)
 	local collapse, headerHolder = self:buildCollapsibleSectionBase(category, parent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, startCollapsed)
 
 	-- Store category name for saving collapse state
@@ -358,7 +543,7 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 		:settooltip("Enable/disable all skills in this category")
 		:addTo(headerHolder)
 
-	Ui()
+	local reusabilityHeader = Ui()
 		:widthpx(resuabilityLength):heightpx(ROW_HEIGHT)
 		:decorate({
 			DecoFrame(deco.colors.buttonborder),
@@ -366,6 +551,16 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 			DecoCAlignedText(REUSABLILITY_HEADER, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
 		})
 		:settooltip("How the skill can be reused across pilots and runs")
+		:addTo(headerHolder)
+
+	local slotHeader = Ui()
+		:widthpx(slotRestrictionLength):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoCAlignedText(SLOT_RESTRICTION_HEADER, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipTitle.font)
+		})
+		:settooltip(SLOT_RESTRICTION_TOOLTIP)
 		:addTo(headerHolder)
 
 	-- Weight header with total
@@ -402,13 +597,11 @@ function modify_pilot_skills_ui:buildCategorySection(category, parent, categoryS
 	categoryHeaderLabels[category].percentDeco = percentDeco
 	categoryHeaderLabels[category].skills = categorySkills
 
-	collapse.categoryCheckbox = categoryCheckbox
-
 	return collapse.dropdownHolder, categoryCheckbox
 end
 
 -- Builds a single skill entry row
-function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, onToggleCallback)
+function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, slotRestrictionLength, onToggleCallback)
 	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
 	if not skillConfigObj then
 		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
@@ -419,8 +612,15 @@ function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityL
 	local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
 
+	-- Add values to the row
+	local enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+	self:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
+	self:buildSkillEntrySlotRestriction(entryRow, skill, skillConfigObj.slotRestriction, slotRestrictionLength)
+	self:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
+	self:buildSkillEntryLabels(entryRow, skill)
+
 	-- Store the enable checkbox for category management
-	entryRow.enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
+	entryRow.enableCheckbox = enableCheckbox
 
 	return entryRow
 end
@@ -430,7 +630,7 @@ end
 function modify_pilot_skills_ui:getSkillsByCategory()
 	local skillsByCategory = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		local category = skill.category or "Other"
 
 		if not skillsByCategory[category] then
@@ -453,7 +653,7 @@ end
 function modify_pilot_skills_ui:calculateTotalWeight()
 	local totalWeight = 0
 	-- Calculate the total of all enabled skills
-	for _, otherSkillId in ipairs(cplus_plus_ex._subobjects.skill_config.enabledSkillsIds) do
+	for _, otherSkillId in ipairs(skill_config.enabledSkillsIds) do
 		local skillConfigObj = cplus_plus_ex.config.skillConfigs[otherSkillId]
 		if skillConfigObj and skillConfigObj.enabled then
 			totalWeight = totalWeight + skillConfigObj.weight
@@ -523,9 +723,9 @@ end
 
 function modify_pilot_skills_ui:getLargestIconWidth()
 	local maxWidth = 0
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		if skill.icon and skill.icon ~= "" then
-			local surface = sdlext.getSurface({ path = skill.icon })
+			local surface = getCachedSurface(skill.icon)
 			if surface then
 				local scaledWidth = surface:w() * SKILL_ICON_SCALE + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE)
 				maxWidth = math.max(maxWidth, scaledWidth)
@@ -541,15 +741,15 @@ end
 
 function modify_pilot_skills_ui:_determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
-	
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
 	end
-	
+
 	-- Get max icon width and add spacing
 	local maxIconWidth = self:getLargestIconWidth()
 	local iconTotalWidth = maxIconWidth + (SKILL_ICON_SPACING * 2)
-	
+
 	local longestName = self:getLongestLength(names)
 	-- Extra room for Checkbox and dynamically sized icon
 	local paddedName = longestName + CHECKBOX_PADDING + iconTotalWidth
@@ -560,7 +760,15 @@ function modify_pilot_skills_ui:_determineColumnLengths()
 	-- Extra room for drop down image
 	local paddedReuse = longestReuse + DROPDOWN_PADDING
 
-	return paddedName, paddedReuse
+	local slotOptions = utils.deepcopy(SLOT_RESTRICTION_NAMES)
+	table.insert(slotOptions, SLOT_RESTRICTION_HEADER)
+	local longestSlot = self:getLongestLength(slotOptions)
+	-- Extra room for drop down image
+	local paddedSlot = longestSlot + DROPDOWN_PADDING
+
+	logger.logDebug(SUBMODULE, "Column lengths: skill=%d, reuse=%d, slot=%d", paddedName, paddedReuse, paddedSlot)
+
+	return paddedName, paddedReuse, paddedSlot
 end
 
 function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, skillLength, onToggleCallback)
@@ -576,7 +784,7 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 
 	-- Add icon if available (icons are 21x21 base, scaled to display size)
 	if skill.icon and skill.icon ~= "" then
-		local surface = sdlext.getSurface({ path = skill.icon })
+		local surface = getCachedSurface(skill.icon)
 		if surface then
 			table.insert(decorations, DecoAlign(SKILL_ICON_SPACING, 0))
 			table.insert(decorations, DecoSurfaceOutlined(surface, SKILL_ICON_OUTLINE, nil, nil, SKILL_ICON_SCALE))
@@ -614,8 +822,8 @@ function modify_pilot_skills_ui:buildSkillEntryEnable(entryRow, skill, enabled, 
 			onToggleCallback()
 		end
 
-		-- Rebuild relationship sections to reflect enabled/disabled state
-		self:rebuildAllRelationships()
+		-- Notify that skill enabled state changed
+		self:skillEnableChanged(skill.id, checked)
 	end)
 
 	return enabledCheckbox
@@ -639,63 +847,6 @@ function modify_pilot_skills_ui:_applyWeightChange(weightInput, skill)
 	end
 end
 
--- Sort skills based on current sort option
-function modify_pilot_skills_ui:_sortSkillsByCurrentSort(skills, currentSkillSort)
-	local sortedSkills = {}
-	for _, skill in ipairs(skills) do
-		-- Only include valid skill objects with an id
-		if skill and skill.id then
-			table.insert(sortedSkills, skill)
-		end
-	end
-
-	table.sort(sortedSkills, function(a, b)
-		-- Safety checks
-		if not a or not a.id then return false end
-		if not b or not b.id then return true end
-
-		local aConfig = cplus_plus_ex.config.skillConfigs[a.id]
-		local bConfig = cplus_plus_ex.config.skillConfigs[b.id]
-
-		-- Get names
-		local aName = ""
-		if a.shortName then
-			aName = GetText(a.shortName) or a.shortName or ""
-		end
-		local bName = ""
-		if b.shortName then
-			bName = GetText(b.shortName) or b.shortName or ""
-		end
-
-		-- Fallback to name if either config is missing
-		if not aConfig or not bConfig then
-			return aName:lower() < bName:lower()
-		end
-
-		-- 1 falls down to the default (name)
-		-- Each option sorts primary then falls back to name (secondary)
-		if currentSkillSort == 2 then
-			-- Sort by enabled then name
-			if aConfig.enabled ~= bConfig.enabled then
-				return aConfig.enabled
-			end
-		elseif currentSkillSort == 3 then
-			-- Sort by reusability then name
-			if aConfig.reusability ~= bConfig.reusability then
-				return aConfig.reusability < bConfig.reusability
-			end
-		elseif currentSkillSort == 4 then
-			-- Sort by Weight/% then name
-			if aConfig.weight ~= bConfig.weight then
-				return aConfig.weight > bConfig.weight
-			end
-		end
-		-- Fallback to name
-		return aName:lower() < bName:lower()
-	end)
-
-	return sortedSkills
-end
 
 -- Update tooltip for a dropdown with base message and choice-specific tooltip
 function modify_pilot_skills_ui:_updateDropdownTooltip(widget, baseTooltip, tooltips)
@@ -780,6 +931,34 @@ function modify_pilot_skills_ui:buildSkillEntryReusability(entryRow, skill, resu
 	end
 end
 
+function modify_pilot_skills_ui:buildSkillEntrySlotRestriction(entryRow, skill, slotRestriction, slotRestrictionLength)
+	local slotRestrictionValues = {1, 2, 3}
+	local slotRestrictionStrings = SLOT_RESTRICTION_NAMES
+	local slotRestrictionTooltips = SLOT_RESTRICTION_DESCRIPTIONS
+
+	local slotRestrictionWidget = UiDropDown(slotRestrictionValues, slotRestrictionStrings, slotRestriction, slotRestrictionTooltips)
+			:widthpx(slotRestrictionLength)
+			:heightpx(40)
+			:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, DROPDOWN_BUTTON_PADDING),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(entryRow)
+
+	-- Set initial tooltip with selected option description
+	self:_updateDropdownTooltip(slotRestrictionWidget, SLOT_RESTRICTION_TOOLTIP, slotRestrictionTooltips)
+
+	-- Handle slot restriction changes
+	slotRestrictionWidget.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
+		cplus_plus_ex:setSkillConfig(skill.id, {slotRestriction = newValue})
+		cplus_plus_ex:saveConfiguration()
+		self:_updateDropdownTooltip(slotRestrictionWidget, SLOT_RESTRICTION_TOOLTIP, slotRestrictionTooltips)
+	end)
+end
+
 function modify_pilot_skills_ui:buildSkillEntryWeightInput(entryRow, skill, weight)
 	local weightInput = UiInputField()
 		:width(0.25):heightpx(ROW_HEIGHT)
@@ -830,30 +1009,6 @@ function modify_pilot_skills_ui:buildSkillEntryLabels(entryRow, skill)
 	percentageLabels[skill.id] = percentageLabel
 end
 
--- Builds a single skill entry row
-function modify_pilot_skills_ui:buildSkillEntry(skill, skillLength, resuabilityLength, onToggleCallback)
-	local skillConfigObj = cplus_plus_ex.config.skillConfigs[skill.id]
-	if not skillConfigObj then
-		logger.logWarn(SUBMODULE, "No config for skill " .. skill.id)
-		local result = Ui():width(1):heightpx(0) -- Return empty element
-		return result
-	end
-
-	local entryRow = UiWeightLayout()
-		:width(1):heightpx(ROW_HEIGHT)
-
-	-- Add values to the row
-	local enableCheckbox = self:buildSkillEntryEnable(entryRow, skill, skillConfigObj.enabled, skillLength, onToggleCallback)
-	self:buildSkillEntryReusability(entryRow, skill, skillConfigObj.reusability, resuabilityLength)
-	self:buildSkillEntryWeightInput(entryRow, skill, skillConfigObj.weight)
-	self:buildSkillEntryLabels(entryRow, skill)
-
-	-- Store the enable checkbox for category management
-	entryRow.enableCheckbox = enableCheckbox
-
-	return entryRow
-end
-
 -- Calculates total weight and percentage for a specific category
 function modify_pilot_skills_ui:calculateCategoryTotals(categorySkills, totalWeight)
 	local categoryWeight = 0
@@ -896,24 +1051,38 @@ function modify_pilot_skills_ui:buildGeneralSettings(scrollContent)
 		cplus_plus_ex.config.allowReusableSkills = checked
 		cplus_plus_ex:saveConfiguration()
 	end)
+
+	-- Enable group exclusions checkbox
+	local enableGroupsCheckbox = UiCheckbox()
+		:width(1):heightpx(ROW_HEIGHT)
+		:settooltip("If checked, no pilot will be assigned more than one skill from any single enabled group. If unchecked NO groups will be enabled (even if they are checked).")
+		:decorate({
+			DecoButton(),
+			DecoCheckbox(),
+			DecoAlign(0, 2),
+			DecoText("Enable Group Exclusions")
+		})
+		:addTo(settingsContent)
+
+	-- Default to true if not set
+	if cplus_plus_ex.config.enableGroupExclusions == nil then
+		cplus_plus_ex.config.enableGroupExclusions = true
+	end
+	enableGroupsCheckbox.checked = cplus_plus_ex.config.enableGroupExclusions
+
+	enableGroupsCheckbox.onToggled:subscribe(function(checked)
+		cplus_plus_ex.config.enableGroupExclusions = checked
+		cplus_plus_ex:saveConfiguration()
+		-- Update relationship dropdowns when group exclusions are toggled
+		self:updateRelationshipDropdowns()
+	end)
 end
 
 function modify_pilot_skills_ui:buildSkillsList(scrollContent)
-	-- Add sort options to Skills Configuration header
-	local sortOptions = {"Name", "Enabled", "Reusability", "Weight/%"}
-	local skillsContent, skillsSortDropdown = self:buildCollapsibleSection("Skills Configuration", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP, false, nil, sortOptions)
+	-- Build skills configuration section without sort dropdown - always sort alphabetically
+	local skillsContent = self:buildCollapsibleSection("Skills Configuration", scrollContent, nil, nil, false, nil, nil)
 
-	local skillLength, reuseabilityLength = self:_determineColumnLengths()
-
-	-- Track current sort option
-	-- 1 = Name, 2 = Enabled, 3 = Reusability, 4 = Weight/%
-	local currentSkillSort = cplus_plus_ex.config.skillConfigSortOrder or 1
-
-	-- Set initial dropdown value
-	if skillsSortDropdown then
-		skillsSortDropdown.value = currentSkillSort
-		skillsSortDropdown.choice = currentSkillSort
-	end
+	local skillLength, reuseabilityLength, slotRestrictionLength = self:_determineColumnLengths()
 
 	-- Get all skills organized by category
 	local skillsByCategory = self:getSkillsByCategory()
@@ -925,115 +1094,101 @@ function modify_pilot_skills_ui:buildSkillsList(scrollContent)
 	end
 	table.sort(sortedCategories)
 
-	-- Function to rebuild all categories with current sort
-	local function rebuildSkillCategories()
-		-- Clear existing content but keep header
-		while #skillsContent.children > 0 do
-			skillsContent.children[#skillsContent.children]:detach()
+	-- Build each category section - always sorted alphabetically by name
+	for _, category in ipairs(sortedCategories) do
+		-- Skills within categories are already sorted alphabetically in getSkillsByCategory
+		local skills = skillsByCategory[category]
+		-- Use saved collapse state if available, default to expanded (false = not collapsed)
+		local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
+		local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, slotRestrictionLength, startCollapsed)
+
+		-- Track checkboxes for this category
+		local categorySkillCheckboxes = {}
+
+		-- Method to update category checkbox state based on children
+		categoryCheckbox.updateCheckedState = function(cc)
+			local enabledCount = 0
+			local totalCount = #categorySkillCheckboxes
+
+			for _, entry in ipairs(categorySkillCheckboxes) do
+				local skillConfig = cplus_plus_ex.config.skillConfigs[entry.skillId]
+				if skillConfig and skillConfig.enabled then
+					enabledCount = enabledCount + 1
+				end
+			end
+
+			-- Set tri state based on enabled count
+			if enabledCount == totalCount and totalCount > 0 then
+				cc.checked = true
+			elseif enabledCount == 0 then
+				cc.checked = false
+			else
+				cc.checked = "mixed"
+			end
 		end
 
-		-- Clear tracking tables for fresh rebuild
-		percentageLabels = {}
-		categoryHeaderLabels = {}
+		-- Update all child checkboxes
+		categoryCheckbox.updateChildrenCheckedState = function(cc)
+			local newState = (cc.checked == true)
 
-		-- Build each category section
-		for _, category in ipairs(sortedCategories) do
-			local skills = self:_sortSkillsByCurrentSort(skillsByCategory[category], currentSkillSort)
-			-- Use saved collapse state if available, default to expanded (false = not collapsed)
-			local startCollapsed = cplus_plus_ex.config.categoryCollapseStates[category] or false
-			local categoryContent, categoryCheckbox = self:buildCategorySection(category, skillsContent, skills, skillLength, reuseabilityLength, startCollapsed)
-
-			-- Track checkboxes for this category
-			local categorySkillCheckboxes = {}
-
-			-- Method to update category checkbox state based on children
-			categoryCheckbox.updateCheckedState = function(cc)
-				local enabledCount = 0
-				local totalCount = #categorySkillCheckboxes
-
-				for _, entry in ipairs(categorySkillCheckboxes) do
-					local skillConfig = cplus_plus_ex.config.skillConfigs[entry.skillId]
-					if skillConfig and skillConfig.enabled then
-						enabledCount = enabledCount + 1
-					end
-				end
-
-				-- Set tri-state based on enabled count
-				if enabledCount == totalCount and totalCount > 0 then
-					cc.checked = true
-				elseif enabledCount == 0 then
-					cc.checked = false
+			-- Batch update all skills in category without triggering individual updates
+			for _, entry in ipairs(categorySkillCheckboxes) do
+				if newState then
+					cplus_plus_ex:enableSkill(entry.skillId, true)
 				else
-					cc.checked = "mixed"
+					cplus_plus_ex:disableSkill(entry.skillId, true)
+				end
+				entry.checkbox.checked = newState
+			end
+
+			-- Now update UI once for the entire category change
+			for relationshipType, section in pairs(relationshipSections) do
+				if section.populateFunc then
+					section.populateFunc()
 				end
 			end
 
-			-- Update all child checkboxes
-			categoryCheckbox.updateChildrenCheckedState = function(cc)
-				local newState = (cc.checked == true)
-
-				for _, entry in ipairs(categorySkillCheckboxes) do
-					if newState then
-						cplus_plus_ex:enableSkill(entry.skillId, true)
-					else
-						cplus_plus_ex:disableSkill(entry.skillId, true)
-					end
-					entry.checkbox.checked = newState
+			for groupName, section in pairs(groupSections) do
+				if section.populateFunc then
+					section.populateFunc()
 				end
-
-				self:updateAllPercentages()
-				cplus_plus_ex:saveConfiguration()
-
-				-- Rebuild relationship sections to reflect enabled/disabled state
-				self:rebuildAllRelationships()
 			end
 
-			-- Build skill entries
-			for _, skill in ipairs(skills) do
-				local onToggleCallback = function()
-					categoryCheckbox:updateCheckedState()
-				end
-
-				local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, onToggleCallback)
-					:addTo(categoryContent)
-
-				-- Track the skill's enable checkbox for category updates
-				table.insert(categorySkillCheckboxes, {
-					skillId = skill.id,
-					checkbox = skillEntry.enableCheckbox
-				})
-			end
-
-			-- Category checkbox click hanupdateChildrenCheckedStatedler
-			categoryCheckbox.onclicked = function(cc, button)
-				if button == 1 then
-					cc:updateChildrenCheckedState()
-					cc:updateCheckedState()
-					return true
-				end
-				return false
-			end
-
-			-- Initial state
-			categoryCheckbox:updateCheckedState()
-		end
-	end
-
-	-- Subscribe to sort dropdown changes
-	if skillsSortDropdown then
-		skillsSortDropdown.optionSelected:subscribe(function(_, _, choice, value)
-			currentSkillSort = value
-			-- Save sort order preference
-			cplus_plus_ex.config.skillConfigSortOrder = value
-			cplus_plus_ex:saveConfiguration()
-			rebuildSkillCategories()
-			-- Update percentages after rebuild
+			self:updateRelationshipDropdowns()
+			self:updateGroupDropdowns()
 			self:updateAllPercentages()
-		end)
-	end
+			cplus_plus_ex:saveConfiguration()
+		end
 
-	-- Initial build
-	rebuildSkillCategories()
+		-- Build skill entries
+		for _, skill in ipairs(skills) do
+			local onToggleCallback = function()
+				categoryCheckbox:updateCheckedState()
+			end
+
+			local skillEntry = self:buildSkillEntry(skill, skillLength, reuseabilityLength, slotRestrictionLength, onToggleCallback)
+				:addTo(categoryContent)
+
+			-- Track the skill's enable checkbox for category updates
+			table.insert(categorySkillCheckboxes, {
+				skillId = skill.id,
+				checkbox = skillEntry.enableCheckbox
+			})
+		end
+
+		-- Category checkbox click handler
+		categoryCheckbox.onclicked = function(cc, button)
+			if button == 1 then
+				cc:updateChildrenCheckedState()
+				cc:updateCheckedState()
+				return true
+			end
+			return false
+		end
+
+		-- Initial state
+		categoryCheckbox:updateCheckedState()
+	end
 
 	-- Initial percentage calculation
 	self:updateAllPercentages()
@@ -1044,7 +1199,7 @@ function modify_pilot_skills_ui:addPilotImage(pilotId, row)
 		:widthpx(PILOT_SIZE - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
 	-- Always draw frame border, add portrait on top if available
-	local decorations = { DecoFrame() }
+	local decorations = { }
 
 	if pilotId and pilotId ~= "All" and pilotId ~= "" then
 		local portrait = self:getPilotPortrait(pilotId)
@@ -1068,10 +1223,10 @@ function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
 		:widthpx(iconWidth - BOARDER_SIZE * 2):heightpx(ROW_HEIGHT)
 
 	-- Always draw frame border, add icon on top if available
-	local decorations = { DecoFrame() }
+	local decorations = {  }
 
 	if skillId and skillId ~= "All" and skillId ~= "" then
-		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+		local skill = skill_registry.registeredSkills[skillId]
 		if skill and skill.icon and skill.icon ~= "" then
 			local surface = sdlext.getSurface({ path = skill.icon })
 			if surface then
@@ -1103,7 +1258,7 @@ function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId)
 
 	-- Add skill description tooltip if this is a skill
 	if skillId then
-		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+		local skill = skill_registry.registeredSkills[skillId]
 		if skill then
 			local description = GetText(skill.description) or skill.description or ""
 			if description ~= "" then
@@ -1135,6 +1290,8 @@ function modify_pilot_skills_ui:addNewRelDropDown(label, listVals, listDisplay, 
 		selectFn(oldChoice, oldValue, newChoice, newValue)
 		self:_updateDropdownTooltip(dropDown, baseTooltip, listTooltips)
 	end)
+
+	return dropDown
 end
 
 function modify_pilot_skills_ui:addArrowLabel(bidirectional, row)
@@ -1157,15 +1314,20 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 	-- Use presorted IDs if provided, otherwise use utils.sortByValue
 	local keysToUse = sortedIds or utils.sortByValue(dataList)
 
+	local totalItems = #keysToUse
+	local enabledItems = 0
+
 	for _, k in ipairs(keysToUse) do
 		-- Only show enabled items
-		if self:isItemEnabled(k) then
+		local enabled = self:isItemEnabled(k)
+		if enabled then
+			enabledItems = enabledItems + 1
 			table.insert(listDisplay, dataList[k])
 			table.insert(listVals, k)
 
 			-- Add skill description as tooltip if requested
 			if includeSkillTooltips then
-				local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[k]
+				local skill = skill_registry.registeredSkills[k]
 				if skill then
 					local description = GetText(skill.description) or skill.description or ""
 					table.insert(listTooltips, description)
@@ -1177,6 +1339,7 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 			end
 		end
 	end
+
 	return listDisplay, listVals, listTooltips
 end
 
@@ -1185,12 +1348,12 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	-- Get metadata for this relationship type
 	local metadata = cplus_plus_ex:getRelationshipMetadata(relationshipType)
 	if not metadata then
-		error("Invalid relationship type: " .. tostring(relationshipType))
+		logger.logError(SUBMODULE, "Invalid relationship type: " .. tostring(relationshipType))
+		return
 	end
 
 	local title = metadata.title
 	local sectionTooltip = metadata.tooltip
-	local sortConfigKey = metadata.sortOrder
 	local sourceLabel = metadata.sourceLabel
 	local targetLabel = metadata.targetLabel
 	local isBidirectional = metadata.isBidirectional
@@ -1217,7 +1380,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	elseif sourceLabel == "Skill" or targetLabel == "Skill" then
 		largestHeight = math.max(ROW_HEIGHT, maxSkillIconWidth)
 	end
-	
+
 	-- Use consistent spacing throughout
 	local itemSpacing = SKILL_LIST_VGAP
 	if largestHeight > ROW_HEIGHT then
@@ -1229,29 +1392,37 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	local sortOptions = {"First Column", "Second Column"}
 	local sectionContainer, sortDropdown = self:buildCollapsibleSection(title, parent, itemSpacing, itemSpacing, false, sectionTooltip, sortOptions)
 
+	-- Get metadata for sort order config key
+	local sortConfigKey = metadata.sortOrder
+
 	-- State for the add dropdowns and sorting
 	local selectedSource = listVals[1]
 	local selectedTarget = targetListVals[1]
 	local currentSourceImage = nil
 	local currentTargetImage = nil
-	local sortColumn = cplus_plus_ex.config[sortConfigKey] or 1  -- Load saved sort order (1 = source, 2 = target)
-	local newlyAddedRelationships = {}  -- Track newly added items to show at top
+	local sortColumn = cplus_plus_ex.config[sortConfigKey] or 1  -- Load saved sort order
+	local newlyAddedRelationships = {}  -- Track newly added items to show at top. Cleared only when sort changes
+	local addSequence = 0  -- Counter to maintain addition order. Most recent = highest number
 
 	-- Set initial dropdown value
 	if sortDropdown then
 		sortDropdown.value = sortColumn
 		sortDropdown.choice = sortColumn
 	end
-	
-	-- Ideally i'd avoid the circular dependency but for simplicity I'm
-	-- just predefnining the fn
-	local rebuildRelationshipList
 
-	-- Helper function to build a single relationship row
-	local function buildRelationshipRow(sourceId, targetId)
+	-- Initialize relationship rows map for this type
+	if not relationshipRows[relationshipType] then
+		relationshipRows[relationshipType] = {}
+	end
+	local rowsMap = relationshipRows[relationshipType]
+
+	-- Forward declare populate function
+	local populateRelationshipList
+
+	-- Helper function to create a single relationship row UI element
+	local function createRelationshipRow(sourceId, targetId)
 		local entryRow = UiWeightLayout()
 			:width(1):heightpx(ROW_HEIGHT)
-			:addTo(sectionContainer)
 
 		-- Pilot portrait if its a pilot
 		if sourceLabel == "Pilot" then
@@ -1288,25 +1459,34 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 					cplus_plus_ex:removeRelationshipFromRuntime(relationshipType, targetId, sourceId)
 				end
 
-				-- Save and rebuild
+				-- Remove UI element from map
+				local key = sourceId .. "|" .. targetId
+				if rowsMap[key] then
+					rowsMap[key].row:detach()
+					rowsMap[key] = nil
+				end
+
+				-- Save and repopulate
 				cplus_plus_ex:saveConfiguration()
-				rebuildRelationshipList()
+				populateRelationshipList()
 				return true
 			end
 		)
 		btnRemove:widthpx(RELATIONSHIP_BUTTON_WIDTH)
 			:heightpx(ROW_HEIGHT)
 			:addTo(entryRow)
+
+		return entryRow
 	end
 
-	-- Function to rebuild the list of existing relationships
-	rebuildRelationshipList = function()
+	-- Function to populate/repopulate the list using existing UI elements
+	populateRelationshipList = function()
 		-- Clear existing list (remove all but the add row)
 		while #sectionContainer.children > 1 do
 			sectionContainer.children[#sectionContainer.children]:detach()
 		end
 
-		-- Collect all relationships into a list for sorting
+		-- Collect all relationships into lists for sorting
 		local relationshipList = {}
 		local newItemsList = {}
 
@@ -1315,19 +1495,31 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 				-- Only show relationships where both source and target are enabled
 				if self:isItemEnabled(sourceId) and self:isItemEnabled(targetId) then
 					local key = sourceId .. "|" .. targetId
-					local relationship = {sourceId = sourceId, targetId = targetId}
+					-- Ensure UI element exists for this relationship
+					if not rowsMap[key] then
+						rowsMap[key] = {
+							row = createRelationshipRow(sourceId, targetId),
+							sourceId = sourceId,
+							targetId = targetId
+						}
+					end
 
 					-- Check if this is a newly added item
 					if newlyAddedRelationships[key] then
-						table.insert(newItemsList, relationship)
+						table.insert(newItemsList, {sourceId = sourceId, targetId = targetId, key = key, sequence = newlyAddedRelationships[key]})
 					else
-						table.insert(relationshipList, relationship)
+						table.insert(relationshipList, {sourceId = sourceId, targetId = targetId, key = key})
 					end
 				end
 			end
 		end
 
-		-- Sort only the non-new items based on the selected column
+		-- Sort newly added items by sequence. Most recent first = highest number
+		table.sort(newItemsList, function(a, b)
+			return a.sequence > b.sequence
+		end)
+
+		-- Sort non new items based on current sort column
 		table.sort(relationshipList, function(a, b)
 			if sortColumn == 1 then
 				-- Sort by source then target
@@ -1354,14 +1546,14 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			end
 		end)
 
-		-- Build newly added items first
+		-- Add newly added items first (at the top)
 		for _, relationship in ipairs(newItemsList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId)
+			rowsMap[relationship.key].row:addTo(sectionContainer)
 		end
 
-		-- Build sorted items
+		-- Add sorted rows back to container
 		for _, relationship in ipairs(relationshipList) do
-			buildRelationshipRow(relationship.sourceId, relationship.targetId)
+			rowsMap[relationship.key].row:addTo(sectionContainer)
 		end
 
 		-- Spacer
@@ -1381,7 +1573,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	end
 
 	-- Source dropdown
-	self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
+	local sourceDropdown = self:addNewRelDropDown(sourceLabel, listVals, listDisplay, listTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedSource = newValue
 
@@ -1403,11 +1595,10 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 							table.insert(currentSourceImage.decorations, DecoSurface(portrait))
 						end
 					elseif sourceLabel == "Skill" then
-						local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
+						local skill = skill_registry.registeredSkills[newValue]
 						if skill and skill.icon and skill.icon ~= "" then
-							local surface = sdlext.getSurface({ path = skill.icon })
-							if surface then
-								local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+							local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+							if scaledSurface then
 								table.insert(currentSourceImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 							end
 						end
@@ -1425,7 +1616,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 	end
 
 	-- Target dropdown
-	self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
+	local targetDropdown = self:addNewRelDropDown(targetLabel, targetListVals, targetListDisplay, targetListTooltips,
 		function(oldChoice, oldValue, newChoice, newValue)
 			selectedTarget = newValue
 
@@ -1441,11 +1632,10 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 				-- Add new icon if not "All"
 				if newValue ~= "All" and newValue ~= "" then
-					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
+					local skill = skill_registry.registeredSkills[newValue]
 					if skill and skill.icon and skill.icon ~= "" then
-						local surface = sdlext.getSurface({ path = skill.icon })
-						if surface then
-							local scaledSurface = sdl.scaled(SKILL_ICON_SCALE, sdl.outlined(surface, SKILL_ICON_OUTLINE, deco.colors.buttonborder))
+						local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+						if scaledSurface then
 							table.insert(currentTargetImage.decorations, DecoSurfaceAligned(scaledSurface, "center", "center"))
 						end
 					end
@@ -1535,16 +1725,25 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 							cplus_plus_ex:addRelationshipToRuntime(relationshipType, targetId, sourceId)
 						end
 
-						-- Mark as newly added to show at top
+						-- Create UI element for this relationship and mark as newly added
 						local key = sourceId .. "|" .. targetId
-						newlyAddedRelationships[key] = true
+						if not rowsMap[key] then
+							rowsMap[key] = {
+								row = createRelationshipRow(sourceId, targetId),
+								sourceId = sourceId,
+								targetId = targetId
+							}
+						end
+						-- Mark as newly added to show at top with sequence number
+						addSequence = addSequence + 1
+						newlyAddedRelationships[key] = addSequence
 					end
 				end
 			end
 
-			-- Save and rebuild
+			-- Save and repopulate
 			cplus_plus_ex:saveConfiguration()
-			rebuildRelationshipList()
+			populateRelationshipList()
 			return true
 		end
 	)
@@ -1561,20 +1760,27 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 			cplus_plus_ex:saveConfiguration()
 			-- Clear newly added tracking when sort changes
 			newlyAddedRelationships = {}
-			rebuildRelationshipList()
+			addSequence = 0
+			-- Repopulate with new sort order
+			populateRelationshipList()
 		end)
 	end
 
 	-- Build initial list
-	rebuildRelationshipList()
+	populateRelationshipList()
+
+	-- Cache only what's needed for updates
+	relationshipSections[relationshipType] = {
+		sourceDropdown = sourceDropdown,
+		targetDropdown = targetDropdown,
+		sourceLabel = sourceLabel,
+		targetLabel = targetLabel,
+		populateFunc = populateRelationshipList
+	}
 end
 
 function modify_pilot_skills_ui:buildRelationships(scrollContent)
 	local relationshipsContent = self:buildCollapsibleSection("Skill Relationships", scrollContent, SKILL_LIST_VGAP, SKILL_LIST_VGAP)
-
-	-- Store reference to the entire section box (parent of content) for rebuilding
-	relationshipsContainer = relationshipsContent.parent
-	relationshipsParent = scrollContent
 
 	-- Get lists for dropdowns (now includes sorted IDs)
 	local pilotData, pilotIdsSorted = self:getPilotsData()
@@ -1615,12 +1821,642 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 end
 
 -- Builds the main content for the dialog
+-- Build the skill groups UI section
+function modify_pilot_skills_ui:buildGroups(parent)
+	local groupsMainSection = self:buildCollapsibleSection("Skill Groups", parent, DEFAULT_VGAP, SKILL_LIST_VGAP, false,
+		"Create groups of skills where only one skill from each enabled group can be assigned per pilot")
+
+	-- Create new group controls
+	local controlsRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(groupsMainSection)
+
+	local newGroupInput = UiInputField()
+		:width(1):heightpx(ROW_HEIGHT)
+		:settooltip("Enter new group name")
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoInputField{
+				alignV = "center",
+				offsetX = 10,
+				offsetY = 2,
+			},
+		})
+		:addTo(controlsRow)
+
+	newGroupInput.textfield = ""
+
+	local btnCreateGroup = sdlext.buildButton(
+		"Create Group",
+		"Create a new empty skill group",
+		function()
+			local groupName = newGroupInput.textfield:gsub("^%s*(.-)%s*$", "%1")
+			if groupName == "" then
+				return true
+			end
+
+			if cplus_plus_ex:getGroup(groupName) then
+				sdlext.showButtonDialog(
+					"Group Exists",
+					"Group '" .. groupName .. "' already exists.",
+					function() end,
+					{"OK"}
+				)
+				return true
+			end
+
+			cplus_plus_ex:addGroupToRuntime(groupName)
+			cplus_plus_ex.config.groupsCollapseStates[groupName] = false
+			newGroupInput.textfield = ""
+			cplus_plus_ex:saveConfiguration()
+			-- Build section for new group
+			self:buildGroupSection(groupsContentContainer, groupName)
+			-- Mark as newly added with sequence number
+			groupAddSequence = groupAddSequence + 1
+			newlyAddedGroups[groupName] = groupAddSequence
+			-- Repopulate all groups
+			self:populateAllGroups()
+			return true
+		end
+	)
+	btnCreateGroup:widthpx(270):heightpx(ROW_HEIGHT):addTo(controlsRow)
+
+	-- Grid size control
+	Ui()
+		:widthpx(160):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoAlign(0, 2),
+			DecoRAlignedText("Grid Size:", nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
+		})
+		:addTo(controlsRow)
+
+	local gridSizeValues = {2, 3, 4, 5}
+	local gridSizeDisplay = {"2", "3", "4", "5"}
+	local currentGridSize = cplus_plus_ex.config.groupsItemsPerRow or 4
+
+	local gridSizeDropdown = UiDropDown(gridSizeValues, gridSizeDisplay, currentGridSize, nil)
+		:widthpx(105):heightpx(40)
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, DROPDOWN_BUTTON_PADDING),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(controlsRow)
+
+	gridSizeDropdown.optionSelected:subscribe(function(oldChoice, oldValue, newChoice, newValue)
+		cplus_plus_ex.config.groupsItemsPerRow = newValue
+		cplus_plus_ex:saveConfiguration()
+		-- Repopulate all groups with new grid size
+		for groupName, section in pairs(groupSections) do
+			if section.populateFunc then
+				section.populateFunc()
+			end
+		end
+	end)
+
+	-- Content container for group sections
+	groupsContentContainer = UiBoxLayout()
+		:vgap(DEFAULT_VGAP)
+		:width(1)
+		:addTo(groupsMainSection)
+
+	-- Build the actual group sections
+	self:buildGroupSections()
+end
+
+-- Build all group sections
+function modify_pilot_skills_ui:buildGroupSections()
+	if not groupsContentContainer then return end
+
+	local groupNames = cplus_plus_ex:listGroups()
+
+	-- Build sections for all groups
+	for _, groupName in ipairs(groupNames) do
+		self:buildGroupSection(groupsContentContainer, groupName)
+	end
+
+	-- Initial populate
+	self:populateAllGroups()
+end
+
+-- Populate/repopulate all group sections
+function modify_pilot_skills_ui:populateAllGroups()
+	if not groupsContentContainer then return end
+
+	-- Clear container
+	while #groupsContentContainer.children > 0 do
+		groupsContentContainer.children[#groupsContentContainer.children]:detach()
+	end
+
+	local groupNames = cplus_plus_ex:listGroups()
+	local newGroups = {}
+	local existingGroups = {}
+
+	-- Separate newly added from existing
+	for _, groupName in ipairs(groupNames) do
+		if newlyAddedGroups[groupName] then
+			table.insert(newGroups, {name = groupName, sequence = newlyAddedGroups[groupName]})
+		else
+			table.insert(existingGroups, groupName)
+		end
+	end
+
+	-- Sort newly added groups by sequence. Most recent first = highest number
+	table.sort(newGroups, function(a, b)
+		return a.sequence > b.sequence
+	end)
+
+	-- Add newly added groups first
+	for _, groupData in ipairs(newGroups) do
+		local groupName = groupData.name
+		if groupSections[groupName] then
+			groupSections[groupName].container:addTo(groupsContentContainer)
+			-- Populate this group's grid
+			if groupSections[groupName].populateFunc then
+				groupSections[groupName].populateFunc()
+			end
+		end
+	end
+
+	-- Add existing groups in sorted order
+	for _, groupName in ipairs(existingGroups) do
+		if groupSections[groupName] then
+			groupSections[groupName].container:addTo(groupsContentContainer)
+			-- Populate this group's grid
+			if groupSections[groupName].populateFunc then
+				groupSections[groupName].populateFunc()
+			end
+		end
+	end
+end
+
+-- Build a single group section
+function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
+	local group = cplus_plus_ex:getGroup(groupName)
+	if not group then return end
+
+	-- Create main container (detached initially, will be added by populateAllGroups)
+	local sectionContainer = UiBoxLayout()
+		:vgap(DEFAULT_VGAP)
+		:width(1)
+
+	local groupCollapse, groupHeader = self:buildCollapsibleSectionBase(groupName, sectionContainer, DEFAULT_VGAP, DEFAULT_VGAP,
+		cplus_plus_ex.config.groupsCollapseStates[groupName] or false)
+
+	-- Save collapse state
+	groupCollapse.onclicked = function(cc, button)
+		if button == 1 then
+			local result = self:clickCollapse(cc, button)
+			if result then
+				cplus_plus_ex.config.groupsCollapseStates[groupName] = not cc.checked
+				cplus_plus_ex:saveConfiguration()
+			end
+			return result
+		end
+		return false
+	end
+
+	-- Group title row with enable checkbox and delete button
+	local titleRow = UiWeightLayout()
+		:width(1.0):heightpx(ROW_HEIGHT)
+		:addTo(groupHeader)
+
+	Ui()
+		:width(1):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoFrame(deco.colors.buttonborder),
+			DecoAlign(0, 2),
+			DecoText(groupName, nil, nil, nil, nil, nil, nil, deco.uifont.title.font)
+		})
+		:addTo(titleRow)
+
+	-- Enable/disable checkbox
+	local enableCheckbox = UiCheckbox()
+		:widthpx(270):heightpx(ROW_HEIGHT)
+		:settooltip("When checked, if top level Enable Group Exclusions is also "..
+				"checked then only one skill from this group can be assigned per pilot")
+		:decorate({
+			DecoButton(),
+			DecoCheckbox(),
+			DecoAlign(0, 2),
+			DecoText("Enabled")
+		})
+		:addTo(titleRow)
+
+	enableCheckbox.checked = group.enabled or false
+	enableCheckbox.onToggled:subscribe(function(checked)
+		if checked then
+			cplus_plus_ex:enableGroup(groupName)
+		else
+			cplus_plus_ex:disableGroup(groupName)
+		end
+		cplus_plus_ex:saveConfiguration()
+	end)
+
+	-- Delete button
+	local btnDeleteGroup = sdlext.buildButton(
+		"Delete Group",
+		"Delete this group",
+		function()
+			sdlext.showButtonDialog(
+				"Confirm Delete",
+				"Delete group '" .. groupName .. "'?",
+				function(btnIndex)
+					if btnIndex == 1 then
+						cplus_plus_ex:deleteGroupFromRuntime(groupName)
+						cplus_plus_ex:saveConfiguration()
+						-- Remove from maps and repopulate
+						if groupSections[groupName] then
+							groupSections[groupName].container:detach()
+							groupSections[groupName] = nil
+						end
+						groupCells[groupName] = nil
+						self:populateAllGroups()
+					end
+				end,
+				{"Yes", "No"}
+			)
+			return true
+		end
+	)
+	btnDeleteGroup:widthpx(270):heightpx(ROW_HEIGHT):addTo(titleRow)
+
+	local groupContent = groupCollapse.dropdownHolder
+
+	-- Add skill control
+	local addSkillDropdown = self:buildGroupAddSkill(groupContent, groupName)
+
+	-- Create persistent grid container
+	local gridContainer = UiBoxLayout()
+		:vgap(0)
+		:width(1)
+		:addTo(groupContent)
+
+	-- Initialize cells map for this group
+	if not groupCells[groupName] then
+		groupCells[groupName] = {}
+	end
+
+	-- Create cells for all skills in this group
+	self:createGroupCells(groupName)
+
+	-- Forward declare populate function
+	local populateGroupGrid
+
+	-- Function to populate/repopulate the grid
+	populateGroupGrid = function()
+		-- Clear grid
+		while #gridContainer.children > 0 do
+			gridContainer.children[#gridContainer.children]:detach()
+		end
+
+		local group = cplus_plus_ex:getGroup(groupName)
+		if not group then return end
+
+		-- Get all skills in this group
+		local skillIds = {}
+		for skillId in pairs(group.skillIds) do
+			table.insert(skillIds, skillId)
+		end
+
+		-- Sort by name
+		table.sort(skillIds, function(a, b)
+			local skillA = skill_registry.registeredSkills[a]
+			local skillB = skill_registry.registeredSkills[b]
+			local nameA = skillA and (GetText(skillA.shortName) or skillA.shortName) or a
+			local nameB = skillB and (GetText(skillB.shortName) or skillB.shortName) or b
+			return nameA:lower() < nameB:lower()
+		end)
+
+		-- Filter to only enabled skills for display
+		local enabledSkillIds = {}
+		for _, skillId in ipairs(skillIds) do
+			if self:isItemEnabled(skillId) then
+				table.insert(enabledSkillIds, skillId)
+			end
+		end
+
+		-- Build grid with blanks to fill
+		local itemsPerRow = cplus_plus_ex.config.groupsItemsPerRow
+		local skillIndex = 1
+
+		-- Always show grid even if empty
+		if #enabledSkillIds == 0 then
+			return -- No cells to show
+		end
+
+		while skillIndex <= #enabledSkillIds do
+			local gridRow = UiWeightLayout()
+				:width(1):heightpx(ROW_HEIGHT + 10)
+				:addTo(gridContainer)
+
+			for i = 1, itemsPerRow do
+				if skillIndex <= #enabledSkillIds then
+					local skillId = enabledSkillIds[skillIndex]
+					-- Add the pre created cell with dynamic width
+					if groupCells[groupName] and groupCells[groupName][skillId] then
+						groupCells[groupName][skillId].cell
+							:width(1.0 / itemsPerRow)
+							:addTo(gridRow)
+					end
+					skillIndex = skillIndex + 1
+				else
+					-- Empty cell to preserve grid spacing
+					Ui()
+						:width(1.0 / itemsPerRow)
+						:heightpx(ROW_HEIGHT + 10)
+						:addTo(gridRow)
+				end
+			end
+		end
+	end
+
+	-- Cache only what's needed for updates
+	groupSections[groupName] = {
+		container = sectionContainer,
+		addSkillDropdown = addSkillDropdown,
+		populateFunc = populateGroupGrid
+	}
+end
+
+-- Build add skill dropdown for a group
+function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
+	local group = cplus_plus_ex:getGroup(groupName)
+	if not group then return nil end
+
+	-- Get all enabled skills not in this group
+	local availableSkills = {""}
+	local availableSkillsMap = {}
+
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
+		if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
+			availableSkillsMap[skillId] = {
+				name = GetText(skill.shortName) or skill.shortName,
+				tooltip = GetText(skill.description) or skill.description
+			}
+		end
+	end
+
+	-- Sort skills
+	local skillsToSort = {}
+	for skillId, _ in pairs(availableSkillsMap) do
+		table.insert(skillsToSort, skillId)
+	end
+	table.sort(skillsToSort, function(a, b)
+		return (availableSkillsMap[a].name or a):lower() < (availableSkillsMap[b].name or b):lower()
+	end)
+
+	-- Build parallel arrays
+	availableSkills = {""}
+	local availableSkillsDisplay = {""}
+	for _, skillId in ipairs(skillsToSort) do
+		table.insert(availableSkills, skillId)
+		table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
+	end
+
+	local addSkillRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(parent)
+
+	local addSkillDropdown = UiDropDown(availableSkills, availableSkillsDisplay, "", nil)
+		:width(0.7):heightpx(40)
+		:decorate({
+			DecoButton(),
+			DecoAlign(0, 2),
+			DecoDropDownText(nil, nil, nil, DROPDOWN_BUTTON_PADDING),
+			DecoAlign(0, -2),
+			DecoDropDown()
+		})
+		:addTo(addSkillRow)
+
+	local btnAddSkill = sdlext.buildButton(
+		"Add Skill",
+		"Add selected skill to this group",
+		function()
+			local selectedSkillId = addSkillDropdown.value or ""
+			if selectedSkillId == "" then
+				return true
+			end
+
+			if cplus_plus_ex:registerSkillToGroupToRuntime(selectedSkillId, groupName) then
+				-- Find the current index of selected skill before updating
+				local currentIndex = nil
+				for i, skillId in ipairs(addSkillDropdown.values) do
+					if skillId == selectedSkillId then
+						currentIndex = i
+						break
+					end
+				end
+
+				cplus_plus_ex:saveConfiguration()
+				-- Create cell for the new skill
+				if not groupCells[groupName] then
+					groupCells[groupName] = {}
+				end
+				if not groupCells[groupName][selectedSkillId] then
+					groupCells[groupName][selectedSkillId] = {
+						cell = self:createGroupSkillCell(selectedSkillId, groupName),
+						skillId = selectedSkillId
+					}
+				end
+				-- Repopulate only this group's grid
+				if groupSections[groupName] and groupSections[groupName].populateFunc then
+					groupSections[groupName].populateFunc()
+				end
+				-- Update all group dropdowns after adding skill
+				self:updateGroupDropdowns()
+
+				-- Auto select the next available skill
+				if addSkillDropdown.values and #addSkillDropdown.values > 1 then
+					-- Try to select the skill at the same index, or previous if we removed the last one
+					local newIndex = currentIndex
+					if newIndex and newIndex > #addSkillDropdown.values then
+						newIndex = #addSkillDropdown.values
+					end
+					if newIndex and newIndex >= 1 and newIndex <= #addSkillDropdown.values then
+						addSkillDropdown.value = addSkillDropdown.values[newIndex]
+						addSkillDropdown.choice = newIndex
+					else
+						addSkillDropdown.value = ""
+						addSkillDropdown.choice = 1
+					end
+				else
+					-- No skills available
+					addSkillDropdown.value = ""
+					addSkillDropdown.choice = 1
+				end
+			end
+			return true
+		end
+	)
+	btnAddSkill:widthpx(270):heightpx(ROW_HEIGHT):addTo(addSkillRow)
+
+	return addSkillDropdown
+end
+
+-- Create all cells for skills in a group
+function modify_pilot_skills_ui:createGroupCells(groupName)
+	local group = cplus_plus_ex:getGroup(groupName)
+	if not group then return end
+
+	-- Create cells for all skills in the group
+	for skillId in pairs(group.skillIds) do
+		if not groupCells[groupName][skillId] then
+			groupCells[groupName][skillId] = {
+				cell = self:createGroupSkillCell(skillId, groupName),
+				skillId = skillId
+			}
+		end
+	end
+end
+
+-- Create a single skill cell in a group grid
+function modify_pilot_skills_ui:createGroupSkillCell(skillId, groupName)
+	local skill = skill_registry.registeredSkills[skillId]
+	local skillName = skill and (GetText(skill.shortName) or skill.shortName) or skillId
+
+	-- Note: width will be set dynamically when added to grid based on itemsPerRow
+	local skillCell = UiBoxLayout()
+		:heightpx(ROW_HEIGHT + 10)
+		:padding(2)
+
+	local cellRow = UiWeightLayout()
+		:width(1):heightpx(ROW_HEIGHT)
+		:addTo(skillCell)
+
+	-- Icon using cached surface
+	if skill and skill.icon and skill.icon ~= "" then
+		local iconUi = Ui()
+			:widthpx(SKILL_ICON_TOTAL):heightpx(ROW_HEIGHT)
+
+		local scaledSurface = getCachedScaledSkillSurface(skill.icon)
+		if scaledSurface then
+			iconUi:decorate({DecoSurfaceAligned(scaledSurface, "center", "center")})
+		end
+		iconUi:addTo(cellRow)
+	end
+
+	-- Name
+	Ui()
+		:width(0.6):heightpx(ROW_HEIGHT)
+		:decorate({
+			DecoAlign(0, 2),
+			DecoText(skillName, nil, nil, nil, nil, nil, nil, deco.uifont.tooltipText.font)
+		})
+		:settooltip(skill and (GetText(skill.description) or skill.description) or "")
+		:addTo(cellRow)
+
+	-- Remove button
+	local btnRemove = sdlext.buildButton(
+		"X",
+		"Remove " .. skillName .. " from group",
+		function()
+			cplus_plus_ex:removeSkillFromGroupFromRuntime(skillId, groupName)
+			cplus_plus_ex:saveConfiguration()
+			-- Remove cell from map
+			if groupCells[groupName] and groupCells[groupName][skillId] then
+				groupCells[groupName][skillId].cell:detach()
+				groupCells[groupName][skillId] = nil
+			end
+			-- Repopulate only this group's grid
+			if groupSections[groupName] and groupSections[groupName].populateFunc then
+				groupSections[groupName].populateFunc()
+			end
+			-- Update all group dropdowns after removing skill
+			self:updateGroupDropdowns()
+			return true
+		end
+	)
+	btnRemove:widthpx(30):heightpx(ROW_HEIGHT):addTo(cellRow)
+
+	return skillCell
+end
+
+-- Updates group dropdown contents when skills are enabled/disabled
+function modify_pilot_skills_ui:updateGroupDropdowns()
+	for groupName, section in pairs(groupSections) do
+		if section.addSkillDropdown then
+			local group = cplus_plus_ex:getGroup(groupName)
+			if group then
+				-- Get all enabled skills not in this group
+				local availableSkills = {""}
+				local availableSkillsMap = {}
+
+				for skillId, skill in pairs(skill_registry.registeredSkills) do
+					if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
+						availableSkillsMap[skillId] = {
+							name = GetText(skill.shortName) or skill.shortName,
+							tooltip = GetText(skill.description) or skill.description
+						}
+					end
+				end
+
+				-- Sort skills
+				local skillsToSort = {}
+				for skillId, _ in pairs(availableSkillsMap) do
+					table.insert(skillsToSort, skillId)
+				end
+				table.sort(skillsToSort, function(a, b)
+					return (availableSkillsMap[a].name or a):lower() < (availableSkillsMap[b].name or b):lower()
+				end)
+
+				-- Build parallel arrays
+				availableSkills = {""}
+				local availableSkillsDisplay = {""}
+
+				for _, skillId in ipairs(skillsToSort) do
+					table.insert(availableSkills, skillId)
+					table.insert(availableSkillsDisplay, availableSkillsMap[skillId].name)
+				end
+
+				-- Update dropdown data
+				section.addSkillDropdown:updateOptions(availableSkills, availableSkillsDisplay)
+
+				-- Check if current selection is still valid after update
+				local currentValue = section.addSkillDropdown.value
+				local isValidSelection = false
+				for _, skillId in ipairs(availableSkills) do
+					if skillId == currentValue then
+						isValidSelection = true
+						break
+					end
+				end
+
+				-- If current selection is no longer valid, select first available item
+				if not isValidSelection then
+					if #availableSkills > 1 then
+						-- Select first non-empty item
+						section.addSkillDropdown.value = availableSkills[2]
+						section.addSkillDropdown.choice = 2
+					else
+						-- No skills available, select empty
+						section.addSkillDropdown.value = ""
+						section.addSkillDropdown.choice = 1
+					end
+				end
+
+				-- Rebuild dropdown items if currently open
+				rebuildDropdownItems(section.addSkillDropdown)
+			end
+		end
+	end
+end
+
 function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Clear tracking tables
 	percentageLabels = {}
 	categoryHeaderLabels = {}
-	relationshipsContainer = nil
-	relationshipsParent = nil
+	groupsContentContainer = nil
+	-- Clear caches
+	relationshipSections = {}
+	relationshipRows = {}
+	groupSections = {}
+	groupCells = {}
+	newlyAddedGroups = {}
+	groupAddSequence = 0
 
 	scrollContent = UiBoxLayout()
 		:vgap(SKILL_LIST_VGAP)
@@ -1630,6 +2466,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 	-- Add the settings
 	self:buildGeneralSettings(scrollContent)
 	self:buildSkillsList(scrollContent)
+	self:buildGroups(scrollContent)
 	self:buildRelationships(scrollContent)
 end
 
@@ -1679,8 +2516,16 @@ function modify_pilot_skills_ui:onExit()
 	percentageLabels = {}
 	categoryHeaderLabels = {}
 	expandedCollapsables = {}
-	relationshipsContainer = nil
-	relationshipsParent = nil
+	groupsContentContainer = nil
+	relationshipSections = {}
+	relationshipRows = {}
+	groupSections = {}
+	groupCells = {}
+	newlyAddedGroups = {}
+	groupAddSequence = 0
+	-- Clear surface caches to free memory
+	surfaceCache = {}
+	scaledSurfaceCache = {}
 end
 
 -- Creates the main modification dialog

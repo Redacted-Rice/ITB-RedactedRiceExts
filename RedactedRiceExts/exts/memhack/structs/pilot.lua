@@ -1,3 +1,5 @@
+local logger = memhack.logger
+local SUBMODULE = logger.register("Memhack", "Pilot", memhack.DEBUG.ENABLED)
 
 -- Validation function for ItBString structures
 -- Note this has to be local as we don't have the ItBString table yet. We can access it later
@@ -32,7 +34,7 @@ local function validatePilot(pilot)
 		return false, string.format("Pilot %s Personality mismatch: struct has '%s' but pilot table has '%s'",
 				id, personalityStr, pilotTable.Personality)
 	end
-		
+
 	--[[Sex doesn't work either... Aparantly the coorp pilots sex changes each
 	-- time you relaunch the game
 	local sex = pilot:getSex()
@@ -218,7 +220,8 @@ function Pilot:getLvlUpSkill(index)
 		local result = self:getLvlUpSkills():getSkill2()
 		return result
 	else
-		error(string.format("Unexpected index %d. Should be 1 or 2", index))
+		logger.logError(SUBMODULE, "Unexpected index %d. Should be 1 or 2", index)
+		return nil
 	end
 end
 
@@ -231,7 +234,8 @@ function Pilot:setLvlUpSkill(index, structOrNewVals)
 	elseif index == 2 then
 		self:getLvlUpSkills():setSkill2(structOrNewVals)
 	else
-		error(string.format("Unexpected index %d. Should be 1 or 2", index))
+		logger.logError(SUBMODULE, "Unexpected index %d. Should be 1 or 2", index)
+		return
 	end
 end
 

@@ -23,9 +23,11 @@ function skill_constraints:init()
 	skill_selection = cplus_plus_ex._subobjects.skill_selection
 	utils = cplus_plus_ex._subobjects.utils
 
+	self:_registerSlotRestrictionConstraintFunction()
 	self:_registerReusabilityConstraintFunction()
 	self:_registerPlusExclusionInclusionConstraintFunction()
 	self:_registerSkillExclusionConstraintFunction()
+	self:_registerGroupExclusionConstraintFunction()
 	return self
 end
 
@@ -52,6 +54,26 @@ end
 function skill_constraints:registerConstraintFunction(constraintFn)
 	table.insert(self.constraintFunctions, constraintFn)
 	logger.logDebug(SUBMODULE, "Registered constraint function")
+end
+
+-- This enforces slot restrictions (first only, second only, or either)
+function skill_constraints:_registerSlotRestrictionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- Calculate current slot index from number of already selected skills
+		local idx = #selectedSkills + 1
+
+		local slotRestriction = skill_config_module.config.skillConfigs[candidateSkillId].slotRestriction
+
+		if slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.FIRST and idx ~= 1 then
+			logger.logDebug(SUBMODULE, "Skill %s restricted to First slot, rejecting for slot %d", candidateSkillId, idx)
+			return false
+		elseif slotRestriction == cplus_plus_ex.SLOT_RESTRICTION.SECOND and idx ~= 2 then
+			logger.logDebug(SUBMODULE, "Skill %s restricted to Second slot, rejecting for slot %d", candidateSkillId, idx)
+			return false
+		end
+
+		return true
+	end)
 end
 
 -- This enforces pilot exclusions (Vanilla blacklist API) and inclusion restrictions
@@ -108,10 +130,8 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 			-- This applies to both per_pilot and per_run (per_run is stricter and includes this check)
 			for _, skillId in pairs(selectedSkills) do
 				if skillId == candidateSkillId then
-					if cplus_plus_ex.PLUS_DEBUG then
-						logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
-								reusability, candidateSkillId, pilotId)
-					end
+					logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
+							reusability, candidateSkillId, pilotId)
 					return false
 				end
 			end
@@ -119,10 +139,8 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 			-- Additional check for per_run: ensure not used by ANY pilot
 			if reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 				if skill_selection.usedSkillsPerRun[candidateSkillId] then
-					if cplus_plus_ex.PLUS_DEBUG then
-						logger.logDebug(SUBMODULE, "Prevented per_run skill %s for pilot %s (already used this run)",
-								candidateSkillId, pilotId)
-					end
+					logger.logDebug(SUBMODULE, "Prevented per_run skill %s for pilot %s (already used this run)",
+							candidateSkillId, pilotId)
 					return false
 				end
 			end
@@ -149,6 +167,34 @@ function skill_constraints:_registerSkillExclusionConstraintFunction()
 			end
 		end
 
+		return true
+	end)
+end
+
+-- This enforces group exclusions - only one skill from each group per pilot
+function skill_constraints:_registerGroupExclusionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		-- Skip if group exclusions are disabled
+		if not skill_config_module.config.enableGroupExclusions then
+			return true
+		end
+
+		local pilotId = pilot:getIdStr()
+
+		-- Find which groups the candidate skill belongs to
+		for groupName, group in pairs(skill_config_module.groups) do
+			-- Skip if group is disabled
+			if group.enabled and group.skillIds[candidateSkillId] then
+				-- Check if any already selected skill is in the same group
+				for _, selectedSkillId in pairs(selectedSkills) do
+					if group.skillIds[selectedSkillId] then
+						logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (group '%s' already has skill %s)",
+								candidateSkillId, pilotId, groupName, selectedSkillId)
+						return false
+					end
+				end
+			end
+		end
 		return true
 	end)
 end

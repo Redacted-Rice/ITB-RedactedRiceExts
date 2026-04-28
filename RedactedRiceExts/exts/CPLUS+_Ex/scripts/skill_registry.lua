@@ -16,6 +16,8 @@ local utils = nil
 
 -- Module state
 skill_registry.registeredSkills = {}  -- skillId -> {id, category, shortName, fullName, description, bonuses, skillType, reusability, icon}
+skill_registry.pilotExclusionFunctions = {}  -- skillId -> array of functions(pilotId) that return true if pilot should be excluded
+skill_registry.pilotInclusionFunctions = {}  -- skillId -> array of functions(pilotId) that return true if pilot should be included
 
 -- Initialize the module
 function skill_registry:init()
@@ -28,22 +30,40 @@ end
 
 -- Called after all mods are loaded
 function skill_registry:_postModsLoaded()
+	-- Get all pilot IDs
+	local allPilotIds = utils.searchForAllPilotIds()
+
 	-- Read vanilla pilot exclusions to support vanilla API
-	self:_readPilotExclusionsFromGlobal()
+	self:_readPilotExclusionsFromGlobal(allPilotIds)
+
+	-- Expand function based pilot exclusions/inclusions into actual pilot IDs
+	self:_expandPilotConstraintFunctions(allPilotIds)
 end
 
 -- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
 -- the extension fails to load or is uninstalled, a suitable vanilla skill will be used
 -- instead. If not provided or out of range, a random vanilla value will be used.
 -- The save data in vanilla only supports 0-13. Anything out of range is clamped to this range
--- reusability is optional defines how the skill can be reused. Defaults to per_pilot to align with vanilla
+-- defaultReusability is optional defines the default/starting reusability. Defaults to per_pilot to align with vanilla
 --   REUSABLE (1) - can be assigned to any pilot any number of times
 --   PER_PILOT (2) - a pilot can only have this skill once - vanilla behavior
 --   PER_RUN (3) - can only be assigned once per run across all pilots. Would be for very strong skills or skills that
 --			affect the game state in a one time only way
+-- reusabilityLimit is optional defines the minimum (most permissive) reusability allowed. If not set, defaults to defaultReusability
+--   This sets the lower bound on what users can configure (higher values = more restrictive)
+-- slotRestriction is optional defines which skill slot this skill can appear in. Defaults to any
+--   ANY (1) - can appear in either slot 1 or 2 - vanilla behavior
+--   FIRST (2) - can only appear in slot 1
+--   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
-function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal, reusability, weight, icon)
+-- constraints optional table defining relationships and constraints for this skill:
+--   groups - string or array of group names this skill belongs to
+--   skillExclusions - string or array of skill IDs that are mutually exclusive with this skill
+--   pilotExclusions - string or array of pilot IDs that cannot have this skill
+--   pilotInclusions - string or array of pilot IDs that can have this skill
+function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
+		defaultReusability, reusabilityLimit, slotRestriction, weight, icon, constraints)
 	local id = idOrTable
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
@@ -53,9 +73,14 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		bonuses = idOrTable.bonuses
 		skillType = idOrTable.skillType
 		saveVal = idOrTable.saveVal
-		reusability = idOrTable.reusability
+		-- allows single reusability value to be passed in as defaultReusability & reusabilityLimit
+		defaultReusability = idOrTable.defaultReusability or idOrTable.reusability
+		-- nil will default to defaultReusability
+		reusabilityLimit = idOrTable.reusabilityLimit
+		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
+		constraints = idOrTable.constraints
 	end
 
 	-- Check if ID is already registered globally
@@ -78,25 +103,123 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		saveVal = -1
 	end
 
-	-- Validate and normalize reusability
-	-- First handle nil input
-	reusability = utils.normalizeReusabilityToInt(reusability)
-	if not reusability then
-		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid reusability '" .. tostring(reusability) ..
+	-- Validate and normalize defaultReusability
+	defaultReusability = utils.normalizeReusabilityToInt(defaultReusability)
+	if not defaultReusability then
+		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid defaultReusability '" .. tostring(defaultReusability) ..
 				"' 1-3 (corresponding to enum values in REUSABLILITY). Defaulting to PER_PILOT")
-		reusability = cplus_plus_ex.DEFAULT_REUSABILITY
+		defaultReusability = cplus_plus_ex.DEFAULT_REUSABILITY
+	end
+
+	-- Validate and normalize reusabilityLimit
+	-- If not provided, default to same as defaultReusability (no restriction beyond default)
+	if reusabilityLimit ~= nil then
+		reusabilityLimit = utils.normalizeReusabilityToInt(reusabilityLimit)
+		if not reusabilityLimit then
+			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid reusabilityLimit '" .. tostring(reusabilityLimit) ..
+					"' 1-3 (corresponding to enum values in REUSABLILITY). Defaulting to match defaultReusability")
+			reusabilityLimit = defaultReusability
+		end
+	else
+		reusabilityLimit = defaultReusability
+	end
+
+	-- Validate that defaultReusability >= reusabilityLimit (higher numbers = more restrictive)
+	if defaultReusability < reusabilityLimit then
+		logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has defaultReusability (" .. defaultReusability ..
+				") less restrictive than reusabilityLimit (" .. reusabilityLimit .. "). Adjusting default to match limit.")
+		defaultReusability = reusabilityLimit
+	end
+
+	-- Validate and normalize slot restriction
+	slotRestriction = utils.normalizeSlotRestrictionToInt(slotRestriction)
+	if not slotRestriction then
+		if slotRestriction ~= nil then
+			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid slotRestriction '" .. tostring(slotRestriction) ..
+					"' 1-3 (corresponding to enum values in SLOT_RESTRICTION). Defaulting to ANY")
+		end
+		slotRestriction = cplus_plus_ex.DEFAULT_SLOT_RESTRICTION
 	end
 
 	-- Register the skill with its type and reusability included in the skill data
 	skill_registry.registeredSkills[id] = { id = id, category = category, shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
-			saveVal = saveVal, reusability = reusability,
+			saveVal = saveVal,
+			defaultReusability = defaultReusability,
+			reusabilityLimit = reusabilityLimit,
 			icon = icon,
 	}
 
-	-- add a config value
-	skill_config:setSkillConfig(id, {enabled = true, reusability = reusability, weight = weight})
+	-- add a config value with default reusability
+	skill_config:setSkillConfig(id, {enabled = true, reusability = defaultReusability, slotRestriction = slotRestriction, weight = weight})
+
+	-- Process constraints table if provided
+	if constraints ~= nil then
+		if type(constraints) ~= "table" then
+			logger.logWarn(SUBMODULE, "Skill '%s' has invalid constraints (must be table). Ignoring constraints.", id)
+		else
+			-- Register groups
+			if constraints.groups ~= nil then
+				if type(constraints.groups) == "string" then
+					self:registerSkillToGroup(id, constraints.groups)
+				elseif type(constraints.groups) == "table" then
+					for _, groupName in ipairs(constraints.groups) do
+						if type(groupName) == "string" then
+							self:registerSkillToGroup(id, groupName)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid group name (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid groups format (must be string or array). Ignoring.", id)
+				end
+			end
+
+			-- Register skill exclusions
+			if constraints.skillExclusions ~= nil then
+				if type(constraints.skillExclusions) == "string" then
+					self:registerSkillExclusion(id, constraints.skillExclusions)
+				elseif type(constraints.skillExclusions) == "table" then
+					for _, excludedSkillId in ipairs(constraints.skillExclusions) do
+						if type(excludedSkillId) == "string" then
+							self:registerSkillExclusion(id, excludedSkillId)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid excluded skill ID (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid skillExclusions format (must be string or array). Ignoring.", id)
+				end
+			end
+
+			-- Register pilot exclusions (can be strings, functions, or arrays of either)
+			if constraints.pilotExclusions ~= nil then
+				if type(constraints.pilotExclusions) == "string" or type(constraints.pilotExclusions) == "function" then
+					self:registerPilotSkillExclusions(constraints.pilotExclusions, id)
+				elseif type(constraints.pilotExclusions) == "table" then
+					for _, pilotIdOrFn in ipairs(constraints.pilotExclusions) do
+						self:registerPilotSkillExclusions(pilotIdOrFn, id)
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotExclusions format (must be string, function, or array). Ignoring.", id)
+				end
+			end
+
+			-- Register pilot inclusions (can be strings, functions, or arrays of either)
+			if constraints.pilotInclusions ~= nil then
+				if type(constraints.pilotInclusions) == "string" or type(constraints.pilotInclusions) == "function" then
+					self:registerPilotSkillInclusions(constraints.pilotInclusions, id)
+				elseif type(constraints.pilotInclusions) == "table" then
+					for _, pilotIdOrFn in ipairs(constraints.pilotInclusions) do
+						self:registerPilotSkillInclusions(pilotIdOrFn, id)
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotInclusions format (must be string, function, or array). Ignoring.", id)
+				end
+			end
+		end
+	end
 end
 
 -- Registers all vanilla skills
@@ -108,42 +231,65 @@ function skill_registry:_registerVanilla()
 end
 
 -- Helper function to register pilot-skill relationships
-function skill_registry:_registerPilotSkillRelationship(targetTable, pilotId, skillIds, relationshipType)
-	if targetTable[pilotId] == nil then
-		targetTable[pilotId] = {}
+-- Supports both string pilot IDs and function predicates
+function skill_registry:_registerPilotSkillRelationship(targetTable, functionTable, skillId, pilotIdOrFn, relationshipType)
+	if type(pilotIdOrFn) == "function" then
+		-- Store function for later expansion
+		if not functionTable[skillId] then
+			functionTable[skillId] = {}
+		end
+		table.insert(functionTable[skillId], pilotIdOrFn)
+		logger.logDebug(SUBMODULE, "Registered function based pilot %s for skill '%s'", relationshipType, skillId)
+	elseif type(pilotIdOrFn) == "string" then
+		-- Direct pilot ID registration
+		if targetTable[pilotIdOrFn] == nil then
+			targetTable[pilotIdOrFn] = {}
+		end
+		targetTable[pilotIdOrFn][skillId] = true
+		logger.logDebug(SUBMODULE, "%s - Pilot %s %s skill %s", relationshipType, pilotIdOrFn,
+				(relationshipType == "exclusion" and "cannot have" or "can have"), skillId)
+	else
+		logger.logWarn(SUBMODULE, "Invalid pilot identifier type for skill '%s' %s (must be string or function). Ignoring.",
+				skillId, relationshipType)
 	end
+end
 
+-- Registers pilot skill exclusions
+-- Takes pilot id or function and skill id or list of skill ids
+function skill_registry:registerPilotSkillExclusions(pilotIdOrFn, skillIds)
 	if type(skillIds) == "string" then
 		skillIds = {skillIds}
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		-- store with skillId as key so it acts like a set
-		targetTable[pilotId][skillId] = true
-
-	logger.logDebug(SUBMODULE, "%s - Pilot %s %s skill %s", relationshipType, pilotId,
-			(relationshipType == "exclusion" and "cannot have" or "can have"), skillId)
+		self:_registerPilotSkillRelationship(
+				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
+				self.pilotExclusionFunctions,
+				skillId,
+				pilotIdOrFn,
+				"exclusion"
+		)
 	end
 end
 
--- Registers pilot skill exclusions
--- Takes pilot id and list of skill ids to exclude
-function skill_registry:registerPilotSkillExclusions(pilotId, skillIds)
-	self:_registerPilotSkillRelationship(
-			skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
-			pilotId, skillIds, "exclusion"
-	)
-end
-
 -- Registers pilot skill inclusions
--- Takes pilot id and list of skill ids to include
+-- Takes pilot id or function and skill id or list of skill ids
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
-function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
-	self:_registerPilotSkillRelationship(
-			skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
-			pilotId, skillIds, "inclusion"
-	)
+function skill_registry:registerPilotSkillInclusions(pilotIdOrFn, skillIds)
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
+
+	for _, skillId in ipairs(skillIds) do
+		self:_registerPilotSkillRelationship(
+				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
+				self.pilotInclusionFunctions,
+				skillId,
+				pilotIdOrFn,
+				"inclusion"
+		)
+	end
 end
 
 -- Registers a skill to skill exclusion
@@ -165,38 +311,93 @@ function skill_registry:registerSkillExclusion(skillId, excludedSkillId)
 	logger.logDebug(SUBMODULE, "Registered exclusion: %s <-> %s", skillId, excludedSkillId)
 end
 
+-- Register a skill as part of a group
+-- This is the code defined way to add skills to groups
+-- Groups are created implicitly when skills are added to them
+function skill_registry:registerSkillToGroup(skillId, groupName)
+	if not skill_config.codeDefinedGroups[skillId] then
+		skill_config.codeDefinedGroups[skillId] = {}
+	end
+
+	skill_config.codeDefinedGroups[skillId][groupName] = true
+
+	logger.logDebug(SUBMODULE, "Registered skill '%s' to group '%s'", skillId, groupName)
+end
+
 -- Scans global for all pilot definitions and registers their Blacklist exclusions
 -- This maintains the vanilla method of defining pilot exclusions to be compatible
 -- without any specific changes for using this extension
-function skill_registry:_readPilotExclusionsFromGlobal()
+function skill_registry:_readPilotExclusionsFromGlobal(allPilotIds)
 	if _G.Pilot == nil then
 		logger.logError(SUBMODULE, "Pilot class not found, skipping exclusion registration")
 		return
 	end
 
+	-- If allPilotIds not provided, search for them
+	if allPilotIds == nil then
+		allPilotIds = utils.searchForAllPilotIds()
+	end
+
 	local pilotCount = 0
 	local exclusionCount = 0
 
-	-- Scan _G for all Pilot instances using metatable check
-	-- This assumes all pilots are created via Pilot:new (e.g. via CreatePilot()) which
-	-- will automatically set the metatable to Pilot
-	for key, value in pairs(_G) do
-		if type(key) == "string" and type(value) == "table" and getmetatable(value) == _G.Pilot then
-			pilotCount = pilotCount + 1
+	for _, pilotId in pairs(allPilotIds) do
+		local pilot = _G[pilotId]
 
-			-- Check if the pilot has a Blacklist array
-			if value.Blacklist ~= nil and type(value.Blacklist) == "table" and #value.Blacklist > 0 then
-				-- Register the blacklist as auto loaded exclusions
-				self:registerPilotSkillExclusions(key, value.Blacklist)
-				exclusionCount = exclusionCount + 1
+		-- Check if the pilot has a Blacklist array
+		if pilot.Blacklist ~= nil and type(pilot.Blacklist) == "table" and #pilot.Blacklist > 0 then
+			-- Register the blacklist as auto loaded exclusions
+			self:registerPilotSkillExclusions(pilotId, pilot.Blacklist)
+			exclusionCount = exclusionCount + 1
 
-				logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #value.Blacklist, key)
+			logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #pilot.Blacklist, key)
+		end
+	end
+
+	logger.logInfo(SUBMODULE, "Scanned " .. #allPilotIds .. " pilot(s), registered exclusions for " ..
+			exclusionCount .. " pilot(s)")
+end
+
+-- Expands function based pilot constraints into actual pilot IDs after all mods are loaded
+function skill_registry:_expandPilotConstraintFunctions(allPilotIds)
+	if _G.Pilot == nil then
+		logger.logError(SUBMODULE, "Pilot class not found, skipping function expansion")
+		return
+	end
+
+	local exclusionExpansions = 0
+	local inclusionExpansions = 0
+
+	-- Expand exclusion functions
+	for skillId, exclusionFns in pairs(self.pilotExclusionFunctions) do
+		for _, fn in ipairs(exclusionFns) do
+			for _, pilotId in ipairs(allPilotIds) do
+				if fn(pilotId) then
+					self:registerPilotSkillExclusions(pilotId, skillId)
+					exclusionExpansions = exclusionExpansions + 1
+					logger.logDebug(SUBMODULE, "Function expanded: excluded pilot %s from skill %s", pilotId, skillId)
+				end
 			end
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Scanned " .. pilotCount .. " pilot(s), registered exclusions for " ..
-			exclusionCount .. " pilot(s)")
+	-- Expand inclusion functions
+	for skillId, inclusionFns in pairs(self.pilotInclusionFunctions) do
+		for _, fn in ipairs(inclusionFns) do
+			for _, pilotId in ipairs(allPilotIds) do
+				if fn(pilotId) then
+					self:registerPilotSkillInclusions(pilotId, skillId)
+					inclusionExpansions = inclusionExpansions + 1
+					logger.logDebug(SUBMODULE, "Function expanded: included pilot %s for skill %s", pilotId, skillId)
+				end
+			end
+		end
+	end
+
+	if exclusionExpansions > 0 or inclusionExpansions > 0 then
+		logger.logInfo(SUBMODULE, "Expanded pilot constraint functions: %d exclusions, %d inclusions",
+				exclusionExpansions, inclusionExpansions)
+	end
 end
 
 return skill_registry

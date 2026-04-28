@@ -60,16 +60,33 @@ function logger.logDebug(submodule, fmt, ...)
 	end
 end
 
-function logger.logError(submodule, message)
-	-- Space to preserve spacing
+function logger.logError(submodule, fmt, ...)
+	local message
+	if select('#', ...) > 0 then
+		message = string.format(fmt, ...)
+	else
+		message = fmt
+	end
 	logger.modApiBaseLog(1, " ERR", message)
 end
 
-function logger.logWarn(submodule, message)
+function logger.logWarn(submodule, fmt, ...)
+	local message
+	if select('#', ...) > 0 then
+		message = string.format(fmt, ...)
+	else
+		message = fmt
+	end
 	logger.modApiBaseLog(1, "WARN", message)
 end
 
-function logger.logInfo(submodule, message)
+function logger.logInfo(submodule, fmt, ...)
+	local message
+	if select('#', ...) > 0 then
+		message = string.format(fmt, ...)
+	else
+		message = fmt
+	end
 	logger.modApiBaseLog(1, "INFO", message)
 end
 
