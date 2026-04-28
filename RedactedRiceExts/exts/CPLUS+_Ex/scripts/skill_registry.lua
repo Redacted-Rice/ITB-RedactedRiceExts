@@ -32,10 +32,10 @@ end
 function skill_registry:_postModsLoaded()
 	-- Get all pilot IDs
 	local allPilotIds = utils.searchForAllPilotIds()
-	
+
 	-- Read vanilla pilot exclusions to support vanilla API
 	self:_readPilotExclusionsFromGlobal(allPilotIds)
-	
+
 	-- Expand function based pilot exclusions/inclusions into actual pilot IDs
 	self:_expandPilotConstraintFunctions(allPilotIds)
 end
@@ -193,51 +193,29 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 				end
 			end
 
-			-- Register pilot exclusions (can be strings or functions)
+			-- Register pilot exclusions (can be strings, functions, or arrays of either)
 			if constraints.pilotExclusions ~= nil then
-				if type(constraints.pilotExclusions) == "string" then
+				if type(constraints.pilotExclusions) == "string" or type(constraints.pilotExclusions) == "function" then
 					self:registerPilotSkillExclusions(constraints.pilotExclusions, id)
 				elseif type(constraints.pilotExclusions) == "table" then
 					for _, pilotIdOrFn in ipairs(constraints.pilotExclusions) do
-						if type(pilotIdOrFn) == "string" then
-							self:registerPilotSkillExclusions(pilotIdOrFn, id)
-						elseif type(pilotIdOrFn) == "function" then
-							-- Store function based exclusions separately
-							if not self.pilotExclusionFunctions[id] then
-								self.pilotExclusionFunctions[id] = {}
-							end
-							table.insert(self.pilotExclusionFunctions[id], pilotIdOrFn)
-							logger.logDebug(SUBMODULE, "Registered function based pilot exclusion for skill '%s'", id)
-						else
-							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot exclusion (must be string or function). Ignoring.", id)
-						end
+						self:registerPilotSkillExclusions(pilotIdOrFn, id)
 					end
 				else
-					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotExclusions format (must be string or array). Ignoring.", id)
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotExclusions format (must be string, function, or array). Ignoring.", id)
 				end
 			end
 
-			-- Register pilot inclusions (can be strings or functions)
+			-- Register pilot inclusions (can be strings, functions, or arrays of either)
 			if constraints.pilotInclusions ~= nil then
-				if type(constraints.pilotInclusions) == "string" then
+				if type(constraints.pilotInclusions) == "string" or type(constraints.pilotInclusions) == "function" then
 					self:registerPilotSkillInclusions(constraints.pilotInclusions, id)
 				elseif type(constraints.pilotInclusions) == "table" then
 					for _, pilotIdOrFn in ipairs(constraints.pilotInclusions) do
-						if type(pilotIdOrFn) == "string" then
-							self:registerPilotSkillInclusions(pilotIdOrFn, id)
-						elseif type(pilotIdOrFn) == "function" then
-							-- Store function based inclusions separately
-							if not self.pilotInclusionFunctions[id] then
-								self.pilotInclusionFunctions[id] = {}
-							end
-							table.insert(self.pilotInclusionFunctions[id], pilotIdOrFn)
-							logger.logDebug(SUBMODULE, "Registered function based pilot inclusion for skill '%s'", id)
-						else
-							logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilot inclusion (must be string or function). Ignoring.", id)
-						end
+						self:registerPilotSkillInclusions(pilotIdOrFn, id)
 					end
 				else
-					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotInclusions format (must be string or array). Ignoring.", id)
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotInclusions format (must be string, function, or array). Ignoring.", id)
 				end
 			end
 		end
@@ -253,42 +231,65 @@ function skill_registry:_registerVanilla()
 end
 
 -- Helper function to register pilot-skill relationships
-function skill_registry:_registerPilotSkillRelationship(targetTable, pilotId, skillIds, relationshipType)
-	if targetTable[pilotId] == nil then
-		targetTable[pilotId] = {}
+-- Supports both string pilot IDs and function predicates
+function skill_registry:_registerPilotSkillRelationship(targetTable, functionTable, skillId, pilotIdOrFn, relationshipType)
+	if type(pilotIdOrFn) == "function" then
+		-- Store function for later expansion
+		if not functionTable[skillId] then
+			functionTable[skillId] = {}
+		end
+		table.insert(functionTable[skillId], pilotIdOrFn)
+		logger.logDebug(SUBMODULE, "Registered function based pilot %s for skill '%s'", relationshipType, skillId)
+	elseif type(pilotIdOrFn) == "string" then
+		-- Direct pilot ID registration
+		if targetTable[pilotIdOrFn] == nil then
+			targetTable[pilotIdOrFn] = {}
+		end
+		targetTable[pilotIdOrFn][skillId] = true
+		logger.logDebug(SUBMODULE, "%s - Pilot %s %s skill %s", relationshipType, pilotIdOrFn,
+				(relationshipType == "exclusion" and "cannot have" or "can have"), skillId)
+	else
+		logger.logWarn(SUBMODULE, "Invalid pilot identifier type for skill '%s' %s (must be string or function). Ignoring.",
+				skillId, relationshipType)
 	end
+end
 
+-- Registers pilot skill exclusions
+-- Takes pilot id or function and skill id or list of skill ids
+function skill_registry:registerPilotSkillExclusions(pilotIdOrFn, skillIds)
 	if type(skillIds) == "string" then
 		skillIds = {skillIds}
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		-- store with skillId as key so it acts like a set
-		targetTable[pilotId][skillId] = true
-
-	logger.logDebug(SUBMODULE, "%s - Pilot %s %s skill %s", relationshipType, pilotId,
-			(relationshipType == "exclusion" and "cannot have" or "can have"), skillId)
+		self:_registerPilotSkillRelationship(
+				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
+				self.pilotExclusionFunctions,
+				skillId,
+				pilotIdOrFn,
+				"exclusion"
+		)
 	end
 end
 
--- Registers pilot skill exclusions
--- Takes pilot id and list of skill ids to exclude
-function skill_registry:registerPilotSkillExclusions(pilotId, skillIds)
-	self:_registerPilotSkillRelationship(
-			skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
-			pilotId, skillIds, "exclusion"
-	)
-end
-
 -- Registers pilot skill inclusions
--- Takes pilot id and list of skill ids to include
+-- Takes pilot id or function and skill id or list of skill ids
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
-function skill_registry:registerPilotSkillInclusions(pilotId, skillIds)
-	self:_registerPilotSkillRelationship(
-			skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
-			pilotId, skillIds, "inclusion"
-	)
+function skill_registry:registerPilotSkillInclusions(pilotIdOrFn, skillIds)
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
+
+	for _, skillId in ipairs(skillIds) do
+		self:_registerPilotSkillRelationship(
+				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
+				self.pilotInclusionFunctions,
+				skillId,
+				pilotIdOrFn,
+				"inclusion"
+		)
+	end
 end
 
 -- Registers a skill to skill exclusion
@@ -363,7 +364,7 @@ function skill_registry:_expandPilotConstraintFunctions(allPilotIds)
 		logger.logError(SUBMODULE, "Pilot class not found, skipping function expansion")
 		return
 	end
-	
+
 	local exclusionExpansions = 0
 	local inclusionExpansions = 0
 
@@ -394,7 +395,7 @@ function skill_registry:_expandPilotConstraintFunctions(allPilotIds)
 	end
 
 	if exclusionExpansions > 0 or inclusionExpansions > 0 then
-		logger.logInfo(SUBMODULE, "Expanded pilot constraint functions: %d exclusions, %d inclusions", 
+		logger.logInfo(SUBMODULE, "Expanded pilot constraint functions: %d exclusions, %d inclusions",
 				exclusionExpansions, inclusionExpansions)
 	end
 end

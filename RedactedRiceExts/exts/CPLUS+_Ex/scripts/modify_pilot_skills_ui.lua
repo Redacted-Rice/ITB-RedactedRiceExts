@@ -8,6 +8,8 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "SkillsUI", cplus_plus_ex.DEBUG.UI and cplus_plus_ex.DEBUG.ENABLED)
 
 local utils = nil
+local skill_config = nil
+local skill_registry = nil
 
 local scrollContent = nil
 -- Track UI widgets for updates
@@ -210,7 +212,7 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 				local skillData, exlusionSkillData, inclusionSkillData,
 				      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = self:getSkillsData()
 
-				if relationshipType == cplus_plus_ex.RelationshipType.SKILL_EXCLUSIONS then
+				if relationshipType == skill_config.RelationshipType.SKILL_EXCLUSIONS then
 					sourceList = exlusionSkillData
 					sourceIdsSorted = exlusionSkillIdsSorted
 				else
@@ -227,10 +229,10 @@ function modify_pilot_skills_ui:updateRelationshipDropdowns()
 				local skillData, exlusionSkillData, inclusionSkillData,
 				      skillIdsSorted, exlusionSkillIdsSorted, inclusionSkillIdsSorted = self:getSkillsData()
 
-				if relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_EXCLUSIONS then
+				if relationshipType == skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS then
 					targetList = exlusionSkillData
 					targetIdsSorted = exlusionSkillIdsSorted
-				elseif relationshipType == cplus_plus_ex.RelationshipType.PILOT_SKILL_INCLUSIONS then
+				elseif relationshipType == skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS then
 					targetList = inclusionSkillData
 					targetIdsSorted = inclusionSkillIdsSorted
 				else
@@ -292,6 +294,8 @@ end
 
 function modify_pilot_skills_ui:init()
 	utils = cplus_plus_ex._subobjects.utils
+	skill_config = cplus_plus_ex._subobjects.skill_config
+	skill_registry = cplus_plus_ex._subobjects.skill_registry
 	sdlext.addModContent(
         "Modify Pilot Abilities",
         function()
@@ -327,7 +331,7 @@ function modify_pilot_skills_ui:getSkillsData()
 	local defaultSkills = {}
 	local inclusionSkills = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		local skillName = GetText(skill.shortName) or skill.shortName
 		skills[skillId] = skillName
 		if skill.skillType == "inclusion" then
@@ -626,7 +630,7 @@ end
 function modify_pilot_skills_ui:getSkillsByCategory()
 	local skillsByCategory = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		local category = skill.category or "Other"
 
 		if not skillsByCategory[category] then
@@ -649,7 +653,7 @@ end
 function modify_pilot_skills_ui:calculateTotalWeight()
 	local totalWeight = 0
 	-- Calculate the total of all enabled skills
-	for _, otherSkillId in ipairs(cplus_plus_ex._subobjects.skill_config.enabledSkillsIds) do
+	for _, otherSkillId in ipairs(skill_config.enabledSkillsIds) do
 		local skillConfigObj = cplus_plus_ex.config.skillConfigs[otherSkillId]
 		if skillConfigObj and skillConfigObj.enabled then
 			totalWeight = totalWeight + skillConfigObj.weight
@@ -719,7 +723,7 @@ end
 
 function modify_pilot_skills_ui:getLargestIconWidth()
 	local maxWidth = 0
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		if skill.icon and skill.icon ~= "" then
 			local surface = getCachedSurface(skill.icon)
 			if surface then
@@ -738,7 +742,7 @@ end
 function modify_pilot_skills_ui:_determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
 
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		table.insert(names, GetText(skill.shortName))
 	end
 
@@ -1222,7 +1226,7 @@ function modify_pilot_skills_ui:addSkillIcon(skillId, row, iconWidth)
 	local decorations = {  }
 
 	if skillId and skillId ~= "All" and skillId ~= "" then
-		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+		local skill = skill_registry.registeredSkills[skillId]
 		if skill and skill.icon and skill.icon ~= "" then
 			local surface = sdlext.getSurface({ path = skill.icon })
 			if surface then
@@ -1254,7 +1258,7 @@ function modify_pilot_skills_ui:addExistingRelLabel(text, row, skillId)
 
 	-- Add skill description tooltip if this is a skill
 	if skillId then
-		local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+		local skill = skill_registry.registeredSkills[skillId]
 		if skill then
 			local description = GetText(skill.description) or skill.description or ""
 			if description ~= "" then
@@ -1323,7 +1327,7 @@ function modify_pilot_skills_ui:createDropDownItems(dataList, sortedIds, include
 
 			-- Add skill description as tooltip if requested
 			if includeSkillTooltips then
-				local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[k]
+				local skill = skill_registry.registeredSkills[k]
 				if skill then
 					local description = GetText(skill.description) or skill.description or ""
 					table.insert(listTooltips, description)
@@ -1591,7 +1595,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 							table.insert(currentSourceImage.decorations, DecoSurface(portrait))
 						end
 					elseif sourceLabel == "Skill" then
-						local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
+						local skill = skill_registry.registeredSkills[newValue]
 						if skill and skill.icon and skill.icon ~= "" then
 							local scaledSurface = getCachedScaledSkillSurface(skill.icon)
 							if scaledSurface then
@@ -1628,7 +1632,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 
 				-- Add new icon if not "All"
 				if newValue ~= "All" and newValue ~= "" then
-					local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[newValue]
+					local skill = skill_registry.registeredSkills[newValue]
 					if skill and skill.icon and skill.icon ~= "" then
 						local scaledSurface = getCachedScaledSkillSurface(skill.icon)
 						if scaledSurface then
@@ -2044,7 +2048,11 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 
 	enableCheckbox.checked = group.enabled or false
 	enableCheckbox.onToggled:subscribe(function(checked)
-		cplus_plus_ex:setGroupEnabled(groupName, checked)
+		if checked then
+			cplus_plus_ex:enableGroup(groupName)
+		else
+			cplus_plus_ex:disableGroup(groupName)
+		end
 		cplus_plus_ex:saveConfiguration()
 	end)
 
@@ -2116,8 +2124,8 @@ function modify_pilot_skills_ui:buildGroupSection(parent, groupName)
 
 		-- Sort by name
 		table.sort(skillIds, function(a, b)
-			local skillA = cplus_plus_ex._subobjects.skill_registry.registeredSkills[a]
-			local skillB = cplus_plus_ex._subobjects.skill_registry.registeredSkills[b]
+			local skillA = skill_registry.registeredSkills[a]
+			local skillB = skill_registry.registeredSkills[b]
 			local nameA = skillA and (GetText(skillA.shortName) or skillA.shortName) or a
 			local nameB = skillB and (GetText(skillB.shortName) or skillB.shortName) or b
 			return nameA:lower() < nameB:lower()
@@ -2183,7 +2191,7 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 	local availableSkills = {""}
 	local availableSkillsMap = {}
 
-	for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+	for skillId, skill in pairs(skill_registry.registeredSkills) do
 		if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
 			availableSkillsMap[skillId] = {
 				name = GetText(skill.shortName) or skill.shortName,
@@ -2307,7 +2315,7 @@ end
 
 -- Create a single skill cell in a group grid
 function modify_pilot_skills_ui:createGroupSkillCell(skillId, groupName)
-	local skill = cplus_plus_ex._subobjects.skill_registry.registeredSkills[skillId]
+	local skill = skill_registry.registeredSkills[skillId]
 	local skillName = skill and (GetText(skill.shortName) or skill.shortName) or skillId
 
 	-- Note: width will be set dynamically when added to grid based on itemsPerRow
@@ -2377,7 +2385,7 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 				local availableSkills = {""}
 				local availableSkillsMap = {}
 
-				for skillId, skill in pairs(cplus_plus_ex._subobjects.skill_registry.registeredSkills) do
+				for skillId, skill in pairs(skill_registry.registeredSkills) do
 					if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
 						availableSkillsMap[skillId] = {
 							name = GetText(skill.shortName) or skill.shortName,

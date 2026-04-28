@@ -16,8 +16,7 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 For 1.1 Release:
-1. setGroupEnabled -> enableGroup/disableGroup
-2. Add function support to standalone pilot reg function and for inclusion
+Test
 
 
 1.2 Release:
