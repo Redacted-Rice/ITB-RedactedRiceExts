@@ -350,7 +350,7 @@ function skill_registry:_readPilotExclusionsFromGlobal(allPilotIds)
 			self:registerPilotSkillExclusions(pilotId, pilot.Blacklist)
 			exclusionCount = exclusionCount + 1
 
-			logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #pilot.Blacklist, key)
+			logger.logDebug(SUBMODULE, "Found %d exclusion(s) for pilot %s", #pilot.Blacklist, pilotId)
 		end
 	end
 

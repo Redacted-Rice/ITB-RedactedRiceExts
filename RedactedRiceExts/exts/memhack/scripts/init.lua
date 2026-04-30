@@ -5,9 +5,6 @@ local extension = {
 	version = "1.1.0",
 	modApiVersion = "2.9.5",
 	gameVersion = "1.2.93",
-	dependencies = {
-        modApiExt = "1.24",
-    },
 	isExtension = true,
 }
 

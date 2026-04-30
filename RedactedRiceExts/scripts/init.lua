@@ -8,9 +8,9 @@ local extension =  {
 	submodFolders = {"exts/"},
 	modApiVersion = "2.9.5",
 	gameVersion = "1.2.93",
+	requirements = {"easyEdit"}, -- ensures easy edit loads first if its enabled
 	dependencies = {
         modApiExt = "1.24",
-        memedit = "1.2.1",
     },
 	isExtension = true,
 }
