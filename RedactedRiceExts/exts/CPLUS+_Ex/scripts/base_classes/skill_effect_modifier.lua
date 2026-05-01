@@ -129,207 +129,280 @@ end
 -- source: SOURCE_ATTACKER or SOURCE_TARGET
 -- phase: One of PHASE_* constants for icon placement
 -- indexes: Array of skill slot numbers (e.g., {1}, {2}, or {1,2})
--- Returns: nil, SpaceDamage, or array of SpaceDamage to add
+-- NOTE: This should modify spaceDamage in place and not return anything
 function SkillEffectModifier:modifySpaceDamage(source, attackingPawn, phase, spaceDamage, indexes, targetPawn)
 	logger.logError(SUBMODULE, string.format("SkillEffectModifier modifySpaceDamage not implemented for skill %s", self.id))
 end
 
-function SkillEffectModifier:getPawnAt(loc, pawnPositions)
+-- Override this in derived classes to return aggregated effects after all spaceDamages processed
+-- phase: One of PHASE_* constants for icon placement
+-- Returns: nil, SpaceDamage, or array of SpaceDamage to add
+-- This is called AFTER all spaceDamages have been processed by all skills
+-- Use this to return aggregated/accumulated effects
+-- NOTE: If effects are added, they will be processed and this will be called
+-- AGAIN! Make sure it won't infinitely loop
+function SkillEffectModifier:SkillEffectEvaluated(phase)
+	return nil
+end
+
+SkillEffectModifier.spacesWithPawns = {}
+SkillEffectModifier.pawnPositions = {}
+SkillEffectModifier.pendingMoves = {}
+
+function SkillEffectModifier:getPawnSpace(pawn)
+	if SkillEffectModifier.pawnPositions[pawn:GetId()] ~= nil then
+		return SkillEffectModifier.pawnPositions[pawn:GetId()]
+	end
+	return pawn:GetSpace()
+end
+
+function SkillEffectModifier:getPawnAt(loc)
 	local hash = getSpaceHash(loc)
-	if pawnPositions[hash] ~= nil then
-		return pawnPositions[hash]
+	if SkillEffectModifier.spacesWithPawns[hash] ~= nil then
+		return SkillEffectModifier.spacesWithPawns[hash]
 	end
 	return Board:GetPawn(loc)
 end
 
--- Process damage list and return new damages to add
-function SkillEffectModifier:processDamageList(source, attackingPawn, isFinalEffect, damageList, indexes, pawnPositions, pendingMoves, isQueued)
-	local spaceDamagesToAdd = {}
+local function accountForMove(moveStart, moveEnd)
+	-- Track movement
+	local movingPawn = SkillEffectModifier:getPawnAt(moveStart)
 
-	-- Calculate phase once for all damages in this list
-	local phase = isFinalEffect and self.PHASE_FINAL_EFFECT or self.PHASE_SKILL_EFFECT
-	if isQueued then
-		phase = isFinalEffect and self.PHASE_QUEUED_FINAL_EFFECT or self.PHASE_QUEUED_SKILL
+	if movingPawn then
+		table.insert(SkillEffectModifier.pendingMoves, {
+			pawn = movingPawn,
+			pawnId = movingPawn:GetId(),
+			from = moveStart,
+			to = moveEnd
+		})
+		logger.logDebug(SUBMODULE, "Tracked move for pawn %d from %s to %s",
+				movingPawn:GetId(), moveStart:GetString(), moveEnd:GetString())
+	end
+end
+
+local function applyAndClearPendingMoves()
+	for _, moveData in ipairs(SkillEffectModifier.pendingMoves) do
+		local fromHash = getSpaceHash(moveData.from)
+		local toHash = getSpaceHash(moveData.to)
+		SkillEffectModifier.spacesWithPawns[fromHash] = false
+		SkillEffectModifier.spacesWithPawns[toHash] = moveData.pawn
+		SkillEffectModifier.pawnPositions[moveData.pawn:GetId()] = moveData.to
+	end
+	SkillEffectModifier.pendingMoves = {}
+end
+
+-- Process damage list effect by effect, running all skills per effect in priority order
+-- This ensures positions are always current and skills see each other's modifications
+local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriority, priorities, phase, isQueued, skillEffect)
+	if #effectsTable == 0 then
+		return
 	end
 
-	for i, spaceDamage in ipairs(damageList) do
+	-- Reset position tracking
+	SkillEffectModifier.spacesWithPawns = {}
+	SkillEffectModifier.pawnPositions = {}
+	SkillEffectModifier.pendingMoves = {}
+
+	local i = 1
+	local maxIterations = 10
+	local iterations = 0
+
+	while i <= #effectsTable and iterations < maxIterations do
+		iterations = iterations + 1
+		local spaceDamage = effectsTable[i]
+
 		if spaceDamage:IsMovement() then
-			local moveStart = spaceDamage:MoveStart()
-			local moveEnd = spaceDamage:MoveEnd()
-			local movingPawn = self:getPawnAt(moveStart, pawnPositions)
+			-- Track the movement if needed
+			accountForMove(spaceDamage:MoveStart(), spaceDamage:MoveEnd())
 
-			if movingPawn then
-				table.insert(pendingMoves, {
-					pawn = movingPawn,
-					pawnId = movingPawn:GetId(),
-					from = moveStart,
-					to = moveEnd
-				})
-				logger.logDebug(SUBMODULE, "Tracked move for pawn %d from %s to %s",
-					movingPawn:GetId(), moveStart:GetString(), moveEnd:GetString())
+			-- Apply moves at delay or end of list
+			if spaceDamage.fDelay ~= 0 or i == #effectsTable then
+				applyAndClearPendingMoves()
 			end
 
-			if spaceDamage.fDelay ~= 0 or i == #damageList then
-				for _, moveData in ipairs(pendingMoves) do
-					local fromHash = getSpaceHash(moveData.from)
-					local toHash = getSpaceHash(moveData.to)
-					pawnPositions[fromHash] = false
-					pawnPositions[toHash] = moveData.pawn
-				end
-				pendingMoves = {}
-			end
 		else
-			if #pendingMoves > 0 then
-				for _, moveData in ipairs(pendingMoves) do
-					local fromHash = getSpaceHash(moveData.from)
-					local toHash = getSpaceHash(moveData.to)
-					pawnPositions[fromHash] = false
-					pawnPositions[toHash] = moveData.pawn
-				end
-				pendingMoves = {}
-			end
+			-- Apply any pending moves before processing this damage
+			applyAndClearPendingMoves()
 
-			local targetPawn = self:getPawnAt(spaceDamage.loc, pawnPositions)
-			if source ~= self.SOURCE_TARGET or (targetPawn and cplus_plus_ex:isSkillOnPawn(self.id, targetPawn)) then
-				local additionalDamages = self:modifySpaceDamage(source, attackingPawn, phase, spaceDamage, indexes, targetPawn)
+			-- Process this effect through all skills in priority order
+			for _, priority in ipairs(priorities) do
+				for _, skill in ipairs(skillsByPriority[priority]) do
+					-- Check attacker
+					local attackingPilot = attackingPawn:GetPilot()
+					if attackingPilot and cplus_plus_ex:isSkillOnPilot(skill.id, attackingPilot) then
+						local attackerIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, attackingPilot)
+						local currentTargetPawn = SkillEffectModifier:getPawnAt(spaceDamage.loc)
 
-				-- If modifySpaceDamage returns an array of space damages, collect them
-				if additionalDamages then
-					if type(additionalDamages) == "table" then
-						for _, newDamage in ipairs(additionalDamages) do
-							table.insert(spaceDamagesToAdd, newDamage)
-						end
-					else
-						table.insert(spaceDamagesToAdd, additionalDamages)
+						skill:modifySpaceDamage(SkillEffectModifier.SOURCE_ATTACKER, 
+								attackingPawn, phase, spaceDamage, attackerIndexes, 
+								currentTargetPawn)
 					end
+
+					-- Check target
+					local currentTargetPawn = SkillEffectModifier:getPawnAt(spaceDamage.loc)
+					if currentTargetPawn then
+						local targetPilot = currentTargetPawn:GetPilot()
+						if targetPilot and cplus_plus_ex:isSkillOnPilot(skill.id, targetPilot) then
+							local targetIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, targetPilot)
+
+							skill:modifySpaceDamage(SkillEffectModifier.SOURCE_TARGET,
+								attackingPawn, phase, spaceDamage, targetIndexes,
+								currentTargetPawn)
+						end
+					end
+				end
+			end
+			
+			-- See if its a push we need to account for
+			if spaceDamage.iPush ~= DIR_NONE and SkillEffectModifier:getPawnAt(
+					spaceDamage.loc + DIR_VECTORS[spaceDamage.iPush]) == nil then
+				-- Track the movement if needed
+				accountForMove(spaceDamage.loc, spaceDamage.loc + DIR_VECTORS[spaceDamage.iPush])
+
+				-- Apply moves at delay or end of list
+				if spaceDamage.fDelay ~= 0 or i == #effectsTable then
+					applyAndClearPendingMoves()
+				end
+			end
+		end
+
+		i = i + 1
+	end
+
+	if iterations >= maxIterations then
+		logger.logError(SUBMODULE, "Hit max iterations in processEffectByEffect! Possible infinite loop.")
+	end
+
+	-- Now that all effects have been processed, call SkillEffectEvaluated on all skills
+	-- This allows skills like vampire to return aggregated effects
+	local newEffects = {}
+	for _, priority in ipairs(priorities) do
+		for _, skill in ipairs(skillsByPriority[priority]) do
+			local evaluatedEffects = skill:SkillEffectEvaluated(phase)
+
+			if evaluatedEffects then
+				local effectsArray = type(evaluatedEffects) == "table"
+					and evaluatedEffects or {evaluatedEffects}
+
+				for _, newEffect in ipairs(effectsArray) do
+					table.insert(newEffects, newEffect)
+					logger.logDebug(SUBMODULE, "Skill %s returned effect from SkillEffectEvaluated", skill.id)
 				end
 			end
 		end
 	end
 
-	return spaceDamagesToAdd
+	return newEffects
 end
 
 -- Process effects with specific queued flag
 local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsTable, isFinalEffect, isQueued)
+	-- Determine the attack phase
+	local phase = isFinalEffect and SkillEffectModifier.PHASE_FINAL_EFFECT or SkillEffectModifier.PHASE_SKILL_EFFECT
+	if isQueued then
+		phase = isFinalEffect and SkillEffectModifier.PHASE_QUEUED_FINAL_EFFECT or SkillEffectModifier.PHASE_QUEUED_SKILL
+	end
+
 	if #effectsTable == 0 then
-		logger.logDebug(SUBMODULE, "No effects to process for isQueued=%s", tostring(isQueued))
+		logger.logDebug(SUBMODULE, "No effects to process for phase=%s", tostring(phase))
 		return
 	end
 
-	-- Find all targeted pawns
-	local allTargetedPawns = {}
+	-- Only grab skills from the attacking pawn and any pawns targeted by any skill effect
+	-- to limit to what is possibly in effect. What pawns CAN be affected does not depend on if they move
+	-- so we can build this before hand
+
+	-- Find all potentially affected pawns - attacking pawn + any pawn at a space damage
+	local affectedPawns = {}
+	affectedPawns[attackingPawn:GetId()] = attackingPawn
 	for _, spaceDamage in ipairs(effectsTable) do
 		if not spaceDamage:IsMovement() then
 			local targetPawn = Board:GetPawn(spaceDamage.loc)
 			if targetPawn then
-				allTargetedPawns[targetPawn:GetId()] = targetPawn
+				affectedPawns[targetPawn:GetId()] = targetPawn
 			end
 		end
 	end
 
-	-- Build list of all skill+pawn combinations that apply
-	local skillPawnCombos = {}
-	for _, skill in ipairs(registeredSkills) do
-		-- Check attacking pawn
-		local attackingPilot = attackingPawn:GetPilot()
-		if attackingPilot and cplus_plus_ex:isSkillOnPilot(skill.id, attackingPilot) then
-			local indexes = cplus_plus_ex:getPilotSkillIndices(skill.id, attackingPilot)
-			if not skillPawnCombos[skill.priority] then skillPawnCombos[skill.priority] = {} end
-			table.insert(skillPawnCombos[skill.priority], {
-				skill = skill,
-				pawn = attackingPawn,
-				indexes = indexes,
-				source = SkillEffectModifier.SOURCE_ATTACKER
-			})
-			logger.logDebug(SUBMODULE, "Skill %s applies to attacking pawn %d (isQueued=%s)",
-					skill.id, attackingPawn:GetId(), tostring(isQueued))
-		end
-
-		-- Check all targeted pawns
-		for pawnId, targetPawn in pairs(allTargetedPawns) do
-			local targetPilot = targetPawn:GetPilot()
-			if targetPilot and cplus_plus_ex:isSkillOnPilot(skill.id, targetPilot) then
-				local indexes = cplus_plus_ex:getPilotSkillIndices(skill.id, targetPilot)
-				if not skillPawnCombos[skill.priority] then skillPawnCombos[skill.priority] = {} end
-				table.insert(skillPawnCombos[skill.priority], {
-					skill = skill,
-					pawn = targetPawn,
-					indexes = indexes,
-					source = SkillEffectModifier.SOURCE_TARGET
-				})
-				logger.logDebug(SUBMODULE, "Skill %s applies to targeted pawn %d (isQueued=%s)",
-						skill.id, targetPawn:GetId(), tostring(isQueued))
-			end
-		end
-	end
-
+	-- Build list of skills organized by priority for skills on affected pawns
+	local skillsByPriority = {}
 	local priorities = {}
-	local skillPawnCombosCount = 0
-	for priority, priorityList in pairs(skillPawnCombos) do
-		skillPawnCombosCount = skillPawnCombosCount + #priorityList
-		table.insert(priorities, priority)
+	for _, skill in ipairs(registeredSkills) do
+		local skillApplies = false
+
+		-- Check if skill is on any affected pawn
+		for pawnId, pawn in pairs(affectedPawns) do
+			local pilot = pawn:GetPilot()
+			if pilot and cplus_plus_ex:isSkillOnPilot(skill.id, pilot) then
+				skillApplies = true
+				break
+			end
+		end
+
+		if skillApplies then
+			if not skillsByPriority[skill.priority] then
+				skillsByPriority[skill.priority] = {}
+				table.insert(priorities, skill.priority)
+			end
+			table.insert(skillsByPriority[skill.priority], skill)
+		end
 	end
-	if skillPawnCombosCount == 0 then
-		logger.logDebug(SUBMODULE, "No skills apply to this effect (isQueued=%s)", tostring(isQueued))
+
+	if #priorities == 0 then
+		logger.logDebug(SUBMODULE, "No skills apply to affected pawns (phase=%s)", tostring(phase))
 		return
 	end
+
 	table.sort(priorities)
-	logger.logDebug(SUBMODULE, "Processing %d skill+pawn combinations (isQueued=%s)",
-			skillPawnCombosCount, tostring(isQueued))
+	logger.logDebug(SUBMODULE, "Processing %d applicable skills across %d priority levels (phase=%s)",
+			#registeredSkills, #priorities, tostring(phase))
 
 	-- Loop through all skills, checking for new damages and repeating until no new damages
-	local pawnPositions = {}
+	local damagesToProcess = effectsTable
+	local maxPasses = 10
+	local currentPass = 0
+
+
+	-- Process effects one by one with all skills applied per effect
 	local damagesToProcess = effectsTable
 	local maxPasses = 10
 	local currentPass = 0
 
 	while damagesToProcess and #damagesToProcess > 0 and currentPass < maxPasses do
-		local allNewDamages = {}
-		local pendingMoves = {}
+		logger.logDebug(SUBMODULE, "Pass %d: Processing %d effects (phase=%s)",
+				currentPass, #damagesToProcess, tostring(phase))
 
-		-- Process ALL skill+pawn combinations for this pass
-		for _, priority in ipairs(priorities) do
-			for _, combo in ipairs(skillPawnCombos[priority]) do
-				logger.logDebug(SUBMODULE, "Pass %d: Processing skill %s with %d space damages for pawn %d (%s, isQueued=%s)",
-						currentPass, combo.skill.id, #damagesToProcess, combo.pawn:GetId(), combo.source, tostring(isQueued))
+		-- Process effects and get any new effects from SkillEffectEvaluated
+		local newEffects = processEffectByEffect(attackingPawn, damagesToProcess,
+				skillsByPriority, priorities, phase, isQueued, skillEffect)
 
-				local newDamages = combo.skill:processDamageList(combo.source, attackingPawn, isFinalEffect, damagesToProcess,
-						combo.indexes, pawnPositions, pendingMoves, isQueued)
+		if newEffects and #newEffects > 0 then
+			logger.logDebug(SUBMODULE, "Pass %d: %d new effects from SkillEffectEvaluated",
+					currentPass, #newEffects)
 
-				if newDamages and #newDamages > 0 then
-					for _, newDamage in ipairs(newDamages) do
-						table.insert(allNewDamages, newDamage)
-					end
-				end
-			end
-		end
-
-		-- Add all new damages from this pass to the skill effect
-		if #allNewDamages > 0 then
-			for _, newDamage in ipairs(allNewDamages) do
+			-- Add the new effects to the skill effect
+			for _, newEffect in ipairs(newEffects) do
 				if isQueued then
-					skillEffect:AddQueuedDamage(newDamage)
+					skillEffect:AddQueuedDamage(newEffect)
 				else
-					skillEffect:AddDamage(newDamage)
+					skillEffect:AddDamage(newEffect)
 				end
-				logger.logDebug(SUBMODULE, "Added space damage at %s (pass %d, isQueued=%s)",
-						newDamage.loc:GetString(), currentPass, tostring(isQueued))
 			end
 
-			-- Prepare for next pass with the new damages
-			damagesToProcess = allNewDamages
+			-- Process the new effects in next pass
+			damagesToProcess = newEffects
 			currentPass = currentPass + 1
 		else
-			-- No new damages, exit loop
+			-- No new effects, we're done
+			logger.logDebug(SUBMODULE, "Pass %d complete: no new effects", currentPass)
 			break
 		end
 	end
 
 	-- Warn if we hit the max passes limit
 	if currentPass >= maxPasses and damagesToProcess and #damagesToProcess > 0 then
-		logger.logWarn(SUBMODULE, "Chaining effect limit reached (%d passes, isQueued=%s) with %d damages remaining",
-				maxPasses, tostring(isQueued), #damagesToProcess)
+		logger.logWarn(SUBMODULE, "Chaining effect limit reached (%d passes, phase=%s) with %d damages remaining",
+				maxPasses, tostring(phase), #damagesToProcess)
 	end
 end
 
