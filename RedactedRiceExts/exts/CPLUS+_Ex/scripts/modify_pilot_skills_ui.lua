@@ -1346,7 +1346,7 @@ end
 -- Builds a relationship editor section
 function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType, sourceList, targetList, sourceIdsSorted, targetIdsSorted)
 	-- Get metadata for this relationship type
-	local metadata = cplus_plus_ex:getRelationshipMetadata(relationshipType)
+	local metadata = skill_config:getRelationshipMetadata(relationshipType)
 	if not metadata then
 		logger.logError(SUBMODULE, "Invalid relationship type: " .. tostring(relationshipType))
 		return
@@ -1445,7 +1445,7 @@ function modify_pilot_skills_ui:buildRelationshipEditor(parent, relationshipType
 		self:addExistingRelLabel(targetList[targetId], entryRow, targetSkillId)
 
 		-- Remove button
-		local isCodeDefined = cplus_plus_ex:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
+		local isCodeDefined = skill_config:isCodeDefinedRelationship(relationshipType, sourceId, targetId)
 		local btnText = "Remove"
 		local btnTooltip = isCodeDefined and "Remove this code defined relationship"
 				or "Remove this user added relationship"
