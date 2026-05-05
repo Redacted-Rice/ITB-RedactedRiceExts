@@ -265,9 +265,7 @@ function skill_registry:registerPilotSkillExclusions(pilotIdOrFn, skillIds)
 		self:_registerPilotSkillRelationship(
 				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
 				self.pilotExclusionFunctions,
-				skillId,
-				pilotIdOrFn,
-				"exclusion"
+				skillId, pilotIdOrFn, "exclusion"
 		)
 	end
 end
@@ -285,9 +283,7 @@ function skill_registry:registerPilotSkillInclusions(pilotIdOrFn, skillIds)
 		self:_registerPilotSkillRelationship(
 				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
 				self.pilotInclusionFunctions,
-				skillId,
-				pilotIdOrFn,
-				"inclusion"
+				skillId, pilotIdOrFn, "inclusion"
 		)
 	end
 end
@@ -295,10 +291,17 @@ end
 -- Registers squad skill exclusions
 -- Takes squad id and list of skill ids to exclude for all pilots in that squad
 function skill_registry:registerSquadSkillExclusions(squadId, skillIds)
-	self:_registerPilotSkillRelationship(
-			skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS],
-			squadId, skillIds, "exclusion"
-	)
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
+
+	for _, skillId in ipairs(skillIds) do
+		self:_registerPilotSkillRelationship(
+				skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS],
+				{}, -- no function table needed for squads
+				skillId, squadId, "exclusion"
+		)
+	end
 end
 
 -- Registers squad skill inclusions
@@ -306,10 +309,17 @@ end
 -- This is only needed for specific inclusion skills. Any default
 -- enabled, non-excluded skill will be available as well as any added here
 function skill_registry:registerSquadSkillInclusions(squadId, skillIds)
-	self:_registerPilotSkillRelationship(
-			skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS],
-			squadId, skillIds, "inclusion"
-	)
+	if type(skillIds) == "string" then
+		skillIds = {skillIds}
+	end
+
+	for _, skillId in ipairs(skillIds) do
+		self:_registerPilotSkillRelationship(
+				skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS],
+				{}, -- no function table needed for squads
+				skillId, squadId, "inclusion"
+		)
+	end
 end
 
 -- Registers a skill to skill exclusion
