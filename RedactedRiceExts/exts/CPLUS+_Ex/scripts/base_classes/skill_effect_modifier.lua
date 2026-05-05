@@ -197,15 +197,17 @@ local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriori
 	if #effectsTable == 0 then
 		return
 	end
-
+	
 	-- Reset position tracking
 	SkillEffectModifier.spacesWithPawns = {}
 	SkillEffectModifier.pawnPositions = {}
 	SkillEffectModifier.pendingMoves = {}
 
 	local i = 1
-	local maxIterations = 10
+	-- Arbitrary max space damage processing
+	local maxIterations = 250
 	local iterations = 0
+	local initialTableSize = #effectsTable
 
 	while i <= #effectsTable and iterations < maxIterations do
 		iterations = iterations + 1
@@ -271,6 +273,11 @@ local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriori
 
 	if iterations >= maxIterations then
 		logger.logError(SUBMODULE, "Hit max iterations in processEffectByEffect! Possible infinite loop.")
+		logger.logError(SUBMODULE, "  Final state: i=%d, #effectsTable=%d, initialSize=%d, iterations=%d",
+			i, #effectsTable, initialTableSize, iterations)
+	else
+		logger.logDebug(SUBMODULE, "processEffectByEffect completed: %d iterations, processed %d effects",
+			iterations, initialTableSize)
 	end
 
 	-- Now that all effects have been processed, call SkillEffectEvaluated on all skills
@@ -357,15 +364,11 @@ local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsT
 	logger.logDebug(SUBMODULE, "Processing %d applicable skills across %d priority levels (phase=%s)",
 			#registeredSkills, #priorities, tostring(phase))
 
-	-- Loop through all skills, checking for new damages and repeating until no new damages
-	local damagesToProcess = effectsTable
-	local maxPasses = 10
-	local currentPass = 0
-
 
 	-- Process effects one by one with all skills applied per effect
 	local damagesToProcess = effectsTable
-	local maxPasses = 10
+	-- Arbitrary max number of new space damages that can be added to prevent infinite loops
+	local maxPasses = 25
 	local currentPass = 0
 
 	while damagesToProcess and #damagesToProcess > 0 and currentPass < maxPasses do
@@ -403,6 +406,16 @@ local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsT
 	if currentPass >= maxPasses and damagesToProcess and #damagesToProcess > 0 then
 		logger.logWarn(SUBMODULE, "Chaining effect limit reached (%d passes, phase=%s) with %d damages remaining",
 				maxPasses, tostring(phase), #damagesToProcess)
+		logger.logWarn(SUBMODULE, "  Attacker: pawn %d", attackingPawn:GetId())
+		
+		-- Log which skills were active
+		local activeSkills = {}
+		for _, priority in ipairs(priorities) do
+			for _, skill in ipairs(skillsByPriority[priority]) do
+				table.insert(activeSkills, skill.id)
+			end
+		end
+		logger.logWarn(SUBMODULE, "  Active skills: %s", table.concat(activeSkills, ", "))
 	end
 end
 
