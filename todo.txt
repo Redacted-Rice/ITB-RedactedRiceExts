@@ -8,7 +8,7 @@ For 1.1 Release:
 
 
 1.2 Release:
-1. Steam & GoG (Epic?) offset fixes
+1. Steam & GoG & Epic offset fixes... Maybe just leave for now as there isn't much demand
 	a. Maybe could use known vtables (like pilot) to determine GoG vs Steam and then use the corresponding offset
 	b. Current fields needing this: Score
 
@@ -16,13 +16,15 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 1.2 Release:
-1. Squad bases exclusions/inclusions
-2. Modify to allow for selecting specific skills easily in code and selecting more than 2
-3. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
+1. Pilot inclusions not working right?
+2. IsCyborg not working right?
+3. Test squad bases exclusions/inclusions
+4. Modify to allow for selecting specific skills easily in code and selecting more than 2
+5. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
 
 
 ---------- Mech Upgrades Ex? ---------
 
 Figure out a name to call this
 Use CPLUS+ to determine when upgrades are set and then undo them to replace with custom ones
-Create a similar UI/structure to CPLUS+ to allow choosing upgrades, frequency and allowing more to be added
+Create a similar UI/structure to CPLUS+ to allow choosing upgrades, frequency and allowing more to be added?
