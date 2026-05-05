@@ -101,7 +101,7 @@ function skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
 			if not allowed then
 				logger.logDebug(SUBMODULE, "Prevented inclusion skill %s for pilot %s", candidateSkillId, pilotId)
 			end
-		return allowed
+			return allowed
 		else
 			-- Check for an exclusion
 			local hasExclusion = skill_config_module.config.pilotSkillExclusions[pilotId] and skill_config_module.config.pilotSkillExclusions[pilotId][candidateSkillId]
