@@ -11,7 +11,21 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.1.0
+Latest release: 1.1.1
+
+## 1.1.1
+Released: 05/07/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.1.0
+
+### Notes
+* Added user guide
+* UI Bug fixes
+* Fix in skill effect modifier base class
 
 ## 1.1.0
 Released: 05/01/2026

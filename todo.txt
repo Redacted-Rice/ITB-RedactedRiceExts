@@ -15,17 +15,13 @@ For 1.1 Release:
 
 ---------- CPLUS+ Ex ---------
 
-For 1.1 Release:
-Test
-
-
 1.2 Release:
 1. Squad bases exclusions/inclusions
 2. Modify to allow for selecting specific skills easily in code and selecting more than 2
 3. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
 
 
----------- Mech Upgrades Ex ---------
+---------- Mech Upgrades Ex? ---------
 
 Figure out a name to call this
 Use CPLUS+ to determine when upgrades are set and then undo them to replace with custom ones

@@ -19,7 +19,19 @@ Please enjoy and contact us if you run into any issues.
 
 # Releases
 
-Latest release: 1.1.0
+Latest release: 1.1.1
+
+## 1.1.1
+
+Released: 05/07/2026
+
+* memhack - v1.1.1
+* CPLUS+ Ex - v1.1.0
+
+### Notes
+* Added user guide for CPLUS+
+* UI Bug fixes
+* Fix in skill effect modifier base class
 
 ## 1.1.0
 
