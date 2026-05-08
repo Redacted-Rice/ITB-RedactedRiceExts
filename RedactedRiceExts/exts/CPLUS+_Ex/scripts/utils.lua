@@ -67,7 +67,7 @@ function utils.shallowcopy(orig)
 	if type(orig) ~= 'table' then
 		return orig
 	end
-	
+
 	local copy = {}
 	for k, v in pairs(orig) do
 		copy[k] = v
@@ -198,6 +198,14 @@ function utils.sortByValue(t, comparator)
 		end
 	end)
 	return keys
+end
+
+function utils.isExclusionSkill(skillType)
+	return skillType == "default" or skillType == "exclusion"
+end
+
+function utils.isInclusionSkill(skillType)
+	return skillType == "inclusion"
 end
 
 return utils

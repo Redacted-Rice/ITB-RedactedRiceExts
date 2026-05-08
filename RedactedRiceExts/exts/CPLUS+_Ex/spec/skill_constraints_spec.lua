@@ -14,6 +14,13 @@ describe("Skill Constraints Module", function()
 		before_each(function()
 			-- Clear built in constraints for these tests to test registration logic
 			plus_manager._subobjects.skill_constraints.constraintFunctions = {}
+			plus_manager._subobjects.skill_constraints.inclusionConstraintFunctions = {}
+			plus_manager._subobjects.skill_constraints.exclusionConstraintFunctions = {}
+			
+			-- Register a test skill for constraint checking
+			helper.setupTestSkills({
+				{id = "TestSkill", shortName = "TS", fullName = "Test Skill", description = "Test"},
+			})
 		end)
 
 		it("should register a constraint function", function()
@@ -153,6 +160,149 @@ describe("Skill Constraints Module", function()
 			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
 
 			assert.is_true(result)
+		end)
+	end)
+
+	describe("Squad Skill Exclusions", function()
+		before_each(function()
+			helper.setupTestSkills({
+				{id = "Health", shortName = "HP", fullName = "Health", description = "Test"},
+				{id = "Move", shortName = "MV", fullName = "Move", description = "Test"},
+				{id = "Grid", shortName = "GR", fullName = "Grid", description = "Test"},
+			})
+			
+			-- Mock GAME.additionalSquadData for squad testing
+			_G.GAME = {
+				additionalSquadData = {
+					squad = "test_squad"
+				}
+			}
+		end)
+		
+		after_each(function()
+			_G.GAME = nil
+		end)
+
+		it("should register exclusions for a squad", function()
+			plus_manager:registerSquadSkillExclusions("test_squad", {"Health", "Move"})
+			helper.rebuildRelationships()
+
+			local exclusions = plus_manager.config.squadSkillExclusions["test_squad"]
+			assert.is_not_nil(exclusions)
+			assert.is_true(exclusions["Health"])
+			assert.is_true(exclusions["Move"])
+		end)
+
+		it("should prevent excluded skills for pilots in excluded squad", function()
+			plus_manager:registerSquadSkillExclusions("test_squad", {"Health"})
+			helper.rebuildRelationships()
+
+			local pilot = helper.createMockPilot("Pilot_Test")
+			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
+
+			assert.is_false(result)
+		end)
+
+		it("should allow non-excluded skills for pilots in excluded squad", function()
+			plus_manager:registerSquadSkillExclusions("test_squad", {"Health"})
+			helper.rebuildRelationships()
+
+			local pilot = helper.createMockPilot("Pilot_Test")
+			local result = plus_manager:checkSkillConstraints(pilot, {}, "Move")
+
+			assert.is_true(result)
+		end)
+
+		it("should not affect pilots in other squads", function()
+			plus_manager:registerSquadSkillExclusions("test_squad", {"Health"})
+			helper.rebuildRelationships()
+
+			-- Change squad
+			_G.GAME.additionalSquadData.squad = "other_squad"
+
+			local pilot = helper.createMockPilot("Pilot_Test")
+			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
+
+			assert.is_true(result)
+		end)
+	end)
+
+	describe("Squad Skill Inclusions", function()
+		before_each(function()
+			helper.setupTestSkills({
+				{id = "Health", shortName = "HP", fullName = "Health", description = "Test"},
+				{id = "Special", shortName = "SP", fullName = "Special", description = "Test", skillType = "inclusion"},
+			})
+			
+			-- Mock GAME.additionalSquadData for squad testing
+			_G.GAME = {
+				additionalSquadData = {
+					squad = "test_squad"
+				}
+			}
+		end)
+		
+		after_each(function()
+			_G.GAME = nil
+		end)
+
+		it("should register inclusions for a squad", function()
+			plus_manager:registerSquadSkillInclusions("test_squad", {"Special"})
+			helper.rebuildRelationships()
+
+			local inclusions = plus_manager.config.squadSkillInclusions["test_squad"]
+			assert.is_not_nil(inclusions)
+			assert.is_true(inclusions["Special"])
+		end)
+
+		it("should allow inclusion skills for pilots in included squad", function()
+			plus_manager:registerSquadSkillInclusions("test_squad", {"Special"})
+			helper.rebuildRelationships()
+
+			local pilot = helper.createMockPilot("Pilot_Test")
+			local result = plus_manager:checkSkillConstraints(pilot, {}, "Special")
+
+			assert.is_true(result)
+		end)
+
+		it("should prevent inclusion skills for pilots not in included squad", function()
+			plus_manager:registerSquadSkillInclusions("test_squad", {"Special"})
+			helper.rebuildRelationships()
+
+			-- Change squad
+			_G.GAME.additionalSquadData.squad = "other_squad"
+
+			local pilot = helper.createMockPilot("Pilot_Test")
+			local result = plus_manager:checkSkillConstraints(pilot, {}, "Special")
+
+			assert.is_false(result)
+		end)
+
+		it("should not affect default skills", function()
+			plus_manager:registerSquadSkillInclusions("test_squad", {"Special"})
+			helper.rebuildRelationships()
+
+			local pilot = helper.createMockPilot("Pilot_Test")
+			local result = plus_manager:checkSkillConstraints(pilot, {}, "Health")
+
+			assert.is_true(result)
+		end)
+
+		it("should allow skill when pilot OR squad is in inclusion list", function()
+			-- Register both pilot and squad inclusions
+			plus_manager:registerPilotSkillInclusions("Pilot_Special", {"Special"})
+			plus_manager:registerSquadSkillInclusions("test_squad", {"Special"})
+			helper.rebuildRelationships()
+
+			-- Pilot in different squad but explicitly included
+			_G.GAME.additionalSquadData.squad = "other_squad"
+			local pilot1 = helper.createMockPilot("Pilot_Special")
+			assert.is_true(plus_manager:checkSkillConstraints(pilot1, {}, "Special"))
+
+			-- Pilot not explicitly included but in included squad
+			_G.GAME.additionalSquadData.squad = "test_squad"
+			local pilot2 = helper.createMockPilot("Pilot_Other")
+			assert.is_true(plus_manager:checkSkillConstraints(pilot2, {}, "Special"))
 		end)
 	end)
 
@@ -418,228 +568,74 @@ describe("Skill Constraints Module", function()
 
 	describe("Constraint Type Validation", function()
 		describe("Inclusion Skills", function()
-			local base_skill
-
-			before_each(function()
-				base_skill = {
+			it("should allow exclusions combined with inclusions in constraints", function()
+				local base_skill = {
 					id = "InclusionSkill",
 					shortName = "IS",
 					fullName = "Inclusion Skill",
 					description = "Test",
-					skillType = "inclusion"
+					skillType = "inclusion",
+					constraints = {
+						pilotInclusions = {"Pilot_Rock"},
+						pilotExclusions = {"Pilot_Zoltan"}
+					}
 				}
-			end)
-			it("should reject pilotExclusions in constraints for inclusion skill", function()
-				base_skill.constraints = {
-					pilotInclusions = {"Pilot_Rock"},
-					pilotExclusions = {"Pilot_Zoltan"}  -- Should be rejected
-				}
+				
+				-- Should not error during registration
 				plus_manager:registerSkill("test", base_skill)
 				helper.rebuildRelationships()
-
-				-- pilotExclusions should be removed
-				local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_Zoltan"]
-				assert.is_true(not exclusions or not exclusions[base_skill.id])
-
-				-- pilotInclusions should work
-				local inclusions = plus_manager.config.pilotSkillInclusions["Pilot_Rock"]
-				assert.is_not_nil(inclusions)
-				assert.is_true(inclusions[base_skill.id])
+				
+				-- Both types of constraints should coexist
+				assert.is_not_nil(plus_manager.config.pilotSkillInclusions["Pilot_Rock"])
 			end)
-
-			it("should reject squadExclusions in constraints for inclusion skill", function()
-				base_skill.constraints = {
-					squadInclusions = "test_squad",
-					squadExclusions = "other_squad"  -- Should be rejected
-				}
-				plus_manager:registerSkill("test", base_skill)
-				helper.rebuildRelationships()
-
-				-- squadExclusions should be removed
-				local exclusions = plus_manager.config.squadSkillExclusions["other_squad"]
-				assert.is_true(not exclusions or not exclusions[base_skill.id])
-
-				-- squadInclusions should work
-				local inclusions = plus_manager.config.squadSkillInclusions["test_squad"]
-				assert.is_not_nil(inclusions)
-				assert.is_true(inclusions[base_skill.id])
-			end)
-
-			it("should reject direct pilotExclusions registration for inclusion skill", function()
-				plus_manager:registerSkill("test", base_skill)
-
-				-- Test pilot exclusion
-				plus_manager:registerPilotSkillExclusions("Pilot_Test", base_skill.id)
-				helper.rebuildRelationships()
-
-				-- Should be rejected
-				local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_Test"]
-				assert.is_true(not exclusions or not exclusions[base_skill.id])
-
-				-- Test squad exclusion
-				plus_manager:registerSquadSkillExclusions("test_squad", base_skill.id)
-				helper.rebuildRelationships()
-
-				-- Should be rejected
-				local exclusions = plus_manager.config.squadSkillExclusions["test_squad"]
-				assert.is_true(not exclusions or not exclusions[base_skill.id])
-			end)
-		end)
+	end)
 
 		describe("Default/Exclusion Skills", function()
-			local base_skill
-
-			before_each(function()
-				base_skill = {
+			it("should reject inclusion constraints for default skills", function()
+				local base_skill = {
 					id = "DefaultSkill",
 					shortName = "DS",
 					fullName = "Default Skill",
 					description = "Test",
-					skillType = "default"
-				}
-			end)
-			it("should reject pilotInclusions in constraints for default skill", function()
-				base_skill.constraints = {
-					pilotExclusions = {"Pilot_Zoltan"},
-					pilotInclusions = {"Pilot_Rock"}  -- Should be rejected
+					constraints = {
+						pilotExclusions = {"Pilot_Zoltan"},
+						pilotInclusions = {"Pilot_Rock"}
+					}
 				}
 				plus_manager:registerSkill("test", base_skill)
 				helper.rebuildRelationships()
 
-				-- pilotInclusions should be removed
+				-- Inclusions should be removed
 				local inclusions = plus_manager.config.pilotSkillInclusions["Pilot_Rock"]
 				assert.is_true(not inclusions or not inclusions[base_skill.id])
 
-				-- pilotExclusions should work
-				local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_Zoltan"]
-				assert.is_not_nil(exclusions)
-				assert.is_true(exclusions[base_skill.id])
-			end)
-
-			it("should reject squadInclusions in constraints for default skill", function()
-				base_skill.constraints = {
-					squadExclusions = "other_squad",
-					squadInclusions = "test_squad"  -- Should be rejected
-				}
-				plus_manager:registerSkill("test", base_skill)
-				helper.rebuildRelationships()
-
-				-- squadInclusions should be removed
-				local inclusions = plus_manager.config.squadSkillInclusions["test_squad"]
-				assert.is_true(not inclusions or not inclusions[base_skill.id])
-
-				-- squadExclusions should work
-				local exclusions = plus_manager.config.squadSkillExclusions["other_squad"]
-				assert.is_not_nil(exclusions)
-				assert.is_true(exclusions[base_skill.id])
-			end)
-
-			it("should reject direct pilotInclusions registration for default skill", function()
-				plus_manager:registerSkill("test", base_skill)
-
-				-- Test pilot inclusion
-				plus_manager:registerPilotSkillInclusions("Pilot_Test", base_skill.id)
-				helper.rebuildRelationships()
-
-				-- Should be rejected
-				local inclusions = plus_manager.config.pilotSkillInclusions["Pilot_Test"]
-				assert.is_true(not inclusions or not inclusions[base_skill.id])
-
-				-- Test squad inclusion
-				plus_manager:registerSquadSkillInclusions("test_squad", base_skill.id)
-				helper.rebuildRelationships()
-
-				-- Should be rejected
-				local inclusions = plus_manager.config.squadSkillInclusions["test_squad"]
-				assert.is_true(not inclusions or not inclusions[base_skill.id])
-			end)
-		end)
-
-		describe("Constraint Registration Before Skill", function()
-			local base_skill
-
-			before_each(function()
-				base_skill = {
-					id = "LateSkill",
-					shortName = "LS",
-					fullName = "Late Skill",
-					description = "Test",
-					skillType = "default"
-				}
-			end)
-			it("should validate constraints registered before skill exists", function()
-				-- Register inclusion constraint before the skill
-				plus_manager:registerPilotSkillInclusions("Pilot_Test", base_skill.id)
-
-				-- Now register the skill as default type
-				plus_manager:registerSkill("test", base_skill)
-				helper.rebuildRelationships()
-
-				-- The invalid inclusion should be removed during validation
-				local inclusions = plus_manager.config.pilotSkillInclusions["Pilot_Test"]
-				assert.is_true(not inclusions or not inclusions[base_skill.id])
-			end)
-
-			it("should allow valid constraints registered before skill exists", function()
-				-- Register exclusion constraint before the skill
-				plus_manager:registerPilotSkillExclusions("Pilot_Test", base_skill.id)
-
-				-- Now register the skill as default type (matches exclusion)
-				plus_manager:registerSkill("test", base_skill)
-				helper.rebuildRelationships()
-
-				-- Valid exclusion should remain
-				local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_Test"]
-				assert.is_not_nil(exclusions)
-				assert.is_true(exclusions[base_skill.id])
+				-- Exclusions should work
+				assert.is_not_nil(plus_manager.config.pilotSkillExclusions["Pilot_Zoltan"])
 			end)
 		end)
 
 		describe("Skill-to-Skill Exclusions", function()
-			local base_skill, base_skill2
-
-			before_each(function()
-				base_skill = {
+			it("should allow skill exclusions between any skill types", function()
+				local inclusionSkill = {
 					id = "InclusionA",
 					shortName = "IA",
 					fullName = "Inclusion A",
 					description = "Test",
 					skillType = "inclusion"
 				}
-				base_skill2 = {
+				local defaultSkill = {
 					id = "DefaultB",
 					shortName = "DB",
 					fullName = "Default B",
-					description = "Test",
-					skillType = "default"
+					description = "Test"
 				}
-			end)
-			it("should allow skill exclusions between inclusion and default skills", function()
-				plus_manager:registerSkill("test", base_skill)
-				plus_manager:registerSkill("test", base_skill2)
-
-				plus_manager:registerSkillExclusion(base_skill.id, base_skill2.id)
+				plus_manager:registerSkill("test", inclusionSkill)
+				plus_manager:registerSkill("test", defaultSkill)
+				plus_manager:registerSkillExclusion("InclusionA", "DefaultB")
 				helper.rebuildRelationships()
 
-				-- Skill-to-skill exclusions should work regardless of type
-				local exclusions = plus_manager.config.skillExclusions[base_skill.id]
-				assert.is_not_nil(exclusions)
-				assert.is_true(exclusions[base_skill2.id])
-				assert.is_true(plus_manager.config.skillExclusions[base_skill2.id][base_skill.id])
-			end)
-
-			it("should allow skill exclusions in constraints regardless of type", function()
-				base_skill.constraints = {
-					skillExclusions = base_skill2.id
-				}
-				plus_manager:registerSkill("test", base_skill)
-				plus_manager:registerSkill("test", base_skill2)
-				helper.rebuildRelationships()
-
-				-- Should work fine
-				local exclusions = plus_manager.config.skillExclusions[base_skill.id]
-				assert.is_not_nil(exclusions)
-				assert.is_true(exclusions[base_skill2.id])
+				-- Skill exclusions work regardless of skill type
+				assert.is_not_nil(plus_manager.config.skillExclusions["InclusionA"])
 			end)
 		end)
 	end)

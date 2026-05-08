@@ -15,7 +15,9 @@ local skill_selection = nil
 local utils = nil
 
 -- Module state
-skill_constraints.constraintFunctions = {}  -- Array of function(pilot, selectedSkills, candidateSkillId) -> boolean
+skill_constraints.constraintFunctions = {}  -- Array of "any" constraint functions that apply to all skills
+skill_constraints.inclusionConstraintFunctions = {}  -- Array of inclusion constraint functions that apply to inclusion skills
+skill_constraints.exclusionConstraintFunctions = {}  -- Array of exclusion constraint functions that apply to default/exclusion skills
 
 -- Initialize the module
 function skill_constraints:init()
@@ -23,11 +25,20 @@ function skill_constraints:init()
 	skill_selection = cplus_plus_ex._subobjects.skill_selection
 	utils = cplus_plus_ex._subobjects.utils
 
+	-- Register any type constraints that apply to all skills
 	self:_registerSlotRestrictionConstraintFunction()
 	self:_registerReusabilityConstraintFunction()
-	self:_registerPlusExclusionInclusionConstraintFunction()
 	self:_registerSkillExclusionConstraintFunction()
 	self:_registerGroupExclusionConstraintFunction()
+
+	-- Register inclusion constraints that only apply to inclusion skills
+	self:_registerPilotInclusionConstraintFunction()
+	self:_registerSquadInclusionConstraintFunction()
+
+	-- Register exclusion constraints that only apply to default/exclusion skills
+	self:_registerPilotExclusionConstraintFunction()
+	self:_registerSquadExclusionConstraintFunction()
+
 	return self
 end
 
@@ -35,25 +46,69 @@ end
 -- using all registered constraint functions
 -- Returns true if all constraints pass, false otherwise
 function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId)
-	-- Check all constraint functions
+	-- Get the skill to check if it's an inclusion skill
+	-- If skill doesn't exist, treat as non-inclusion (default/exclusion behavior)
+	local skill = skill_config_module.enabledSkills[candidateSkillId]
+	if not skill then
+		logger.logWarn(SUBMODULE, "Skill %s not found in enabled skills", candidateSkillId)
+		return false
+	end
+
+	-- If its an inclusion, firt see if its even allowed
+	if utils.isInclusionSkill(skill.skillType) then
+		-- At least one inclusion constraint must pass to contiune
+		local hasInclusionMatch = false
+		for _, constraintFn in ipairs(self.inclusionConstraintFunctions) do
+			if constraintFn(pilot, selectedSkills, candidateSkillId) then
+				hasInclusionMatch = true
+				break  -- Found at least one match, can stop checking
+			end
+		end
+		-- If no inclusion constraints passed, reject immediately
+		if not hasInclusionMatch then
+			return false
+		end
+	end
+
+	-- Run the constraints applicable to all skills
+	-- All must pass to be allowed
 	for _, constraintFn in ipairs(self.constraintFunctions) do
 		if not constraintFn(pilot, selectedSkills, candidateSkillId) then
 			return false
 		end
 	end
+
+	-- If its an exclusion, run the constraints applicable to exclusions
+	if utils.isExclusionSkill(skill.skillType) then
+		-- All must pass to be allowed
+		for _, constraintFn in ipairs(self.exclusionConstraintFunctions) do
+			if not constraintFn(pilot, selectedSkills, candidateSkillId) then
+				return false
+			end
+		end
+	end
+
+	-- Made it all the way through - we are good!
 	return true
 end
 
 -- Registers a constraint function for skill assignment
--- These functions take pilot, selectedSkills, and candidateSkillId and return true if the candidate skill can be assigned to the pilot
---   pilot - The memhack pilot struct
---   selectedSkills - Array like table of skill IDs that have already been selected for this pilot
---   candidateSkillId - The skill ID being considered for assignment
--- The default pilot inclusion/exclusion and duplicate prevention use this same function. These can be
--- used as examples for using constraint functions
-function skill_constraints:registerConstraintFunction(constraintFn)
-	table.insert(self.constraintFunctions, constraintFn)
-	logger.logDebug(SUBMODULE, "Registered constraint function")
+-- constraintType: Optional, can be:
+--   - "inclusion": Only runs for inclusion skills, OR logic (at least one must pass)
+--   - "exclusion": Exclusion-type checks, runs for exclusion skills, AND logic (all must pass)
+--   - "any" or nil: General checks, runs for ALL skills, AND logic (all must pass)
+function skill_constraints:registerConstraintFunction(constraintFn, constraintType)
+	if constraintType == "inclusion" then
+		table.insert(self.inclusionConstraintFunctions, constraintFn)
+		logger.logDebug(SUBMODULE, "Registered inclusion constraint function")
+	elseif constraintType == "exclusion" then
+		table.insert(self.exclusionConstraintFunctions, constraintFn)
+		logger.logDebug(SUBMODULE, "Registered exclusion constraint function")
+	else
+		-- Default to "any" - runs for all skills
+		table.insert(self.constraintFunctions, constraintFn)
+		logger.logDebug(SUBMODULE, "Registered 'any' constraint function")
+	end
 end
 
 -- This enforces slot restrictions (first only, second only, or either)
@@ -73,44 +128,87 @@ function skill_constraints:_registerSlotRestrictionConstraintFunction()
 		end
 
 		return true
-	end)
+	end, "any")
 end
 
--- This enforces pilot exclusions (Vanilla blacklist API) and inclusion restrictions
-function skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
+-- This enforces pilot inclusion restrictions
+-- Only allows specific pilots to receive certain inclusion skills
+function skill_constraints:_registerPilotInclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
 		local pilotId = pilot:getIdStr()
 
-		-- Get the skill object to check its type
-		local skill = skill_config_module.enabledSkills[candidateSkillId]
+		-- Check pilot inclusion list
+		local pilotList = skill_config_module.config.pilotSkillInclusions[pilotId]
+		local isIncluded = pilotList and pilotList[candidateSkillId]
 
-		if skill == nil then
-			logger.logWarn(SUBMODULE, "Skill " .. candidateSkillId .. " not found in enabled skills")
+		if isIncluded then
+			logger.logDebug(SUBMODULE, "Pilot inclusion matched for skill %s and pilot %s", candidateSkillId, pilotId)
+		end
+		return isIncluded == true
+	end, "inclusion")
+end
+
+-- This enforces squad inclusion restrictions
+-- Only allows pilots in specific squads to receive certain inclusion skills
+function skill_constraints:_registerSquadInclusionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		local pilotId = pilot:getIdStr()
+
+		-- Get squad ID
+		local squadId = GAME and GAME.additionalSquadData and GAME.additionalSquadData.squad
+		if not squadId then
 			return false
 		end
 
-		-- For inclusion skills check if pilot is in inclusion list
-		-- For default skills check if pilot is NOT in exclusion list (must be absent)
-		local isInclusionSkill = skill.skillType == "inclusion"
+		-- Check squad inclusion list
+		local squadList = skill_config_module.config.squadSkillInclusions[squadId]
+		local isIncluded = squadList and squadList[candidateSkillId]
 
-		if isInclusionSkill then
-			-- Check inclusion list
-			local pilotList = skill_config_module.config.pilotSkillInclusions[pilotId]
-			local skillInList = pilotList and pilotList[candidateSkillId]
-			local allowed = skillInList == true
-			if not allowed then
-				logger.logDebug(SUBMODULE, "Prevented inclusion skill %s for pilot %s", candidateSkillId, pilotId)
-			end
-			return allowed
-		else
-			-- Check for an exclusion
-			local hasExclusion = skill_config_module.config.pilotSkillExclusions[pilotId] and skill_config_module.config.pilotSkillExclusions[pilotId][candidateSkillId]
-			if hasExclusion then
-				logger.logDebug(SUBMODULE, "Prevented exclusion skill %s for pilot %s", candidateSkillId, pilotId)
-			end
-			return not hasExclusion
+		if isIncluded then
+			logger.logDebug(SUBMODULE, "Squad inclusion matched for skill %s and squad %s", candidateSkillId, squadId)
 		end
-	end)
+		return isIncluded == true
+	end, "inclusion")
+end
+
+-- This enforces pilot exclusions (vanilla blacklist)
+-- Prevents specific pilots from receiving certain skills
+function skill_constraints:_registerPilotExclusionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		local pilotId = pilot:getIdStr()
+
+		-- Check for pilot exclusion
+		local hasExclusion = skill_config_module.config.pilotSkillExclusions[pilotId]
+			and skill_config_module.config.pilotSkillExclusions[pilotId][candidateSkillId]
+
+		if hasExclusion then
+			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (pilot excluded)", candidateSkillId, pilotId)
+		end
+
+		return not hasExclusion
+	end, "exclusion")
+end
+
+-- This enforces squad exclusions
+-- Prevents all pilots in certain squads from receiving certain skills
+function skill_constraints:_registerSquadExclusionConstraintFunction()
+	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
+		local pilotId = pilot:getIdStr()
+
+		-- Get squad ID
+		local squadId = GAME and GAME.additionalSquadData and GAME.additionalSquadData.squad
+
+		-- Check for squad exclusion
+		local hasExclusion = squadId and
+			skill_config_module.config.squadSkillExclusions[squadId] and
+			skill_config_module.config.squadSkillExclusions[squadId][candidateSkillId]
+
+		if hasExclusion then
+			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (squad %s excluded)", candidateSkillId, pilotId, squadId)
+		end
+
+		return not hasExclusion
+	end, "exclusion")
 end
 
 -- This enforces per_pilot and per_run skill restrictions
@@ -147,7 +245,7 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 		end
 		-- reusability == "reusable" always passes
 		return true
-	end)
+	end, "any")
 end
 
 -- This enforces skill to skill exclusions
@@ -168,7 +266,7 @@ function skill_constraints:_registerSkillExclusionConstraintFunction()
 		end
 
 		return true
-	end)
+	end, "any")
 end
 
 -- This enforces group exclusions - only one skill from each group per pilot
@@ -196,7 +294,7 @@ function skill_constraints:_registerGroupExclusionConstraintFunction()
 			end
 		end
 		return true
-	end)
+	end, "any")
 end
 
 return skill_constraints
