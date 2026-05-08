@@ -137,7 +137,8 @@ function M.setupGlobals()
 	}, {
 		__call = function(self, config)
 			return {
-				dispatch = function() end
+				dispatch = function() end,
+				subscribe = function() end
 			}
 		end
 	})

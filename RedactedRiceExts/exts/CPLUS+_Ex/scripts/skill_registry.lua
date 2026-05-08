@@ -60,10 +60,12 @@ end
 -- constraints optional table defining relationships and constraints for this skill:
 --   groups - string or array of group names this skill belongs to
 --   skillExclusions - string or array of skill IDs that are mutually exclusive with this skill
---   pilotExclusions - string or array of pilot IDs that cannot have this skill
---   pilotInclusions - string or array of pilot IDs that can have this skill
---   squadExclusions - string or array of squad IDs that cannot have this skill
---   squadInclusions - string or array of squad IDs that can have this skill
+--   pilotExclusions - string or array of pilot IDs that cannot have this skill (only valid for "default"/exclusion skills)
+--   pilotInclusions - string or array of pilot IDs that can have this skill (only valid for "inclusion" skills)
+--   squadExclusions - string or array of squad IDs that cannot have this skill (only valid for "default"/exclusion skills)
+--   squadInclusions - string or array of squad IDs that can have this skill (only valid for "inclusion" skills)
+-- NOTE: Inclusion skills (skillType = "inclusion") can ONLY have inclusions. Exclusion/default skills can ONLY have exclusions.
+--       The system will validate and error if you try to mix constraint types. Skill to skill exclusions work between any types.
 function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
 		defaultReusability, reusabilityLimit, slotRestriction, weight, icon, constraints)
 	local id = idOrTable
@@ -161,6 +163,22 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		if type(constraints) ~= "table" then
 			logger.logWarn(SUBMODULE, "Skill '%s' has invalid constraints (must be table). Ignoring constraints.", id)
 		else
+			-- Validate constraint types against skill type processing
+			-- Check for invalid constraint combinations and warn
+			if self:isInclusionSkill(skillType) then
+				if constraints.pilotExclusions ~= nil or constraints.squadExclusions ~= nil then
+					logger.logError(SUBMODULE, "Skill '%s' is an inclusion skill but has exclusion constraints defined. Ignoring exclusions.", id)
+					constraints.pilotExclusions = nil
+					constraints.squadExclusions = nil
+				end
+			elseif self:isExclusionSkill(skillType) then
+				if constraints.pilotInclusions ~= nil or constraints.squadInclusions ~= nil then
+					logger.logError(SUBMODULE, "Skill '%s' is a default/exclusion skill but has inclusion constraints defined. Ignoring inclusions.", id)
+					constraints.pilotInclusions = nil
+					constraints.squadInclusions = nil
+				end
+			end
+
 			-- Register groups
 			if constraints.groups ~= nil then
 				if type(constraints.groups) == "string" then
@@ -256,6 +274,9 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 			end
 		end
 	end
+
+	-- Validate any existing constraints that were registered before this skill
+	self:_validateSkillConstraints(id)
 end
 
 -- Registers all vanilla skills
@@ -263,6 +284,92 @@ function skill_registry:_registerVanilla()
 	-- Register all vanilla skills
 	for _, skill in ipairs(cplus_plus_ex.VANILLA_SKILLS) do
 		self:registerSkill("Vanilla", skill)
+	end
+end
+
+
+function skill_registry:isExclusionSkill(skillType)
+	return skillType == "default" or skillType == "exclusion"
+end
+
+function skill_registry:isInclusionSkill(skillType)
+	return skillType == "inclusion"
+end
+
+-- Helper function to validate constraint compatibility with skill type
+-- Returns true if valid, false if invalid
+function skill_registry:_validateConstraintType(skillId, constraintType)
+	local skill = self.registeredSkills[skillId]
+	if not skill then
+		-- Skill not registered yet - it will be validated later when it is registered
+		logger.logDebug(SUBMODULE, "Skill '%s' not yet registered, deferring %s validation", skillId, constraintType)
+		return true
+	end
+
+	-- Determine if this is an inclusion or exclusion constraint
+	local isInclusionConstraint = constraintType == "pilotInclusions" or constraintType == "squadInclusions"
+	local isExclusionConstraint = constraintType == "pilotExclusions" or constraintType == "squadExclusions"
+
+	-- Validate compatibility
+	if isInclusionConstraint and self:isExclusionSkill(skill.skillType) then
+		logger.logError(SUBMODULE, "Skill '%s' has type '%s' which does not support inclusions. Cannot add %s constraint.",
+				skillId, skill.skillType, constraintType)
+		return false
+	end
+
+	if isExclusionConstraint and self:isInclusionSkill(skill.skillType) then
+		logger.logError(SUBMODULE, "Skill '%s' has type 'inclusion' which does not support exclusions. Cannot add %s constraint.",
+				skillId, constraintType)
+		return false
+	end
+
+	return true
+end
+
+-- Validates all constraints for a newly registered skill
+function skill_registry:_validateSkillConstraints(skillId)
+	local skill = self.registeredSkills[skillId]
+	if not skill then
+		return
+	end
+
+	local isInclusionSkill = self:isInclusionSkill(skill.skillType)
+	local isExclusionSkill = self:isExclusionSkill(skill.skillType)
+
+	-- Check pilot exclusions
+	local pilotExclusions = skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]
+	for pilotId, skills in pairs(pilotExclusions) do
+		if skills[skillId] and isInclusionSkill then
+			logger.logError(SUBMODULE, "Skill '%s' is an inclusion skill but has pilotExclusions defined. Removing invalid constraint.", skillId)
+			pilotExclusions[pilotId][skillId] = nil
+		end
+	end
+
+	-- Check pilot inclusions
+	local pilotInclusions = skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS]
+	for pilotId, skills in pairs(pilotInclusions) do
+		if skills[skillId] and isExclusionSkill then
+			logger.logError(SUBMODULE, "Skill '%s' is a default/exclusion skill but has pilotInclusions defined. Removing invalid constraint.", skillId)
+			pilotInclusions[pilotId][skillId] = nil
+		end
+	end
+
+	-- Check squad exclusions
+	local squadExclusions = skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS]
+	for squadId, skills in pairs(squadExclusions) do
+		if skills[skillId] and isInclusionSkill then
+			logger.logError(SUBMODULE, "Skill '%s' is an inclusion skill but has squadExclusions defined. Removing invalid constraint.", skillId)
+			squadExclusions[squadId][skillId] = nil
+		end
+	end
+
+	-- Check squad inclusions
+	local squadInclusions = skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS]
+	for squadId, skills in pairs(squadInclusions) do
+		if skills[skillId] and isExclusionSkill then
+			logger.logError(SUBMODULE, "Skill '%s' is a default/exclusion skill but has squadInclusions defined. Removing invalid constraint.", skillId)
+			squadInclusions[squadId][skillId] = nil
+		end
 	end
 end
 
@@ -298,11 +405,16 @@ function skill_registry:registerPilotSkillExclusions(pilotIdOrFn, skillIds)
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		self:_registerPilotSkillRelationship(
-				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
-				self.pilotExclusionFunctions,
-				skillId, pilotIdOrFn, "exclusion"
-		)
+		-- Validate constraint type compatibility
+		if not self:_validateConstraintType(skillId, "pilotExclusions") then
+			logger.logWarn(SUBMODULE, "Skipping pilotExclusions registration for skill '%s' due to type mismatch", skillId)
+		else
+			self:_registerPilotSkillRelationship(
+					skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
+					self.pilotExclusionFunctions,
+					skillId, pilotIdOrFn, "exclusion"
+			)
+		end
 	end
 end
 
@@ -316,11 +428,16 @@ function skill_registry:registerPilotSkillInclusions(pilotIdOrFn, skillIds)
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		self:_registerPilotSkillRelationship(
-				skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
-				self.pilotInclusionFunctions,
-				skillId, pilotIdOrFn, "inclusion"
-		)
+		-- Validate constraint type compatibility
+		if not self:_validateConstraintType(skillId, "pilotInclusions") then
+			logger.logWarn(SUBMODULE, "Skipping pilotInclusions registration for skill '%s' due to type mismatch", skillId)
+		else
+			self:_registerPilotSkillRelationship(
+					skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
+					self.pilotInclusionFunctions,
+					skillId, pilotIdOrFn, "inclusion"
+			)
+		end
 	end
 end
 
@@ -332,11 +449,16 @@ function skill_registry:registerSquadSkillExclusions(squadId, skillIds)
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		self:_registerPilotSkillRelationship(
-				skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS],
-				{}, -- no function table needed for squads
-				skillId, squadId, "exclusion"
-		)
+		-- Validate constraint type compatibility
+		if not self:_validateConstraintType(skillId, "squadExclusions") then
+			logger.logWarn(SUBMODULE, "Skipping squadExclusions registration for skill '%s' due to type mismatch", skillId)
+		else
+			self:_registerPilotSkillRelationship(
+					skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS],
+					{}, -- no function table needed for squads
+					skillId, squadId, "exclusion"
+			)
+		end
 	end
 end
 
@@ -350,11 +472,16 @@ function skill_registry:registerSquadSkillInclusions(squadId, skillIds)
 	end
 
 	for _, skillId in ipairs(skillIds) do
-		self:_registerPilotSkillRelationship(
-				skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS],
-				{}, -- no function table needed for squads
-				skillId, squadId, "inclusion"
-		)
+		-- Validate constraint type compatibility
+		if not self:_validateConstraintType(skillId, "squadInclusions") then
+			logger.logWarn(SUBMODULE, "Skipping squadInclusions registration for skill '%s' due to type mismatch", skillId)
+		else
+			self:_registerPilotSkillRelationship(
+					skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS],
+					{}, -- no function table needed for squads
+					skillId, squadId, "inclusion"
+			)
+		end
 	end
 end
 

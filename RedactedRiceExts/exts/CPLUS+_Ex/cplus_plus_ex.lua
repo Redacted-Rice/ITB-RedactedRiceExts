@@ -104,10 +104,6 @@ function cplus_plus_ex:initModules()
 	skill_selection:init()
 	time_traveler:init()
 	modify_pilot_skills_ui:init()
-
-	-- Initialize base skill classes
-	self.baseClasses.SkillTrait:baseInit()
-	self.baseClasses.SkillActive:baseInit()
 end
 
 -- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
@@ -230,6 +226,10 @@ end
 function cplus_plus_ex:init()
 	self:initModules()
 	self:exposeAPI()
+
+	-- Initialize base skill classes
+	self.baseClasses.SkillTrait:baseInit()
+	self.baseClasses.SkillActive:baseInit()
 
 	-- Add events
 	self:addEvents()
