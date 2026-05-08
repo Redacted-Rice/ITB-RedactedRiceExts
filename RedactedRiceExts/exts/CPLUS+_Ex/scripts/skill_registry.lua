@@ -62,6 +62,8 @@ end
 --   skillExclusions - string or array of skill IDs that are mutually exclusive with this skill
 --   pilotExclusions - string or array of pilot IDs that cannot have this skill
 --   pilotInclusions - string or array of pilot IDs that can have this skill
+--   squadExclusions - string or array of squad IDs that cannot have this skill
+--   squadInclusions - string or array of squad IDs that can have this skill
 function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
 		defaultReusability, reusabilityLimit, slotRestriction, weight, icon, constraints)
 	local id = idOrTable
@@ -216,6 +218,40 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 					end
 				else
 					logger.logWarn(SUBMODULE, "Skill '%s' has invalid pilotInclusions format (must be string, function, or array). Ignoring.", id)
+				end
+			end
+
+			-- Register squad exclusions (can be string or array of strings)
+			if constraints.squadExclusions ~= nil then
+				if type(constraints.squadExclusions) == "string" then
+					self:registerSquadSkillExclusions(constraints.squadExclusions, id)
+				elseif type(constraints.squadExclusions) == "table" then
+					for _, squadId in ipairs(constraints.squadExclusions) do
+						if type(squadId) == "string" then
+							self:registerSquadSkillExclusions(squadId, id)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid squad ID in squadExclusions (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid squadExclusions format (must be string or array). Ignoring.", id)
+				end
+			end
+
+			-- Register squad inclusions (can be string or array of strings)
+			if constraints.squadInclusions ~= nil then
+				if type(constraints.squadInclusions) == "string" then
+					self:registerSquadSkillInclusions(constraints.squadInclusions, id)
+				elseif type(constraints.squadInclusions) == "table" then
+					for _, squadId in ipairs(constraints.squadInclusions) do
+						if type(squadId) == "string" then
+							self:registerSquadSkillInclusions(squadId, id)
+						else
+							logger.logWarn(SUBMODULE, "Skill '%s' has invalid squad ID in squadInclusions (must be string). Ignoring.", id)
+						end
+					end
+				else
+					logger.logWarn(SUBMODULE, "Skill '%s' has invalid squadInclusions format (must be string or array). Ignoring.", id)
 				end
 			end
 		end
