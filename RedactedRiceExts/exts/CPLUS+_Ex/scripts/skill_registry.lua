@@ -165,13 +165,13 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		else
 			-- Validate constraint types against skill type processing
 			-- Check for invalid constraint combinations and warn
-			if self:isInclusionSkill(skillType) then
+			if utils.isInclusionSkill(skillType) then
 				if constraints.pilotExclusions ~= nil or constraints.squadExclusions ~= nil then
 					logger.logError(SUBMODULE, "Skill '%s' is an inclusion skill but has exclusion constraints defined. Ignoring exclusions.", id)
 					constraints.pilotExclusions = nil
 					constraints.squadExclusions = nil
 				end
-			elseif self:isExclusionSkill(skillType) then
+			elseif utils.isExclusionSkill(skillType) then
 				if constraints.pilotInclusions ~= nil or constraints.squadInclusions ~= nil then
 					logger.logError(SUBMODULE, "Skill '%s' is a default/exclusion skill but has inclusion constraints defined. Ignoring inclusions.", id)
 					constraints.pilotInclusions = nil
@@ -287,15 +287,6 @@ function skill_registry:_registerVanilla()
 	end
 end
 
-
-function skill_registry:isExclusionSkill(skillType)
-	return skillType == "default" or skillType == "exclusion"
-end
-
-function skill_registry:isInclusionSkill(skillType)
-	return skillType == "inclusion"
-end
-
 -- Helper function to validate constraint compatibility with skill type
 -- Returns true if valid, false if invalid
 function skill_registry:_validateConstraintType(skillId, constraintType)
@@ -311,13 +302,13 @@ function skill_registry:_validateConstraintType(skillId, constraintType)
 	local isExclusionConstraint = constraintType == "pilotExclusions" or constraintType == "squadExclusions"
 
 	-- Validate compatibility
-	if isInclusionConstraint and self:isExclusionSkill(skill.skillType) then
+	if isInclusionConstraint and utils.isExclusionSkill(skill.skillType) then
 		logger.logError(SUBMODULE, "Skill '%s' has type '%s' which does not support inclusions. Cannot add %s constraint.",
 				skillId, skill.skillType, constraintType)
 		return false
 	end
 
-	if isExclusionConstraint and self:isInclusionSkill(skill.skillType) then
+	if isExclusionConstraint and utils.isInclusionSkill(skill.skillType) then
 		logger.logError(SUBMODULE, "Skill '%s' has type 'inclusion' which does not support exclusions. Cannot add %s constraint.",
 				skillId, constraintType)
 		return false
@@ -333,8 +324,8 @@ function skill_registry:_validateSkillConstraints(skillId)
 		return
 	end
 
-	local isInclusionSkill = self:isInclusionSkill(skill.skillType)
-	local isExclusionSkill = self:isExclusionSkill(skill.skillType)
+	local isInclusionSkill = utils.isInclusionSkill(skill.skillType)
+	local isExclusionSkill = utils.isExclusionSkill(skill.skillType)
 
 	-- Check pilot exclusions
 	local pilotExclusions = skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS]

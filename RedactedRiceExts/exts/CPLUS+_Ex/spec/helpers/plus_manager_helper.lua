@@ -155,9 +155,20 @@ function M.resetState()
 	}
 	_G.Board = nil
 
-	GAME.cplus_plus_ex.pilotSkills = {}
-	GAME.cplus_plus_ex.randomSeed = 12345
-	GAME.cplus_plus_ex.randomSeedCnt = 0
+	-- Reset GAME if it exists, or create it
+	if not _G.GAME or not _G.GAME.cplus_plus_ex then
+		_G.GAME = {
+			cplus_plus_ex = {
+				pilotSkills = {},
+				randomSeed = 12345,
+				randomSeedCnt = 0
+			}
+		}
+	else
+		_G.GAME.cplus_plus_ex.pilotSkills = {}
+		_G.GAME.cplus_plus_ex.randomSeed = 12345
+		_G.GAME.cplus_plus_ex.randomSeedCnt = 0
+	end
 
 	-- Restore original math.random and reseed
 	M.restoreMathRandom()
@@ -191,9 +202,15 @@ function M.resetState()
 
 	-- Reset skill_constraints module state
 	skill_constraints.constraintFunctions = {}
+	skill_constraints.inclusionConstraintFunctions = {}
+	skill_constraints.exclusionConstraintFunctions = {}
 	-- Re-register built-in constraint functions after clearing
+	skill_constraints:_registerSlotRestrictionConstraintFunction()
 	skill_constraints:_registerReusabilityConstraintFunction()
-	skill_constraints:_registerPlusExclusionInclusionConstraintFunction()
+	skill_constraints:_registerPilotInclusionConstraintFunction()
+	skill_constraints:_registerSquadInclusionConstraintFunction()
+	skill_constraints:_registerPilotExclusionConstraintFunction()
+	skill_constraints:_registerSquadExclusionConstraintFunction()
 	skill_constraints:_registerSkillExclusionConstraintFunction()
 
 	-- Reset skill_selection module state
