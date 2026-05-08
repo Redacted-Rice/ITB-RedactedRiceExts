@@ -103,7 +103,7 @@ end
 -- Helper to get cached pilot portrait
 local function getCachedPilotPortrait(pilotId)
 	if not surfaceCache[pilotId] then
-		-- Get portrait 
+		-- Get portrait
 		local portrait = _G[pilotId].Portrait
 		local path
 		if portrait == "" then
@@ -113,7 +113,7 @@ local function getCachedPilotPortrait(pilotId)
 		else
 			path = "img/portraits/" .. portrait .. ".png"
 		end
-		
+
 		surfaceCache[pilotId] = sdlext.getSurface({
 			path = path,
 			scale = PILOT_PORTRAIT_SCALE
@@ -131,7 +131,7 @@ local function getCachedSquadIcon(squadId)
 			if squad and squad.id == squadId then
 				local iconPath = modApi.squad_icon[i] or "resources/mods/squads/unknown.png"
 				local surface = sdlext.getSurface({ path = iconPath, scale = SQUAD_ICON_SCALE })
-				
+
 				-- Apply palette for vanilla squads
 				if i > 1 and i <= modApi.constants.VANILLA_SQUADS then
 					local squadPalettes = sdlext.squadPalettes()
@@ -142,12 +142,12 @@ local function getCachedSquadIcon(squadId)
 					end
 					surface = sdl.colormapped(surface, colorTable)
 				end
-				
+
 				squadIconCache[squadId] = surface
 				break
 			end
 		end
-		
+
 		-- Fallback to unknown squad icon if not found
 		if not squadIconCache[squadId] then
 			squadIconCache[squadId] = sdlext.getSurface({
@@ -406,7 +406,7 @@ end
 
 function modify_pilot_skills_ui:getSquadsData()
 	local squadData = {}
-	
+
 	-- Only include enabled squads from cached enabledSquadIds set
 	local modSquadsCount = #modApi.mod_squads
 	for i = 1, modSquadsCount do
@@ -417,7 +417,7 @@ function modify_pilot_skills_ui:getSquadsData()
 			squadData[squad.id] = squadName
 		end
 	end
-	
+
 	local ids = self:getSortedIds(squadData)
 	return squadData, ids
 end
@@ -1304,7 +1304,7 @@ function modify_pilot_skills_ui:addSquadImage(squadId, row)
 	if squadId and squadId ~= "All" and squadId ~= "" then
 		squadIcon = getCachedSquadIcon(squadId)
 	end
-	
+
 	local width = SquadWidth
 	local squadUi = Ui()
 		:widthpx(width):heightpx(ROW_HEIGHT)
@@ -1912,7 +1912,7 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 		exlusionSkillIdsSorted
 	)
 
-	if #inclusionSkillData > 0 then
+	if next(inclusionSkillData) ~= nil then
 		-- Pilot Skill Inclusions
 		self:buildRelationshipEditor(
 			relationshipsContent,
@@ -1937,7 +1937,7 @@ function modify_pilot_skills_ui:buildRelationships(scrollContent)
 		exlusionSkillIdsSorted
 	)
 
-	if #inclusionSkillData > 0 then
+	if next(inclusionSkillData) ~= nil then
 		-- Squad Skill Inclusions
 		self:buildRelationshipEditor(
 			relationshipsContent,
@@ -2586,28 +2586,24 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 end
 
 function modify_pilot_skills_ui:buildMainContent(scroll)
+	-- Ensure squadIndices is initialized by loading squad selection if needed
+	if not modApi.squadIndices then
+		loadSquadSelection()
+	end
+
 	-- Build set of enabled squad IDs from squadIndices
 	enabledSquadIds = {}
-	if modApi.squadIndices then
-		for i = 1, modApi.constants.MAX_SQUADS do
-			if modApi.squadIndices[i] then
-				local squadIndex = modApi.squadIndices[i]
-				local squad = modApi.mod_squads[squadIndex]
-				if squad and squad.id then
-					enabledSquadIds[squad.id] = true
-				end
-			end
-		end
-	else
-		-- If squadIndices not initialized, use first 14 squads
-		for i = 1, math.min(modApi.constants.MAX_SQUADS, #modApi.mod_squads) do
-			local squad = modApi.mod_squads[i]
+	-- squadIndices exists - use it to determine which squads are enabled
+	for i = 1, modApi.constants.MAX_SQUADS do
+		if modApi.squadIndices[i] then
+			local squadIndex = modApi.squadIndices[i]
+			local squad = modApi.mod_squads[squadIndex]
 			if squad and squad.id then
 				enabledSquadIds[squad.id] = true
 			end
 		end
 	end
-	
+
 	-- Calculate max squad icon size based on enabled squad icons only
 	local maxSquadWidth = 0
 	local maxSquadHeight = 0
@@ -2618,7 +2614,7 @@ function modify_pilot_skills_ui:buildMainContent(scroll)
 			SquadHeight = math.max(maxSquadHeight, squadIcon:h())
 		end
 	end
-	
+
 	-- Clear tracking tables
 	percentageLabels = {}
 	categoryHeaderLabels = {}
