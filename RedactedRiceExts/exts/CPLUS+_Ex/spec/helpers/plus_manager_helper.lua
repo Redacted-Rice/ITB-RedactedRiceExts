@@ -62,7 +62,7 @@ function M.setupGlobals()
 	_G.modApi.events.onModsLoaded = { subscribe = function() end }
 	_G.modApi.scheduleHook = function() end
 
-	_G.Event = _G.Event or function() return {dispatch = function() end} end
+	_G.Event = _G.Event or function() return {dispatch = function() end, subscribe = function() end} end
 	_G.Game = _G.Game or {}
 	_G.Board = nil
 
