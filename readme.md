@@ -15,18 +15,30 @@ Please enjoy and contact us if you run into any issues.
 # Extensions
 
 * memhack - v1.1.0 - Extension to expose additional functionality via direct memory access
-* CPLUS+ Ex - v1.1.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+* CPLUS+ Ex - v1.2.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 
 # Releases
 
-Latest release: 1.1.1
+Latest release: 1.2.0
+
+## 1.2.0
+
+Released: XX/XX/2026
+
+* memhack - v1.1.0
+* CPLUS+ Ex - v1.2.0
+
+### Notes
+* Fixing Skill Inclusions
+* Added squad exclusions and inclusions
+
 
 ## 1.1.1
 
 Released: 05/07/2026
 
-* memhack - v1.1.1
-* CPLUS+ Ex - v1.1.0
+* memhack - v1.1.0
+* CPLUS+ Ex - v1.1.1
 
 ### Notes
 * Added user guide for CPLUS+

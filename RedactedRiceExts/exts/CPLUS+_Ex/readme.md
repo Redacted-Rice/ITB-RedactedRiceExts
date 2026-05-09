@@ -11,7 +11,21 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.1.1
+Latest release: 1.2.0
+
+## 1.2.0
+Released: XX/XX/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.1.0
+
+### Notes
+* Fixing Skill Inclusions
+* Added squad exclusions and inclusions
+
 
 ## 1.1.1
 Released: 05/07/2026
