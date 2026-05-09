@@ -16,11 +16,7 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 1.2 Release:
-1. Pilot inclusions not working right?
-2. IsCyborg not working right?
-3. Test squad bases exclusions/inclusions
 4. Modify to allow for selecting specific skills easily in code and selecting more than 2
-5. consider using bulk reading for state capture to avoid multiple reads near each other as optimization
 
 
 ---------- Mech Upgrades Ex? ---------
