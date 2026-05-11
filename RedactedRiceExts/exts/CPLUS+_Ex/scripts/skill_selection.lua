@@ -18,6 +18,7 @@ local skill_constraints = nil
 local skill_config_module = nil
 local utils = nil
 local hooks = nil
+local skill_state_tracker = nil
 
 -- Initialize the module
 function skill_selection:init()
@@ -25,6 +26,7 @@ function skill_selection:init()
 	skill_config_module = cplus_plus_ex._subobjects.skill_config
 	utils = cplus_plus_ex._subobjects.utils
 	hooks = cplus_plus_ex._subobjects.hooks
+	skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
 
 	return self
 end
@@ -52,6 +54,12 @@ function skill_selection:_initGameSaveData()
 		GAME.cplus_plus_ex.pilotSkills = {}
 	end
 
+	-- This manages the save data and which skills are assigned
+	-- skill_state_tracker manages the runtime objects
+	if GAME.cplus_plus_ex.pilotVirtualSkills == nil then
+		GAME.cplus_plus_ex.pilotVirtualSkills = {}
+	end
+
 	if GAME.cplus_plus_ex.randomSeed == nil then
 		-- The random is initialized using game turn. So we create our own
 		-- source seed based on time
@@ -62,6 +70,155 @@ function skill_selection:_initGameSaveData()
 	if GAME.cplus_plus_ex.randomSeedCnt == nil then
 		GAME.cplus_plus_ex.randomSeedCnt = 0
 	end
+end
+
+function skill_selection:canBeVirtualSkill(skillId)
+	if cplus_plus_ex.NON_VIRTUAL_SKILLS[skillId] then
+		logger.logWarn(SUBMODULE, "Skill %s cannot be used as virtual skill (hardcoded vanilla limitation)", skillId)
+		return false
+	end
+	return true
+end
+
+-- Add a virtual skill to a pilot
+-- skillId: ID of the skill to add
+-- Returns: true if successful, false if skill is invalid
+function skill_selection:addVirtualSkillToPilot(pilot, skillId)
+	return self:addVirtualSkillsToPilot(pilot, {skillId}) == 1
+end
+
+-- Add multiple virtual skills to a pilot
+-- skillIds: array of skill IDs to add
+-- Returns: number of skills successfully added
+function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
+	self:_initGameSaveData()
+	local pilotId = pilot:getIdStr()
+	local successCount = 0
+
+	-- Initialize virtual skills array for this pilot if needed
+	if not GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
+		GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+	end
+
+	for _, skillId in ipairs(skillIds) do
+		-- Check if skill can be virtual
+		if not self:canBeVirtualSkill(skillId) then
+			logger.logWarn(SUBMODULE, "Skill %s cannot be used as virtual skill", skillId)
+			goto continue
+		end
+
+		-- Validate skill exists and is enabled
+		local skill = skill_config_module.enabledSkills[skillId]
+		if not skill then
+			logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
+			goto continue
+		end
+
+		-- Add the skill ID to save data
+		-- The tracker will handle creating/syncing the actual objects
+		table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+
+		logger.logInfo(SUBMODULE, "Added virtual skill %s to pilot %s (slot %d)",
+			skillId, pilotId, 2 + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+
+		successCount = successCount + 1
+
+		::continue::
+	end
+
+	if successCount > 0 then
+		-- Sync objects and update virtual bonuses and fire hooks
+		-- This will create new objects or reuse existing ones as appropriate
+		skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
+	end
+	return successCount
+end
+
+-- Add random virtual skills to a pilot
+-- count: number of random skills to add
+-- Returns: number of skills successfully added
+function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
+	-- Get currently assigned skills (both real and virtual) to avoid duplicates
+	local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
+	local assignedSkills = skill_state_tracker:getAllPilotSkillIds(pilot)
+
+	-- Filter available skills to exclude non virtual skills
+	local availableSkills = self:_createAvailableSkills()
+	local virtualCompatibleSkills = {}
+
+	for _, skillId in ipairs(availableSkills) do
+		if self:canBeVirtualSkill(skillId) then
+			table.insert(virtualCompatibleSkills, skillId)
+		end
+	end
+
+	if #virtualCompatibleSkills == 0 then
+		logger.logWarn(SUBMODULE, "No virtual-compatible skills available")
+		return 0
+	end
+
+	-- Select random skills
+	local selectedSkills = {}
+	for i = 1, count do
+		-- Select a random skill that isn't already assigned
+		local potentialSkills = utils.shallowcopy(virtualCompatibleSkills)
+
+		-- We use a virtual slot index here (2 + current virtual count + 1)
+		local pilotId = pilot:getIdStr()
+		self:_initGameSaveData()
+		local virtualSlotIndex = 2 + #(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}) + 1
+
+		local skillId = self:selectRandomSkill(potentialSkills, pilot, virtualSlotIndex, assignedSkills)
+
+		if skillId then
+			table.insert(selectedSkills, skillId)
+			table.insert(assignedSkills, skillId)
+			logger.logDebug(SUBMODULE, "Selected random virtual skill %s for pilot %s", skillId, pilotId)
+		else
+			logger.logWarn(SUBMODULE, "Failed to find valid random virtual skill %d for pilot %s", i, pilotId)
+			break
+		end
+	end
+
+	-- Add all selected skills at once
+	return self:addVirtualSkillsToPilot(pilot, selectedSkills)
+end
+
+function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
+	self:_initGameSaveData()
+	local pilotId = pilot:getIdStr()
+	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+
+	if not virtualSkills then
+		return false
+	end
+
+	for i, vSkillId in ipairs(virtualSkills) do
+		if vSkillId == skillId then
+			-- Remove from save data
+			table.remove(virtualSkills, i)
+			logger.logInfo(SUBMODULE, "Removed virtual skill %s from pilot %s", skillId, pilotId)
+
+			-- Sync objects and update virtual bonuses and fire hooks
+			-- The sync will automatically remove the corresponding object
+			skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
+			return true
+		end
+	end
+	return false
+end
+
+function skill_selection:clearVirtualSkillsFromPilot(pilot)
+	self:_initGameSaveData()
+	local pilotId = pilot:getIdStr()
+
+	-- Clear save data
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+	logger.logInfo(SUBMODULE, "Cleared all virtual skills from pilot %s", pilotId)
+
+	-- Sync objects and update virtual bonuses and fire hooks
+	-- The sync will automatically clear all objects
+	skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
 end
 
 -- Uses the stored seed and sequential access count to ensure deterministic random values

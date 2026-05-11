@@ -65,6 +65,19 @@ cplus_plus_ex.VANILLA_SKILLS = {
 	{id = "Conservative", icon = "img/advanced/combat/icons/icon_Pilot_Conservative.png", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = PER_PILOT }, -- doesn't work
 }
 
+-- Skills that cannot be used as virtual skills due to hardcoded vanilla behavior
+cplus_plus_ex.NON_VIRTUAL_SKILLS = {
+	["Opener"] = true,
+	["Closer"] = true,
+	["Popular"] = true,
+	["Thick"] = true,
+	["Invulnerable"] = true,
+	["Adrenaline"] = true,
+	["Pain"] = true,
+	["Regen"] = true,
+	["Conservative"] = true
+}
+
 cplus_plus_ex._subobjects = {}
 cplus_plus_ex._subobjects.utils = require(path.."scripts/utils")
 cplus_plus_ex._subobjects.skill_registry = require(path.."scripts/skill_registry")
@@ -183,6 +196,13 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end
 	function cplus_plus_ex:selectRandomSkill(...) return skill_selection:selectRandomSkill(...) end
 	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
+	-- Virtual skill functions
+	function cplus_plus_ex:canBeVirtualSkill(...) return skill_selection:canBeVirtualSkill(...) end
+	function cplus_plus_ex:addVirtualSkillToPilot(...) return skill_selection:addVirtualSkillToPilot(...) end
+	function cplus_plus_ex:addVirtualSkillsToPilot(...) return skill_selection:addVirtualSkillsToPilot(...) end
+	function cplus_plus_ex:addRandomVirtualSkillsToPilot(...) return skill_selection:addRandomVirtualSkillsToPilot(...) end
+	function cplus_plus_ex:removeVirtualSkillFromPilot(...) return skill_selection:removeVirtualSkillFromPilot(...) end
+	function cplus_plus_ex:clearVirtualSkillsFromPilot(...) return skill_selection:clearVirtualSkillsFromPilot(...) end
 
 	-- Skill state checking functions
 	function cplus_plus_ex:getSkillsEnabled(...) return skill_state_tracker:getSkillsEnabled(...) end
@@ -204,6 +224,13 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
 	function cplus_plus_ex:isSkillOnPilot(...) return skill_state_tracker:isSkillOnPilot(...) end
 	function cplus_plus_ex:isSkillOnPilots(...) return skill_state_tracker:isSkillOnPilots(...) end
+
+	function cplus_plus_ex:getTotalSkillCount(...) return skill_state_tracker:getTotalSkillCount(...) end
+	function cplus_plus_ex:getVirtualSkills(...) return skill_state_tracker:getVirtualSkills(...) end
+	function cplus_plus_ex:getAllPilotSkillIds(...) return skill_state_tracker:getAllPilotSkillIds(...) end
+	-- Virtual skill tracking
+	function cplus_plus_ex:getVirtualSkillObjects(...) return skill_state_tracker:getVirtualSkillObjects(...) end
+	function cplus_plus_ex:getVirtualSkillObject(...) return skill_state_tracker:getVirtualSkillObject(...) end
 
 	-- Wrapper for potentialTimeTravelers since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end
