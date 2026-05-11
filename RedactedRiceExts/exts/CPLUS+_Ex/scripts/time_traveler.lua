@@ -22,7 +22,7 @@ time_traveler.lastSavedPersistentData = nil
 -- were a quick close & reopen of the game *can* end up finding more than one or
 -- unexpected pilots. As such we keep track of all potential travelers. Typically
 -- there will be just one
-time_traveler.potentialTimeTravelers = {}  
+time_traveler.potentialTimeTravelers = {}
 
 -- Local references to other submodules (set during init)
 local utils = nil
@@ -86,7 +86,6 @@ function time_traveler:_loadPersistentDataIfNeeded()
 	end
 end
 
--- Refresh last saved persistent data with current pilot state
 function time_traveler:_refreshLastSavedPersistentData()
 	local pilots = Game and Game:GetAvailablePilots() or nil
 	if not pilots then
@@ -95,6 +94,8 @@ function time_traveler:_refreshLastSavedPersistentData()
 
 	local changed = false
 	time_traveler.lastSavedPersistentData = time_traveler.lastSavedPersistentData or {}
+	local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
+
 	for _, pilot in pairs(pilots) do
 		local id = pilot:getIdStr()
 		time_traveler.lastSavedPersistentData[id] = time_traveler.lastSavedPersistentData[id] or {}
@@ -120,6 +121,24 @@ function time_traveler:_refreshLastSavedPersistentData()
 		end
 		if time_traveler.lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then
 			time_traveler.lastSavedPersistentData[id].prevTimelines = pilot:getPrevTimelines()
+			changed = true
+		end
+
+		local virtualSkills = skill_state_tracker:getVirtualSkills(pilot)
+		local currentVirtualSkills = time_traveler.lastSavedPersistentData[id].virtualSkills or {}
+		-- Compare tables for changes
+		local virtualSkillsChanged = #virtualSkills ~= #currentVirtualSkills
+		if not virtualSkillsChanged then
+			for i, skillId in ipairs(virtualSkills) do
+				if skillId ~= currentVirtualSkills[i] then
+					virtualSkillsChanged = true
+					break
+				end
+			end
+		end
+
+		if virtualSkillsChanged then
+			time_traveler.lastSavedPersistentData[id].virtualSkills = virtualSkills
 			changed = true
 		end
 	end
@@ -148,7 +167,7 @@ end
 -- Save persistent data if it has changed
 function time_traveler:_updateDataOnSave()
 	time_traveler:_refreshGameData()
-	
+
 	if self:_persistentDataChanged() then
 		if not modApi:isProfilePath() then
 			logger.logDebug(SUBMODULE, "Skipping persistent data save: not in profile path")
@@ -178,7 +197,7 @@ function time_traveler:_scanForTimeTraveler()
 
 	-- Check which pilot we are looking for
 	local pilot = nil
-	if Profile then 
+	if Profile then
 		pilot = Profile.pilot
 		if not pilot then
 			logger.logDebug(SUBMODULE, "No profile pilot found. This means there is no time traveler.")
@@ -210,14 +229,18 @@ function time_traveler:_scanForTimeTraveler()
 
 			if results.resultCount > 0 then
 				local matches = scanner:getResults()
-				for _, result in ipairs(matches.results) do 
+				for _, result in ipairs(matches.results) do
 					local baseAddr = result.address
-					-- Validate just in case. Really should be fine
 					local traveler = memhack.structs.Pilot.new(baseAddr, true)
 					if traveler then
 						table.insert(time_traveler.potentialTimeTravelers, traveler)
 						logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
 						skill_selection:applySkillIdsToPilot(traveler, {data.skill1, data.skill2}, false)
+						-- Apply any virtual skills too
+						if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
+							cplus_plus_ex:addVirtualSkillsToPilot(traveler, data.virtualSkills)
+							logger.logDebug(SUBMODULE, "restored %d virtual skills to time traveler", #data.virtualSkills)
+						end
 					end
 				end
 			end
@@ -237,7 +260,6 @@ function time_traveler:_getTimeTravelerFromMemory()
 		if not valid then
 			logger.logWarn(SUBMODULE, "Pilot at idx %s is invalid (%s) - must not be time traveler!", idx, err)
 		else
-			local pilotData = time_traveler.lastSavedPersistentData[pilot:getIdStr()]
 			if pilotData then
 				logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",
 						pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
@@ -245,6 +267,11 @@ function time_traveler:_getTimeTravelerFromMemory()
 					time_traveler.potentialTimeTravelers = {pilot}
 					skill_selection:applySkillIdsToPilot(pilot, {pilotData.skill1, pilotData.skill2}, false)
 					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
+					-- Apply virtual skills too
+					if pilotData.virtualSkills and type(pilotData.virtualSkills) == "table" and #pilotData.virtualSkills > 0 then
+						cplus_plus_ex:addVirtualSkillsToPilot(pilot, pilotData.virtualSkills)
+						logger.logDebug(SUBMODULE, "restored %d virtual skills to time traveler", #pilotData.virtualSkills)
+					end
 				end
 			else
 				logger.logWarn(SUBMODULE, "pilotData %s is nil in searchForTimeTraveler - skipping", idx)
