@@ -45,7 +45,8 @@ function skill_state_tracker:_overrideCombineBonuses()
 	original_combineBonuses = Pilot._combineBonuses
 
 	Pilot._combineBonuses = function(self)
-		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(self)
+		local pilotId = self:getIdStr()
+		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
 
 		-- If no virtual skills, just call original combining logic
 		if not virtualSkillObjs or #virtualSkillObjs == 0 then
@@ -280,8 +281,8 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 			-- Check virtual skills
 			local virtualSkills = self:getVirtualSkills(pilot)
 
-			for virtIndex, virtualSkill in ipairs(virtualSkills) do
-				if virtualSkill.id == skillId then
+			for virtIndex, vSkillId in ipairs(virtualSkills) do
+				if vSkillId == skillId then
 					table.insert(skillIndices, 2 + virtIndex)
 				end
 			end
@@ -646,7 +647,6 @@ function skill_state_tracker:_updateAllStates()
 end
 
 -------------------- Virtual Skill Object Management --------------------
-
 -- Allocate memory for a virtual skill object
 -- Returns: address of allocated memory
 function skill_state_tracker:_allocateSkillMemory()
@@ -657,7 +657,8 @@ function skill_state_tracker:_allocateSkillMemory()
 	return memhack.dll.memory.allocNullTermString(zeroString)
 end
 
--- Create a virtual skill object in allocated memory
+-- Create a virtual skill object in allocated memory and sets it
+-- without triggering hooks
 function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 	local skill_config_module = cplus_plus_ex._subobjects.skill_config
 	local skill = skill_config_module.enabledSkills[skillId]
@@ -666,20 +667,43 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 		return nil
 	end
 
+	-- Allocate memory for the new skill object
 	local addr = self:_allocateSkillMemory()
-	local skillObj = memhack.structs.PilotLvlUpSkill.new(addr, false)
+	if not addr then
+		logger.logError(SUBMODULE, "Failed to allocate memory for virtual skill object: %s", skillId)
+		return nil
+	end
 
-	-- Initialize the skill object with data
-	skillObj:setId(skillId)
-	skillObj:setShortName(skill.shortName or skillId)
-	skillObj:setFullName(skill.fullName or skillId)
-	skillObj:setDescription(skill.description or "")
-	skillObj:setSaveVal(skill.saveVal or 0)
+	local skillObj = memhack.structs.PilotLvlUpSkill.new(addr, false)
+	if not skillObj then
+		logger.logError(SUBMODULE, "Failed to create PilotLvlUpSkill struct for virtual skill: %s", skillId)
+		return nil
+	end
+
+	-- Preinitialize ItBString unionType fields to LOCAL using hidden setter
+	-- This makes the ItBString structs valid so _noFire setters won't fail validation
+	local layout = memhack.structs.PilotLvlUpSkill._layout
+	for _, fieldName in ipairs({"id", "shortName", "fullName", "description"}) do
+		local fieldDef = layout[fieldName]
+		if fieldDef then
+			local itbStr = memhack.structs.ItBString.new(addr + fieldDef.offset, false)
+			itbStr:_setUnionType(memhack.structs.ItBString.LOCAL)
+		end
+	end
+
+	-- Use _noFire setters to initialize all fields without triggering change detection
+	skillObj:_setId_noFire(skillId)
+	skillObj:_setShortName_noFire(skill.shortName or skillId)
+	skillObj:_setFullName_noFire(skill.fullName or skillId)
+	skillObj:_setDescription_noFire(skill.description or "")
+	skillObj:_setSaveVal_noFire(skill.saveVal or 0)
+
+	-- Only set bonuses if they are defined (memory is already zeroed)
 	if skill.bonuses then
-		skillObj:setHealthBonus(skill.bonuses.health or 0)
-		skillObj:setMoveBonus(skill.bonuses.move or 0)
-		skillObj:setCoresBonus(skill.bonuses.cores or 0)
-		skillObj:setGridBonus(skill.bonuses.grid or 0)
+		skillObj:_setHealthBonus_noFire(skill.bonuses.health or 0)
+		skillObj:_setMoveBonus_noFire(skill.bonuses.move or 0)
+		skillObj:_setCoresBonus_noFire(skill.bonuses.cores or 0)
+		skillObj:_setGridBonus_noFire(skill.bonuses.grid or 0)
 	end
 
 	logger.logDebug(SUBMODULE, "Created virtual skill object for %s at address 0x%X", skillId, addr)
@@ -687,16 +711,16 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 end
 
 -- Get all virtual skill objects for a pilot
+-- pilotId: pilot ID string (e.g. "Pilot_Warbot")
 -- Returns: array of PilotLvlUpSkill objects
-function skill_state_tracker:getVirtualSkillObjects(pilot)
-	local pilotId = pilot:getIdStr()
+function skill_state_tracker:getVirtualSkillObjects(pilotId)
 	return self._virtualSkillObjects[pilotId] or {}
 end
 
 -- Get a specific virtual skill object by slot index (1-based from virtual skills)
+-- pilotId: pilot ID string (e.g. "Pilot_Warbot")
 -- slotIndex: 1 for first virtual skill (slot 3), 2 for second (slot 4), etc.
-function skill_state_tracker:getVirtualSkillObject(pilot, slotIndex)
-	local pilotId = pilot:getIdStr()
+function skill_state_tracker:getVirtualSkillObject(pilotId, slotIndex)
 	local objs = self._virtualSkillObjects[pilotId]
 	if not objs then
 		return nil
@@ -786,11 +810,16 @@ function skill_state_tracker:_syncAllVirtualSkillObjects()
 		return
 	end
 
-	-- Sync for each pilot that has virtual skills
-	for pilotId, _ in pairs(GAME.cplus_plus_ex.pilotVirtualSkills) do
-		-- Get pilot from memory
-		local pilot = memhack.structs.Pilot.getById(pilotId)
-		if pilot then
+	if not Game then
+		return
+	end
+
+	-- Get all available pilots to sync
+	local allPilots = Game:GetAvailablePilots()
+	for _, pilot in ipairs(allPilots) do
+		local pilotId = pilot:getIdStr()
+		-- Only sync if this pilot has virtual skills in save data
+		if GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
 			self:_syncVirtualSkillObjects(pilot)
 		end
 	end
