@@ -516,13 +516,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	end
 
 	-- Use common validation and application logic
-	local success = self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
-	if not success then
-		logger.logError(SUBMODULE, "Failed to apply skills to pilot " .. pilotId .. " - constraints cannot be satisfied")
-		return false
-	end
-
-	return true
+	return self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 end
 
 -- Internal function to validate, assign saveVals, and apply skills to the pilot
@@ -603,6 +597,10 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		pilot:setLvlUpSkill(2, self:_skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
+
+	-- After applying regular skills, validate and sync virtual skills if any exist
+	self:_validateAndSyncVirtualSkills(pilot)
+
 	return true
 end
 
@@ -734,6 +732,56 @@ function skill_selection:_selectSkillsForPerfectIslandPilot()
 
 		-- Fire post hook and immediately update states
 		hooks.firePostAssigningLvlUpSkillsHooks()
+	end
+end
+
+-- Validate and sync virtual skills for a pilot
+-- Validates each virtual skill against constraints and removes invalid ones
+-- Does NOT replace them - pilots may want to handle their own virtual skill logic
+function skill_selection:_validateAndSyncVirtualSkills(pilot)
+	self:_initGameSaveData()
+	local pilotId = pilot:getIdStr()
+	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+
+	if not virtualSkills or #virtualSkills == 0 then
+		return -- No virtual skills to validate
+	end
+
+	logger.logDebug(SUBMODULE, "Validating and syncing %d virtual skills for pilot %s", #virtualSkills, pilotId)
+
+	-- Get all currently assigned skills (real + virtual) for constraint checking
+	local assignedSkills = skill_state_tracker:getAllSkills(pilot)
+
+	-- Validate each virtual skill and remove invalid ones
+	local needsUpdate = false
+	for i = #virtualSkills, 1, -1 do -- Iterate backwards so we can remove invalid skills
+		local skillId = virtualSkills[i]
+		local skill = skill_config_module.enabledSkills[skillId]
+
+		-- Check if skill can be virtual
+		if not self:canBeVirtualSkill(skillId) then
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s cannot be virtual, removing", skillId, i, pilotId)
+			table.remove(virtualSkills, i)
+			needsUpdate = true
+		-- Check if skill is still enabled
+		elseif not skill then
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s is disabled, removing", skillId, i, pilotId)
+			table.remove(virtualSkills, i)
+			needsUpdate = true
+		-- Check if skill violates constraints
+		elseif not skill_constraints:checkSkillConstraints(pilot, assignedSkills, skillId) then
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, i, pilotId)
+			table.remove(virtualSkills, i)
+			needsUpdate = true
+		end
+	end
+
+	-- Update save data
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = virtualSkills
+
+	-- Sync objects and update virtual bonuses
+	if needsUpdate or #virtualSkills > 0 then
+		skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
 	end
 end
 
