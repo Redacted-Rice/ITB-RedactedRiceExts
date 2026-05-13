@@ -104,26 +104,22 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 		-- Check if skill can be virtual
 		if not self:canBeVirtualSkill(skillId) then
 			logger.logWarn(SUBMODULE, "Skill %s cannot be used as virtual skill", skillId)
-			goto continue
+		else
+			-- Validate skill exists and is enabled
+			local skill = skill_config_module.enabledSkills[skillId]
+			if not skill then
+				logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
+			else
+				-- Add the skill ID to save data
+				-- The tracker will handle creating/syncing the actual objects
+				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+
+				logger.logInfo(SUBMODULE, "Added virtual skill %s to pilot %s (slot %d)",
+					skillId, pilotId, 2 + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+
+				successCount = successCount + 1
+			end
 		end
-
-		-- Validate skill exists and is enabled
-		local skill = skill_config_module.enabledSkills[skillId]
-		if not skill then
-			logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
-			goto continue
-		end
-
-		-- Add the skill ID to save data
-		-- The tracker will handle creating/syncing the actual objects
-		table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
-
-		logger.logInfo(SUBMODULE, "Added virtual skill %s to pilot %s (slot %d)",
-			skillId, pilotId, 2 + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
-
-		successCount = successCount + 1
-
-		::continue::
 	end
 
 	if successCount > 0 then
@@ -140,7 +136,7 @@ end
 function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 	-- Get currently assigned skills (both real and virtual) to avoid duplicates
 	local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
-	local assignedSkills = skill_state_tracker:getAllPilotSkillIds(pilot)
+	local assignedSkills = skill_state_tracker:getAllSkills(pilot)
 
 	-- Filter available skills to exclude non virtual skills
 	local availableSkills = self:_createAvailableSkills()
