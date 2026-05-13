@@ -670,10 +670,10 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 	local skillObj = memhack.structs.PilotLvlUpSkill.new(addr, false)
 
 	-- Initialize the skill object with data
-	skillObj:setIdStr(skillId)
-	skillObj:setShortNameStr(skill.shortName or skillId)
-	skillObj:setFullNameStr(skill.fullName or skillId)
-	skillObj:setDescriptionStr(skill.description or "")
+	skillObj:setId(skillId)
+	skillObj:setShortName(skill.shortName or skillId)
+	skillObj:setFullName(skill.fullName or skillId)
+	skillObj:setDescription(skill.description or "")
 	skillObj:setSaveVal(skill.saveVal or 0)
 	if skill.bonuses then
 		skillObj:setHealthBonus(skill.bonuses.health or 0)
