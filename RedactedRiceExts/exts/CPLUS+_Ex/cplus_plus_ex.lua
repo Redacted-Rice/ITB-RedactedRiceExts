@@ -227,7 +227,7 @@ function cplus_plus_ex:exposeAPI()
 
 	function cplus_plus_ex:getTotalSkillCount(...) return skill_state_tracker:getTotalSkillCount(...) end
 	function cplus_plus_ex:getVirtualSkills(...) return skill_state_tracker:getVirtualSkills(...) end
-	function cplus_plus_ex:getAllPilotSkillIds(...) return skill_state_tracker:getAllPilotSkillIds(...) end
+	function cplus_plus_ex:getAllSkills(...) return skill_state_tracker:getAllSkills(...) end
 	-- Virtual skill tracking
 	function cplus_plus_ex:getVirtualSkillObjects(...) return skill_state_tracker:getVirtualSkillObjects(...) end
 	function cplus_plus_ex:getVirtualSkillObject(...) return skill_state_tracker:getVirtualSkillObject(...) end
