@@ -232,7 +232,7 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 
 			-- Remove the corresponding object from state tracker
 			skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId)
-			
+
 			-- Update virtual bonuses and fire hooks
 			skill_state_tracker:_updateAllStates()
 			return true
@@ -256,7 +256,7 @@ function skill_selection:clearVirtualSkillsFromPilot(pilot)
 
 	-- Clear the corresponding objects from state tracker
 	skill_state_tracker:_clearVirtualSkillObjects(pilotId)
-	
+
 	-- Update virtual bonuses and fire hooks
 	skill_state_tracker:_updateAllStates()
 	return true
@@ -812,6 +812,12 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 	end
 
 	-- Validate each virtual skill and remove invalid ones
+	-- Start with the real skills
+	local constraintCheckSkills = {}
+	for _, realSkillId in ipairs(realSkills) do
+		table.insert(constraintCheckSkills, realSkillId)
+	end
+
 	local needsUpdate = false
 	for i = #virtualSkills, 1, -1 do -- Iterate backwards so we can remove invalid skills
 		local skillId = virtualSkills[i]
@@ -829,27 +835,13 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 			needsUpdate = true
 		-- Check if skill violates constraints
 		else
-			-- Build constraint check list incrementally like initial assignment:
-			-- - Real skills (always included)
-			-- - Only previously validated virtual skills (j > i, since we iterate backwards)
-			-- This ensures we validate in order and don't check against unvalidated skills
-			local constraintCheckSkills = {}
-			
-			-- Add real skills
-			for _, realSkillId in ipairs(realSkills) do
-				table.insert(constraintCheckSkills, realSkillId)
-			end
-			
-			-- Add only previously validated virtual skills (j > i)
-			-- Since we iterate backwards, indices > i have already been validated
-			for j = #virtualSkills, i + 1, -1 do
-				table.insert(constraintCheckSkills, virtualSkills[j])
-			end
-			
 			if not skill_constraints:checkSkillConstraints(pilot, constraintCheckSkills, skillId) then
 				logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, i, pilotId)
 				table.remove(virtualSkills, i)
 				needsUpdate = true
+			else
+				-- Skill is valid, add it to the list for next iteration
+				table.insert(constraintCheckSkills, skillId)
 			end
 		end
 	end
