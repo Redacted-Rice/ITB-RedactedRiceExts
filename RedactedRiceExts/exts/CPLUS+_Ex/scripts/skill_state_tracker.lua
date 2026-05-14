@@ -53,7 +53,7 @@ function skill_state_tracker:_overrideCombineBonuses()
 			original_combineBonuses(self)
 			return
 		end
-		
+
 		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
 		if #virtualSkillObjs == 0 then
 			logger.logInfo(SUBMODULE, "No virtual skills")
@@ -78,12 +78,13 @@ function skill_state_tracker:_overrideCombineBonuses()
 		totalBonuses.grid = totalBonuses.grid + (skill1Set.gridBonus or 0)
 		totalBonuses.move = totalBonuses.move + (skill1Set.moveBonus or 0)
 
-		-- Add skill 2 set values if present
-		-- TODO: Check if earned...
-		totalBonuses.health = totalBonuses.health + (skill2Set.healthBonus or 0)
-		totalBonuses.cores = totalBonuses.cores + (skill2Set.coresBonus or 0)
-		totalBonuses.grid = totalBonuses.grid + (skill2Set.gridBonus or 0)
-		totalBonuses.move = totalBonuses.move + (skill2Set.moveBonus or 0)
+		-- Add skill 2 set values if earned
+		if skill_state_tracker:hasPilotEarnedSkillIndex(self, cplus_plus_ex.MAX_SKILL_SLOTS) then
+			totalBonuses.health = totalBonuses.health + (skill2Set.healthBonus or 0)
+			totalBonuses.cores = totalBonuses.cores + (skill2Set.coresBonus or 0)
+			totalBonuses.grid = totalBonuses.grid + (skill2Set.gridBonus or 0)
+			totalBonuses.move = totalBonuses.move + (skill2Set.moveBonus or 0)
+		end
 
 		-- Add virtual skill set values
 		for i, skillObj in ipairs(virtualSkillObjs) do
@@ -163,7 +164,7 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
 	local virtualSkills = self:getVirtualSkills(pilot)
 
 	for virtIndex, _ in ipairs(virtualSkills) do
-		table.insert(result, 2 + virtIndex)
+		table.insert(result, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
 	end
 
 	return result
@@ -190,8 +191,8 @@ function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
 
 	for virtIndex, vSkillId in ipairs(virtualSkills) do
 		if vSkillId == skillId then
-			-- Virtual skill slot indices start at 3
-			table.insert(indices, 2 + virtIndex)
+			-- Virtual skill slot indices start at MAX_SKILL_SLOTS + 1
+			table.insert(indices, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
 		end
 	end
 
@@ -292,7 +293,7 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 
 			for virtIndex, vSkillId in ipairs(virtualSkills) do
 				if vSkillId == skillId then
-					table.insert(skillIndices, 2 + virtIndex)
+					table.insert(skillIndices, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
 				end
 			end
 
@@ -662,7 +663,7 @@ function skill_state_tracker:_updateAllStates()
 	-- Sync virtual skill objects from save data
 	self:_syncAllVirtualSkillObjects()
 
-	-- TODO: Does this handle virtual?
+	-- Update states which will handle real and virtual skills
 	self:_updateEnabledSkills()
 	if self._hasAppliedSkill then
 		self:_updateInRunSkills()
@@ -683,8 +684,8 @@ function skill_state_tracker:_allocateSkillMemory()
 	return memhack.dll.memory.allocNullTermString(zeroString)
 end
 
--- Create a virtual skill object in allocated memory and sets it
--- without triggering hooks
+-- Create a virtual skill object in allocated memory and add it to tracking
+-- Returns the skill object or nil on error
 function skill_state_tracker:_createAndAddVirtualSkillObject(pilot, skillId)
 	local pilotId = pilot:getIdStr()
 	local skill_config_module = cplus_plus_ex._subobjects.skill_config
@@ -741,9 +742,11 @@ function skill_state_tracker:_createAndAddVirtualSkillObject(pilot, skillId)
 	skillObj:_setCoresBonus_noFire(coresBonus)
 	skillObj:_setGridBonus_noFire(gridBonus)
 
-	local setValues = memhack.stateTracker:getSkillSetValues(skillObj)
 	logger.logDebug(SUBMODULE, "Created virtual skill object for %s at address 0x%X", skillId, addr)
+	
+	-- Add to tracking
 	self:_addVirtualSkillObject(pilotId, skillObj)
+	
 	return skillObj
 end
 
@@ -771,25 +774,38 @@ function skill_state_tracker:_addVirtualSkillObject(pilotId, skillObj)
 		self._virtualSkillObjects[pilotId] = {}
 	end
 	table.insert(self._virtualSkillObjects[pilotId], skillObj)
+	logger.logDebug(SUBMODULE, "Added virtual skill object for pilot %s (now %d total)", 
+		pilotId, #self._virtualSkillObjects[pilotId])
 end
 
--- TODO: Tie into state tracker for these
-
--- Remove a virtual skill object at a specific index
-function skill_state_tracker:_removeVirtualSkillObject(pilotId, index)
-	if self._virtualSkillObjects[pilotId] then
-		table.remove(self._virtualSkillObjects[pilotId], index)
+-- Remove a virtual skill object by skill ID
+-- Returns true if found and removed, false otherwise
+function skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId)
+	if not self._virtualSkillObjects[pilotId] then
+		return false
 	end
+	
+	for i, obj in ipairs(self._virtualSkillObjects[pilotId]) do
+		if obj:getIdStr() == skillId then
+			table.remove(self._virtualSkillObjects[pilotId], i)
+			logger.logDebug(SUBMODULE, "Removed virtual skill object %s from pilot %s", skillId, pilotId)
+			return true
+		end
+	end
+	return false
 end
 
 -- Clear all virtual skill objects for a pilot
 function skill_state_tracker:_clearVirtualSkillObjects(pilotId)
+	local count = self._virtualSkillObjects[pilotId] and #self._virtualSkillObjects[pilotId] or 0
 	self._virtualSkillObjects[pilotId] = {}
+	logger.logDebug(SUBMODULE, "Cleared %d virtual skill objects from pilot %s", count, pilotId)
 end
 
 -- Synchronize virtual skill objects with save data
 -- This ensures objects match the skill IDs in GAME.cplus_plus_ex.pilotVirtualSkills
--- Reuses existing objects where possible, creates new ones as needed, removes orphans
+-- Creates new objects as needed for skills in save data
+-- Note: Removal of orphaned objects is handled by skill_selection remove/clear functions
 function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 	local pilotId = pilot:getIdStr()
 	-- Get the skill IDs from save data
@@ -803,20 +819,26 @@ function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 	local existingMap = {}
 	for _, obj in ipairs(currentObjects) do
 		local skillId = obj:getIdStr()
-		existingMap[skillId] = obj
+		existingMap[skillId] = true
 	end
 
-	-- Build new objects array matching save data order
-	local newCount = 0
+	-- Create objects for any skills in save data that don't have objects yet
 	for _, skillId in ipairs(savedSkillIds) do
-		local obj = existingMap[skillId]
-		if obj then
-			logger.logDebug(SUBMODULE, "Already have virtual skill object for %s on pilot %s", skillId, pilotId)
-		else
-			-- Create new object
-			obj = self:_createAndAddVirtualSkillObject(pilot, skillId)
+		if not existingMap[skillId] then
+			-- Create new object and add to tracking
+			local obj = self:_createAndAddVirtualSkillObject(pilot, skillId)
+			if obj then
+				logger.logDebug(SUBMODULE, "Created new virtual skill object for %s on pilot %s", 
+					skillId, pilotId)
+			else
+				logger.logError(SUBMODULE, "Failed to create virtual skill object for %s on pilot %s", 
+					skillId, pilotId)
+			end
 		end
 	end
+	
+	logger.logDebug(SUBMODULE, "Synced virtual skills for pilot %s (%d in save data, %d objects)", 
+		pilotId, #savedSkillIds, #self:getVirtualSkillObjects(pilotId))
 end
 
 -- Synchronize virtual skill objects for all pilots
@@ -866,7 +888,7 @@ function skill_state_tracker:getAllSkills(pilot)
 	local skillIds = {}
 
 	-- Add real skills
-	for i = 1, 2 do
+	for i = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
 		local skill = pilot:getLvlUpSkill(i)
 		if skill then
 			table.insert(skillIds, skill:getIdStr())
