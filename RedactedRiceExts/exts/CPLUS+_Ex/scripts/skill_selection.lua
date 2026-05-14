@@ -114,6 +114,9 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 				-- The tracker will handle creating/syncing the actual objects
 				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
 
+				-- Mark per_run skills as used
+				self:_markPerRunSkillAsUsed(skillId)
+
 				logger.logInfo(SUBMODULE, "Added virtual skill %s to pilot %s (slot %d)",
 					skillId, pilotId, 2 + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 
@@ -125,7 +128,7 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 	if successCount > 0 then
 		-- Sync objects and update virtual bonuses and fire hooks
 		-- This will create new objects or reuse existing ones as appropriate
-		skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
+		skill_state_tracker:_updateAllStates()
 	end
 	return successCount
 end
@@ -197,7 +200,7 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 
 			-- Sync objects and update virtual bonuses and fire hooks
 			-- The sync will automatically remove the corresponding object
-			skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
+			skill_state_tracker:_updateAllStates()
 			return true
 		end
 	end
@@ -214,7 +217,7 @@ function skill_selection:clearVirtualSkillsFromPilot(pilot)
 
 	-- Sync objects and update virtual bonuses and fire hooks
 	-- The sync will automatically clear all objects
-	skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
+	skill_state_tracker:_updateAllStates()
 end
 
 -- Uses the stored seed and sequential access count to ensure deterministic random values
@@ -649,6 +652,14 @@ function skill_selection:applySkillsToAllPilots()
 		else
 			logger.logWarn(SUBMODULE, "Stored skills for pilot ".. idx .. " are nil in applySkillsToAllPilots - skipping")
 		end
+		
+		-- Also mark virtual skills as used for per_run tracking
+		local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+		if virtualSkills then
+			for _, skillId in ipairs(virtualSkills) do
+				self:_markPerRunSkillAsUsed(skillId)
+			end
+		end
 	end
 
 	-- Assign skills to any new pilots which will include validating already
@@ -749,8 +760,14 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 
 	logger.logDebug(SUBMODULE, "Validating and syncing %d virtual skills for pilot %s", #virtualSkills, pilotId)
 
-	-- Get all currently assigned skills (real + virtual) for constraint checking
-	local assignedSkills = skill_state_tracker:getAllSkills(pilot)
+	-- Get only the real skills (not virtual) for constraint checking base
+	local realSkills = {}
+	for i = 1, 2 do
+		local skill = pilot:getLvlUpSkill(i)
+		if skill then
+			table.insert(realSkills, skill:getIdStr())
+		end
+	end
 
 	-- Validate each virtual skill and remove invalid ones
 	local needsUpdate = false
@@ -769,10 +786,23 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 			table.remove(virtualSkills, i)
 			needsUpdate = true
 		-- Check if skill violates constraints
-		elseif not skill_constraints:checkSkillConstraints(pilot, assignedSkills, skillId) then
-			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, i, pilotId)
-			table.remove(virtualSkills, i)
-			needsUpdate = true
+		else
+			-- Build constraint check list: real skills + other virtual skills (not this one)
+			local constraintCheckSkills = {}
+			for _, realSkillId in ipairs(realSkills) do
+				table.insert(constraintCheckSkills, realSkillId)
+			end
+			for j, otherVirtualSkillId in ipairs(virtualSkills) do
+				if j ~= i then  -- Don't include the skill being validated
+					table.insert(constraintCheckSkills, otherVirtualSkillId)
+				end
+			end
+			
+			if not skill_constraints:checkSkillConstraints(pilot, constraintCheckSkills, skillId) then
+				logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, i, pilotId)
+				table.remove(virtualSkills, i)
+				needsUpdate = true
+			end
 		end
 	end
 
@@ -781,7 +811,7 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 
 	-- Sync objects and update virtual bonuses
 	if needsUpdate or #virtualSkills > 0 then
-		skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
+		skill_state_tracker:_updateAllStates()
 	end
 end
 

@@ -272,6 +272,12 @@ function Pilot:_combineBonuses()
 	local skill1Set = memhack.stateTracker:getSkillSetValues(skill1)
 	local skill2Set = memhack.stateTracker:getSkillSetValues(skill2)
 
+	-- multiple health and move are handled by game already so just set them
+	skill1:_setHealthBonus(skill1Set.healthBonus)
+	skill1:_setMoveBonus(skill1Set.moveBonus)
+	skill2:_setHealthBonus(skill2Set.healthBonus)
+	skill2:_setMoveBonus(skill2Set.moveBonus)
+	
 	-- If level <= 1, restore to base (set) values
 	if pilotLevel <= 1 then
 		-- Set memory to set values (no combining)
