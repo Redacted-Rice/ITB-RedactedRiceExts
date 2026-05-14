@@ -82,15 +82,26 @@ end
 
 -- Add a virtual skill to a pilot
 -- skillId: ID of the skill to add
--- Returns: true if successful, false if skill is invalid
+-- Returns: true if successful, false if skill is invalid or there was an error
 function skill_selection:addVirtualSkillToPilot(pilot, skillId)
-	return self:addVirtualSkillsToPilot(pilot, {skillId}) == 1
+	local successCount = self:addVirtualSkillsToPilot(pilot, {skillId})
+	return successCount == 1
 end
 
 -- Add multiple virtual skills to a pilot
 -- skillIds: array of skill IDs to add
 -- Returns: number of skills successfully added
 function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
+	if not pilot then
+		logger.logError(SUBMODULE, "Cannot add virtual skills to nil pilot")
+		return 0
+	end
+
+	if not skillIds or #skillIds == 0 then
+		logger.logWarn(SUBMODULE, "No skill IDs provided to addVirtualSkillsToPilot")
+		return 0
+	end
+
 	self:_initGameSaveData()
 	local pilotId = pilot:getIdStr()
 	local successCount = 0
@@ -118,7 +129,7 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 				self:_markPerRunSkillAsUsed(skillId)
 
 				logger.logInfo(SUBMODULE, "Added virtual skill %s to pilot %s (slot %d)",
-					skillId, pilotId, 2 + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+					skillId, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 
 				successCount = successCount + 1
 			end
@@ -137,6 +148,16 @@ end
 -- count: number of random skills to add
 -- Returns: number of skills successfully added
 function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
+	if not pilot then
+		logger.logError(SUBMODULE, "Cannot add random virtual skills to nil pilot")
+		return 0
+	end
+
+	if not count or count <= 0 then
+		logger.logWarn(SUBMODULE, "Invalid count %s for addRandomVirtualSkillsToPilot", tostring(count))
+		return 0
+	end
+
 	-- Get currently assigned skills (both real and virtual) to avoid duplicates
 	local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
 	local assignedSkills = skill_state_tracker:getAllSkills(pilot)
@@ -162,10 +183,10 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 		-- Select a random skill that isn't already assigned
 		local potentialSkills = utils.shallowcopy(virtualCompatibleSkills)
 
-		-- We use a virtual slot index here (2 + current virtual count + 1)
+		-- We use a virtual slot index here (MAX_SKILL_SLOTS + current virtual count + 1)
 		local pilotId = pilot:getIdStr()
 		self:_initGameSaveData()
-		local virtualSlotIndex = 2 + #(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}) + 1
+		local virtualSlotIndex = cplus_plus_ex.MAX_SKILL_SLOTS + #(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}) + 1
 
 		local skillId = self:selectRandomSkill(potentialSkills, pilot, virtualSlotIndex, assignedSkills)
 
@@ -184,11 +205,22 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 end
 
 function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
+	if not pilot then
+		logger.logError(SUBMODULE, "Cannot remove virtual skill from nil pilot")
+		return false
+	end
+
+	if not skillId then
+		logger.logError(SUBMODULE, "Cannot remove nil skillId from pilot")
+		return false
+	end
+
 	self:_initGameSaveData()
 	local pilotId = pilot:getIdStr()
 	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
 
-	if not virtualSkills then
+	if not virtualSkills or #virtualSkills == 0 then
+		logger.logWarn(SUBMODULE, "Pilot %s has no virtual skills to remove", pilotId)
 		return false
 	end
 
@@ -198,8 +230,10 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 			table.remove(virtualSkills, i)
 			logger.logInfo(SUBMODULE, "Removed virtual skill %s from pilot %s", skillId, pilotId)
 
-			-- Sync objects and update virtual bonuses and fire hooks
-			-- The sync will automatically remove the corresponding object
+			-- Remove the corresponding object from state tracker
+			skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId)
+			
+			-- Update virtual bonuses and fire hooks
 			skill_state_tracker:_updateAllStates()
 			return true
 		end
@@ -208,6 +242,11 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 end
 
 function skill_selection:clearVirtualSkillsFromPilot(pilot)
+	if not pilot then
+		logger.logError(SUBMODULE, "Cannot clear virtual skills from nil pilot")
+		return false
+	end
+
 	self:_initGameSaveData()
 	local pilotId = pilot:getIdStr()
 
@@ -215,9 +254,12 @@ function skill_selection:clearVirtualSkillsFromPilot(pilot)
 	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
 	logger.logInfo(SUBMODULE, "Cleared all virtual skills from pilot %s", pilotId)
 
-	-- Sync objects and update virtual bonuses and fire hooks
-	-- The sync will automatically clear all objects
+	-- Clear the corresponding objects from state tracker
+	skill_state_tracker:_clearVirtualSkillObjects(pilotId)
+	
+	-- Update virtual bonuses and fire hooks
 	skill_state_tracker:_updateAllStates()
+	return true
 end
 
 -- Uses the stored seed and sequential access count to ensure deterministic random values
@@ -652,7 +694,7 @@ function skill_selection:applySkillsToAllPilots()
 		else
 			logger.logWarn(SUBMODULE, "Stored skills for pilot ".. idx .. " are nil in applySkillsToAllPilots - skipping")
 		end
-		
+
 		-- Also mark virtual skills as used for per_run tracking
 		local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
 		if virtualSkills then
@@ -762,7 +804,7 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 
 	-- Get only the real skills (not virtual) for constraint checking base
 	local realSkills = {}
-	for i = 1, 2 do
+	for i = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
 		local skill = pilot:getLvlUpSkill(i)
 		if skill then
 			table.insert(realSkills, skill:getIdStr())
@@ -787,15 +829,21 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 			needsUpdate = true
 		-- Check if skill violates constraints
 		else
-			-- Build constraint check list: real skills + other virtual skills (not this one)
+			-- Build constraint check list incrementally like initial assignment:
+			-- - Real skills (always included)
+			-- - Only previously validated virtual skills (j > i, since we iterate backwards)
+			-- This ensures we validate in order and don't check against unvalidated skills
 			local constraintCheckSkills = {}
+			
+			-- Add real skills
 			for _, realSkillId in ipairs(realSkills) do
 				table.insert(constraintCheckSkills, realSkillId)
 			end
-			for j, otherVirtualSkillId in ipairs(virtualSkills) do
-				if j ~= i then  -- Don't include the skill being validated
-					table.insert(constraintCheckSkills, otherVirtualSkillId)
-				end
+			
+			-- Add only previously validated virtual skills (j > i)
+			-- Since we iterate backwards, indices > i have already been validated
+			for j = #virtualSkills, i + 1, -1 do
+				table.insert(constraintCheckSkills, virtualSkills[j])
 			end
 			
 			if not skill_constraints:checkSkillConstraints(pilot, constraintCheckSkills, skillId) then
