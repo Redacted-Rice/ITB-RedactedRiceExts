@@ -45,60 +45,69 @@ function skill_state_tracker:_overrideCombineBonuses()
 	original_combineBonuses = Pilot._combineBonuses
 
 	Pilot._combineBonuses = function(self)
+		logger.logInfo(SUBMODULE, "Combining skill bonuses")
 		local pilotId = self:getIdStr()
+		-- If no pilot ID mapped or no virtual skills, use original logic
+		if not pilotId then
+			logger.logInfo(SUBMODULE, "No pilot data")
+			original_combineBonuses(self)
+			return
+		end
+		
 		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
-
-		-- If no virtual skills, just call original combining logic
-		if not virtualSkillObjs or #virtualSkillObjs == 0 then
+		if #virtualSkillObjs == 0 then
+			logger.logInfo(SUBMODULE, "No virtual skills")
 			original_combineBonuses(self)
 			return
 		end
 
 		-- If we have virtual skills, manually combine all skills into skill 1
-		-- This prevents conflicts between skill 2 and virtual skill bonuses
 		local skill1 = self:getLvlUpSkill(1)
 		local skill2 = self:getLvlUpSkill(2)
 
-		if not skill1 then
-			return
-		end
+		-- Get set values from state tracker (doesn't trigger hooks)
+		local skill1Set = memhack.stateTracker:getSkillSetValues(skill1)
+		local skill2Set = memhack.stateTracker:getSkillSetValues(skill2)
 
 		-- Calculate total bonuses from all sources
 		local totalBonuses = {health = 0, cores = 0, grid = 0, move = 0}
 
-		-- Add skill 1 bonuses
-		totalBonuses.health = totalBonuses.health + skill1:getHealthBonus()
-		totalBonuses.cores = totalBonuses.cores + skill1:getCoresBonus()
-		totalBonuses.grid = totalBonuses.grid + skill1:getGridBonus()
-		totalBonuses.move = totalBonuses.move + skill1:getMoveBonus()
+		-- Add skill 1 set values
+		totalBonuses.health = totalBonuses.health + (skill1Set.healthBonus or 0)
+		totalBonuses.cores = totalBonuses.cores + (skill1Set.coresBonus or 0)
+		totalBonuses.grid = totalBonuses.grid + (skill1Set.gridBonus or 0)
+		totalBonuses.move = totalBonuses.move + (skill1Set.moveBonus or 0)
 
-		-- Add skill 2 bonuses if present
-		if skill2 then
-			totalBonuses.health = totalBonuses.health + skill2:getHealthBonus()
-			totalBonuses.cores = totalBonuses.cores + skill2:getCoresBonus()
-			totalBonuses.grid = totalBonuses.grid + skill2:getGridBonus()
-			totalBonuses.move = totalBonuses.move + skill2:getMoveBonus()
+		-- Add skill 2 set values if present
+		-- TODO: Check if earned...
+		totalBonuses.health = totalBonuses.health + (skill2Set.healthBonus or 0)
+		totalBonuses.cores = totalBonuses.cores + (skill2Set.coresBonus or 0)
+		totalBonuses.grid = totalBonuses.grid + (skill2Set.gridBonus or 0)
+		totalBonuses.move = totalBonuses.move + (skill2Set.moveBonus or 0)
+
+		-- Add virtual skill set values
+		for i, skillObj in ipairs(virtualSkillObjs) do
+			local virtSet = memhack.stateTracker:getSkillSetValues(skillObj)
+			logger.logInfo(SUBMODULE, "Combining virtual skill %d for %s: h=%d c=%d g=%d m=%d (ID: %s)",
+				i, pilotId,
+				virtSet.healthBonus or 0, virtSet.coresBonus or 0,
+				virtSet.gridBonus or 0, virtSet.moveBonus or 0,
+				skillObj:getIdStr())
+			totalBonuses.health = totalBonuses.health + (virtSet.healthBonus or 0)
+			totalBonuses.cores = totalBonuses.cores + (virtSet.coresBonus or 0)
+			totalBonuses.grid = totalBonuses.grid + (virtSet.gridBonus or 0)
+			totalBonuses.move = totalBonuses.move + (virtSet.moveBonus or 0)
 		end
 
-		-- Add virtual skill bonuses
-		for _, skillObj in ipairs(virtualSkillObjs) do
-			totalBonuses.health = totalBonuses.health + skillObj:getHealthBonus()
-			totalBonuses.cores = totalBonuses.cores + skillObj:getCoresBonus()
-			totalBonuses.grid = totalBonuses.grid + skillObj:getGridBonus()
-			totalBonuses.move = totalBonuses.move + skillObj:getMoveBonus()
-		end
+		logger.logInfo(SUBMODULE, "Final combined bonuses for %s: health=%d cores=%d grid=%d move=%d",
+				pilotId, totalBonuses.health, totalBonuses.cores, totalBonuses.grid, totalBonuses.move)
 
-		local pilotId = self:getIdStr()
-		logger.logDebug(SUBMODULE, "Combining all bonuses for pilot %s: +%d HP, +%d Move, +%d Grid, +%d Reactor",
-				pilotId, totalBonuses.health, totalBonuses.move, totalBonuses.grid, totalBonuses.cores)
-
-		-- Set all combined bonuses in skill 1
+		-- Write directly to memory using hidden setters
 		skill1:_setHealthBonus(totalBonuses.health)
 		skill1:_setCoresBonus(totalBonuses.cores)
 		skill1:_setGridBonus(totalBonuses.grid)
 		skill1:_setMoveBonus(totalBonuses.move)
 	end
-	logger.logInfo(SUBMODULE, "Overridden Pilot:_combineBonuses to include virtual skill bonuses")
 end
 
 -- Mark the start of skill assignment so we disabling firing hooks on tracking changes
@@ -404,7 +413,7 @@ function skill_state_tracker:getSkillObjsInRun(skillId)
 	local instances = allInRun[skillId] or {}
 	for _, instance in ipairs(instances) do
 		for _, skillIndex in ipairs(instance.skillIndices) do
-			local skill = instance.pilot:getLvlUpSkill(skillIndex)
+			local skill = self:_getSkillByIndex(instance.pilot, skillIndex)
 			if skill then
 				table.insert(result, skill)
 			end
@@ -425,7 +434,7 @@ function skill_state_tracker:_determineInRunSkillsState()
 		local pilotAddr = pilot:getAddress()
 		-- Check each skill slot
 		for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
-			local skill = pilot:getLvlUpSkill(skillIndex)
+			local skill = self:_getSkillByIndex(pilot, skillIndex)
 			if skill then
 				local skillId = skill:getIdStr()
 				if not result[skillId] then
@@ -464,7 +473,7 @@ function skill_state_tracker:_updateInRunSkills()
 			if not oldPilots[pilotAddr] then
 				-- Queue hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
 					table.insert(hooksToFire, {skillId = skillId, isInRun = true, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
@@ -478,7 +487,7 @@ function skill_state_tracker:_updateInRunSkills()
 			if not newPilots[pilotAddr] then
 				-- Queue hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
 					table.insert(hooksToFire, {skillId = skillId, isInRun = false, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
@@ -530,7 +539,7 @@ function skill_state_tracker:getSkillObjsActive(skillId)
 	local instances = allActive[skillId] or {}
 	for _, instance in ipairs(instances) do
 		for _, skillIndex in ipairs(instance.skillIndices) do
-			local skill = instance.pilot:getLvlUpSkill(skillIndex)
+			local skill = self:_getSkillByIndex(instance.pilot, skillIndex)
 			if skill then
 				table.insert(result, skill)
 			end
@@ -551,7 +560,7 @@ function skill_state_tracker:_determineActiveSkillsState()
 		local pawnId = pilot:getPawnId()
 		-- Check each skill slot
 		for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
-			local skill = pilot:getLvlUpSkill(skillIndex)
+			local skill = self:_getSkillByIndex(pilot, skillIndex)
 			if skill then
 				local skillId = skill:getIdStr()
 				if not result[skillId] then
@@ -591,7 +600,7 @@ function skill_state_tracker:_updateActiveSkills()
 			if not oldMechs[pawnId] then
 				-- Queue hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
 					table.insert(hooksToFire, {skillId = skillId, isActive = true, pawnId = pawnId, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
@@ -605,7 +614,7 @@ function skill_state_tracker:_updateActiveSkills()
 			if not newMechs[pawnId] then
 				-- Queue hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
-					local skillStruct = data.pilot:getLvlUpSkill(skillIndex)
+					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
 					table.insert(hooksToFire, {skillId = skillId, isActive = false, pawnId = pawnId, pilot = data.pilot, skillStruct = skillStruct})
 				end
 			end
@@ -623,6 +632,22 @@ function skill_state_tracker:_updateActiveSkills()
 	end
 end
 
+-------------------- Helper: Get Skill by Index (Real or Virtual) --------------------
+
+-- Helper to get a skill by index, handling both real (1-2) and virtual (3+) skills
+-- This avoids calling pilot:getLvlUpSkill() with indices > 2 which triggers warnings
+function skill_state_tracker:_getSkillByIndex(pilot, skillIndex)
+	if skillIndex <= cplus_plus_ex.MAX_SKILL_SLOTS then
+		-- Real skill
+		return pilot:getLvlUpSkill(skillIndex)
+	else
+		-- Virtual skill
+		local pilotId = pilot:getIdStr()
+		local virtualIndex = skillIndex - cplus_plus_ex.MAX_SKILL_SLOTS
+		return self:getVirtualSkillObject(pilotId, virtualIndex)
+	end
+end
+
 -------------------- State Update Orchestration --------------------
 
 -- Update all skill states (called from various triggers)
@@ -637,6 +662,7 @@ function skill_state_tracker:_updateAllStates()
 	-- Sync virtual skill objects from save data
 	self:_syncAllVirtualSkillObjects()
 
+	-- TODO: Does this handle virtual?
 	self:_updateEnabledSkills()
 	if self._hasAppliedSkill then
 		self:_updateInRunSkills()
@@ -659,7 +685,8 @@ end
 
 -- Create a virtual skill object in allocated memory and sets it
 -- without triggering hooks
-function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
+function skill_state_tracker:_createAndAddVirtualSkillObject(pilot, skillId)
+	local pilotId = pilot:getIdStr()
 	local skill_config_module = cplus_plus_ex._subobjects.skill_config
 	local skill = skill_config_module.enabledSkills[skillId]
 	if not skill then
@@ -679,8 +706,12 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 		logger.logError(SUBMODULE, "Failed to create PilotLvlUpSkill struct for virtual skill: %s", skillId)
 		return nil
 	end
+	-- Set the parent pilot
+	skillObj._parent = {
+		Pilot = pilot,
+	}
 
-	-- Preinitialize ItBString unionType fields to LOCAL using hidden setter
+	-- Pre-initialize ItBString unionType fields to LOCAL using hidden setter
 	-- This makes the ItBString structs valid so _noFire setters won't fail validation
 	local layout = memhack.structs.PilotLvlUpSkill._layout
 	for _, fieldName in ipairs({"id", "shortName", "fullName", "description"}) do
@@ -698,15 +729,21 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 	skillObj:_setDescription_noFire(skill.description or "")
 	skillObj:_setSaveVal_noFire(skill.saveVal or 0)
 
-	-- Only set bonuses if they are defined (memory is already zeroed)
-	if skill.bonuses then
-		skillObj:_setHealthBonus_noFire(skill.bonuses.health or 0)
-		skillObj:_setMoveBonus_noFire(skill.bonuses.move or 0)
-		skillObj:_setCoresBonus_noFire(skill.bonuses.cores or 0)
-		skillObj:_setGridBonus_noFire(skill.bonuses.grid or 0)
-	end
+	-- Initialize bonus values (memory is already zeroed, so default to 0)
+	local healthBonus = (skill.bonuses and skill.bonuses.health) or 0
+	local moveBonus = (skill.bonuses and skill.bonuses.move) or 0
+	local coresBonus = (skill.bonuses and skill.bonuses.cores) or 0
+	local gridBonus = (skill.bonuses and skill.bonuses.grid) or 0
 
+	-- Set bonuses in memory using _noFire
+	skillObj:_setHealthBonus_noFire(healthBonus)
+	skillObj:_setMoveBonus_noFire(moveBonus)
+	skillObj:_setCoresBonus_noFire(coresBonus)
+	skillObj:_setGridBonus_noFire(gridBonus)
+
+	local setValues = memhack.stateTracker:getSkillSetValues(skillObj)
 	logger.logDebug(SUBMODULE, "Created virtual skill object for %s at address 0x%X", skillId, addr)
+	self:_addVirtualSkillObject(pilotId, skillObj)
 	return skillObj
 end
 
@@ -721,7 +758,7 @@ end
 -- pilotId: pilot ID string (e.g. "Pilot_Warbot")
 -- slotIndex: 1 for first virtual skill (slot 3), 2 for second (slot 4), etc.
 function skill_state_tracker:getVirtualSkillObject(pilotId, slotIndex)
-	local objs = self._virtualSkillObjects[pilotId]
+	local objs = self:getVirtualSkillObjects(pilotId)
 	if not objs then
 		return nil
 	end
@@ -729,34 +766,25 @@ function skill_state_tracker:getVirtualSkillObject(pilotId, slotIndex)
 end
 
 -- Store a virtual skill object
-function skill_state_tracker:_addVirtualSkillObject(pilot, skillObj)
-	local pilotId = pilot:getIdStr()
+function skill_state_tracker:_addVirtualSkillObject(pilotId, skillObj)
 	if not self._virtualSkillObjects[pilotId] then
 		self._virtualSkillObjects[pilotId] = {}
 	end
 	table.insert(self._virtualSkillObjects[pilotId], skillObj)
 end
 
+-- TODO: Tie into state tracker for these
+
 -- Remove a virtual skill object at a specific index
-function skill_state_tracker:_removeVirtualSkillObject(pilot, index)
-	local pilotId = pilot:getIdStr()
+function skill_state_tracker:_removeVirtualSkillObject(pilotId, index)
 	if self._virtualSkillObjects[pilotId] then
 		table.remove(self._virtualSkillObjects[pilotId], index)
 	end
 end
 
 -- Clear all virtual skill objects for a pilot
-function skill_state_tracker:_clearVirtualSkillObjects(pilot)
-	local pilotId = pilot:getIdStr()
+function skill_state_tracker:_clearVirtualSkillObjects(pilotId)
 	self._virtualSkillObjects[pilotId] = {}
-end
-
--- Clear all virtual skill objects for all pilots
-function skill_state_tracker:_clearAllVirtualSkillObjects()
-	for pilotId, _ in pairs(self._virtualSkillObjects) do
-		self._virtualSkillObjects[pilotId] = nil
-	end
-	self._virtualSkillObjects = {}
 end
 
 -- Synchronize virtual skill objects with save data
@@ -764,7 +792,6 @@ end
 -- Reuses existing objects where possible, creates new ones as needed, removes orphans
 function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 	local pilotId = pilot:getIdStr()
-
 	-- Get the skill IDs from save data
 	local savedSkillIds = {}
 	if GAME and GAME.cplus_plus_ex and GAME.cplus_plus_ex.pilotVirtualSkills then
@@ -772,7 +799,7 @@ function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 	end
 
 	-- Get current objects
-	local currentObjects = self._virtualSkillObjects[pilotId] or {}
+	local currentObjects = self:getVirtualSkillObjects(pilotId)
 	local existingMap = {}
 	for _, obj in ipairs(currentObjects) do
 		local skillId = obj:getIdStr()
@@ -780,28 +807,16 @@ function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 	end
 
 	-- Build new objects array matching save data order
-	local newObjects = {}
+	local newCount = 0
 	for _, skillId in ipairs(savedSkillIds) do
 		local obj = existingMap[skillId]
 		if obj then
-			-- Reuse existing object
-			table.insert(newObjects, obj)
-			logger.logDebug(SUBMODULE, "Reusing virtual skill object for %s on pilot %s", skillId, pilotId)
+			logger.logDebug(SUBMODULE, "Already have virtual skill object for %s on pilot %s", skillId, pilotId)
 		else
 			-- Create new object
-			obj = self:_createVirtualSkillObject(pilot, skillId)
-			if obj then
-				table.insert(newObjects, obj)
-				logger.logDebug(SUBMODULE, "Created new virtual skill object for %s on pilot %s", skillId, pilotId)
-			else
-				logger.logWarn(SUBMODULE, "Failed to create virtual skill object for %s on pilot %s", skillId, pilotId)
-			end
+			obj = self:_createAndAddVirtualSkillObject(pilot, skillId)
 		end
 	end
-
-	-- Replace the objects array
-	self._virtualSkillObjects[pilotId] = newObjects
-	logger.logDebug(SUBMODULE, "Synced %d virtual skill objects for pilot %s", #newObjects, pilotId)
 end
 
 -- Synchronize virtual skill objects for all pilots
@@ -821,21 +836,10 @@ function skill_state_tracker:_syncAllVirtualSkillObjects()
 		-- Only sync if this pilot has virtual skills in save data
 		if GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
 			self:_syncVirtualSkillObjects(pilot)
+			-- Trigger _combineBonuses to update bonuses with virtual skills
+			pilot:_combineBonuses()
 		end
 	end
-end
-
--- Update virtual bonuses and fire hooks
--- This combines syncing objects, _combineBonuses, and _updateAllStates for efficiency
-function skill_state_tracker:_updateVirtualSkillsAndStates(pilot)
-	-- First sync objects from save data
-	self:_syncVirtualSkillObjects(pilot)
-
-	-- Trigger _combineBonuses to update bonuses with virtual skills
-	pilot:_combineBonuses()
-
-	-- Update state tracking to fire appropriate hooks
-	self:_updateAllStates()
 end
 
 -------------------- Virtual Skill Query Functions --------------------

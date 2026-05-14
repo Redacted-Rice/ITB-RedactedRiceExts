@@ -7,6 +7,11 @@ local structureCreation = {}
 
 local TYPE_HANDLERS = StructManager.TYPE_HANDLERS
 
+-- Cache for struct sizes to prevent redundant recursive calculations
+local _structSizeCache = {}
+-- Track structs currently being calculated to detect circular references
+local _structSizeInProgress = {}
+
 -- Create base structure metatable with layout
 function structureCreation.createStructureType(name, layout)
 	local StructType = {}
@@ -42,7 +47,7 @@ end
 -- Helper: Calculate size for a single field
 function structureCreation._calculateFieldSize(field)
 	local handler = TYPE_HANDLERS[field.type]
-
+	
 	if handler.size then
 		return handler.size
 	elseif field.length then
@@ -54,12 +59,7 @@ function structureCreation._calculateFieldSize(field)
 			structType = StructManager._structures[structType]
 		end
 		if structType and structType.StructSize then
-			local structSize = structType:StructSize()
-			if structSize then
-				return structSize
-			else
-				return nil  -- Cannot determine nested struct size
-			end
+			return structType:StructSize()
 		else
 			return nil  -- Struct type not found or has no size
 		end
@@ -73,7 +73,7 @@ function structureCreation._findMaxOffsetField(layout)
 	local maxOffset = -1
 	local maxField = nil
 
-	for _, field in pairs(layout) do
+	for fieldName, field in pairs(layout) do
 		if field.offset and field.offset > maxOffset then
 			maxOffset = field.offset
 			maxField = field
@@ -189,17 +189,39 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 
 	-- Calculate structure size
 	function StructType:StructSize()
+		-- Check cache first
+		if _structSizeCache[name] then
+			return _structSizeCache[name]
+		end
+
+		-- Check for circular reference
+		if _structSizeInProgress[name] then
+			return nil
+		end
+
+		-- Mark as in progress
+		_structSizeInProgress[name] = true
+
 		local maxOffset, maxField = structureCreation._findMaxOffsetField(layout)
 		if not maxField then
+			_structSizeInProgress[name] = nil
+			_structSizeCache[name] = 0
 			return 0
 		end
 
 		local maxSize = structureCreation._calculateFieldSize(maxField)
 		if not maxSize then
+			_structSizeInProgress[name] = nil
 			return nil  -- Cannot determine size
 		end
 
-		return maxOffset + maxSize
+		local totalSize = maxOffset + maxSize
+		
+		-- Cache the result and clear in-progress flag
+		_structSizeCache[name] = totalSize
+		_structSizeInProgress[name] = nil
+		
+		return totalSize
 	end
 
 	-- Generate debug string by calling get on each field
@@ -266,6 +288,13 @@ end
 -- Register structure to structs table
 function structureCreation.registerStructure(name, StructType)
 	StructManager._structures[name] = StructType
+end
+
+-- Clear the struct size cache (useful if struct definitions change at runtime)
+function structureCreation.clearStructSizeCache()
+	_structSizeCache = {}
+	_structSizeInProgress = {}
+	logger.logDebug(SUBMODULE, "Struct size cache cleared")
 end
 
 return structureCreation

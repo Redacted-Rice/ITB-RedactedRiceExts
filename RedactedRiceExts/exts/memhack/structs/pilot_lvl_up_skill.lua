@@ -8,13 +8,15 @@ local PilotLvlUpSkill = memhack.structManager:define("PilotLvlUpSkill", {
 	fullName = { offset = 0x30, type = "struct", subType = "ItBString" },
 	-- Displayed when hovering over skill
 	description = { offset = 0x48, type = "struct", subType = "ItBString" },
-	healthBonus = { offset = 0x60, type = "int"},
 	-- Hide getters/setters so we can define public ones that track what was set
 	-- vs what we need to put in memory for these to combine correctly
 	-- For cores and grid bonus. Multiple health and move are handled by game already
+	-- but treat it the same for consistency and so other things can override if
+	-- desired (e.g. virtual skills in cplus_plus_ex)
+	healthBonus = { offset = 0x60, type = "int", hideGetter = true, hideSetter = true},
 	coresBonus = { offset = 0x64, type = "int", hideGetter = true, hideSetter = true},
 	gridBonus = { offset = 0x68, type = "int", hideGetter = true, hideSetter = true},
-	moveBonus = { offset = 0x6C, type = "int"},
+	moveBonus = { offset = 0x6C, type = "int", hideGetter = true, hideSetter = true},
 	-- Value used in save file. Does not directly change effect. ID does this
 	-- Valid values are between 0-13. Other values will be saved but are clamped
 	-- to this range before the onGameEntered event is fired
@@ -53,6 +55,11 @@ methodGen.makeParentGetterWrapper(PilotLvlUpSkill, "PilotLvlUpSkillsArray")
 -- and will be set by combineBonuses
 
 -- Public getters return set values from state tracker
+function PilotLvlUpSkill:getHealthBonus()
+	local result = memhack.stateTracker:getSkillSetValue(self, "healthBonus")
+	return result
+end
+
 function PilotLvlUpSkill:getCoresBonus()
 	local result = memhack.stateTracker:getSkillSetValue(self, "coresBonus")
 	return result
@@ -63,7 +70,26 @@ function PilotLvlUpSkill:getGridBonus()
 	return result
 end
 
+function PilotLvlUpSkill:getMoveBonus()
+	local result = memhack.stateTracker:getSkillSetValue(self, "moveBonus")
+	return result
+end
+
 -- Public setters track set values and trigger combining
+function PilotLvlUpSkill:setHealthBonus(value)
+	-- Store new set value
+	memhack.stateTracker:setSkillSetValue(self, "healthBonus", value)
+
+	-- Trigger combining logic on parent pilot
+	local pilot = self:getParentPilot()
+	if pilot then
+		-- combine will set memory values
+		pilot:_combineBonuses()
+	else
+		self:_setHealthBonus(value)
+	end
+end
+
 function PilotLvlUpSkill:setCoresBonus(value)
 	-- Store new set value
 	memhack.stateTracker:setSkillSetValue(self, "coresBonus", value)
@@ -92,6 +118,19 @@ function PilotLvlUpSkill:setGridBonus(value)
 	end
 end
 
+function PilotLvlUpSkill:setMoveBonus(value)
+	-- Store new set value
+	memhack.stateTracker:setSkillSetValue(self, "moveBonus", value)
+
+	-- Trigger combining logic on parent pilot
+	local pilot = self:getParentPilot()
+	if pilot then
+		-- combine will set memory values
+		pilot:_combineBonuses()
+	else
+		self:_setMoveBonus(value)
+	end
+end
 -- Wrap setters to trigger skill changed hooks on change
 -- For ItBString fields, pass nil for setterName and custom getter name as 6th arg
 local defaultSetter = nil -- Means use default name convention for setter
