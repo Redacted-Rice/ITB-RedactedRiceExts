@@ -684,9 +684,9 @@ function skill_state_tracker:_allocateSkillMemory()
 	return memhack.dll.memory.allocNullTermString(zeroString)
 end
 
--- Create a virtual skill object in allocated memory and add it to tracking
+-- Create a virtual skill object in allocated memory (does not add to tracking)
 -- Returns the skill object or nil on error
-function skill_state_tracker:_createAndAddVirtualSkillObject(pilot, skillId)
+function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 	local pilotId = pilot:getIdStr()
 	local skill_config_module = cplus_plus_ex._subobjects.skill_config
 	local skill = skill_config_module.enabledSkills[skillId]
@@ -743,10 +743,6 @@ function skill_state_tracker:_createAndAddVirtualSkillObject(pilot, skillId)
 	skillObj:_setGridBonus_noFire(gridBonus)
 
 	logger.logDebug(SUBMODULE, "Created virtual skill object for %s at address 0x%X", skillId, addr)
-	
-	-- Add to tracking
-	self:_addVirtualSkillObject(pilotId, skillObj)
-	
 	return skillObj
 end
 
@@ -768,23 +764,13 @@ function skill_state_tracker:getVirtualSkillObject(pilotId, slotIndex)
 	return objs[slotIndex]
 end
 
--- Store a virtual skill object
-function skill_state_tracker:_addVirtualSkillObject(pilotId, skillObj)
-	if not self._virtualSkillObjects[pilotId] then
-		self._virtualSkillObjects[pilotId] = {}
-	end
-	table.insert(self._virtualSkillObjects[pilotId], skillObj)
-	logger.logDebug(SUBMODULE, "Added virtual skill object for pilot %s (now %d total)", 
-		pilotId, #self._virtualSkillObjects[pilotId])
-end
-
 -- Remove a virtual skill object by skill ID
 -- Returns true if found and removed, false otherwise
 function skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId)
 	if not self._virtualSkillObjects[pilotId] then
 		return false
 	end
-	
+
 	for i, obj in ipairs(self._virtualSkillObjects[pilotId]) do
 		if obj:getIdStr() == skillId then
 			table.remove(self._virtualSkillObjects[pilotId], i)
@@ -803,42 +789,54 @@ function skill_state_tracker:_clearVirtualSkillObjects(pilotId)
 end
 
 -- Synchronize virtual skill objects with save data
--- This ensures objects match the skill IDs in GAME.cplus_plus_ex.pilotVirtualSkills
--- Creates new objects as needed for skills in save data
--- Note: Removal of orphaned objects is handled by skill_selection remove/clear functions
+-- Handles duplicates: if save data has ["SkillA", "SkillA", "SkillB"], creates 3 objects
 function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 	local pilotId = pilot:getIdStr()
-	-- Get the skill IDs from save data
+
+	-- Get what skills we need
 	local savedSkillIds = {}
 	if GAME and GAME.cplus_plus_ex and GAME.cplus_plus_ex.pilotVirtualSkills then
 		savedSkillIds = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}
 	end
 
 	-- Get current objects
-	local currentObjects = self:getVirtualSkillObjects(pilotId)
-	local existingMap = {}
-	for _, obj in ipairs(currentObjects) do
-		local skillId = obj:getIdStr()
-		existingMap[skillId] = true
-	end
+	local currentObjects = self._virtualSkillObjects[pilotId] or {}
 
-	-- Create objects for any skills in save data that don't have objects yet
+	-- Build new array matching save data
+	local newObjects = {}
 	for _, skillId in ipairs(savedSkillIds) do
-		if not existingMap[skillId] then
-			-- Create new object and add to tracking
-			local obj = self:_createAndAddVirtualSkillObject(pilot, skillId)
+		-- Try to find an object with this skillId in currentObjects
+		local found = false
+		for i, obj in ipairs(currentObjects) do
+			if obj:getIdStr() == skillId then
+				-- Reuse this object
+				table.insert(newObjects, obj)
+				table.remove(currentObjects, i)  -- Remove so we don't reuse it for duplicates
+				found = true
+				logger.logDebug(SUBMODULE, "Reusing object for %s on pilot %s", skillId, pilotId)
+				break
+			end
+		end
+
+		if not found then
+			-- Need to create a new object
+			local obj = self:_createVirtualSkillObject(pilot, skillId)
 			if obj then
-				logger.logDebug(SUBMODULE, "Created new virtual skill object for %s on pilot %s", 
-					skillId, pilotId)
+				table.insert(newObjects, obj)
+				logger.logDebug(SUBMODULE, "Created object for %s on pilot %s", skillId, pilotId)
 			else
-				logger.logError(SUBMODULE, "Failed to create virtual skill object for %s on pilot %s", 
-					skillId, pilotId)
+				logger.logError(SUBMODULE, "Failed to create object for %s on pilot %s", skillId, pilotId)
 			end
 		end
 	end
-	
-	logger.logDebug(SUBMODULE, "Synced virtual skills for pilot %s (%d in save data, %d objects)", 
-		pilotId, #savedSkillIds, #self:getVirtualSkillObjects(pilotId))
+
+	-- TODO: If/when I add memory deallocation, deallocate any remaining objects in currentObjects
+
+	-- Replace with new array
+	self._virtualSkillObjects[pilotId] = newObjects
+
+	logger.logDebug(SUBMODULE, "Synced pilot %s: %d skills in save data = %d objects",
+			pilotId, #savedSkillIds, #newObjects)
 end
 
 -- Synchronize virtual skill objects for all pilots
