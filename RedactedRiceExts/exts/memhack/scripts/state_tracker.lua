@@ -174,8 +174,10 @@ end
 -- Returns table with coresBonus and gridBonus (or actual values if not tracked)
 function stateTracker:getSkillSetValues(skill)
 	return {
+		healthBonus = self:getSkillSetValue(skill, "healthBonus"),
 		coresBonus = self:getSkillSetValue(skill, "coresBonus"),
-		gridBonus = self:getSkillSetValue(skill, "gridBonus")
+		gridBonus = self:getSkillSetValue(skill, "gridBonus"),
+		moveBonus = self:getSkillSetValue(skill, "moveBonus"),
 	}
 end
 
