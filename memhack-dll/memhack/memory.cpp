@@ -40,6 +40,22 @@ int alloc_null_term_string(lua_State* L) {
 	return 1;
 }
 
+int free_null_term_string(lua_State* L) {
+	void* addr = (void*)luaL_checkinteger(L, 1);
+	
+	if (addr == NULL) {
+		luaL_error(L, "free_null_term_string failed: cannot free NULL pointer");
+		return 0;
+	}
+	
+	// Free the memory allocated with new[]
+	// Note: This assumes the memory was allocated with new[]
+	// Using delete[] on memory not allocated with new[] will cause undefined behavior
+	delete[] (char*)addr;
+	
+	return 0;
+}
+
 // Read functions - return the value at the given address
 int read_byte(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
@@ -339,6 +355,10 @@ void add_memory_functions(lua_State* L) {
 
 	lua_pushstring(L, "allocNullTermString");
 	lua_pushcfunction(L, alloc_null_term_string);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "freeNullTermString");
+	lua_pushcfunction(L, free_null_term_string);
 	lua_rawset(L, -3);
 
 	// Read functions
