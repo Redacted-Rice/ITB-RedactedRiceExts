@@ -21,7 +21,10 @@ local original_combineBonuses = nil  -- Store original _combineBonuses function
 -- State tracking tables
 function skill_state_tracker:_resetAllTrackers()
 	-- Free all virtual skill objects before clearing trackers
-	self:_freeAllVirtualSkillObjects()
+	-- First time its called, the table may not be setup yet
+	if self._virtualSkillObjects then
+		self:_freeAllVirtualSkillObjects()
+	end
 
 	self._hasAppliedSkill = false
 	self._isAssigningSkills = false
@@ -30,7 +33,6 @@ function skill_state_tracker:_resetAllTrackers()
 	self._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
 	self._virtualSkillObjects = {}  -- pilotId -> array of PilotLvlUpSkill objects for more than 2 skills
 end
-skill_state_tracker:_resetAllTrackers()
 
 function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
@@ -972,4 +974,5 @@ function skill_state_tracker:getAllSkills(pilot)
 	return skillIds
 end
 
+skill_state_tracker:_resetAllTrackers()
 return skill_state_tracker
