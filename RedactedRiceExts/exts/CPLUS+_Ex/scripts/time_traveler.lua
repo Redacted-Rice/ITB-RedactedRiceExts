@@ -124,7 +124,7 @@ function time_traveler:_refreshLastSavedPersistentData()
 			changed = true
 		end
 
-		local virtualSkills = skill_state_tracker:getVirtualSkills(pilot)
+		local virtualSkills = skill_state_tracker:getVirtualSkills(id)
 		local currentVirtualSkills = time_traveler.lastSavedPersistentData[id].virtualSkills or {}
 		-- Compare tables for changes
 		local virtualSkillsChanged = #virtualSkills ~= #currentVirtualSkills

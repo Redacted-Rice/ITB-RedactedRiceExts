@@ -87,6 +87,7 @@ cplus_plus_ex._subobjects.skill_constraints = require(path.."scripts/skill_const
 cplus_plus_ex._subobjects.time_traveler = require(path.."scripts/time_traveler")
 cplus_plus_ex._subobjects.hooks = require(path.."scripts/hooks")
 cplus_plus_ex._subobjects.skill_state_tracker = require(path.."scripts/skill_state_tracker")
+cplus_plus_ex._subobjects.pilot_overrides = require(path.."scripts/pilot_overrides")
 cplus_plus_ex._subobjects.modify_pilot_skills_ui = require(path.."scripts/modify_pilot_skills_ui")
 
 -- Load base classes for custom skills
@@ -104,6 +105,7 @@ local skill_constraints = cplus_plus_ex._subobjects.skill_constraints
 local time_traveler = cplus_plus_ex._subobjects.time_traveler
 local hooks = cplus_plus_ex._subobjects.hooks
 local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
+local pilot_overrides = cplus_plus_ex._subobjects.pilot_overrides
 local modify_pilot_skills_ui = cplus_plus_ex._subobjects.modify_pilot_skills_ui
 
 -- Initialize modules
@@ -117,6 +119,9 @@ function cplus_plus_ex:initModules()
 	skill_selection:init()
 	time_traveler:init()
 	modify_pilot_skills_ui:init()
+
+	-- Initialize pilot overrides after skill_state_tracker
+	pilot_overrides:init()
 end
 
 -- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
