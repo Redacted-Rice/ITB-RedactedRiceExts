@@ -16,7 +16,6 @@ local SUBMODULE = logger.register("CPLUS+", "StateTracker", cplus_plus_ex.DEBUG.
 
 local hooks = nil
 local utils = nil
-local original_combineBonuses = nil  -- Store original _combineBonuses function
 
 -- State tracking tables
 function skill_state_tracker:_resetAllTrackers()
@@ -38,82 +37,7 @@ function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
 	utils = cplus_plus_ex._subobjects.utils
 
-	-- Override memhack's Pilot:_combineBonuses to include virtual skills
-	self:_overrideCombineBonuses()
-
 	return self
-end
-
--- Override memhack's Pilot:_combineBonuses to include virtual skill bonuses
-function skill_state_tracker:_overrideCombineBonuses()
-	local Pilot = memhack.structs.Pilot
-	original_combineBonuses = Pilot._combineBonuses
-
-	Pilot._combineBonuses = function(self)
-		logger.logInfo(SUBMODULE, "Combining skill bonuses")
-		local pilotId = self:getIdStr()
-		-- If no pilot ID mapped or no virtual skills, use original logic
-		if not pilotId then
-			logger.logInfo(SUBMODULE, "No pilot data")
-			original_combineBonuses(self)
-			return
-		end
-
-		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
-		if #virtualSkillObjs == 0 then
-			logger.logInfo(SUBMODULE, "No virtual skills")
-			original_combineBonuses(self)
-			return
-		end
-
-		-- If we have virtual skills, manually combine all skills into skill 1
-		local skill1 = self:getLvlUpSkill(1)
-		local skill2 = self:getLvlUpSkill(2)
-
-		-- Get set values from state tracker (doesn't trigger hooks)
-		local skill1Set = memhack.stateTracker:getSkillSetValues(skill1)
-		local skill2Set = memhack.stateTracker:getSkillSetValues(skill2)
-
-		-- Calculate total bonuses from all sources
-		local totalBonuses = {health = 0, cores = 0, grid = 0, move = 0}
-
-		-- Add skill 1 set values
-		totalBonuses.health = totalBonuses.health + (skill1Set.healthBonus or 0)
-		totalBonuses.cores = totalBonuses.cores + (skill1Set.coresBonus or 0)
-		totalBonuses.grid = totalBonuses.grid + (skill1Set.gridBonus or 0)
-		totalBonuses.move = totalBonuses.move + (skill1Set.moveBonus or 0)
-
-		-- Add skill 2 set values if earned
-		if skill_state_tracker:hasPilotEarnedSkillIndex(self, cplus_plus_ex.MAX_SKILL_SLOTS) then
-			totalBonuses.health = totalBonuses.health + (skill2Set.healthBonus or 0)
-			totalBonuses.cores = totalBonuses.cores + (skill2Set.coresBonus or 0)
-			totalBonuses.grid = totalBonuses.grid + (skill2Set.gridBonus or 0)
-			totalBonuses.move = totalBonuses.move + (skill2Set.moveBonus or 0)
-		end
-
-		-- Add virtual skill set values
-		for i, skillObj in ipairs(virtualSkillObjs) do
-			local virtSet = memhack.stateTracker:getSkillSetValues(skillObj)
-			logger.logInfo(SUBMODULE, "Combining virtual skill %d for %s: h=%d c=%d g=%d m=%d (ID: %s)",
-				i, pilotId,
-				virtSet.healthBonus or 0, virtSet.coresBonus or 0,
-				virtSet.gridBonus or 0, virtSet.moveBonus or 0,
-				skillObj:getIdStr())
-			totalBonuses.health = totalBonuses.health + (virtSet.healthBonus or 0)
-			totalBonuses.cores = totalBonuses.cores + (virtSet.coresBonus or 0)
-			totalBonuses.grid = totalBonuses.grid + (virtSet.gridBonus or 0)
-			totalBonuses.move = totalBonuses.move + (virtSet.moveBonus or 0)
-		end
-
-		logger.logInfo(SUBMODULE, "Final combined bonuses for %s: health=%d cores=%d grid=%d move=%d",
-				pilotId, totalBonuses.health, totalBonuses.cores, totalBonuses.grid, totalBonuses.move)
-
-		-- Write directly to memory using hidden setters
-		skill1:_setHealthBonus(totalBonuses.health)
-		skill1:_setCoresBonus(totalBonuses.cores)
-		skill1:_setGridBonus(totalBonuses.grid)
-		skill1:_setMoveBonus(totalBonuses.move)
-	end
 end
 
 -- Mark the start of skill assignment so we disabling firing hooks on tracking changes
@@ -166,7 +90,7 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
 	end
 
 	-- Add all virtual skills
-	local virtualSkills = self:getVirtualSkills(pilot)
+	local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
 	for virtIndex, _ in ipairs(virtualSkills) do
 		table.insert(result, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
@@ -192,7 +116,7 @@ function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
 
 	-- Check virtual skills
 	-- Virtual skills are always earned
-	local virtualSkills = self:getVirtualSkills(pilot)
+	local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
 	for virtIndex, vSkillId in ipairs(virtualSkills) do
 		if vSkillId == skillId then
@@ -245,7 +169,7 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 			end
 
 			-- Check virtual skills
-			local virtualSkills = self:getVirtualSkills(pilot)
+			local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
 			for _, vSkillId in ipairs(virtualSkills) do
 				if vSkillId == skillId then
@@ -294,7 +218,7 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 			end
 
 			-- Check virtual skills
-			local virtualSkills = self:getVirtualSkills(pilot)
+			local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
 			for virtIndex, vSkillId in ipairs(virtualSkills) do
 				if vSkillId == skillId then
@@ -937,19 +861,17 @@ end
 
 -------------------- Virtual Skill Query Functions --------------------
 
-function skill_state_tracker:getVirtualSkills(pilot)
+function skill_state_tracker:getVirtualSkills(pilotId)
 	if not GAME or not GAME.cplus_plus_ex or not GAME.cplus_plus_ex.pilotVirtualSkills then
 		return {}
 	end
-
-	local pilotId = pilot:getIdStr()
 	return GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}
 end
 
 -- Get total skill count for a pilot including virtual skills
-function skill_state_tracker:getTotalSkillCount(pilot)
+function skill_state_tracker:getTotalSkillCount(pilotId)
 	local realSkills = cplus_plus_ex.MAX_SKILL_SLOTS
-	local virtualSkills = #self:getVirtualSkills(pilot)
+	local virtualSkills = #self:getVirtualSkills(pilotId)
 	return realSkills + virtualSkills
 end
 
@@ -967,7 +889,7 @@ function skill_state_tracker:getAllSkills(pilot)
 	end
 
 	-- Add virtual skills
-	for _, skillId in ipairs(self:getVirtualSkills(pilot)) do
+	for _, skillId in ipairs(self:getVirtualSkills(pilot:getIdStr())) do
 		table.insert(skillIds, skillId)
 	end
 
