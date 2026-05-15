@@ -25,12 +25,14 @@ Latest release: 1.2.0
 
 Released: XX/XX/2026
 
-* memhack - v1.1.0
+* memhack - v1.1.1
 * CPLUS+ Ex - v1.2.0
 
 ### Notes
 * Fixing Skill Inclusions
 * Added squad exclusions and inclusions
+* Support for more than 2 level up skills on a pilot via "virtual" skills
+* Additional lower level fixes/enhancements to support above features
 
 
 ## 1.1.1

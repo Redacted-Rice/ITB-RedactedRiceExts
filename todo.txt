@@ -1,14 +1,16 @@
 ---------- Memhack ---------
 
-For 1.1 Release:
-3. Try reverse engineering more things and add to memhack if possible
-	a. mech innate upgrades
-	b. Deploy zone (probably point list pointer in mission)
-	c. bump damage
+For 1.1.1 Release:
+1. Build new memhack DLL
+2. Ensure deallocation is working as expected
 
 
 1.2 Release:
-1. Steam & GoG & Epic offset fixes... Maybe just leave for now as there isn't much demand
+1. Try reverse engineering more things and add to memhack if possible
+	a. mech innate upgrades
+	b. Deploy zone (probably point list pointer in mission)
+	c. bump damage
+2. Steam & GoG & Epic offset fixes... Maybe just leave for now as there isn't much demand
 	a. Maybe could use known vtables (like pilot) to determine GoG vs Steam and then use the corresponding offset
 	b. Current fields needing this: Score
 
@@ -16,7 +18,7 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 1.2 Release:
-Testing
+1. Test virtual skills more - close, reopen, time traveler, etc
 
 
 ---------- Mech Upgrades Ex? ---------
