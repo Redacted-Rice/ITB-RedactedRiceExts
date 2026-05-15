@@ -20,11 +20,14 @@ compatible with:
 * ItB AE        1.2.93
 * ModLoader     2.9.5
 * ModLoaderExt  1.24
-* memhack       1.1.0
+* memhack       1.1.1
 
 ### Notes
 * Fixing Skill Inclusions
 * Added squad exclusions and inclusions
+* Adding support for "virtual" skills to allow more than 2 level up skills on a pilot
+* Separating out inclusions and exclusions and making them more extensible for custom/additional ones
+* Validation of constraint type (inclusion/exclusion) to ensure the correct type is added for pilots/squads based on the skill (e.g. if you add a skillInclusion, its actually an inclusion type skill you passed)
 
 
 ## 1.1.1
