@@ -20,6 +20,9 @@ local original_combineBonuses = nil  -- Store original _combineBonuses function
 
 -- State tracking tables
 function skill_state_tracker:_resetAllTrackers()
+	-- Free all virtual skill objects before clearing trackers
+	self:_freeAllVirtualSkillObjects()
+
 	self._hasAppliedSkill = false
 	self._isAssigningSkills = false
 	self._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
@@ -684,6 +687,32 @@ function skill_state_tracker:_allocateSkillMemory()
 	return memhack.dll.memory.allocNullTermString(zeroString)
 end
 
+-- Free memory for a virtual skill object
+-- obj: PilotLvlUpSkill object to deallocate
+function skill_state_tracker:_freeVirtualSkillObject(obj)
+	if not obj then
+		return
+	end
+
+	local addr = obj:_address()
+	if not addr or addr == 0 then
+		logger.logWarn(SUBMODULE, "Cannot free virtual skill object with invalid address")
+		return
+	end
+
+	local skillId = obj:getIdStr()
+	logger.logDebug(SUBMODULE, "Freeing virtual skill object %s at address 0x%X", skillId, addr)
+
+	-- Free the allocated memory
+	local success, err = pcall(function()
+		memhack.dll.memory.freeNullTermString(addr)
+	end)
+
+	if not success then
+		logger.logError(SUBMODULE, "Failed to free memory for virtual skill object %s at 0x%X: %s", skillId, addr, err)
+	end
+end
+
 -- Create a virtual skill object in allocated memory (does not add to tracking)
 -- Returns the skill object or nil on error
 function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
@@ -773,6 +802,8 @@ function skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId
 
 	for i, obj in ipairs(self._virtualSkillObjects[pilotId]) do
 		if obj:getIdStr() == skillId then
+			-- Free the memory before removing from tracking
+			self:_freeVirtualSkillObject(obj)
 			table.remove(self._virtualSkillObjects[pilotId], i)
 			logger.logDebug(SUBMODULE, "Removed virtual skill object %s from pilot %s", skillId, pilotId)
 			return true
@@ -783,9 +814,33 @@ end
 
 -- Clear all virtual skill objects for a pilot
 function skill_state_tracker:_clearVirtualSkillObjects(pilotId)
-	local count = self._virtualSkillObjects[pilotId] and #self._virtualSkillObjects[pilotId] or 0
+	local objects = self._virtualSkillObjects[pilotId] or {}
+	local count = #objects
+
+	-- Free all memory before clearing
+	for _, obj in ipairs(objects) do
+		self:_freeVirtualSkillObject(obj)
+	end
+
 	self._virtualSkillObjects[pilotId] = {}
-	logger.logDebug(SUBMODULE, "Cleared %d virtual skill objects from pilot %s", count, pilotId)
+	logger.logDebug(SUBMODULE, "Cleared and freed %d virtual skill objects from pilot %s", count, pilotId)
+end
+
+-- Free all virtual skill objects for all pilots
+function skill_state_tracker:_freeAllVirtualSkillObjects()
+	local totalCount = 0
+	for pilotId, objects in pairs(self._virtualSkillObjects) do
+		local count = #objects
+		totalCount = totalCount + count
+
+		for _, obj in ipairs(objects) do
+			self:_freeVirtualSkillObject(obj)
+		end
+	end
+
+	if totalCount > 0 then
+		logger.logInfo(SUBMODULE, "Freed %d virtual skill objects for all pilots during cleanup", totalCount)
+	end
 end
 
 -- Synchronize virtual skill objects with save data
@@ -830,7 +885,12 @@ function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 		end
 	end
 
-	-- TODO: If/when I add memory deallocation, deallocate any remaining objects in currentObjects
+	-- Free any orphaned objects that are no longer in save data
+	for _, orphanedObj in ipairs(currentObjects) do
+		local orphanedSkillId = orphanedObj:getIdStr()
+		logger.logDebug(SUBMODULE, "Freeing orphaned virtual skill object %s for pilot %s", orphanedSkillId, pilotId)
+		self:_freeVirtualSkillObject(orphanedObj)
+	end
 
 	-- Replace with new array
 	self._virtualSkillObjects[pilotId] = newObjects
@@ -849,15 +909,26 @@ function skill_state_tracker:_syncAllVirtualSkillObjects()
 		return
 	end
 
-	-- Get all available pilots to sync
+	-- Build set of available pilot IDs
+	local availablePilotIds = {}
 	local allPilots = Game:GetAvailablePilots()
 	for _, pilot in ipairs(allPilots) do
 		local pilotId = pilot:getIdStr()
+		availablePilotIds[pilotId] = pilot
+
 		-- Only sync if this pilot has virtual skills in save data
 		if GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
 			self:_syncVirtualSkillObjects(pilot)
 			-- Trigger _combineBonuses to update bonuses with virtual skills
 			pilot:_combineBonuses()
+		end
+	end
+
+	-- Clean up any tracked virtual skill objects for pilots that are no longer available
+	for pilotId, _ in pairs(self._virtualSkillObjects) do
+		if not availablePilotIds[pilotId] then
+			logger.logDebug(SUBMODULE, "Cleaning up virtual skill objects for unavailable pilot %s", pilotId)
+			self:_clearVirtualSkillObjects(pilotId)
 		end
 	end
 end

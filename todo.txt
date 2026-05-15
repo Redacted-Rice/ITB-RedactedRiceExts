@@ -16,11 +16,12 @@ For 1.1 Release:
 ---------- CPLUS+ Ex ---------
 
 1.2 Release:
-4. Modify to allow for selecting specific skills easily in code and selecting more than 2
+Testing
 
 
 ---------- Mech Upgrades Ex? ---------
 
+Determine if I want to make this or not... Probably not at this point
 Figure out a name to call this
 Use CPLUS+ to determine when upgrades are set and then undo them to replace with custom ones
 Create a similar UI/structure to CPLUS+ to allow choosing upgrades, frequency and allowing more to be added?
