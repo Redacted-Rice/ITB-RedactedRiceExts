@@ -8,7 +8,7 @@ local extension = {
 	requirements = {"easyEdit"}, -- ensures easy edit loads first if its enabled
 	dependencies = {
         modApiExt = "1.24",
-        redactedrice_memhack = "1.1.0",
+        redactedrice_memhack = "1.1.1",
     },
 	isExtension = true,
 }
