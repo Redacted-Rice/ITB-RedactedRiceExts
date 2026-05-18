@@ -295,4 +295,49 @@ function time_traveler:_searchForTimeTraveler()
 	end
 end
 
+-- Pre-load virtual skills from persistent storage into GAME state
+-- This should be called BEFORE skill assignment to prevent reassignment
+function time_traveler:_preloadVirtualSkillsFromPersistentStorage()
+	self:_loadPersistentDataIfNeeded()
+
+	if not time_traveler.lastSavedPersistentData then
+		logger.logDebug(SUBMODULE, "No persistent data to preload virtual skills from")
+		return
+	end
+	if not GAME then
+		logger.logDebug(SUBMODULE, "GAME not available yet for preloading virtual skills")
+		return
+	end
+	if not GAME.cplus_plus_ex then
+		GAME.cplus_plus_ex = {}
+	end
+	if not GAME.cplus_plus_ex.pilotVirtualSkills then
+		GAME.cplus_plus_ex.pilotVirtualSkills = {}
+	end
+
+	-- Preload virtual skills for all pilots that have them in persistent storage
+	local preloadedCount = 0
+	for pilotId, data in pairs(time_traveler.lastSavedPersistentData) do
+		if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
+			-- Only preload if this pilot doesn't already have virtual skills in GAME
+			if not GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or
+			   #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] == 0 then
+				GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+				for _, skillId in ipairs(data.virtualSkills) do
+					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+				end
+				logger.logInfo(SUBMODULE, "Preloaded %d virtual skills for pilot %s from persistent storage",
+					#data.virtualSkills, pilotId)
+				preloadedCount = preloadedCount + 1
+			end
+		end
+	end
+
+	if preloadedCount > 0 then
+		logger.logInfo(SUBMODULE, "Preloaded virtual skills for %d pilot(s) from persistent storage", preloadedCount)
+	else
+		logger.logDebug(SUBMODULE, "No virtual skills to preload from persistent storage")
+	end
+end
+
 return time_traveler
