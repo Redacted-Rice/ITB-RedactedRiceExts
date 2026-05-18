@@ -660,7 +660,7 @@ function skill_state_tracker:_freeVirtualSkillObject(obj)
 		return
 	end
 	-- Check if it's a PilotLvlUpSkill struct using memhack's type system
-	if type(obj) ~= "userdata" or getmetatable(obj) ~= memhack.structs.PilotLvlUpSkill then
+	if type(obj) ~= "table" or getmetatable(obj) ~= memhack.structs.PilotLvlUpSkill then
 		logger.logWarn(SUBMODULE, "Cannot free virtual skill object: expected PilotLvlUpSkill struct, got %s", type(obj))
 		return
 	end

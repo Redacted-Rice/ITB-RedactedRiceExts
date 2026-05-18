@@ -305,8 +305,9 @@ function cplus_plus_ex:addEvents()
 
 	modApi.events.onGameEntered:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onGameEntered")
-		--skill_selection:_clearPilotTracking()
-		--skill_state_tracker:_resetAllTrackers()
+		-- Preload virtual skills from persistent storage BEFORE skill assignment
+		-- This prevents reassignment of new virtual skills when starting a new timeline
+		time_traveler:_preloadVirtualSkillsFromPersistentStorage()
 	end)
 
 	-- clear on load/reload
@@ -319,13 +320,13 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onGameExited:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onGameExited")
 		skill_selection:_clearPilotTracking()
-		skill_state_tracker:_updateAllStates()
+		skill_state_tracker:_resetAllTrackers()
 	end)
 
 	modApi.events.onGameVictory:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onGameVictory")
 		skill_selection:_clearPilotTracking()
-		skill_state_tracker:_updateAllStates()
+		skill_state_tracker:_resetAllTrackers()
 	end)
 
 	modApi.events.onHangarEntered:subscribe(function()
