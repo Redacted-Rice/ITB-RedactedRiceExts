@@ -176,6 +176,8 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:registerSquadSkillInclusions(...) return skill_registry:registerSquadSkillInclusions(...) end
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
 	function cplus_plus_ex:registerSkillToGroup(...) return skill_registry:registerSkillToGroup(...) end
+	function cplus_plus_ex:getRegisteredSkillInfo(...) return skill_registry:getRegisteredSkillInfo(...) end
+
 
 	-- Config
 	function cplus_plus_ex:setSkillConfig(...) return skill_config:setSkillConfig(...) end
