@@ -619,8 +619,13 @@ function skill_state_tracker:_freeVirtualSkillObject(obj)
 	if not obj then
 		return
 	end
+	-- Check if it's a PilotLvlUpSkill struct using memhack's type system
+	if type(obj) ~= "userdata" or getmetatable(obj) ~= memhack.structs.PilotLvlUpSkill then
+		logger.logWarn(SUBMODULE, "Cannot free virtual skill object: expected PilotLvlUpSkill struct, got %s", type(obj))
+		return
+	end
 
-	local addr = obj:_address()
+	local addr = obj:getAddress()
 	if not addr or addr == 0 then
 		logger.logWarn(SUBMODULE, "Cannot free virtual skill object with invalid address")
 		return
@@ -705,6 +710,10 @@ end
 -- pilotId: pilot ID string (e.g. "Pilot_Warbot")
 -- Returns: array of PilotLvlUpSkill objects
 function skill_state_tracker:getVirtualSkillObjects(pilotId)
+	if type(pilotId) ~= "string" then
+		logger.logError(SUBMODULE, "getVirtualSkillObjects: expected pilotId string, got %s", type(pilotId))
+		return {}
+	end
 	return self._virtualSkillObjects[pilotId] or {}
 end
 
@@ -712,6 +721,10 @@ end
 -- pilotId: pilot ID string (e.g. "Pilot_Warbot")
 -- slotIndex: 1 for first virtual skill (slot 3), 2 for second (slot 4), etc.
 function skill_state_tracker:getVirtualSkillObject(pilotId, slotIndex)
+	if type(pilotId) ~= "string" then
+		logger.logError(SUBMODULE, "getVirtualSkillObject: expected pilotId string, got %s", type(pilotId))
+		return nil
+	end
 	local objs = self:getVirtualSkillObjects(pilotId)
 	if not objs then
 		return nil
@@ -756,6 +769,9 @@ end
 function skill_state_tracker:_freeAllVirtualSkillObjects()
 	local totalCount = 0
 	for pilotId, objects in pairs(self._virtualSkillObjects) do
+		logger.logDebug(SUBMODULE, "pilotId: %s, objects type: %s, count: %s",
+				tostring(pilotId), type(objects), type(objects) == "table" and #objects or "N/A")
+
 		local count = #objects
 		totalCount = totalCount + count
 
@@ -862,14 +878,28 @@ end
 -------------------- Virtual Skill Query Functions --------------------
 
 function skill_state_tracker:getVirtualSkills(pilotId)
-	if not GAME or not GAME.cplus_plus_ex or not GAME.cplus_plus_ex.pilotVirtualSkills then
+	if type(pilotId) ~= "string" then
+		logger.logError(SUBMODULE, "Expected pilotId string, got %s", type(pilotId))
 		return {}
 	end
-	return GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}
+
+	if not GAME or not GAME.cplus_plus_ex or not GAME.cplus_plus_ex.pilotVirtualSkills then
+		logger.logDebug(SUBMODULE, "%s - GAME state not ready, returning {}", pilotId)
+		return {}
+	end
+
+	local skills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}
+	logger.logDebug(SUBMODULE, "%s - returning %d skills: %s",
+		pilotId, #skills, table.concat(skills, ", "))
+	return skills
 end
 
 -- Get total skill count for a pilot including virtual skills
 function skill_state_tracker:getTotalSkillCount(pilotId)
+	if type(pilotId) ~= "string" then
+		logger.logError(SUBMODULE, "getTotalSkillCount: expected pilotId string, got %s", type(pilotId))
+		return cplus_plus_ex.MAX_SKILL_SLOTS
+	end
 	local realSkills = cplus_plus_ex.MAX_SKILL_SLOTS
 	local virtualSkills = #self:getVirtualSkills(pilotId)
 	return realSkills + virtualSkills

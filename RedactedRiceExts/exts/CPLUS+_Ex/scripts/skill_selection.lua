@@ -123,7 +123,13 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 			else
 				-- Add the skill ID to save data
 				-- The tracker will handle creating/syncing the actual objects
+				logger.logDebug(SUBMODULE, "Before insert - pilotId: %s, skillId: %s, current skills: %s",
+						pilotId, skillId, table.concat(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], ", "))
+
 				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+
+				logger.logDebug(SUBMODULE, "After insert - pilotId: %s, new skills: %s",
+						pilotId, table.concat(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], ", "))
 
 				-- Mark per_run skills as used
 				self:_markPerRunSkillAsUsed(skillId)
