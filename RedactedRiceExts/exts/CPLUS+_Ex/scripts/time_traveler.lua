@@ -263,13 +263,17 @@ function time_traveler:_getTimeTravelerFromMemory()
 		if not valid then
 			logger.logWarn(SUBMODULE, "Pilot at idx %s is invalid (%s) - must not be time traveler!", idx, err)
 		else
+			-- Look up this pilot's data from saved persistent data
+			local pilotId = pilot:getIdStr()
+			local pilotData = time_traveler.lastSavedPersistentData[pilotId]
+			
 			if pilotData then
-				logger.logDebug(SUBMODULE, "Checking pilot timelines: %d vs expected %d",
-						pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
+				logger.logDebug(SUBMODULE, "Checking pilot %s timelines: %d vs expected %d",
+						pilotId, pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
 				if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
 					time_traveler.potentialTimeTravelers = {pilot}
 					skill_selection:applySkillIdsToPilot(pilot, {pilotData.skill1, pilotData.skill2}, false)
-					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
+					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilotId)
 					-- Set virtual skills too
 					if pilotData.virtualSkills and type(pilotData.virtualSkills) == "table" and #pilotData.virtualSkills > 0 then
 						skill_selection:applyVirtualSkillIdsToPilot(pilot, pilotData.virtualSkills)
@@ -280,7 +284,7 @@ function time_traveler:_getTimeTravelerFromMemory()
 					end
 				end
 			else
-				logger.logWarn(SUBMODULE, "pilotData %s is nil in searchForTimeTraveler - skipping", idx)
+				logger.logDebug(SUBMODULE, "No saved data for pilot %s - not a time traveler", pilotId)
 			end
 		end
 	end
