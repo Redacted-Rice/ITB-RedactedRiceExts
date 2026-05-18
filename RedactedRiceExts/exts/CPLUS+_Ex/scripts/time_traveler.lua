@@ -236,10 +236,13 @@ function time_traveler:_scanForTimeTraveler()
 						table.insert(time_traveler.potentialTimeTravelers, traveler)
 						logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
 						skill_selection:applySkillIdsToPilot(traveler, {data.skill1, data.skill2}, false)
-						-- Apply any virtual skills too
+						-- Set any virtual skills too
 						if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
-							cplus_plus_ex:addVirtualSkillsToPilot(traveler, data.virtualSkills)
+							skill_selection:applyVirtualSkillIdsToPilot(traveler, data.virtualSkills)
 							logger.logDebug(SUBMODULE, "restored %d virtual skills to time traveler", #data.virtualSkills)
+						else
+							logger.logDebug(SUBMODULE, "Ensuring virtual skills from time traveler are empty")
+							skill_selection:clearVirtualSkillsFromPilot(pilot)
 						end
 					end
 				end
@@ -267,10 +270,13 @@ function time_traveler:_getTimeTravelerFromMemory()
 					time_traveler.potentialTimeTravelers = {pilot}
 					skill_selection:applySkillIdsToPilot(pilot, {pilotData.skill1, pilotData.skill2}, false)
 					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilot:getIdStr())
-					-- Apply virtual skills too
+					-- Set virtual skills too
 					if pilotData.virtualSkills and type(pilotData.virtualSkills) == "table" and #pilotData.virtualSkills > 0 then
-						cplus_plus_ex:addVirtualSkillsToPilot(pilot, pilotData.virtualSkills)
+						skill_selection:applyVirtualSkillIdsToPilot(pilot, pilotData.virtualSkills)
 						logger.logDebug(SUBMODULE, "restored %d virtual skills to time traveler", #pilotData.virtualSkills)
+					else
+						logger.logDebug(SUBMODULE, "Ensuring virtual skills from time traveler are empty")
+						skill_selection:clearVirtualSkillsFromPilot(pilot)
 					end
 				end
 			else
