@@ -144,6 +144,55 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 	return successCount
 end
 
+-- Apply virtual skill IDs to a pilot (replaces existing virtual skills)
+-- This is for loading from save data (like time travelers) - replaces instead of appending
+-- Use this instead of addVirtualSkillsToPilot when loading skills that should replace existing ones
+function skill_selection:applyVirtualSkillIdsToPilot(pilot, skillIds)
+	if not pilot then
+		logger.logError(SUBMODULE, "Cannot apply virtual skills to nil pilot")
+		return false
+	end
+
+	if not skillIds then
+		skillIds = {}
+	end
+
+	self:_initGameSaveData()
+	local pilotId = pilot:getIdStr()
+
+	-- Replace the entire virtual skills array (like applySkillIdsToPilot does for regular skills)
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+
+	for _, skillId in ipairs(skillIds) do
+		-- Check if skill can be virtual
+		if not self:canBeVirtualSkill(skillId) then
+			logger.logWarn(SUBMODULE, "Skill %s cannot be used as virtual skill", skillId)
+		else
+			-- Validate skill exists and is enabled
+			local skill = skill_config_module.enabledSkills[skillId]
+			if not skill then
+				logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
+			else
+				-- Add the skill ID to the replaced array
+				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+
+				-- Mark per_run skills as used
+				self:_markPerRunSkillAsUsed(skillId)
+
+				logger.logInfo(SUBMODULE, "Applied virtual skill %s to pilot %s (slot %d)",
+					skillId, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+			end
+		end
+	end
+
+	if #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] > 0 then
+		-- Sync objects and update virtual bonuses
+		skill_state_tracker:_updateAllStates()
+	end
+
+	return true
+end
+
 -- Add random virtual skills to a pilot
 -- count: number of random skills to add
 -- Returns: number of skills successfully added
@@ -846,13 +895,8 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 		end
 	end
 
-	-- Update save data
-	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = virtualSkills
-
-	-- Sync objects and update virtual bonuses
-	if needsUpdate or #virtualSkills > 0 then
-		skill_state_tracker:_updateAllStates()
-	end
+	-- Always make sure our virtual skills are synced even if it may be redundant
+	skill_state_tracker:_syncVirtualSkillObjects(pilot)
 end
 
 -- Marks a per_run skill as used for this run
