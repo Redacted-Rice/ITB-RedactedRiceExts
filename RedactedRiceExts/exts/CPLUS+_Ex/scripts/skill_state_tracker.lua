@@ -70,6 +70,11 @@ end
 function skill_state_tracker:hasPilotEarnedSkillIndex(pilot, skillIndex)
 	if not pilot then return false end
 
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "hasPilotEarnedSkillIndex: expected Pilot struct, got %s", type(pilot))
+		return false
+	end
+
 	-- Virtual skills (slots 3+) are always earned
 	if skillIndex > cplus_plus_ex.MAX_SKILL_SLOTS then
 		return true
@@ -81,6 +86,11 @@ function skill_state_tracker:hasPilotEarnedSkillIndex(pilot, skillIndex)
 end
 
 function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "getPilotEarnedSkillIndexes: expected Pilot struct, got %s", type(pilot))
+		return {}
+	end
+
 	local pilotLevel = pilot:getLevel()
 	local result = {}
 
@@ -100,6 +110,16 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
 end
 
 function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "getPilotSkillIndices: expected skillId string, got %s", type(skillId))
+		return {}
+	end
+
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "getPilotSkillIndices: expected Pilot struct, got %s", type(pilot))
+		return {}
+	end
+
 	if checkEarned == nil then checkEarned = true end
 
 	local indices = {}
@@ -129,6 +149,16 @@ function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
 end
 
 function skill_state_tracker:isSkillOnPilot(skillId, pilot, checkEarned)
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "isSkillOnPilot: expected skillId string, got %s", type(skillId))
+		return false
+	end
+
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "isSkillOnPilot: expected Pilot struct, got %s", type(pilot))
+		return false
+	end
+
 	return self:isSkillOnPilots(skillId, {pilot}, checkEarned)
 end
 
@@ -143,6 +173,11 @@ end
 -- pilots: list of pilots to check (defaults to all available pilots)
 -- checkEarned: if true, only check earned skills (defaults to true)
 function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "isSkillOnPilots: expected skillId string, got %s", type(skillId))
+		return false
+	end
+
 	if pilots == nil then
 		if not Game then return false end
 		pilots = Game:GetAvailablePilots()
@@ -153,27 +188,32 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 
 	for _, pilot in ipairs(pilots) do
 		if pilot then
-			-- Check real skills
-			for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
-				local skill = pilot:getLvlUpSkill(skillIndex)
-				if skill then
-					local currentSkillId = skill:getIdStr()
-					if currentSkillId == skillId then
-						if not checkEarned then
-							return true
-						elseif self:hasPilotEarnedSkillIndex(pilot, skillIndex) then
-							return true
+			-- Validate pilot struct
+			if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+				logger.logWarn(SUBMODULE, "isSkillOnPilots: skipping invalid pilot struct (type: %s)", type(pilot))
+			else
+				-- Check real skills
+				for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
+					local skill = pilot:getLvlUpSkill(skillIndex)
+					if skill then
+						local currentSkillId = skill:getIdStr()
+						if currentSkillId == skillId then
+							if not checkEarned then
+								return true
+							elseif self:hasPilotEarnedSkillIndex(pilot, skillIndex) then
+								return true
+							end
 						end
 					end
 				end
-			end
 
-			-- Check virtual skills
-			local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
+				-- Check virtual skills
+				local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
-			for _, vSkillId in ipairs(virtualSkills) do
-				if vSkillId == skillId then
-					return true  -- Virtual skills are always earned
+				for _, vSkillId in ipairs(virtualSkills) do
+					if vSkillId == skillId then
+						return true  -- Virtual skills are always earned
+					end
 				end
 			end
 		else
@@ -647,6 +687,16 @@ end
 -- Create a virtual skill object in allocated memory (does not add to tracking)
 -- Returns the skill object or nil on error
 function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "_createVirtualSkillObject: expected Pilot struct, got %s", type(pilot))
+		return nil
+	end
+
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "_createVirtualSkillObject: expected skillId string, got %s", type(skillId))
+		return nil
+	end
+
 	local pilotId = pilot:getIdStr()
 	local skill_config_module = cplus_plus_ex._subobjects.skill_config
 	local skill = skill_config_module.enabledSkills[skillId]
@@ -735,6 +785,16 @@ end
 -- Remove a virtual skill object by skill ID
 -- Returns true if found and removed, false otherwise
 function skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId)
+	if type(pilotId) ~= "string" then
+		logger.logError(SUBMODULE, "_removeVirtualSkillObjectBySkillId: expected pilotId string, got %s", type(pilotId))
+		return false
+	end
+
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "_removeVirtualSkillObjectBySkillId: expected skillId string, got %s", type(skillId))
+		return false
+	end
+
 	if not self._virtualSkillObjects[pilotId] then
 		return false
 	end
@@ -753,6 +813,11 @@ end
 
 -- Clear all virtual skill objects for a pilot
 function skill_state_tracker:_clearVirtualSkillObjects(pilotId)
+	if type(pilotId) ~= "string" then
+		logger.logError(SUBMODULE, "_clearVirtualSkillObjects: expected pilotId string, got %s", type(pilotId))
+		return
+	end
+
 	local objects = self._virtualSkillObjects[pilotId] or {}
 	local count = #objects
 
@@ -788,6 +853,11 @@ end
 -- Synchronize virtual skill objects with save data
 -- Handles duplicates: if save data has ["SkillA", "SkillA", "SkillB"], creates 3 objects
 function skill_state_tracker:_syncVirtualSkillObjects(pilot)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "_syncVirtualSkillObjects: expected Pilot struct, got %s", type(pilot))
+		return
+	end
+
 	local pilotId = pilot:getIdStr()
 
 	-- Get what skills we need
@@ -889,8 +959,6 @@ function skill_state_tracker:getVirtualSkills(pilotId)
 	end
 
 	local skills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}
-	logger.logDebug(SUBMODULE, "%s - returning %d skills: %s",
-		pilotId, #skills, table.concat(skills, ", "))
 	return skills
 end
 
@@ -908,6 +976,11 @@ end
 -- Get all skill IDs assigned to a pilot including virtual skills
 -- Returns: array of skill ID strings
 function skill_state_tracker:getAllSkills(pilot)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "getAllSkills: expected Pilot struct, got %s", type(pilot))
+		return {}
+	end
+
 	local skillIds = {}
 
 	-- Add real skills
