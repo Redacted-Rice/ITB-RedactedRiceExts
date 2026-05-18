@@ -84,6 +84,16 @@ end
 -- skillId: ID of the skill to add
 -- Returns: true if successful, false if skill is invalid or there was an error
 function skill_selection:addVirtualSkillToPilot(pilot, skillId)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "addVirtualSkillToPilot: expected Pilot struct, got %s", type(pilot))
+		return false
+	end
+	
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "addVirtualSkillToPilot: expected skillId string, got %s", type(skillId))
+		return false
+	end
+	
 	local successCount = self:addVirtualSkillsToPilot(pilot, {skillId})
 	return successCount == 1
 end
@@ -92,8 +102,8 @@ end
 -- skillIds: array of skill IDs to add
 -- Returns: number of skills successfully added
 function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
-	if not pilot then
-		logger.logError(SUBMODULE, "Cannot add virtual skills to nil pilot")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "addVirtualSkillsToPilot: expected Pilot struct, got %s", type(pilot))
 		return 0
 	end
 
@@ -154,8 +164,8 @@ end
 -- This is for loading from save data (like time travelers) - replaces instead of appending
 -- Use this instead of addVirtualSkillsToPilot when loading skills that should replace existing ones
 function skill_selection:applyVirtualSkillIdsToPilot(pilot, skillIds)
-	if not pilot then
-		logger.logError(SUBMODULE, "Cannot apply virtual skills to nil pilot")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "applyVirtualSkillIdsToPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
 
@@ -203,8 +213,8 @@ end
 -- count: number of random skills to add
 -- Returns: number of skills successfully added
 function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
-	if not pilot then
-		logger.logError(SUBMODULE, "Cannot add random virtual skills to nil pilot")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "addRandomVirtualSkillsToPilot: expected Pilot struct, got %s", type(pilot))
 		return 0
 	end
 
@@ -260,13 +270,13 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 end
 
 function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
-	if not pilot then
-		logger.logError(SUBMODULE, "Cannot remove virtual skill from nil pilot")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "removeVirtualSkillFromPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
 
-	if not skillId then
-		logger.logError(SUBMODULE, "Cannot remove nil skillId from pilot")
+	if type(skillId) ~= "string" then
+		logger.logError(SUBMODULE, "removeVirtualSkillFromPilot: expected skillId string, got %s", type(skillId))
 		return false
 	end
 
@@ -297,8 +307,8 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 end
 
 function skill_selection:clearVirtualSkillsFromPilot(pilot)
-	if not pilot then
-		logger.logError(SUBMODULE, "Cannot clear virtual skills from nil pilot")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "clearVirtualSkillsFromPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
 
@@ -504,8 +514,18 @@ end
 -- skillIds: table with two skill IDs {skill1Id, skill2Id}
 -- fireHooks: if true, fires skillsSelected hook before applying skills (defaults to false)
 function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
-	if pilot == nil then
-		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillIdsToPilot - skipping")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected Pilot struct, got %s", type(pilot))
+		return false
+	end
+	
+	if type(skillIds) ~= "table" or #skillIds ~= 2 then
+		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected skillIds table with 2 entries, got %s", type(skillIds))
+		return false
+	end
+	
+	if type(skillIds[1]) ~= "string" or type(skillIds[2]) ~= "string" then
+		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected skillId strings, got %s and %s", type(skillIds[1]), type(skillIds[2]))
 		return false
 	end
 
@@ -527,8 +547,8 @@ end
 -- Checks GAME memory and either loads existing skills or creates and assigns new ones
 -- fireHooks: if true, fires skillsSelected hook before applying skills (defaults to false)
 function skill_selection:applySkillsToPilot(pilot, fireHooks)
-	if pilot == nil then
-		logger.logWarn(SUBMODULE, "Pilot is nil in applySkillsToPilot - skipping")
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "applySkillsToPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
 
