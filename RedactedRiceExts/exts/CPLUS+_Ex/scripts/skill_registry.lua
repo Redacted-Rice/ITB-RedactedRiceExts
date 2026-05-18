@@ -584,4 +584,8 @@ function skill_registry:_expandPilotConstraintFunctions(allPilotIds)
 	end
 end
 
+function skill_registry:getRegisteredSkillInfo(skillId)
+	return self.registeredSkills[skillId]
+end
+
 return skill_registry
