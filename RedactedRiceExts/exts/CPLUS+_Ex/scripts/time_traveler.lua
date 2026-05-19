@@ -242,7 +242,7 @@ function time_traveler:_scanForTimeTraveler()
 							logger.logDebug(SUBMODULE, "restored %d virtual skills to time traveler", #data.virtualSkills)
 						else
 							logger.logDebug(SUBMODULE, "Ensuring virtual skills from time traveler are empty")
-							skill_selection:clearVirtualSkillsFromPilot(pilot)
+							skill_selection:clearVirtualSkillsFromPilot(traveler)
 						end
 					end
 				end
@@ -266,7 +266,7 @@ function time_traveler:_getTimeTravelerFromMemory()
 			-- Look up this pilot's data from saved persistent data
 			local pilotId = pilot:getIdStr()
 			local pilotData = time_traveler.lastSavedPersistentData[pilotId]
-			
+
 			if pilotData then
 				logger.logDebug(SUBMODULE, "Checking pilot %s timelines: %d vs expected %d",
 						pilotId, pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
@@ -299,65 +299,52 @@ function time_traveler:_searchForTimeTraveler()
 	end
 end
 
--- Pre-load virtual skills from persistent storage into GAME state
--- This should be called BEFORE skill assignment to prevent reassignment
-function time_traveler:_preloadVirtualSkillsFromPersistentStorage()
+--- Narrow down potential time travelers to the one matching the given address
+--- @param address number The pilot address to match
+--- @return boolean found Whether a matching time traveler was found and set
+function time_traveler:narrowTimeTraveler(address)
+	if not self.potentialTimeTravelers then
+		return false
+	end
+
+	for _, ttPilot in ipairs(self.potentialTimeTravelers) do
+		if ttPilot._address == address then
+			-- Narrow down to just this one
+			self.potentialTimeTravelers = {ttPilot}
+			logger.logDebug(SUBMODULE, "Narrowed time traveler to pilot at address %d", address)
+			return true
+		end
+	end
+
+	return false
+end
+
+--- Get virtual skills for a time traveler from persistent data
+--- @param pilotId string The pilot ID
+--- @return table|nil Array of skill IDs, or nil if no virtual skills found
+function time_traveler:getTimeTravelerVirtualSkills(pilotId)
 	self:_loadPersistentDataIfNeeded()
 
-	if not time_traveler.lastSavedPersistentData then
-		logger.logDebug(SUBMODULE, "No persistent data to preload virtual skills from")
-		return
-	end
-	
-	-- Log what pilots we have in persistent data
-	local pilotCount = 0
-	local pilotsWithVirtualSkills = 0
-	for pilotId, data in pairs(time_traveler.lastSavedPersistentData) do
-		pilotCount = pilotCount + 1
-		if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
-			pilotsWithVirtualSkills = pilotsWithVirtualSkills + 1
-		end
-	end
-	logger.logDebug(SUBMODULE, "Persistent data contains %d pilot(s), %d with virtual skills",
-		pilotCount, pilotsWithVirtualSkills)
-	
-	if not GAME then
-		logger.logDebug(SUBMODULE, "GAME not available yet for preloading virtual skills")
-		return
-	end
-	if not GAME.cplus_plus_ex then
-		GAME.cplus_plus_ex = {}
-	end
-	if not GAME.cplus_plus_ex.pilotVirtualSkills then
-		GAME.cplus_plus_ex.pilotVirtualSkills = {}
+	if not self.lastSavedPersistentData then
+		logger.logDebug(SUBMODULE, "No persistent data available for getTimeTravelerVirtualSkills")
+		return nil
 	end
 
-	-- Preload virtual skills for all pilots that have them in persistent storage
-	local preloadedCount = 0
-	for pilotId, data in pairs(time_traveler.lastSavedPersistentData) do
-		if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
-			-- Only preload if this pilot doesn't already have virtual skills in GAME
-			if not GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or
-			   #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] == 0 then
-				GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
-				for _, skillId in ipairs(data.virtualSkills) do
-					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
-				end
-				logger.logInfo(SUBMODULE, "Preloaded %d virtual skills for pilot %s from persistent storage",
-					#data.virtualSkills, pilotId)
-				preloadedCount = preloadedCount + 1
-			else
-				logger.logDebug(SUBMODULE, "Pilot %s already has %d virtual skills in GAME, skipping preload",
-					pilotId, #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
-			end
-		end
+	local persistentData = self.lastSavedPersistentData[pilotId]
+	if not persistentData then
+		logger.logDebug(SUBMODULE, "No persistent data found for pilot %s", pilotId)
+		return nil
 	end
 
-	if preloadedCount > 0 then
-		logger.logInfo(SUBMODULE, "Preloaded virtual skills for %d pilot(s) from persistent storage", preloadedCount)
-	else
-		logger.logDebug(SUBMODULE, "No virtual skills to preload from persistent storage")
+	if not persistentData.virtualSkills or #persistentData.virtualSkills == 0 then
+		logger.logDebug(SUBMODULE, "No virtual skills in persistent data for pilot %s", pilotId)
+		return nil
 	end
+
+	logger.logInfo(SUBMODULE, ">>> [VSKILL TRACK] Retrieved %d virtual skills for time traveler %s from persistent data: %s",
+		#persistentData.virtualSkills, pilotId, table.concat(persistentData.virtualSkills, ", "))
+
+	return persistentData.virtualSkills
 end
 
 return time_traveler
