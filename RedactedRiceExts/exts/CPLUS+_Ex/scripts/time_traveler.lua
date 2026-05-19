@@ -308,6 +308,19 @@ function time_traveler:_preloadVirtualSkillsFromPersistentStorage()
 		logger.logDebug(SUBMODULE, "No persistent data to preload virtual skills from")
 		return
 	end
+	
+	-- Log what pilots we have in persistent data
+	local pilotCount = 0
+	local pilotsWithVirtualSkills = 0
+	for pilotId, data in pairs(time_traveler.lastSavedPersistentData) do
+		pilotCount = pilotCount + 1
+		if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
+			pilotsWithVirtualSkills = pilotsWithVirtualSkills + 1
+		end
+	end
+	logger.logDebug(SUBMODULE, "Persistent data contains %d pilot(s), %d with virtual skills",
+		pilotCount, pilotsWithVirtualSkills)
+	
 	if not GAME then
 		logger.logDebug(SUBMODULE, "GAME not available yet for preloading virtual skills")
 		return
@@ -333,6 +346,9 @@ function time_traveler:_preloadVirtualSkillsFromPersistentStorage()
 				logger.logInfo(SUBMODULE, "Preloaded %d virtual skills for pilot %s from persistent storage",
 					#data.virtualSkills, pilotId)
 				preloadedCount = preloadedCount + 1
+			else
+				logger.logDebug(SUBMODULE, "Pilot %s already has %d virtual skills in GAME, skipping preload",
+					pilotId, #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 			end
 		end
 	end
