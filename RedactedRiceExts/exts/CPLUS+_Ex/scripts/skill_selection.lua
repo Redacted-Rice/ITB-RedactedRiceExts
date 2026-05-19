@@ -88,12 +88,12 @@ function skill_selection:addVirtualSkillToPilot(pilot, skillId)
 		logger.logError(SUBMODULE, "addVirtualSkillToPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
-	
+
 	if type(skillId) ~= "string" then
 		logger.logError(SUBMODULE, "addVirtualSkillToPilot: expected skillId string, got %s", type(skillId))
 		return false
 	end
-	
+
 	local successCount = self:addVirtualSkillsToPilot(pilot, {skillId})
 	return successCount == 1
 end
@@ -518,12 +518,12 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
-	
+
 	if type(skillIds) ~= "table" or #skillIds ~= 2 then
 		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected skillIds table with 2 entries, got %s", type(skillIds))
 		return false
 	end
-	
+
 	if type(skillIds[1]) ~= "string" or type(skillIds[2]) ~= "string" then
 		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected skillId strings, got %s and %s", type(skillIds[1]), type(skillIds[2]))
 		return false
@@ -581,21 +581,32 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	end
 	-- if its the time traveler, save the current skills
 	if not found and cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers then
-		for _, ttPilot in ipairs(cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers) do
-			-- Only one should be found at this point - we will only have one in our squad
-			if ttPilot._address == pilot._address then
-				found = true
-				cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers = {ttPilot}
-				logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilotId, pilot._address)
-				break
-			end
-		end
+		local time_traveler = cplus_plus_ex._subobjects.time_traveler
 
+		-- Check if this pilot is the time traveler and narrow down the list. There should only
+		-- be one at this point that matches our address
+		found = time_traveler:narrowTimeTraveler(pilot._address)
 		if found then
-			local lus = cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers[1]:getLvlUpSkills()
+			logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilotId, pilot._address)
+
+			-- Get regular skills from the time traveler pilot object
+			local lus = time_traveler.potentialTimeTravelers[1]:getLvlUpSkills()
 			skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
 			storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 			logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
+
+			-- Virtual skills are stored in GAME and not in the pilot object itself so we need to load
+			-- these from persistent memory instead of from the time traveler directly
+			local virtualSkills = time_traveler:getTimeTravelerVirtualSkills(pilotId)
+			if virtualSkills then
+				self:_initGameSaveData()
+				GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+				for _, skillId in ipairs(virtualSkills) do
+					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+				end
+				logger.logInfo(SUBMODULE, ">>> [VSKILL TRACK] Populated GAME state with %d virtual skills for time traveler %s: %s",
+					#virtualSkills, pilotId, table.concat(virtualSkills, ", "))
+			end
 		end
 	end
 	-- Check if we should preserve existing vanilla skills

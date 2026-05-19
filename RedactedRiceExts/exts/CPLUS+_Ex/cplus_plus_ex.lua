@@ -303,13 +303,6 @@ function cplus_plus_ex:addEvents()
 		skill_selection:_selectSkillsForPerfectIslandPilot()
 	end)
 
-	modApi.events.onGameEntered:subscribe(function()
-		logger.logDebug(TRIGGER_EVENTS, "onGameEntered")
-		-- Preload virtual skills from persistent storage BEFORE skill assignment
-		-- This prevents reassignment of new virtual skills when starting a new timeline
-		time_traveler:_preloadVirtualSkillsFromPersistentStorage()
-	end)
-
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onModsLoaded")
