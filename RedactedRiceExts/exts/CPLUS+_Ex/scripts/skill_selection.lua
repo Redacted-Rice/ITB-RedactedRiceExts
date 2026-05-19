@@ -718,7 +718,17 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
 
-	-- After applying regular skills, validate and sync virtual skills if any exist
+	-- After applying regular skills, apply stored virtual skills from GAME state
+	local storedVirtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+	if storedVirtualSkills and #storedVirtualSkills > 0 then
+		logger.logInfo(SUBMODULE, "Applying %d stored virtual skills to pilot %s from GAME state",
+			#storedVirtualSkills, pilotId)
+		self:applyVirtualSkillIdsToPilot(pilot, storedVirtualSkills)
+	else
+		logger.logDebug(SUBMODULE, "No stored virtual skills to apply for pilot %s", pilotId)
+	end
+
+	-- After applying regular skills and virtual skills, validate and sync virtual skills if any exist
 	self:_validateAndSyncVirtualSkills(pilot)
 
 	return true
