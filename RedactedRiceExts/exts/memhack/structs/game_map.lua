@@ -6,5 +6,6 @@ local MemhackGameMap = memhack.structManager:define("GameMap", {
 	-- to calibrate than most scans
 	reputation = { offset = 0x848C, type = "int" },
 	unknownObj1 = { offset = 0x90C8, type = "pointer", subType = "UnknownObj1", noSetter = true },
+	gridPower = { offset = 0xC040, type = "int" },
 	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen", noSetter = true },
 })

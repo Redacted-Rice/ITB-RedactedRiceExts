@@ -33,6 +33,30 @@ local function onGameClassInitialized(GameClass)
 		obj:setReputation(obj:getReputation() + amount)
 	end
 
+	-- Upper case to align with BoardPawn conventions
+	GameClass.GetGridPower = function(self)
+		local gridPower = self:GetMemhackObj():getGridPower()
+		return gridPower
+	end
+
+	GameClass.SetGridPower = function(self, gridPower)
+		if type(gridPower) ~= "number" then
+			logger.logError(SUBMODULE, "GridPower must be a number, got %s", type(gridPower))
+			return
+		end
+		self:GetMemhackObj():setGridPower(gridPower)
+	end
+
+	-- Convenience function to add/subtract grid power
+	GameClass.AddGridPower = function(self, amount)
+		if type(amount) ~= "number" then
+			logger.logError(SUBMODULE, "Amount must be a number, got %s", type(amount))
+			return
+		end
+		local obj = self:GetMemhackObj()
+		obj:setGridPower(obj:getGridPower() + amount)
+	end
+
 	--[[
 	Unfortunately steam has different offsets. This is unlikely to work for steam version
 	so for now removing it. Long term I hope to find a way to support both versions. It
