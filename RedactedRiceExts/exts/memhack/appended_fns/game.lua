@@ -149,6 +149,15 @@ local function onGameClassInitialized(GameClass)
 		local pilot = self:GetMemhackObj():getUnknownObj1():getPerfectIslandRewardPilot()
 		return pilot
 	end
+
+	GameClass.GetStrategySelectedPawn = function(self)
+		local selected = self:GetMemhackObj():GetStrategySelectedPawn()
+		if selected >= 0 and selected <= 2 then
+			return selected
+		else
+			return nil
+		end
+	end
 end
 
 modApi.events.onGameClassInitialized:subscribe(onGameClassInitialized)

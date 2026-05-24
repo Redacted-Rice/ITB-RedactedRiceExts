@@ -4,6 +4,7 @@ local MemhackGameMap = memhack.structManager:define("GameMap", {
 	researchControl = { offset = 0x5674, type = "struct", subType = "ResearchControl", --[[structs don't define setters]] },
 	-- This could be a memedit scan but instead did here as its more annoying
 	-- to calibrate than most scans
+	strategySelectedPawn = { offset = 0x56C0, type = "int", noSetter = true},
 	reputation = { offset = 0x848C, type = "int" },
 	unknownObj1 = { offset = 0x90C8, type = "pointer", subType = "UnknownObj1", noSetter = true },
 	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen", noSetter = true },
