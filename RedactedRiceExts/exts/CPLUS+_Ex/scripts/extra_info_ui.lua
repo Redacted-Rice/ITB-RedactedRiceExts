@@ -1,7 +1,7 @@
 -- Extra Info UI Display
 -- Shows icons for virtual skills and mod-added content for the currently selected pawn in strategy view
 -- Updates when Game:GetStrategySelectedPawn() changes
--- 
+--
 -- Panel is positioned relative to the back_1 pilot portrait in the bottom-left
 -- Fixed width of 315px with background frame
 
@@ -118,7 +118,7 @@ function extra_info_ui:buildIcon(iconInfo, container)
 	-- Outline and scale the surface (outline first, then scale)
 	local outlined = sdl.outlined(surface, ICON_OUTLINE, deco.colors.buttonborder)
 	local scaled = sdl.scaled(ICON_SCALE, outlined)
-	
+
 	-- Calculate actual icon size based on scaled surface dimensions
 	local iconWidth = scaled:w()
 	local iconHeight = scaled:h()
@@ -168,10 +168,10 @@ end
 -- Update panel position and size
 function extra_info_ui:updatePanelLayout()
 	if not panel then return end
-	
+
 	local currentWidth = ScreenSizeX()
 	local currentHeight = ScreenSizeY()
-	
+
 	-- Check if screen size changed
 	local sizeChanged = (lastScreenWidth ~= currentWidth or lastScreenHeight ~= currentHeight)
 	if sizeChanged then
@@ -179,16 +179,16 @@ function extra_info_ui:updatePanelLayout()
 		lastScreenHeight = currentHeight
 		logger.logDebug(SUBMODULE, "Screen size changed to %dx%d", currentWidth, currentHeight)
 	end
-	
+
 	-- Try to find back_1 position
 	local back1X, back1Y = findBack1Position()
 	local panelX, panelY
-	
+
 	if back1X and back1Y then
 		-- Position relative to back_1
 		panelX = back1X + PANEL_REFERENCE_OFFSET_X
 		panelY = back1Y + PANEL_REFERENCE_OFFSET_Y
-		logger.logDebug(SUBMODULE, "Positioning panel relative to back_1 at (%d, %d), calculated panel pos: (%d, %d)", 
+		logger.logDebug(SUBMODULE, "Positioning panel relative to back_1 at (%d, %d), calculated panel pos: (%d, %d)",
 			back1X, back1Y, panelX, panelY)
 	else
 		-- back_1 not found - keep offscreen
@@ -196,11 +196,11 @@ function extra_info_ui:updatePanelLayout()
 		panelY = -1000
 		logger.logDebug(SUBMODULE, "back_1 not found, keeping offscreen")
 	end
-	
+
 	-- Update panel position (width is fixed)
 	panel.x = panelX
 	panel.y = panelY
-	
+
 	-- Force relayout if screen size changed
 	if sizeChanged then
 		panel:relayout()
@@ -247,10 +247,10 @@ function extra_info_ui:rebuildContent()
 	-- Build all icons
 	if #iconData > 0 then
 		logger.logDebug(SUBMODULE, "rebuildContent: building %d icons", #iconData)
-		
+
 		-- Add padding before first icon
 		Ui():widthpx(ICON_PADDING):heightpx(1):addTo(iconRow)
-		
+
 		for i, icon in ipairs(iconData) do
 			self:buildIcon(icon, iconRow)
 		end
@@ -334,7 +334,7 @@ function extra_info_ui:checkAndUpdate()
 	if not panel then
 		return
 	end
-	
+
 	-- Check and update panel layout for screen size changes
 	self:updatePanelLayout()
 
@@ -378,7 +378,7 @@ function extra_info_ui:checkAndUpdate()
 		-- If we have a valid pilot, rebuild content and check if we should show
 		if pilot and pilotId then
 			logger.logDebug(SUBMODULE, "checkAndUpdate: valid pilot found, rebuilding content")
-			
+
 			-- Rebuild content (this will fire hooks and collect icons)
 			self:rebuildContent()
 
@@ -402,7 +402,7 @@ end
 -- Initialize hooks
 function extra_info_ui:init()
 	logger.logDebug(SUBMODULE, "Initializing extra info UI")
-	
+
 	-- Verify back_1 surface loaded
 	if back1Surface then
 		logger.logInfo(SUBMODULE, "back_1 surface loaded successfully")
@@ -429,7 +429,16 @@ function extra_info_ui:init()
 		logger.logDebug(SUBMODULE, "Test mode entered, hiding panel")
 		self:hidePanel()
 	end)
-	
+	-- Hide UI when entering test mode or combat
+	modApi.events.onTestMechExited:subscribe(function()
+		logger.logDebug(SUBMODULE, "Test mode exited, checking for selected pawn")
+		-- Give the game a moment to update, then check and update
+		modApi:runLater(function()
+			self:checkAndUpdate()
+			logger.logDebug(SUBMODULE, "Re-checked panel after test mode exit")
+		end)
+	end)
+
 	modApi.events.onMissionStart:subscribe(function()
 		logger.logDebug(SUBMODULE, "Mission started, hiding panel")
 		self:hidePanel()
