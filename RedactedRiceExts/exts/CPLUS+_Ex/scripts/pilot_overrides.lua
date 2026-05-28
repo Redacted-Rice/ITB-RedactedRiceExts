@@ -284,15 +284,14 @@ end
 
 --- Build skill description with virtual skills appended
 --- Automatically checks all pilots and appends virtual skill names if found
+--- Works for both regular pilots and time travelers
 function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkillId)
-	-- TODO: Make sure this works for time travelers as well
-	-- Between missions just show base description
+	-- Between missions, add note about extra info panel instead of listing skills
 	if not Game then
-		-- TODO: MAybe say its in th elower extra panel now
-		return baseDescription
+		return baseDescription .. "\n\n(Virtual skills shown in lower panel when pilot is selected)"
 	end
 
-	-- Check all pilots for this skill
+	-- Check all available pilots for this skill
 	local pilots = Game:GetAvailablePilots()
 	for i, pilotStruct in ipairs(pilots) do
 		local pilotSkill = pilotStruct:getSkill():get()
@@ -317,6 +316,35 @@ function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkil
 				end
 			end
 			return baseDescription
+		end
+	end
+
+	-- Check time travelers from persistent data if pilot not found in current squad
+	local time_traveler = cplus_plus_ex._subobjects.time_traveler
+	if time_traveler and time_traveler.potentialTimeTravelers then
+		for _, timeTravelerPilot in ipairs(time_traveler.potentialTimeTravelers) do
+			local pilotSkill = timeTravelerPilot:getSkill():get()
+			if pilotSkill == pilotSkillId then
+				local pilotId = timeTravelerPilot:getIdStr()
+				local virtualSkills = skill_state_tracker:getVirtualSkills(pilotId)
+
+				if virtualSkills and #virtualSkills > 0 then
+					-- Collect virtual skill names
+					local skillNames = {}
+					for j, skillId in ipairs(virtualSkills) do
+						local skillData = cplus_plus_ex._subobjects.skill_registry:getRegisteredSkillInfo(skillId)
+						if skillData then
+							table.insert(skillNames, GetText(skillData.fullName))
+						end
+					end
+
+					-- Append to description
+					if #skillNames > 0 then
+						return baseDescription .. "\n\nExtra Skills: " .. table.concat(skillNames, ", ")
+					end
+				end
+				return baseDescription
+			end
 		end
 	end
 
