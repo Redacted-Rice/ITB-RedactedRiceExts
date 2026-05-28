@@ -11,6 +11,8 @@ local pilot_overrides = {}
 local original_getLvlUpSkill = nil
 local original_setLvlUpSkill = nil
 local original_combineBonuses = nil
+local original_GetSkillInfo = nil  -- Store the truly original GetSkillInfo
+local getSkillInfoOverrideApplied = false  -- Track if we've already applied the override
 
 -- Reference to skill_state_tracker
 local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
@@ -235,6 +237,91 @@ function pilot_overrides:_overrideCombineBonuses()
 	end
 
 	logger.logInfo(SUBMODULE, "Overridden Pilot:_combineBonuses to support virtual skills")
+end
+
+--- Override GetSkillInfo to automatically append virtual skills to pilot descriptions
+--- This is called after other mods load to ensure if they override the same function,
+--- we override it last and can control it.
+--- Only applies the override once per game session to prevent double-appending.
+function pilot_overrides:applyGetSkillInfoOverride()
+	-- Check if we've already applied the override
+	if getSkillInfoOverrideApplied then
+		logger.logDebug(SUBMODULE, "GetSkillInfo override already applied, skipping")
+		LOG("GetSkillInfo override already applied, skipping (PLAIN LOG)")
+		return
+	end
+	logger.logInfo(SUBMODULE, "Overriding GetSkillInfo to automatically append virtual skills")
+
+	-- Store the original function
+	if not original_GetSkillInfo then
+		original_GetSkillInfo = GetSkillInfo
+		logger.logDebug(SUBMODULE, "Stored original GetSkillInfo function")
+	end
+
+	-- Apply the override using the truly original function
+	function GetSkillInfo(skill)
+		-- Get the original skill info
+		local originalSkillInfo = original_GetSkillInfo(skill)
+
+		-- Check for virtual skills and append them automatically
+		local baseDesc = originalSkillInfo.desc
+		local dynamicDesc = pilot_overrides:buildVirtualSkillDescription(baseDesc, skill)
+
+		-- If description changed (virtual skills were added), return modified version
+		if dynamicDesc ~= baseDesc then
+			logger.logDebug(SUBMODULE, "Added virtual skills to %s", skill)
+			return PilotSkill(skill, dynamicDesc)
+		end
+
+		-- No virtual skills found, return original
+		return originalSkillInfo
+	end
+
+	-- Mark as applied
+	getSkillInfoOverrideApplied = true
+	logger.logInfo(SUBMODULE, "GetSkillInfo override applied successfully")
+end
+
+--- Build skill description with virtual skills appended
+--- Automatically checks all pilots and appends virtual skill names if found
+function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkillId)
+	-- TODO: Make sure this works for time travelers as well
+	-- Between missions just show base description
+	if not Game then
+		-- TODO: MAybe say its in th elower extra panel now
+		return baseDescription
+	end
+
+	-- Check all pilots for this skill
+	local pilots = Game:GetAvailablePilots()
+	for i, pilotStruct in ipairs(pilots) do
+		local pilotSkill = pilotStruct:getSkill():get()
+
+		if pilotSkill == pilotSkillId then
+			local pilotId = pilotStruct:getIdStr()
+			local virtualSkills = skill_state_tracker:getVirtualSkills(pilotId)
+
+			if virtualSkills and #virtualSkills > 0 then
+				-- Collect virtual skill names
+				local skillNames = {}
+				for j, skillId in ipairs(virtualSkills) do
+					local skillData = cplus_plus_ex._subobjects.skill_registry:getRegisteredSkillInfo(skillId)
+					if skillData then
+						table.insert(skillNames, GetText(skillData.fullName))
+					end
+				end
+
+				-- Append to description
+				if #skillNames > 0 then
+					return baseDescription .. "\n\nExtra Skills: " .. table.concat(skillNames, ", ")
+				end
+			end
+			return baseDescription
+		end
+	end
+
+	-- Pilot not found, return base description
+	return baseDescription
 end
 
 --- Initialize all pilot overrides

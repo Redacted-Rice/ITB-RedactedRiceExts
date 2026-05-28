@@ -43,6 +43,17 @@ local hooks = {
 	--  skillId2 (string) - second skill ID selected
 	-- Fired for each pilot BEFORE their skills are applied to memory
 	"skillsSelected",
+
+	-- args:
+	--  ui (table) - the extra info UI object
+	--  pawn (Pawn) - the selected pawn
+	--  pilot (Pilot) - pilot struct for the selected pawn
+	-- Fired when the selected pawn changes in the Extra Info UI
+	-- Mods can call ui:addIcon(icon, title, description) to add icons with tooltips
+	--   icon (string) - path to icon image
+	--   title (string) - tooltip title
+	--   description (string) - tooltip description
+	"extraInfoSelectedChanged",
 }
 
 -- Use shared utility functions from memhack.hooks
@@ -70,6 +81,7 @@ function hooks:initBroadcastHooks()
 	self["firePreAssigningLvlUpSkillsHooks"] = self:buildBroadcastFunc("preAssigningLvlUpSkillsHooks", nil, nil, SUBMODULE)
 	self["firePostAssigningLvlUpSkillsHooks"] = self:buildBroadcastFunc("postAssigningLvlUpSkillsHooks", nil, nil, SUBMODULE)
 	self["fireSkillsSelectedHooks"] = self:buildBroadcastFunc("skillsSelectedHooks", nil, nil, SUBMODULE)
+	self["fireExtraInfoSelectedChangedHooks"] = self:buildBroadcastFunc("extraInfoSelectedChangedHooks", nil, nil, SUBMODULE)
 end
 
 return hooks

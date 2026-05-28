@@ -211,16 +211,16 @@ end
 
 -- Add random virtual skills to a pilot
 -- count: number of random skills to add
--- Returns: number of skills successfully added
+-- Returns: number of skills successfully added, array of selected skill IDs
 function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
 		logger.logError(SUBMODULE, "addRandomVirtualSkillsToPilot: expected Pilot struct, got %s", type(pilot))
-		return 0
+		return 0, {}
 	end
 
 	if not count or count <= 0 then
 		logger.logWarn(SUBMODULE, "Invalid count %s for addRandomVirtualSkillsToPilot", tostring(count))
-		return 0
+		return 0, {}
 	end
 
 	-- Get currently assigned skills (both real and virtual) to avoid duplicates
@@ -239,7 +239,7 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 
 	if #virtualCompatibleSkills == 0 then
 		logger.logWarn(SUBMODULE, "No virtual-compatible skills available")
-		return 0
+		return 0, {}
 	end
 
 	-- Select random skills
@@ -266,7 +266,8 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 	end
 
 	-- Add all selected skills at once
-	return self:addVirtualSkillsToPilot(pilot, selectedSkills)
+	local successCount = self:addVirtualSkillsToPilot(pilot, selectedSkills)
+	return successCount, selectedSkills
 end
 
 function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)

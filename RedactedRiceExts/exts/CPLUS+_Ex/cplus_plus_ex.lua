@@ -8,7 +8,7 @@ local path = GetParentPath(...)
 
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
-	ENABLED = true,  -- Disable/enable all debug logging
+	ENABLED = false,  -- Disable/enable all debug logging
 	TRIGGER_EVENTS = false,
 	CONFIG = false,
 	REGISTRY = false,
@@ -17,7 +17,8 @@ cplus_plus_ex.DEBUG = {
 	STATE_TRACKER = true,
 	TIME_TRAVELER = true,
 	HOOKS = false,
-	UI = false,
+	EXTRA_INFO_UI = false,
+	SKILLS_CONFIG_UI = false,
 }
 
 local logger = memhack.logger
@@ -89,6 +90,7 @@ cplus_plus_ex._subobjects.hooks = require(path.."scripts/hooks")
 cplus_plus_ex._subobjects.skill_state_tracker = require(path.."scripts/skill_state_tracker")
 cplus_plus_ex._subobjects.pilot_overrides = require(path.."scripts/pilot_overrides")
 cplus_plus_ex._subobjects.modify_pilot_skills_ui = require(path.."scripts/modify_pilot_skills_ui")
+cplus_plus_ex._subobjects.extra_info_ui = require(path.."scripts/extra_info_ui")
 
 -- Load base classes for custom skills
 cplus_plus_ex.baseClasses = {}
@@ -107,6 +109,7 @@ local hooks = cplus_plus_ex._subobjects.hooks
 local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
 local pilot_overrides = cplus_plus_ex._subobjects.pilot_overrides
 local modify_pilot_skills_ui = cplus_plus_ex._subobjects.modify_pilot_skills_ui
+local extra_info_ui = cplus_plus_ex._subobjects.extra_info_ui
 
 -- Initialize modules
 function cplus_plus_ex:initModules()
@@ -119,6 +122,7 @@ function cplus_plus_ex:initModules()
 	skill_selection:init()
 	time_traveler:init()
 	modify_pilot_skills_ui:init()
+	extra_info_ui:init()
 
 	-- Initialize pilot overrides after skill_state_tracker
 	pilot_overrides:init()
@@ -243,6 +247,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end
 end
 
+
 -- Orchestrates skill assignment and persistent data saving workflow
 function cplus_plus_ex:updateAndSaveSkills()
 	-- These are done here instead of delegating to lower level files because we have a specific order
@@ -264,6 +269,9 @@ function cplus_plus_ex:init()
 	-- Initialize base skill classes
 	self.baseClasses.SkillTrait:baseInit()
 	self.baseClasses.SkillActive:baseInit()
+
+	-- Initialize pilot tracking override (before any mods create pilots)
+	utils._initPilotTracking()
 
 	-- Add events
 	self:addEvents()
@@ -305,9 +313,18 @@ function cplus_plus_ex:addEvents()
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
-		logger.logDebug(TRIGGER_EVENTS, "onModsLoaded")
+		LOG("===== CPLUS+ onModsLoaded event fired (PLAIN LOG) =====")
+		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()
+
+		-- Populate pilot registry (one-time _G search, then fast lookups)
+		utils._populatePilotRegistry()
+
+		pilot_overrides:applyGetSkillInfoOverride()
+
+		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
+		LOG("===== CPLUS+ onModsLoaded processing complete (PLAIN LOG) =====")
 	end)
 
 	modApi.events.onGameExited:subscribe(function()

@@ -175,7 +175,7 @@ local function onGameClassInitialized(GameClass)
 	end
 
 	GameClass.GetStrategySelectedPawn = function(self)
-		local selected = self:GetMemhackObj():GetStrategySelectedPawn()
+		local selected = self:GetMemhackObj():getStrategySelectedPawn()
 		if selected >= 0 and selected <= 2 then
 			return selected
 		else
