@@ -142,43 +142,65 @@ function utils.normalizeSlotRestrictionToInt(slotRestriction)
 	return nil
 end
 
--- Shows an error popup to the user
--- TODO: There is a simpler way to do this in modAPI already
-function utils.showErrorPopup(message)
-	sdlext.showButtonDialog(
-		"CPLUS+ Ex Error",
-		message,
-		function() end,
-		{"OK"}
-	)
+-- Pilot registry to avoid expensive _G searches
+local pilotRegistry = {}
+local originalCreatePilot = nil
+
+-- Override CreatePilot to maintain our own registry
+function utils._initPilotTracking()
+	if originalCreatePilot then
+		logger.logDebug(SUBMODULE, "Pilot tracking already initialized")
+		return
+	end
+
+	originalCreatePilot = CreatePilot
+	function CreatePilot(data)
+		-- Call original function
+		originalCreatePilot(data)
+
+		-- Add to our registry for fast lookup
+		if data.Id and data.Id ~= "Placeholder_Pilot" and data.Id ~= "Pilot_Artificial" then
+			pilotRegistry[data.Id] = true
+			logger.logDebug(SUBMODULE, "Registered pilot: %s", data.Id)
+		end
+	end
+
+	logger.logInfo(SUBMODULE, "CreatePilot override applied for pilot tracking")
 end
 
-function utils.logAndShowErrorPopup(message)
-	logger.logError(SUBMODULE, message)
-	utils.showErrorPopup(message)
-end
-
--- TODO: Hijack AddPilot function? How does ModLoader override vanilla functions?
--- See if I can do that instead so I don't have to search _G which is costly and has
--- a noticible freeze
-
--- Helper function to get all pilots in the current squad
--- in the future add pilots in hanger here as well
-function utils.searchForAllPilotIds(includeAi, includePlaceholder)
-	local pilots = {}
+-- Populate registry with existing pilots (called after all mods load)
+function utils._populatePilotRegistry()
+	-- Search _G one time only to populate the registry
+	local count = 0
 	for k, v in pairs(_G) do
 		if type(v) == "table" and getmetatable(v) == Pilot then
-			-- if we don't include placeholder and we find it, skip it
-			if (not includePlaceholder) and k == "Placeholder_Pilot" then
-				--skip
-			-- same for AI
-			elseif (not includeAi) and k == "Pilot_Artificial" then
-				--skip
-			else
-				table.insert(pilots, k)
+			if k ~= "Placeholder_Pilot" and k ~= "Pilot_Artificial" then
+				pilotRegistry[k] = true
+				count = count + 1
 			end
 		end
 	end
+
+	logger.logInfo(SUBMODULE, "Pilot registry populated with %d pilots", count)
+end
+
+-- Fast pilot lookup using registry (no _G search)
+function utils.searchForAllPilotIds(includeAi, includePlaceholder)
+	local pilots = {}
+
+	-- Add from registry
+	for pilotId in pairs(pilotRegistry) do
+		table.insert(pilots, pilotId)
+	end
+
+	-- Add special pilots if requested
+	if includePlaceholder and _G["Placeholder_Pilot"] then
+		table.insert(pilots, "Placeholder_Pilot")
+	end
+	if includeAi and _G["Pilot_Artificial"] then
+		table.insert(pilots, "Pilot_Artificial")
+	end
+
 	return pilots
 end
 
