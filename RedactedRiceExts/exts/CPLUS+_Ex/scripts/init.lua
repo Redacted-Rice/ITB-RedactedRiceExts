@@ -8,12 +8,19 @@ local extension = {
 	requirements = {"easyEdit"}, -- ensures easy edit loads first if its enabled
 	dependencies = {
         modApiExt = "1.24",
-        redactedrice_memhack = "1.1.1",
+        redactedrice_memhack = "1.2.0",
     },
 	isExtension = true,
 }
 
 function extension:metadata()
+	-- Add config option to show pilot skill icons
+	modApi:addGenerationOption(
+		"showPilotSkillIcons",
+		"Show Pilot Skill Icons",
+		"Display icons next to pilot skill names in the hangar",
+		{ enabled = true }
+	)
 end
 
 function extension:init(options)
@@ -22,14 +29,6 @@ function extension:init(options)
 	-- Initialize main extension
 	require(path.."cplus_plus_ex")
 	cplus_plus_ex:init()
-
-	-- Add config option to show pilot skill icons
-	modApi:addGenerationOption(
-		"showPilotSkillIcons",
-		"Show Pilot Skill Icons",
-		"Display icons next to pilot skill names in the hangar",
-		{ enabled = true }
-	)
 end
 
 function extension:load(options, version)
