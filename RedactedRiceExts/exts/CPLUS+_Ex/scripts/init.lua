@@ -14,7 +14,6 @@ local extension = {
 }
 
 function extension:metadata()
-	-- Configuration handled through custom UI
 end
 
 function extension:init(options)
@@ -23,6 +22,14 @@ function extension:init(options)
 	-- Initialize main extension
 	require(path.."cplus_plus_ex")
 	cplus_plus_ex:init()
+
+	-- Add config option to show pilot skill icons
+	modApi:addGenerationOption(
+		"showPilotSkillIcons",
+		"Show Pilot Skill Icons",
+		"Display icons next to pilot skill names in the hangar",
+		{ enabled = true }
+	)
 end
 
 function extension:load(options, version)

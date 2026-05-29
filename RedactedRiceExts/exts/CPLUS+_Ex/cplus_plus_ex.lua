@@ -8,16 +8,16 @@ local path = GetParentPath(...)
 
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
-	ENABLED = false,  -- Disable/enable all debug logging
+	ENABLED = true,  -- Disable/enable all debug logging
 	TRIGGER_EVENTS = false,
 	CONFIG = false,
 	REGISTRY = false,
-	SELECTION = true,
+	SELECTION = false,
 	CONSTRAINTS = false,
-	STATE_TRACKER = true,
+	STATE_TRACKER = false,
 	TIME_TRAVELER = true,
 	HOOKS = false,
-	EXTRA_INFO_UI = false,
+	EXTRA_INFO_UI = true,
 	SKILLS_CONFIG_UI = false,
 }
 
@@ -280,6 +280,9 @@ function cplus_plus_ex:init()
 end
 
 function cplus_plus_ex:load(options)
+	-- Store options for runtime access
+	self.options = options or {}
+	
 	-- Load submodules that need loading
 	hooks:load()
 	time_traveler:load()
