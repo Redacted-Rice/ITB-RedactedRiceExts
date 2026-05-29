@@ -387,10 +387,11 @@ end
 -- Check if earned skill icons should be displayed (config option)
 function extra_info_ui:shouldShowEarnedSkillIcons()
 	-- Access the option from cplus_plus_ex.options
-	if cplus_plus_ex.options and cplus_plus_ex.options.showPilotSkillIcons then
-		return cplus_plus_ex.options.showPilotSkillIcons.enabled
+	local options = modApi:getModOptions("redactedrice_cplus_plus")
+	if options and options['showPilotSkillIcons'] then
+		return options['showPilotSkillIcons'].enabled 
 	end
-	return true  -- Default to true
+	return true
 end
 
 -- Create an icon widget for an earned skill
