@@ -264,7 +264,7 @@ function pilot_overrides:applyGetSkillInfoOverride()
 		local originalSkillInfo = original_GetSkillInfo(skill)
 
 		-- Check for virtual skills and append them automatically
-		local baseDesc = originalSkillInfo.desc
+		local baseDesc = GetText(originalSkillInfo.desc)
 		local dynamicDesc = pilot_overrides:buildVirtualSkillDescription(baseDesc, skill)
 
 		-- If description changed (virtual skills were added), return modified version
