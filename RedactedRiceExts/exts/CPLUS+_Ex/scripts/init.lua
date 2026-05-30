@@ -32,7 +32,24 @@ function extension:init(options)
 end
 
 function extension:load(options, version)
-	cplus_plus_ex:load(options)
+	-- For UI/display options, we want global settings and not per run
+	-- so read directly from modcontent.lua instead of using the passed 
+	-- options which come from GAME.modOptions
+	local globalOptions = nil
+	sdlext.config("modcontent.lua", function(obj)
+		if obj.modOptions and obj.modOptions.redactedrice_cplus_plus then
+			globalOptions = obj.modOptions.redactedrice_cplus_plus.options
+		end
+	end)
+	
+	cplus_plus_ex.config_options = {}
+	if globalOptions then
+		cplus_plus_ex.config_options.showPilotSkillIcons = globalOptions.showPilotSkillIcons.enabled
+	else
+		cplus_plus_ex.config_options.showPilotSkillIcons = true
+	end
+
+	cplus_plus_ex:load(options, version)
 end
 
 return extension

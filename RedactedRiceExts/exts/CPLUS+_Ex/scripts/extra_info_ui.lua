@@ -183,7 +183,7 @@ function extra_info_ui:addIcon(icon, title, description)
 		logger.logWarn(SUBMODULE, "addIcon: icon, title, and description are all required. Skipping.")
 		return
 	end
-	
+
 	table.insert(panelIconData, {
 		icon = icon,
 		title = title,
@@ -386,12 +386,7 @@ end
 
 -- Check if earned skill icons should be displayed (config option)
 function extra_info_ui:shouldShowEarnedSkillIcons()
-	-- Access the option from cplus_plus_ex.options
-	local options = modApi:getModOptions("redactedrice_cplus_plus")
-	if options and options['showPilotSkillIcons'] then
-		return options['showPilotSkillIcons'].enabled 
-	end
-	return true
+	return cplus_plus_ex.config_options.showPilotSkillIcons
 end
 
 -- Create an icon widget for an earned skill
@@ -449,12 +444,12 @@ function extra_info_ui:showEarnedSkillsIcons(back1X, back1Y, pilot, pilotId)
 	-- Get earned skill IDs from the skill object
 	local earnedIdx = cplus_plus_ex:getPilotEarnedSkillIndexes(pilot)
 	for _, idx in ipairs(earnedIdx) do
-		if idx > 0 and idx <= 2 then 
+		if idx > 0 and idx <= 2 then
 			table.insert(skills, pilot:getLvlUpSkill(idx):getIdStr())
 		end
 	end
 
-	local pilotSkill = pilot:getSkillStr() 
+	local pilotSkill = pilot:getSkillStr()
 	local baseYOffset = SKILL_ICON_CENTER_OFFSET_Y
 	if pilotSkill == nil or pilotSkill == "" then
 		baseYOffset = SKILL_ICON_CENTER_OFFSET_Y_NO_INNATE
