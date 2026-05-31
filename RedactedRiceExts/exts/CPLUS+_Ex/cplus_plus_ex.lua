@@ -245,6 +245,7 @@ function cplus_plus_ex:exposeAPI()
 
 	-- Wrapper for potentialTimeTravelers since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end
+	function cplus_plus_ex:registerTimeTravelerData(...) return time_traveler:registerTimeTravelerData(...) end
 end
 
 

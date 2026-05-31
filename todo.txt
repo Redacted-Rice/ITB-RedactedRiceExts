@@ -1,11 +1,10 @@
 ---------- Memhack ---------
 
-For 1.1.1 Release:
-1. Build new memhack DLL
-2. Ensure deallocation is working as expected
+For 1.2.0 Release
+Test
 
 
-1.2 Release:
+1.3 Release:
 1. Try reverse engineering more things and add to memhack if possible
 	a. mech innate upgrades
 	b. Deploy zone (probably point list pointer in mission)
@@ -18,7 +17,10 @@ Other potential stuff one day:
 
 ---------- CPLUS+ Ex ---------
 
-1.2 Release:
+For 1.2.0 Release
+Test
+
+1.3 Release:
 1. Test virtual skills more - close, reopen, time traveler, etc
 
 

@@ -24,6 +24,17 @@ time_traveler.lastSavedPersistentData = nil
 -- there will be just one
 time_traveler.potentialTimeTravelers = {}
 
+-- Persistent data registry for custom mod data
+-- Format: {
+--   [modId] = {
+--     [fieldName] = {
+--       save = function(pilotId) -> value,  -- Function to get value to save
+--       restore = function(pilotId, value),  -- Function to restore value
+--     }
+--   }
+-- }
+time_traveler.registeredFields = {}
+
 -- Local references to other submodules (set during init)
 local utils = nil
 local skill_selection = nil
@@ -33,6 +44,39 @@ function time_traveler:init()
 	utils = cplus_plus_ex._subobjects.utils
 	skill_selection = cplus_plus_ex._subobjects.skill_selection
 	return self
+end
+
+-- Register a field to persist across time travel
+-- modId: unique identifier for the mod (e.g., "pilots_plus")
+-- fieldName: name of the field to persist (e.g., "warbot_added_count")
+-- saveFn: function(pilotId) -> value to save
+-- restoreFn: function(pilotId, value) to restore the value
+function time_traveler:registerTimeTravelerData(modId, fieldName, saveFn, restoreFn)
+	if type(modId) ~= "string" or modId == "" then
+		logger.logError(SUBMODULE, "registerTimeTravelerData: modId must be a non-empty string")
+		return false
+	end
+	if type(fieldName) ~= "string" or fieldName == "" then
+		logger.logError(SUBMODULE, "registerTimeTravelerData: fieldName must be a non-empty string")
+		return false
+	end
+	if type(saveFn) ~= "function" then
+		logger.logError(SUBMODULE, "registerTimeTravelerData: saveFn must be a function")
+		return false
+	end
+	if type(restoreFn) ~= "function" then
+		logger.logError(SUBMODULE, "registerTimeTravelerData: restoreFn must be a function")
+		return false
+	end
+	if not self.registeredFields[modId] then
+		self.registeredFields[modId] = {}
+	end
+	
+	self.registeredFields[modId][fieldName] = {
+		save = saveFn,
+		restore = restoreFn,
+	}
+	return true
 end
 
 function time_traveler:load()
@@ -141,6 +185,35 @@ function time_traveler:_refreshLastSavedPersistentData()
 			time_traveler.lastSavedPersistentData[id].virtualSkills = virtualSkills
 			changed = true
 		end
+		
+		-- Save custom registered fields for this pilot
+		if not time_traveler.lastSavedPersistentData[id].customData then
+			time_traveler.lastSavedPersistentData[id].customData = {}
+		end
+		
+		for modId, fields in pairs(self.registeredFields) do
+			if not time_traveler.lastSavedPersistentData[id].customData[modId] then
+				time_traveler.lastSavedPersistentData[id].customData[modId] = {}
+			end
+			
+			for fieldName, fieldDef in pairs(fields) do
+				-- Call the save function to get the value
+				local success, value = pcall(fieldDef.save, id)
+				if success then
+					-- Check if value changed
+					local oldValue = time_traveler.lastSavedPersistentData[id].customData[modId][fieldName]
+					if oldValue ~= value then
+						time_traveler.lastSavedPersistentData[id].customData[modId][fieldName] = value
+						changed = true
+						logger.logDebug(SUBMODULE, "Saved custom field %s.%s for pilot %s: %s", 
+							modId, fieldName, id, tostring(value))
+					end
+				else
+					logger.logError(SUBMODULE, "Failed to save custom field %s.%s for pilot %s: %s",
+						modId, fieldName, id, value)
+				end
+			end
+		end
 	end
 	logger.logDebug(SUBMODULE, "Refreshed last saved persistent data: %s",
 			changed and "changed" or "unchanged")
@@ -244,6 +317,9 @@ function time_traveler:_scanForTimeTraveler()
 							logger.logDebug(SUBMODULE, "Ensuring virtual skills from time traveler are empty")
 							skill_selection:clearVirtualSkillsFromPilot(traveler)
 						end
+						
+						-- Restore custom registered data
+						self:_restoreCustomData(id, data)
 					end
 				end
 			end
@@ -282,9 +358,47 @@ function time_traveler:_getTimeTravelerFromMemory()
 						logger.logDebug(SUBMODULE, "Ensuring virtual skills from time traveler are empty")
 						skill_selection:clearVirtualSkillsFromPilot(pilot)
 					end
+					
+					-- Restore custom registered data
+					self:_restoreCustomData(pilotId, pilotData)
 				end
 			else
 				logger.logDebug(SUBMODULE, "No saved data for pilot %s - not a time traveler", pilotId)
+			end
+		end
+	end
+end
+
+-- Restore custom data for a time traveler
+-- timeTravelerId: the pilot ID of the time traveler
+-- data: the saved persistent data for this pilot
+function time_traveler:_restoreCustomData(timeTravelerId, data)
+	if not data.customData then
+		logger.logDebug(SUBMODULE, "No custom data to restore for pilot %s", timeTravelerId)
+		return
+	end
+	
+	logger.logInfo(SUBMODULE, "Restoring custom data for time traveler %s", timeTravelerId)
+	
+	for modId, modData in pairs(data.customData) do
+		local fields = self.registeredFields[modId]
+		if not fields then
+			logger.logWarn(SUBMODULE, "Mod %s is not registered, skipping restore of its data", modId)
+		else
+			for fieldName, savedValue in pairs(modData) do
+				local fieldDef = fields[fieldName]
+				if not fieldDef then
+					logger.logWarn(SUBMODULE, "Field %s.%s is not registered, skipping restore", modId, fieldName)
+				else
+					local success, err = pcall(fieldDef.restore, timeTravelerId, savedValue)
+					if success then
+						logger.logInfo(SUBMODULE, "Restored custom field %s.%s for time traveler %s: %s",
+							modId, fieldName, timeTravelerId, tostring(savedValue))
+					else
+						logger.logError(SUBMODULE, "Failed to restore custom field %s.%s for time traveler %s: %s",
+							modId, fieldName, timeTravelerId, err)
+					end
+				end
 			end
 		end
 	end
@@ -341,8 +455,11 @@ function time_traveler:getTimeTravelerVirtualSkills(pilotId)
 		return nil
 	end
 
+	-- Restore custom registered data
+	self:_restoreCustomData(pilotId, persistentData)
+
 	logger.logInfo(SUBMODULE, ">>> [VSKILL TRACK] Retrieved %d virtual skills for time traveler %s from persistent data: %s",
-		#persistentData.virtualSkills, pilotId, table.concat(persistentData.virtualSkills, ", "))
+			#persistentData.virtualSkills, pilotId, table.concat(persistentData.virtualSkills, ", "))
 
 	return persistentData.virtualSkills
 end
