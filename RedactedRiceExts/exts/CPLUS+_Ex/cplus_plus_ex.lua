@@ -209,6 +209,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
 	-- Virtual skill functions
 	function cplus_plus_ex:canBeVirtualSkill(...) return skill_selection:canBeVirtualSkill(...) end
+	function cplus_plus_ex:registerVirtualSkillSource(...) return skill_selection:registerVirtualSkillSource(...) end
 	function cplus_plus_ex:addVirtualSkillToPilot(...) return skill_selection:addVirtualSkillToPilot(...) end
 	function cplus_plus_ex:addVirtualSkillsToPilot(...) return skill_selection:addVirtualSkillsToPilot(...) end
 	function cplus_plus_ex:addRandomVirtualSkillsToPilot(...) return skill_selection:addRandomVirtualSkillsToPilot(...) end
