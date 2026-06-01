@@ -871,7 +871,8 @@ function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 
 	-- Build new array matching save data
 	local newObjects = {}
-	for _, skillId in ipairs(savedSkillIds) do
+	for _, skillData in ipairs(savedSkillIds) do
+		local skillId = skillData.id
 		-- Try to find an object with this skillId in currentObjects
 		local found = false
 		for i, obj in ipairs(currentObjects) do
@@ -931,7 +932,6 @@ function skill_state_tracker:_syncAllVirtualSkillObjects()
 		-- Only sync if this pilot has virtual skills in save data
 		if GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
 			self:_syncVirtualSkillObjects(pilot)
-			-- Trigger _combineBonuses to update bonuses with virtual skills
 			pilot:_combineBonuses()
 		end
 	end
@@ -959,7 +959,11 @@ function skill_state_tracker:getVirtualSkills(pilotId)
 	end
 
 	local skills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}
-	return skills
+	local skillIds = {}
+	for _, skillData in ipairs(skills) do
+		table.insert(skillIds, skillData.id)
+	end
+	return skillIds
 end
 
 -- Get total skill count for a pilot including virtual skills

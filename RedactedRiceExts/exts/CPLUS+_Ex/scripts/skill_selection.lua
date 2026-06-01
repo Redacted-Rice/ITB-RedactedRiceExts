@@ -12,6 +12,7 @@ local SUBMODULE = logger.register("CPLUS+", "SkillSelection", cplus_plus_ex.DEBU
 skill_selection.localRandomCount = nil  -- Track local random count for this session
 skill_selection.usedSkillsPerRun = {}   -- skillId -> true for per_run skills used this run
 skill_selection._pilotsAssignedThisRun = {}  -- pilotId -> true for pilots assigned this run
+skill_selection.virtualSkillSourceCallbacks = {}  -- sourceId -> onSkillInvalidatedCallback
 
 -- Local references to other submodules (set during init)
 local skill_constraints = nil
@@ -80,10 +81,31 @@ function skill_selection:canBeVirtualSkill(skillId)
 	return true
 end
 
+-- Register a virtual skill source with callbacks
+-- sourceId: unique identifier for the source (e.g., "warbot", "sgt_drake")
+-- callback: option callback function called when a virtual skill from this source becomes invalid
+--   - onSkillInvalidated(pilot, skillData, alreadyAssigned)
+--     the callback returns the same skillId to keep it, nil to remove it, or a different skillId to replace it.
+function skill_selection:registerVirtualSkillSource(sourceId, callback)
+	if type(sourceId) ~= "string" or sourceId == "" then
+		logger.logError(SUBMODULE, "registerVirtualSkillSource: sourceId must be a non-empty string")
+		return false
+	end
+	if type(callback) ~= "function" then
+		logger.logError(SUBMODULE, "registerVirtualSkillSource: callback must be a function")
+		return false
+	end
+
+	self.virtualSkillSourceCallbacks[sourceId] = callback
+	logger.logInfo(SUBMODULE, "Registered virtual skill source: %s", sourceId)
+	return true
+end
+
 -- Add a virtual skill to a pilot
 -- skillId: ID of the skill to add
+-- source: optional source identifier (defaults to "unspecified")
 -- Returns: true if successful, false if skill is invalid or there was an error
-function skill_selection:addVirtualSkillToPilot(pilot, skillId)
+function skill_selection:addVirtualSkillToPilot(pilot, skillId, source)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
 		logger.logError(SUBMODULE, "addVirtualSkillToPilot: expected Pilot struct, got %s", type(pilot))
 		return false
@@ -94,14 +116,15 @@ function skill_selection:addVirtualSkillToPilot(pilot, skillId)
 		return false
 	end
 
-	local successCount = self:addVirtualSkillsToPilot(pilot, {skillId})
+	local successCount = self:addVirtualSkillsToPilot(pilot, {skillId}, source)
 	return successCount == 1
 end
 
 -- Add multiple virtual skills to a pilot
 -- skillIds: array of skill IDs to add
+-- source: optional source identifier (defaults to "unspecified")
 -- Returns: number of skills successfully added
-function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
+function skill_selection:addVirtualSkillsToPilot(pilot, skillIds, source)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
 		logger.logError(SUBMODULE, "addVirtualSkillsToPilot: expected Pilot struct, got %s", type(pilot))
 		return 0
@@ -110,6 +133,9 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 	if not skillIds or #skillIds == 0 then
 		logger.logWarn(SUBMODULE, "No skill IDs provided to addVirtualSkillsToPilot")
 		return 0
+	end
+	if source == nil then
+		source = "unspecified"
 	end
 
 	self:_initGameSaveData()
@@ -131,22 +157,16 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 			if not skill then
 				logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
 			else
-				-- Add the skill ID to save data
-				-- The tracker will handle creating/syncing the actual objects
-				logger.logDebug(SUBMODULE, "Before insert - pilotId: %s, skillId: %s, current skills: %s",
-						pilotId, skillId, table.concat(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], ", "))
+				-- Store as object with metadata
+				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], {
+						id = skillId,
+						source = source,
+				})
 
-				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+				logger.logDebug(SUBMODULE, "Added virtual skill %s (source: %s) to pilot %s at slot %d",
+						skillId, source, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 
-				logger.logDebug(SUBMODULE, "After insert - pilotId: %s, new skills: %s",
-						pilotId, table.concat(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], ", "))
-
-				-- Mark per_run skills as used
 				self:_markPerRunSkillAsUsed(skillId)
-
-				logger.logInfo(SUBMODULE, "Added virtual skill %s to pilot %s (slot %d)",
-					skillId, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
-
 				successCount = successCount + 1
 			end
 		end
@@ -160,17 +180,22 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds)
 	return successCount
 end
 
--- Apply virtual skill IDs to a pilot (replaces existing virtual skills)
+-- Apply virtual skills to a pilot (replaces existing virtual skills in GAME)
 -- This is for loading from save data (like time travelers) - replaces instead of appending
 -- Use this instead of addVirtualSkillsToPilot when loading skills that should replace existing ones
-function skill_selection:applyVirtualSkillIdsToPilot(pilot, skillIds)
+-- virtualSkills: array of skillIds or skillData struts { id = string, source = string } (Can be mixed)
+-- defaultSource: used when an entry omits source (defaults to "unspecified")
+function skill_selection:applyVirtualSkillIdsToPilot(pilot, virtualSkills, defaultSource)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
 		logger.logError(SUBMODULE, "applyVirtualSkillIdsToPilot: expected Pilot struct, got %s", type(pilot))
 		return false
 	end
 
-	if not skillIds then
-		skillIds = {}
+	if not virtualSkills then
+		virtualSkills = {}
+	end
+	if defaultSource == nil then
+		defaultSource = "unspecified"
 	end
 
 	self:_initGameSaveData()
@@ -179,24 +204,23 @@ function skill_selection:applyVirtualSkillIdsToPilot(pilot, skillIds)
 	-- Replace the entire virtual skills array (like applySkillIdsToPilot does for regular skills)
 	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
 
-	for _, skillId in ipairs(skillIds) do
-		-- Check if skill can be virtual
+	for _, skillEntry in ipairs(virtualSkills) do
+		local skillId = skillEntry.id and skillEntry.id or skillEntry
+		local entrySource = skillEntry.source or defaultSource
 		if not self:canBeVirtualSkill(skillId) then
 			logger.logWarn(SUBMODULE, "Skill %s cannot be used as virtual skill", skillId)
 		else
-			-- Validate skill exists and is enabled
 			local skill = skill_config_module.enabledSkills[skillId]
 			if not skill then
 				logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
 			else
-				-- Add the skill ID to the replaced array
-				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
-
-				-- Mark per_run skills as used
+				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], {
+					id = skillId,
+					source = entrySource,
+				})
 				self:_markPerRunSkillAsUsed(skillId)
-
-				logger.logInfo(SUBMODULE, "Applied virtual skill %s to pilot %s (slot %d)",
-					skillId, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+				logger.logInfo(SUBMODULE, "Applied virtual skill %s (source: %s) to pilot %s (slot %d)",
+						skillId, entrySource, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 			end
 		end
 	end
@@ -211,8 +235,9 @@ end
 
 -- Add random virtual skills to a pilot
 -- count: number of random skills to add
+-- source: optional source identifier (defaults to "unspecified")
 -- Returns: number of skills successfully added, array of selected skill IDs
-function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
+function skill_selection:addRandomVirtualSkillsToPilot(pilot, count, source)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
 		logger.logError(SUBMODULE, "addRandomVirtualSkillsToPilot: expected Pilot struct, got %s", type(pilot))
 		return 0, {}
@@ -222,21 +247,15 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 		logger.logWarn(SUBMODULE, "Invalid count %s for addRandomVirtualSkillsToPilot", tostring(count))
 		return 0, {}
 	end
+	if source == nil then
+		source = "unspecified"
+	end
 
 	-- Get currently assigned skills (both real and virtual) to avoid duplicates
 	local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
 	local assignedSkills = skill_state_tracker:getAllSkills(pilot)
 
-	-- Filter available skills to exclude non virtual skills
-	local availableSkills = self:_createAvailableSkills()
-	local virtualCompatibleSkills = {}
-
-	for _, skillId in ipairs(availableSkills) do
-		if self:canBeVirtualSkill(skillId) then
-			table.insert(virtualCompatibleSkills, skillId)
-		end
-	end
-
+	local virtualCompatibleSkills = self:_getVirtualCompatibleSkillPool()
 	if #virtualCompatibleSkills == 0 then
 		logger.logWarn(SUBMODULE, "No virtual-compatible skills available")
 		return 0, {}
@@ -258,15 +277,15 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count)
 		if skillId then
 			table.insert(selectedSkills, skillId)
 			table.insert(assignedSkills, skillId)
-			logger.logDebug(SUBMODULE, "Selected random virtual skill %s for pilot %s", skillId, pilotId)
+			logger.logDebug(SUBMODULE, "Selected random virtual skill %s for pilot %s (source: %s)", skillId, pilotId, source)
 		else
 			logger.logWarn(SUBMODULE, "Failed to find valid random virtual skill %d for pilot %s", i, pilotId)
 			break
 		end
 	end
 
-	-- Add all selected skills at once
-	local successCount = self:addVirtualSkillsToPilot(pilot, selectedSkills)
+	-- Add all selected skills at once with source
+	local successCount = self:addVirtualSkillsToPilot(pilot, selectedSkills, source)
 	return successCount, selectedSkills
 end
 
@@ -290,8 +309,8 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 		return false
 	end
 
-	for i, vSkillId in ipairs(virtualSkills) do
-		if vSkillId == skillId then
+	for i, skillData in ipairs(virtualSkills) do
+		if skillData.id == skillId then
 			-- Remove from save data
 			table.remove(virtualSkills, i)
 			logger.logInfo(SUBMODULE, "Removed virtual skill %s from pilot %s", skillId, pilotId)
@@ -387,6 +406,19 @@ function skill_selection:_createAvailableSkills()
 	return availableSkills
 end
 
+function skill_selection:_getVirtualCompatibleSkillPool()
+	local availableSkills = self:_createAvailableSkills()
+	local virtualCompatibleSkills = {}
+
+	for _, skillId in ipairs(availableSkills) do
+		if self:canBeVirtualSkill(skillId) then
+			table.insert(virtualCompatibleSkills, skillId)
+		end
+	end
+
+	return virtualCompatibleSkills
+end
+
 function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selectedSkills)
 	while true do
 		-- Get a weighted random skill from the available pool
@@ -398,7 +430,9 @@ function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selected
 		if skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId) then
 			-- If valid, add to the selected but do not remove yet
 			-- Allows for potential duplicates in the future
-			selectedSkills[idx] = candidateSkillId
+			if idx then
+				selectedSkills[idx] = candidateSkillId
+			end
 			return candidateSkillId
 		else
 			-- If the skill is invalid, remove it from the pool
@@ -415,8 +449,6 @@ end
 
 -- Selects random level up skills based on count and configured constraints
 -- Returns a array like table of skill IDs that satisfy the constraints
--- I pass count even though its currently only expected to be 2 just because I feel
--- like it could be interesting and possible to have pilots with more than two skills
 function skill_selection:selectRandomSkills(availableSkills, pilot, count)
 	if #skill_config_module.enabledSkillsIds == 0 then
 		logger.logError(SUBMODULE, "No enabled skills available")
@@ -598,15 +630,21 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 			-- Virtual skills are stored in GAME and not in the pilot object itself so we need to load
 			-- these from persistent memory instead of from the time traveler directly
-			local virtualSkills = time_traveler:getTimeTravelerVirtualSkills(pilotId)
+			local virtualSkills = time_traveler:refreshTimeTravlerDataAndGetVirtSkills(pilotId)
 			if virtualSkills then
 				self:_initGameSaveData()
 				GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
-				for _, skillId in ipairs(virtualSkills) do
-					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], skillId)
+				local loadedIds = {}
+				for _, skillEntry in ipairs(virtualSkills) do
+					-- Insert a copy
+					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], {
+						id = skillEntry.id,
+						source = skillEntry.source,
+					})
+					table.insert(loadedIds, skillEntry.id)
 				end
-				logger.logInfo(SUBMODULE, ">>> [VSKILL TRACK] Populated GAME state with %d virtual skills for time traveler %s: %s",
-					#virtualSkills, pilotId, table.concat(virtualSkills, ", "))
+				logger.logInfo(SUBMODULE, "Populated GAME state with %d virtual skills for time traveler %s: %s",
+					#loadedIds, pilotId, table.concat(loadedIds, ", "))
 			end
 		end
 	end
@@ -639,10 +677,6 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		end
 		-- Convert to table format so we can associat saveVals and update in game state
 		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-
-		-- Track newly assigned skills for per_run constraints
-		self:_markPerRunSkillAsUsed(skillIds[1])
-		self:_markPerRunSkillAsUsed(skillIds[2])
 
 		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
 	end
@@ -730,19 +764,12 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
 	end
 
-	-- After applying regular skills, apply stored virtual skills from GAME state
-	local storedVirtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
-	if storedVirtualSkills and #storedVirtualSkills > 0 then
-		logger.logInfo(SUBMODULE, "Applying %d stored virtual skills to pilot %s from GAME state",
-			#storedVirtualSkills, pilotId)
-		self:applyVirtualSkillIdsToPilot(pilot, storedVirtualSkills)
-	else
-		logger.logDebug(SUBMODULE, "No stored virtual skills to apply for pilot %s", pilotId)
-	end
+	-- Commit final level-up skills (including any rerolled during validation above)
+	self:_markPerRunSkillAsUsed(skill1Id)
+	self:_markPerRunSkillAsUsed(skill2Id)
 
-	-- After applying regular skills and virtual skills, validate and sync virtual skills if any exist
+	-- Validate virtual skills in GAME, sync runtime objects
 	self:_validateAndSyncVirtualSkills(pilot)
-
 	return true
 end
 
@@ -776,30 +803,8 @@ function skill_selection:applySkillsToAllPilots()
 		hooks.firePreAssigningLvlUpSkillsHooks()
 	end
 
-	-- Reset per_run tracking and rebuild it from all pilots with stored skills
-	-- We need to check all pilots because per_run tracking is global
-	skill_selection.usedSkillsPerRun = {}
-	for idx, pilot in pairs(pilots) do
-		local pilotId = pilot:getIdStr()
-		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
-
-		if storedSkills ~= nil then
-			-- This pilot has assigned skills, mark them as used for per_run tracking
-			for _, skillData in ipairs(storedSkills) do
-				self:_markPerRunSkillAsUsed(skillData.id)
-			end
-		else
-			logger.logWarn(SUBMODULE, "Stored skills for pilot ".. idx .. " are nil in applySkillsToAllPilots - skipping")
-		end
-
-		-- Also mark virtual skills as used for per_run tracking
-		local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
-		if virtualSkills then
-			for _, skillId in ipairs(virtualSkills) do
-				self:_markPerRunSkillAsUsed(skillId)
-			end
-		end
-	end
+	-- Rebuild global per_run tracking from all pilots already in GAME (never unmark on skill removal)
+	self:_rebuildUsedSkillsPerRunFromGameState(pilots)
 
 	-- Assign skills to any new pilots which will include validating already
 	-- selected skills against contraints and choosing new ones if they
@@ -887,7 +892,7 @@ end
 
 -- Validate and sync virtual skills for a pilot
 -- Validates each virtual skill against constraints and removes invalid ones
--- Does NOT replace them - pilots may want to handle their own virtual skill logic
+-- Invalid ones can be specially handled with a registered callback or will be re-rolled otherwise
 function skill_selection:_validateAndSyncVirtualSkills(pilot)
 	self:_initGameSaveData()
 	local pilotId = pilot:getIdStr()
@@ -908,47 +913,105 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 		end
 	end
 
-	-- Validate each virtual skill and remove invalid ones
-	-- Start with the real skills
+	-- Validate each virtual skill and handle invalid ones
+	-- Start with the real skills for constraint checking
 	local constraintCheckSkills = {}
 	for _, realSkillId in ipairs(realSkills) do
 		table.insert(constraintCheckSkills, realSkillId)
 	end
 
-	local needsUpdate = false
-	for i = #virtualSkills, 1, -1 do -- Iterate backwards so we can remove invalid skills
-		local skillId = virtualSkills[i]
+	-- Rebuild the list as we go to ensure no gaps in slot ids
+	local newVirtualSkills = {}
+	for _, skillData in ipairs(virtualSkills) do
+		local skillId = skillData.id
+		local source = skillData.source or "unspecified"
+		local skillSlot = #constraintCheckSkills + 1
 		local skill = skill_config_module.enabledSkills[skillId]
 
-		-- Check if skill can be virtual
+		local isInvalid = false
 		if not self:canBeVirtualSkill(skillId) then
-			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s cannot be virtual, removing", skillId, i, pilotId)
-			table.remove(virtualSkills, i)
-			needsUpdate = true
-		-- Check if skill is still enabled
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s cannot be virtual, removing", skillId, skillSlot, pilotId)
+			isInvalid = true
 		elseif not skill then
-			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s is disabled, removing", skillId, i, pilotId)
-			table.remove(virtualSkills, i)
-			needsUpdate = true
-		-- Check if skill violates constraints
-		else
-			if not skill_constraints:checkSkillConstraints(pilot, constraintCheckSkills, skillId) then
-				logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, i, pilotId)
-				table.remove(virtualSkills, i)
-				needsUpdate = true
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s is disabled, removing", skillId, skillSlot, pilotId)
+			isInvalid = true
+		elseif not skill_constraints:checkSkillConstraints(pilot, constraintCheckSkills, skillId) then
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, skillSlot, pilotId)
+			isInvalid = true
+		end
+
+		local newSkillId = skillId
+		if isInvalid then
+			local callback = self.virtualSkillSourceCallbacks[sourceId]
+			if not callback then
+				local potentialSkills = self:_getVirtualCompatibleSkillPool()
+				local rerolledSkillId = self:selectRandomSkill(potentialSkills, pilot, nil, constraintCheckSkills)
+				if rerolledSkillId then
+					newSkillId = rerolledSkillId
+					logger.logInfo(SUBMODULE, "Rerolled virtual skill %s -> %s for pilot %s", skillId, newSkillId, pilotId)
+				else
+					newSkillId = nil
+					logger.logWarn(SUBMODULE, "Failed to reroll invalid skill %s for pilot %s, removing", skillId, pilotId)
+				end
 			else
-				-- Skill is valid, add it to the list for next iteration
-				table.insert(constraintCheckSkills, skillId)
+				local success, result = pcall(callback, pilot, skillData, constraintCheckSkills)
+				if not success then
+					newSkillId = nil
+					logger.logError(SUBMODULE, "Error in onSkillInvalidated for source %s: %s", source, result)
+				elseif result == nil then
+					newSkillId = nil
+					logger.logDebug(SUBMODULE, "Removing invalid virtual skill %s for pilot %s (source: %s) because callback returned nil", skillId, pilotId, source)
+				elseif result == skillId then
+					logger.logDebug(SUBMODULE, "Kept invalid virtual skill %s for pilot %s (source: %s)", skillId, pilotId, source)
+				else
+					newSkillId = result
+					logger.logDebug(SUBMODULE, "Adding virtual skill %s for pilot %s (source: %s)", result, pilotId, source)
+				end
 			end
+		end
+		if newSkillId then
+			table.insert(newVirtualSkills, { id = newSkillId, source = source })
+			table.insert(constraintCheckSkills, newSkillId)
+			self:_markPerRunSkillAsUsed(newSkillId)
 		end
 	end
 
-	-- Always make sure our virtual skills are synced even if it may be redundant
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = newVirtualSkills
+
+	-- Sync runtime objects to validated GAME entries
 	skill_state_tracker:_syncVirtualSkillObjects(pilot)
+	pilot:_combineBonuses()
 end
 
--- Marks a per_run skill as used for this run
--- Only per_run skills need global tracking - per_pilot is handled by constraint checking selectedSkills
+-- Rebuild global per_run used-skill tracking from GAME state for all pilots.
+-- Called at the start of batch assignment; does not unmark skills removed mid-run.
+function skill_selection:_rebuildUsedSkillsPerRunFromGameState(pilots)
+	self.usedSkillsPerRun = {}
+	for _, pilot in pairs(pilots) do
+		local pilotId = pilot:getIdStr()
+		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+		if storedSkills then
+			for _, skillData in ipairs(storedSkills) do
+				if skillData and skillData.id then
+					self:_markPerRunSkillAsUsed(skillData.id)
+				end
+			end
+		end
+		local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+		if virtualSkills then
+			for _, skillEntry in ipairs(virtualSkills) do
+				local skillId = skillEntry.id
+				if skillId then
+					self:_markPerRunSkillAsUsed(skillId)
+				end
+			end
+		end
+	end
+end
+
+-- Record a skill as assigned this run (per_run skills only).
+-- Call after a skill is applied to a pilot, not during pool selection.
+-- Never unmarks on removal - applySkillsToAllPilots rebuilds from GAME when selecitng new skills.
 function skill_selection:_markPerRunSkillAsUsed(skillId)
 	local skill = skill_config_module.enabledSkills[skillId]
 	if skill == nil then
@@ -956,14 +1019,12 @@ function skill_selection:_markPerRunSkillAsUsed(skillId)
 	end
 
 	if skill_config_module.config.skillConfigs[skillId].reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
-		-- Check if already marked
-		if skill_selection.usedSkillsPerRun[skillId] then
-			logger.logWarn(SUBMODULE, "per_run skill " .. skillId .. " already marked as used")
+		if self.usedSkillsPerRun[skillId] then
+			logger.logDebug(SUBMODULE, "per_run skill %s already committed this run", skillId)
+		else
+			self.usedSkillsPerRun[skillId] = true
+			logger.logDebug(SUBMODULE, "Committed per_run skill %s for this run", skillId)
 		end
-
-		-- Mark skill as used this run
-		skill_selection.usedSkillsPerRun[skillId] = true
-		logger.logDebug(SUBMODULE, "Marked per_run skill %s as used this run", skillId)
 	end
 	-- reusable and per_pilot skills don't need tracking
 end
