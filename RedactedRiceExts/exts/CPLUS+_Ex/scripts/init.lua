@@ -43,7 +43,7 @@ function extension:load(options, version)
 	end)
 	
 	cplus_plus_ex.config_options = {}
-	if globalOptions then
+	if globalOptions and globalOptions.showPilotSkillIcons then
 		cplus_plus_ex.config_options.showPilotSkillIcons = globalOptions.showPilotSkillIcons.enabled
 	else
 		cplus_plus_ex.config_options.showPilotSkillIcons = true
