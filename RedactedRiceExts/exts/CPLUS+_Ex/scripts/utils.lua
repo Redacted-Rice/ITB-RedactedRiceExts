@@ -230,4 +230,75 @@ function utils.isInclusionSkill(skillType)
 	return skillType == "inclusion"
 end
 
+utils.ADVANCED_PILOTS = {
+	"Pilot_Arrogant",
+	"Pilot_Caretaker",
+	"Pilot_Chemical",
+	"Pilot_Delusional",
+}
+
+utils.DEFAULT_PILOT_PORTRAIT_SCALE = 2
+local pilotPortraitCache = {}
+
+utils.unnamedPilotDisplayNames = {
+	Pilot_Rust = "Corp. Rust",
+	Pilot_Detritus = "Corp. Detritus",
+	Pilot_Pinnacle = "Corp. Pinnacle",
+	Pilot_Archive = "Corp. Archive",
+	Pilot_HornetMech = "Cyborg Hornet",
+	Pilot_ScarabMech = "Cyborg Scarab",
+	Pilot_BeetleMech = "Cyborg Beetle",
+}
+
+function utils.getPilotDisplayName(pilotOrId)
+	if type(pilotOrId) == "table" and getmetatable(pilotOrId) == memhack.structs.Pilot then
+		local nameKey = pilotOrId:getName():get()
+		return GetText(nameKey) or nameKey or pilotOrId:getIdStr()
+	end
+
+	local pilotId = pilotOrId
+	local pilotDef = _G[pilotId]
+	if not pilotDef then
+		return pilotId
+	end
+
+	if pilotDef.Name == "" then
+		return utils.unnamedPilotDisplayNames[pilotId] or pilotId
+	end
+
+	return GetText(pilotDef.Name) or pilotDef.Name or pilotId
+end
+
+function utils.getPilotPortraitPath(pilotId)
+	local pilotDef = _G[pilotId]
+	if not pilotDef then
+		return nil
+	end
+
+	local portrait = pilotDef.Portrait
+	if portrait and portrait ~= "" then
+		return "img/portraits/" .. portrait .. ".png"
+	end
+
+	local advanced = list_contains(ADVANCED_PILOTS, pilotId)
+	local prefix = advanced and "img/advanced/portraits/pilots/" or "img/portraits/pilots/"
+	return prefix .. pilotId .. ".png"
+end
+
+function utils.getPilotPortraitSurface(pilotOrId, scale)
+	scale = scale or DEFAULT_PILOT_PORTRAIT_SCALE
+	local pilotId = type(pilotOrId) == "string" and pilotOrId or pilotOrId:getIdStr()
+	local cacheKey = pilotId .. "@" .. tostring(scale)
+	if not pilotPortraitCache[cacheKey] then
+		local path = utils.getPilotPortraitPath(pilotId)
+		if path then
+			pilotPortraitCache[cacheKey] = sdlext.getSurface({
+				path = path,
+				scale = scale,
+			})
+		end
+	end
+	return pilotPortraitCache[cacheKey]
+end
+
 return utils

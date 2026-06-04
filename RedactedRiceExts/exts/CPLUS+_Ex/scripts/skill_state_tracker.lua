@@ -85,7 +85,7 @@ function skill_state_tracker:hasPilotEarnedSkillIndex(pilot, skillIndex)
 	return result
 end
 
-function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
+function skill_state_tracker:getPilotEarnedSkillIndexes(pilot, excludeSlotIndexes)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
 		logger.logError(SUBMODULE, "getPilotEarnedSkillIndexes: expected Pilot struct, got %s", type(pilot))
 		return {}
@@ -96,17 +96,44 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot)
 
 	-- Add earned real skills
 	for skillIndex = 1, pilotLevel do
-		table.insert(result, skillIndex)
+		if not excludeSlotIndexes or not excludeSlotIndexes[skillIndex] then
+			table.insert(result, skillIndex)
+		end
 	end
 
 	-- Add all virtual skills
 	local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
 	for virtIndex, _ in ipairs(virtualSkills) do
-		table.insert(result, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
+		if not excludeSlotIndexes or not excludeSlotIndexes[cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex] then
+			table.insert(result, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
+		end
 	end
 
 	return result
+end
+
+function skill_state_tracker:getPilotEarnedSkillIds(pilot, excludeSlotIndexes)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "getPilotEarnedSkillIds: expected Pilot struct, got %s", type(pilot))
+		return {}
+	end
+
+	local skillIds = {}
+	local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
+
+	for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
+		if skillIndex <= cplus_plus_ex.MAX_SKILL_SLOTS then
+			table.insert(skillIds, pilot:getLvlUpSkill(skillIndex):getIdStr())
+		else
+			local virtIndex = skillIndex - cplus_plus_ex.MAX_SKILL_SLOTS
+			local skillId = virtualSkills[virtIndex]
+			if skillId and skillId ~= "" then
+				table.insert(skillIds, skillId)
+			end
+		end
+	end
+	return skillIds
 end
 
 function skill_state_tracker:getPilotSkillIndices(skillId, pilot, checkEarned)
