@@ -347,6 +347,11 @@ function skill_selection:clearVirtualSkillsFromPilot(pilot)
 	return true
 end
 
+-- Clear in memory session to force a recalculation
+function skill_selection:_resetRandomSession()
+	skill_selection.localRandomCount = nil
+end
+
 -- Uses the stored seed and sequential access count to ensure deterministic random values
 -- The RNG is seeded once per session, then we fast forward to the saved count
 -- availableSkills - array like table of skill IDs to select from
