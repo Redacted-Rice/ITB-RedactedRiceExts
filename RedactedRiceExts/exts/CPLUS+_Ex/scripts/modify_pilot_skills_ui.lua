@@ -54,7 +54,6 @@ local SLOT_RESTRICTION_DESCRIPTIONS = {
 local SLOT_RESTRICTION_TOOLTIP = "Which skill slot this skill can appear in"
 local TOTAL_WEIGHT_HEADER = "%.1f"
 local TOTAL_PERCENT_HEADER = "%.1f%%"
-local ADVANCED_PILOTS = {"Pilot_Arrogant", "Pilot_Caretaker", "Pilot_Chemical", "Pilot_Delusional"}
 local SECRET_PILOTS = {"Pilot_Mantis","Pilot_Rock","Pilot_Zoltan"}
 
 local BOARDER_SIZE = 0
@@ -100,28 +99,6 @@ local function getCachedScaledSkillSurface(path)
 	return scaledSurfaceCache[path]
 end
 
--- Helper to get cached pilot portrait
-local function getCachedPilotPortrait(pilotId)
-	if not surfaceCache[pilotId] then
-		-- Get portrait
-		local portrait = _G[pilotId].Portrait
-		local path
-		if portrait == "" then
-			local advanced = list_contains(ADVANCED_PILOTS, pilotId)
-			local prefix = advanced and "img/advanced/portraits/pilots/" or "img/portraits/pilots/"
-			path = prefix .. pilotId .. ".png"
-		else
-			path = "img/portraits/" .. portrait .. ".png"
-		end
-
-		surfaceCache[pilotId] = sdlext.getSurface({
-			path = path,
-			scale = PILOT_PORTRAIT_SCALE
-		})
-	end
-	return surfaceCache[pilotId]
-end
-
 -- Helper to get cached squad icon with proper palette
 local function getCachedSquadIcon(squadId)
 	if not squadIconCache[squadId] then
@@ -163,16 +140,6 @@ end
 local DIALOG_WIDTH_PREFERRED_PCT = 0.85
 local DIALOG_HEIGHT_PREFERRED_PCT = 0.85
 local DIALOG_MAX_WIDTH_PX = 1400
-
-modify_pilot_skills_ui.unnamedPilotDisplayNames = {
-	Pilot_Rust = "Corp. Rust",
-	Pilot_Detritus = "Corp. Detritus",
-	Pilot_Pinnacle = "Corp. Pinnacle",
-	Pilot_Archive = "Corp. Archive",
-	Pilot_HornetMech = "Cyborg Hornet",
-	Pilot_ScarabMech = "Cyborg Scarab",
-	Pilot_BeetleMech = "Cyborg Beetle",
-}
 
 -- Helper to sort skill IDs by name
 function modify_pilot_skills_ui:getSortedIds(skillTable)
@@ -388,16 +355,7 @@ function modify_pilot_skills_ui:getPilotsData()
 	local pilotData = {}
 
 	for _, id in pairs(utils.searchForAllPilotIds()) do
-		pilotData[id] = GetText(_G[id].Name) or _G[id].Name or id
-		-- if the name is empty, we have a custom list of names to use
-		-- otherwise just fall back to id
-		if _G[id].Name == "" then
-			if modify_pilot_skills_ui.unnamedPilotDisplayNames[id] then
-				pilotData[id] = modify_pilot_skills_ui.unnamedPilotDisplayNames[id]
-			else
-				pilotData[id] = id
-			end
-		end
+		pilotData[id] = utils.getPilotDisplayName(id)
 	end
 
 	local ids = self:getSortedIds(pilotData)
@@ -442,7 +400,7 @@ function modify_pilot_skills_ui:getSkillsData()
 end
 
 function modify_pilot_skills_ui:getPilotPortrait(pilotId)
-	return getCachedPilotPortrait(pilotId)
+	return utils.getPilotPortraitSurface(pilotId, PILOT_PORTRAIT_SCALE)
 end
 
 -- Helper to close collapse section
