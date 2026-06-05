@@ -96,7 +96,7 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot, excludeSlotIndexe
 
 	-- Add earned real skills
 	for skillIndex = 1, pilotLevel do
-		if not excludeSlotIndexes or not excludeSlotIndexes[skillIndex] then
+		if not excludeSlotIndexes or not list_contains(excludeSlotIndexes, skillIndex) then
 			table.insert(result, skillIndex)
 		end
 	end
@@ -105,7 +105,7 @@ function skill_state_tracker:getPilotEarnedSkillIndexes(pilot, excludeSlotIndexe
 	local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
 	for virtIndex, _ in ipairs(virtualSkills) do
-		if not excludeSlotIndexes or not excludeSlotIndexes[cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex] then
+		if not excludeSlotIndexes or not list_contains(excludeSlotIndexes, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex) then
 			table.insert(result, cplus_plus_ex.MAX_SKILL_SLOTS + virtIndex)
 		end
 	end
@@ -122,7 +122,7 @@ function skill_state_tracker:getPilotEarnedSkillIds(pilot, excludeSlotIndexes)
 	local skillIds = {}
 	local virtualSkills = self:getVirtualSkills(pilot:getIdStr())
 
-	for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
+	for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot, excludeSlotIndexes)) do
 		if skillIndex <= cplus_plus_ex.MAX_SKILL_SLOTS then
 			table.insert(skillIds, pilot:getLvlUpSkill(skillIndex):getIdStr())
 		else
