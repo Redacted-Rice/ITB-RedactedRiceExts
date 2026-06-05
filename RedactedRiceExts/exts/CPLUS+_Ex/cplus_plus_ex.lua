@@ -233,6 +233,7 @@ function cplus_plus_ex:exposeAPI()
 
 	function cplus_plus_ex:getPilotsWithSkill(...) return skill_state_tracker:getPilotsWithSkill(...) end
 	function cplus_plus_ex:getPilotEarnedSkillIndexes(...) return skill_state_tracker:getPilotEarnedSkillIndexes(...) end
+	function cplus_plus_ex:getPilotEarnedSkillIds(...) return skill_state_tracker:getPilotEarnedSkillIds(...) end
 	function cplus_plus_ex:getPilotSkillIndices(...) return skill_state_tracker:getPilotSkillIndices(...) end
 	function cplus_plus_ex:hasPilotEarnedSkillIndex(...) return skill_state_tracker:hasPilotEarnedSkillIndex(...) end
 	function cplus_plus_ex:isSkillOnPilot(...) return skill_state_tracker:isSkillOnPilot(...) end
@@ -248,7 +249,6 @@ function cplus_plus_ex:exposeAPI()
 	-- Pilot display helpers
 	function cplus_plus_ex:getPilotDisplayName(...) return utils.getPilotDisplayName(...) end
 	function cplus_plus_ex:getPilotPortraitSurface(...) return utils.getPilotPortraitSurface(...) end
-	function cplus_plus_ex:getPilotEarnedSkillIds(...) return skill_state_tracker:getPilotEarnedSkillIds(...) end
 
 	-- Wrapper for potentialTimeTravelers since we can't do a ref as we reassign the ref each time we find the time traveler
 	function cplus_plus_ex:getPotentialTimeTravelers() return time_traveler.potentialTimeTravelers end

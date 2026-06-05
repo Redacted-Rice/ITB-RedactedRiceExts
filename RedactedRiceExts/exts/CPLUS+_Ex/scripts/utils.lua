@@ -280,13 +280,13 @@ function utils.getPilotPortraitPath(pilotId)
 		return "img/portraits/" .. portrait .. ".png"
 	end
 
-	local advanced = list_contains(ADVANCED_PILOTS, pilotId)
+	local advanced = list_contains(utils.ADVANCED_PILOTS, pilotId)
 	local prefix = advanced and "img/advanced/portraits/pilots/" or "img/portraits/pilots/"
 	return prefix .. pilotId .. ".png"
 end
 
 function utils.getPilotPortraitSurface(pilotOrId, scale)
-	scale = scale or DEFAULT_PILOT_PORTRAIT_SCALE
+	scale = scale or utils.DEFAULT_PILOT_PORTRAIT_SCALE
 	local pilotId = type(pilotOrId) == "string" and pilotOrId or pilotOrId:getIdStr()
 	local cacheKey = pilotId .. "@" .. tostring(scale)
 	if not pilotPortraitCache[cacheKey] then
