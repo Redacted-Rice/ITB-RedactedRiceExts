@@ -50,6 +50,122 @@ SkillEffectModifier.PHASE_QUEUED_FINAL_EFFECT = 6
 local registeredSkills = {}
 -- Global event subscriptions
 local globalEventSubscriptions = {}
+-- Existing isDeadly function
+local vanillaIsDeadly = nil
+
+local function isDuringWeaponBuild()
+	return modApiExt_internal.nestedCall_GetSkillEffect
+		or modApiExt_internal.nestedCall_GetFinalEffect
+		or modApiExt_internal.nestedCall_GetTargetArea
+		or modApiExt_internal.nestedCall_GetSecondTargetArea
+end
+
+local function getWeaponBuildPhase()
+	if modApiExt_internal.nestedCall_GetTargetArea then
+		return SkillEffectModifier.PHASE_TARGET_AREA
+	elseif modApiExt_internal.nestedCall_GetSecondTargetArea then
+		return SkillEffectModifier.PHASE_SECOND_TARGET_AREA
+	elseif modApiExt_internal.nestedCall_GetFinalEffect then
+		return SkillEffectModifier.PHASE_FINAL_EFFECT
+	end
+	return SkillEffectModifier.PHASE_SKILL_EFFECT
+end
+
+-- Global Pawn is often the hover target during GetSkillEffect; prefer the selected/strategy pawn.
+local function getAttackingPawn()
+	if Board then
+		local selected = Board:GetSelectedPawn()
+		if selected then
+			return selected
+		end
+	end
+	if Pawn and Pawn:IsSelected() then
+		return Pawn
+	end
+	return nil
+end
+
+local function copySpaceDamage(spaceDamage)
+	return SpaceDamage(spaceDamage.loc, spaceDamage.iDamage, spaceDamage.iPush or DIR_NONE)
+end
+
+local function buildSkillsForAffectedPawns(affectedPawns)
+	local skillsByPriority = {}
+	local priorities = {}
+
+	for _, skill in ipairs(registeredSkills) do
+		local skillApplies = false
+		for _, pawn in pairs(affectedPawns) do
+			local pilot = pawn:GetPilot()
+			if pilot and cplus_plus_ex:isSkillOnPilot(skill.id, pilot) then
+				skillApplies = true
+				break
+			end
+		end
+
+		if skillApplies then
+			if not skillsByPriority[skill.priority] then
+				skillsByPriority[skill.priority] = {}
+				table.insert(priorities, skill.priority)
+			end
+			table.insert(skillsByPriority[skill.priority], skill)
+		end
+	end
+
+	table.sort(priorities)
+	return skillsByPriority, priorities
+end
+
+local function applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skillsByPriority, priorities)
+	for _, priority in ipairs(priorities) do
+		for _, skill in ipairs(skillsByPriority[priority]) do
+			-- Check attacker
+			local attackingPilot = attackingPawn:GetPilot()
+			if attackingPilot and cplus_plus_ex:isSkillOnPilot(skill.id, attackingPilot) then
+				local attackerIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, attackingPilot)
+				local currentTargetPawn = SkillEffectModifier:getPawnAt(spaceDamage.loc)
+
+				skill:modifySpaceDamage(SkillEffectModifier.SOURCE_ATTACKER,
+						attackingPawn, phase, spaceDamage, attackerIndexes,
+						currentTargetPawn)
+			end
+
+			-- Check target
+			local currentTargetPawn = SkillEffectModifier:getPawnAt(spaceDamage.loc)
+			if currentTargetPawn then
+				local targetPilot = currentTargetPawn:GetPilot()
+				if targetPilot and cplus_plus_ex:isSkillOnPilot(skill.id, targetPilot) then
+					local targetIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, targetPilot)
+
+					skill:modifySpaceDamage(SkillEffectModifier.SOURCE_TARGET,
+							attackingPawn, phase, spaceDamage, targetIndexes,
+							currentTargetPawn)
+				end
+			end
+		end
+	end
+end
+
+local function applyAttackerSkillsForDeadlyCheck(attackingPawn, spaceDamage, targetPawn, phase)
+	local affectedPawns = {}
+	affectedPawns[attackingPawn:GetId()] = attackingPawn
+	if targetPawn then
+		affectedPawns[targetPawn:GetId()] = targetPawn
+	end
+
+	local skillsByPriority, priorities = buildSkillsForAffectedPawns(affectedPawns)
+	if #priorities == 0 then
+		return
+	end
+
+	SkillEffectModifier.spacesWithPawns = {}
+	SkillEffectModifier.pawnPositions = {}
+	if targetPawn and spaceDamage.loc then
+		SkillEffectModifier.spacesWithPawns[getSpaceHash(spaceDamage.loc)] = targetPawn
+	end
+
+	applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skillsByPriority, priorities)
+end
 
 -- Convert Point to hash for tracking pawn positions
 -- spaceOrX: Point or x coordinate, y: optional y coordinate
@@ -197,7 +313,7 @@ local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriori
 	if #effectsTable == 0 then
 		return
 	end
-	
+
 	-- Reset position tracking
 	SkillEffectModifier.spacesWithPawns = {}
 	SkillEffectModifier.pawnPositions = {}
@@ -225,36 +341,8 @@ local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriori
 		else
 			-- Apply any pending moves before processing this damage
 			applyAndClearPendingMoves()
+			applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skillsByPriority, priorities)
 
-			-- Process this effect through all skills in priority order
-			for _, priority in ipairs(priorities) do
-				for _, skill in ipairs(skillsByPriority[priority]) do
-					-- Check attacker
-					local attackingPilot = attackingPawn:GetPilot()
-					if attackingPilot and cplus_plus_ex:isSkillOnPilot(skill.id, attackingPilot) then
-						local attackerIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, attackingPilot)
-						local currentTargetPawn = SkillEffectModifier:getPawnAt(spaceDamage.loc)
-
-						skill:modifySpaceDamage(SkillEffectModifier.SOURCE_ATTACKER, 
-								attackingPawn, phase, spaceDamage, attackerIndexes, 
-								currentTargetPawn)
-					end
-
-					-- Check target
-					local currentTargetPawn = SkillEffectModifier:getPawnAt(spaceDamage.loc)
-					if currentTargetPawn then
-						local targetPilot = currentTargetPawn:GetPilot()
-						if targetPilot and cplus_plus_ex:isSkillOnPilot(skill.id, targetPilot) then
-							local targetIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, targetPilot)
-
-							skill:modifySpaceDamage(SkillEffectModifier.SOURCE_TARGET,
-								attackingPawn, phase, spaceDamage, targetIndexes,
-								currentTargetPawn)
-						end
-					end
-				end
-			end
-			
 			-- See if its a push we need to account for
 			if spaceDamage.iPush ~= DIR_NONE and SkillEffectModifier:getPawnAt(
 					spaceDamage.loc + DIR_VECTORS[spaceDamage.iPush]) == nil then
@@ -331,36 +419,13 @@ local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsT
 		end
 	end
 
-	-- Build list of skills organized by priority for skills on affected pawns
-	local skillsByPriority = {}
-	local priorities = {}
-	for _, skill in ipairs(registeredSkills) do
-		local skillApplies = false
-
-		-- Check if skill is on any affected pawn
-		for pawnId, pawn in pairs(affectedPawns) do
-			local pilot = pawn:GetPilot()
-			if pilot and cplus_plus_ex:isSkillOnPilot(skill.id, pilot) then
-				skillApplies = true
-				break
-			end
-		end
-
-		if skillApplies then
-			if not skillsByPriority[skill.priority] then
-				skillsByPriority[skill.priority] = {}
-				table.insert(priorities, skill.priority)
-			end
-			table.insert(skillsByPriority[skill.priority], skill)
-		end
-	end
+	local skillsByPriority, priorities = buildSkillsForAffectedPawns(affectedPawns)
 
 	if #priorities == 0 then
 		logger.logDebug(SUBMODULE, "No skills apply to affected pawns (phase=%s)", tostring(phase))
 		return
 	end
 
-	table.sort(priorities)
 	logger.logDebug(SUBMODULE, "Processing %d applicable skills across %d priority levels (phase=%s)",
 			#registeredSkills, #priorities, tostring(phase))
 
@@ -407,7 +472,7 @@ local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsT
 		logger.logWarn(SUBMODULE, "Chaining effect limit reached (%d passes, phase=%s) with %d damages remaining",
 				maxPasses, tostring(phase), #damagesToProcess)
 		logger.logWarn(SUBMODULE, "  Attacker: pawn %d", attackingPawn:GetId())
-		
+
 		-- Log which skills were active
 		local activeSkills = {}
 		for _, priority in ipairs(priorities) do
@@ -446,5 +511,26 @@ function SkillEffectModifier.processAllSkills(attackingPawn, isFinalEffect, skil
 		end
 	end
 end
+
+local function onBoardClassInitialized(BoardClass, board)
+	vanillaIsDeadly = board.IsDeadly
+	BoardClass.IsDeadly = function(self, spaceDamage, targetPawn)
+		if not isDuringWeaponBuild() or not spaceDamage or not targetPawn then
+			return vanillaIsDeadly(self, spaceDamage, targetPawn)
+		end
+
+		local attackingPawn = getAttackingPawn()
+		if not attackingPawn then
+			return vanillaIsDeadly(self, spaceDamage, targetPawn)
+		end
+
+		-- Make a copy, apply the skills, and then use the vanilla version
+		local copy = copySpaceDamage(spaceDamage)
+		applyAttackerSkillsForDeadlyCheck(attackingPawn, copy, targetPawn, getWeaponBuildPhase())
+		return vanillaIsDeadly(self, copy, targetPawn)
+	end
+end
+
+modApi.events.onBoardClassInitialized:subscribe(onBoardClassInitialized)
 
 return SkillEffectModifier
