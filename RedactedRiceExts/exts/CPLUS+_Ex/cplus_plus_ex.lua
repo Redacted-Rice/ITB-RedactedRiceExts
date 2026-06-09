@@ -19,6 +19,7 @@ cplus_plus_ex.DEBUG = {
 	HOOKS = false,
 	EXTRA_INFO_UI = false,
 	SKILLS_CONFIG_UI = false,
+	OVERRIDES = false,
 }
 
 local logger = memhack.logger
