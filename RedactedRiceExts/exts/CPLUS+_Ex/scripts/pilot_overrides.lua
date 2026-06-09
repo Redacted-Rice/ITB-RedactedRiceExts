@@ -157,12 +157,18 @@ function pilot_overrides:_overrideCombineBonuses()
 			return
 		end
 
-		-- Get virtual skills
-		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
-
 		-- If no virtual skills, use original logic
+		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
 		if #virtualSkillObjs == 0 then
 			logger.logDebug(SUBMODULE, "No virtual skills for %s, using original combineBonuses", pilotId)
+			original_combineBonuses(self)
+			return
+		end
+
+		-- If we don't have any earned skills, combining doesn't do anything
+		local earned = skill_state_tracker:getPilotEarnedSkillIndexes(self)
+		if #earned == 0 then
+			logger.logDebug(SUBMODULE, "No earned skills for %s, cant combine the %d virtual skills!", pilotId, #virtualSkillObjs)
 			original_combineBonuses(self)
 			return
 		end
@@ -170,28 +176,21 @@ function pilot_overrides:_overrideCombineBonuses()
 		-- We have virtual skills - manually combine all skills
 		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", pilotId, #virtualSkillObjs)
 
-		local skill1 = self:getLvlUpSkill(1)
-		local skill2 = self:getLvlUpSkill(2)
-
-		if not skill1 or not skill2 then
-			logger.logWarn(SUBMODULE, "Missing real skills for pilot %s", pilotId)
-			return
+		-- Calculate total bonuses from all sources
+		local totalBonuses = {health = 0, cores = 0, grid = 0, move = 0}
+		-- Add real earned skills
+		for _, skillIndex in ipairs(earned) do
+			local skillObj = self:getLvlUpSkill(skillIndex)
+			local skillSet = memhack.stateTracker:getSkillSetValues(skillObj)
+			totalBonuses.health = totalBonuses.health + skillSet.healthBonus
+			totalBonuses.cores = totalBonuses.cores + skillSet.coresBonus
+			totalBonuses.grid = totalBonuses.grid + skillSet.gridBonus
+			totalBonuses.move = totalBonuses.move + skillSet.moveBonus
+			logger.logDebug(SUBMODULE, "  Added real earned skill %d: +%d health, +%d cores, +%d grid, +%d move",
+					skillIndex, skillSet.healthBonus, skillSet.coresBonus, skillSet.gridBonus, skillSet.moveBonus)
 		end
 
-		-- Get set values from state tracker (these are the "logical" values external code sees)
-		local skill1Set = memhack.stateTracker:getSkillSetValues(skill1)
-		local skill2Set = memhack.stateTracker:getSkillSetValues(skill2)
-
-		-- Calculate total bonuses from all sources
-		local totalBonuses = {
-			health = skill1Set.healthBonus + skill2Set.healthBonus,
-			cores = skill1Set.coresBonus + skill2Set.coresBonus,
-			grid = skill1Set.gridBonus + skill2Set.gridBonus,
-			move = skill1Set.moveBonus + skill2Set.moveBonus
-		}
-
-		-- Add virtual skill bonuses (only if they've been earned)
-		local pilotLevel = self:getLevel()
+		-- Add virtual skill bonuses if they are earned (currently they always wil be)
 		for virtualIdx, virtualSkill in ipairs(virtualSkillObjs) do
 			local virtualSlotNum = cplus_plus_ex.MAX_SKILL_SLOTS + virtualIdx
 
@@ -202,41 +201,27 @@ function pilot_overrides:_overrideCombineBonuses()
 				totalBonuses.cores = totalBonuses.cores + virtualSet.coresBonus
 				totalBonuses.grid = totalBonuses.grid + virtualSet.gridBonus
 				totalBonuses.move = totalBonuses.move + virtualSet.moveBonus
-
 				logger.logDebug(SUBMODULE, "  Added virtual skill %d: +%d health, +%d cores, +%d grid, +%d move",
-					virtualIdx, virtualSet.healthBonus, virtualSet.coresBonus, virtualSet.gridBonus, virtualSet.moveBonus)
+						virtualIdx, virtualSet.healthBonus, virtualSet.coresBonus, virtualSet.gridBonus, virtualSet.moveBonus)
 			end
 		end
 
-		-- Apply bonuses to memory based on pilot level and what's been earned
-		-- Health and move are always set to their set values (game handles stacking)
-		skill1:_setHealthBonus(skill1Set.healthBonus)
-		skill1:_setMoveBonus(skill1Set.moveBonus)
-		skill2:_setHealthBonus(skill2Set.healthBonus)
-		skill2:_setMoveBonus(skill2Set.moveBonus)
+		-- For simplicity, just always combine into the first since we already filtered out the second
+		-- skill if it hasn't been earned
+		skill1:_setHealthBonus(totalBonuses.health)
+		skill1:_setCoresBonus(totalBonuses.cores)
+		skill1:_setGridBonus(totalBonuses.grid)
+		skill1:_setMoveBonus(totalBonuses.move)
+		skill2:_setHealthBonus(0)
+		skill2:_setCoresBonus(0)
+		skill2:_setGridBonus(0)
+		skill2:_setMoveBonus(0)
 
-		-- Cores and grid: combine into skill1 only if level >= 2 AND skill 2 is earned
-		if pilotLevel >= 2 and skill_state_tracker:hasPilotEarnedSkillIndex(self, cplus_plus_ex.MAX_SKILL_SLOTS) then
-			-- Pilot has earned skill 2, combine all bonuses into skill 1
-			skill1:_setCoresBonus(totalBonuses.cores)
-			skill1:_setGridBonus(totalBonuses.grid)
-			skill2:_setCoresBonus(0)
-			skill2:_setGridBonus(0)
-
-			logger.logDebug(SUBMODULE, "Combined bonuses into skill1: +%d cores, +%d grid", totalBonuses.cores, totalBonuses.grid)
-		else
-			-- Level < 2 or skill 2 not earned yet: only apply skill 1's bonuses
-			skill1:_setCoresBonus(skill1Set.coresBonus)
-			skill1:_setGridBonus(skill1Set.gridBonus)
-			skill2:_setCoresBonus(skill2Set.coresBonus)
-			skill2:_setGridBonus(skill2Set.gridBonus)
-
-			logger.logDebug(SUBMODULE, "Not combining (level=%d, earned slot 2=%s)", pilotLevel,
-				tostring(skill_state_tracker:hasPilotEarnedSkillIndex(self, cplus_plus_ex.MAX_SKILL_SLOTS)))
-		end
+		logger.logDebug(SUBMODULE, "Combined bonuses into skill1: +%d health, +%d cores, +%d grid, +%d move",
+				totalBonuses.health, totalBonuses.cores, totalBonuses.grid, totalBonuses.move)
 	end
 
-	logger.logInfo(SUBMODULE, "Overridden Pilot:_combineBonuses to support virtual skills")
+	logger.logInfo(SUBMODULE, "Overrode Pilot:_combineBonuses to support virtual skills")
 end
 
 --- Override GetSkillInfo to automatically append virtual skills to pilot descriptions
