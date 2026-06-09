@@ -91,7 +91,7 @@ function skill_selection:registerVirtualSkillSource(sourceId, callback)
 		logger.logError(SUBMODULE, "registerVirtualSkillSource: sourceId must be a non-empty string")
 		return false
 	end
-	if type(callback) ~= "function" then
+	if callback and type(callback) ~= "function" then
 		logger.logError(SUBMODULE, "registerVirtualSkillSource: callback must be a function")
 		return false
 	end
@@ -942,7 +942,7 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 
 		local newSkillId = skillId
 		if isInvalid then
-			local callback = self.virtualSkillSourceCallbacks[sourceId]
+			local callback = self.virtualSkillSourceCallbacks[source]
 			if not callback then
 				local potentialSkills = self:_getVirtualCompatibleSkillPool()
 				local rerolledSkillId = self:selectRandomSkill(potentialSkills, pilot, nil, constraintCheckSkills)

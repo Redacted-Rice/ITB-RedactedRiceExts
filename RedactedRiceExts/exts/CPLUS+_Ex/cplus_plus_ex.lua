@@ -8,16 +8,16 @@ local path = GetParentPath(...)
 
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
-	ENABLED = true,  -- Disable/enable all debug logging
+	ENABLED = false,  -- Disable/enable all debug logging
 	TRIGGER_EVENTS = false,
 	CONFIG = false,
 	REGISTRY = false,
 	SELECTION = false,
 	CONSTRAINTS = false,
 	STATE_TRACKER = false,
-	TIME_TRAVELER = true,
+	TIME_TRAVELER = false,
 	HOOKS = false,
-	EXTRA_INFO_UI = true,
+	EXTRA_INFO_UI = false,
 	SKILLS_CONFIG_UI = false,
 }
 
@@ -312,13 +312,12 @@ function cplus_plus_ex:addEvents()
 	end)
 
 	modApi.events.onPerfectIslandWindowShown:subscribe(function()
-		logger.logDebug(TRIGGER_EVENTS, "onPodWindowShown")
+		logger.logDebug(TRIGGER_EVENTS, "onPerfectIslandWindowShown")
 		skill_selection:_selectSkillsForPerfectIslandPilot()
 	end)
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
-		LOG("===== CPLUS+ onModsLoaded event fired (PLAIN LOG) =====")
 		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()
@@ -329,7 +328,6 @@ function cplus_plus_ex:addEvents()
 		pilot_overrides:applyGetSkillInfoOverride()
 
 		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
-		LOG("===== CPLUS+ onModsLoaded processing complete (PLAIN LOG) =====")
 	end)
 
 	modApi.events.onGameExited:subscribe(function()
