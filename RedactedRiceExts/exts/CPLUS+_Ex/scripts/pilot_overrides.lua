@@ -3,7 +3,7 @@
 -- transparently through the standard memhack API
 
 local logger = memhack.logger
-local SUBMODULE = logger.register("CPLUS+", "Pilot Overrides", cplus_plus_ex.DEBUG.ENABLED)
+local SUBMODULE = logger.register("CPLUS+", "Pilot Overrides", cplus_plus_ex.DEBUG.STATE_TRACKER and cplus_plus_ex.DEBUG.ENABLED)
 
 local pilot_overrides = {}
 
@@ -158,60 +158,47 @@ function pilot_overrides:_overrideCombineBonuses()
 		end
 
 		-- If no virtual skills, use original logic
-		local virtualSkillObjs = skill_state_tracker:getVirtualSkillObjects(pilotId)
-		if #virtualSkillObjs == 0 then
+		local virtualCount = #skill_state_tracker:getVirtualSkillObjects(pilotId)
+		if virtualCount == 0 then
 			logger.logDebug(SUBMODULE, "No virtual skills for %s, using original combineBonuses", pilotId)
 			original_combineBonuses(self)
 			return
 		end
 
 		-- If we don't have any earned skills, combining doesn't do anything
-		local earned = skill_state_tracker:getPilotEarnedSkillIndexes(self)
-		if #earned == 0 then
-			logger.logDebug(SUBMODULE, "No earned skills for %s, cant combine the %d virtual skills!", pilotId, #virtualSkillObjs)
+		if self:getLevel() < 1 then
+			logger.logDebug(SUBMODULE, "No earned skills for %s, cant combine the %d virtual skills!", pilotId, virtualCount)
 			original_combineBonuses(self)
 			return
 		end
 
 		-- We have virtual skills - manually combine all skills
-		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", pilotId, #virtualSkillObjs)
+		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", pilotId, virtualCount)
 
 		-- Calculate total bonuses from all sources
 		local totalBonuses = {health = 0, cores = 0, grid = 0, move = 0}
-		-- Add real earned skills
-		for _, skillIndex in ipairs(earned) do
+		-- Add earned skills (real and virtual)
+		for _, skillIndex in ipairs(skill_state_tracker:getPilotEarnedSkillIndexes(self)) do
+			logger.logDebug(SUBMODULE, "  Accessing earned skill %d", skillIndex)
 			local skillObj = self:getLvlUpSkill(skillIndex)
 			local skillSet = memhack.stateTracker:getSkillSetValues(skillObj)
 			totalBonuses.health = totalBonuses.health + skillSet.healthBonus
 			totalBonuses.cores = totalBonuses.cores + skillSet.coresBonus
 			totalBonuses.grid = totalBonuses.grid + skillSet.gridBonus
 			totalBonuses.move = totalBonuses.move + skillSet.moveBonus
-			logger.logDebug(SUBMODULE, "  Added real earned skill %d: +%d health, +%d cores, +%d grid, +%d move",
+			logger.logDebug(SUBMODULE, "  Added earned skill %d: +%d health, +%d cores, +%d grid, +%d move",
 					skillIndex, skillSet.healthBonus, skillSet.coresBonus, skillSet.gridBonus, skillSet.moveBonus)
-		end
-
-		-- Add virtual skill bonuses if they are earned (currently they always wil be)
-		for virtualIdx, virtualSkill in ipairs(virtualSkillObjs) do
-			local virtualSlotNum = cplus_plus_ex.MAX_SKILL_SLOTS + virtualIdx
-
-			-- Check if this virtual skill has been earned
-			if skill_state_tracker:hasPilotEarnedSkillIndex(self, virtualSlotNum) then
-				local virtualSet = memhack.stateTracker:getSkillSetValues(virtualSkill)
-				totalBonuses.health = totalBonuses.health + virtualSet.healthBonus
-				totalBonuses.cores = totalBonuses.cores + virtualSet.coresBonus
-				totalBonuses.grid = totalBonuses.grid + virtualSet.gridBonus
-				totalBonuses.move = totalBonuses.move + virtualSet.moveBonus
-				logger.logDebug(SUBMODULE, "  Added virtual skill %d: +%d health, +%d cores, +%d grid, +%d move",
-						virtualIdx, virtualSet.healthBonus, virtualSet.coresBonus, virtualSet.gridBonus, virtualSet.moveBonus)
-			end
 		end
 
 		-- For simplicity, just always combine into the first since we already filtered out the second
 		-- skill if it hasn't been earned
+		local skill1 = self:getLvlUpSkill(1)
 		skill1:_setHealthBonus(totalBonuses.health)
 		skill1:_setCoresBonus(totalBonuses.cores)
 		skill1:_setGridBonus(totalBonuses.grid)
 		skill1:_setMoveBonus(totalBonuses.move)
+		
+		local skill2 = self:getLvlUpSkill(2)
 		skill2:_setHealthBonus(0)
 		skill2:_setCoresBonus(0)
 		skill2:_setGridBonus(0)
