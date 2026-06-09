@@ -11,9 +11,9 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.1.1
+Latest release: 1.2.0
 
-## 1.1.1
+## 1.2.0
 Released: XX/XX/2026
 
 compatible with:
@@ -24,6 +24,9 @@ compatible with:
 ### Notes
 * Adding in tracking/separation between set values for HP & Move like done for grid and core for skills to support virtual skills in CPLUS+
 * Caching of struct sizes to improve run time efficiency/reduce max callstack size
+* Added freeing allocated memory
+* Added functions for directly setting grid power
+* Added function to get the selected pawn in the strategy screen
 
 ## 1.1.0
 Released: 05/01/2026
