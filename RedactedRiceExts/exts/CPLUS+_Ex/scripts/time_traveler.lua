@@ -80,15 +80,13 @@ function time_traveler:registerTimeTravelerData(modId, fieldName, saveFn, restor
 end
 
 function time_traveler:load()
-	-- Temporary for testing memhack. Will remove later
+	--[[ Temporary for testing memhack. Will remove later
 	memhack.hooks:addPilotChangedHook(function(pilot)
 		logger.logDebug(SUBMODULE, "Hook: Pilot changed")
 	end)
 	memhack.hooks:addPilotLvlUpSkillChangedHook(function(pilot, skill)
 		logger.logDebug(SUBMODULE, "Hook: Pilot lvl up skill changed")
-	end)
-
-	logger.logDebug(SUBMODULE, "Initialized and subscribed to game hooks")
+	end)]]
 end
 
 -- Refresh cached squad pilot data

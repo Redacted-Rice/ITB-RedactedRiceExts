@@ -247,7 +247,6 @@ function pilot_overrides:applyGetSkillInfoOverride()
 	-- Check if we've already applied the override
 	if getSkillInfoOverrideApplied then
 		logger.logDebug(SUBMODULE, "GetSkillInfo override already applied, skipping")
-		LOG("GetSkillInfo override already applied, skipping (PLAIN LOG)")
 		return
 	end
 	logger.logInfo(SUBMODULE, "Overriding GetSkillInfo to automatically append virtual skills")
@@ -296,7 +295,7 @@ function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkil
 				if pilotSkill == pilotSkillId then
 					local pilotId = timeTravelerPilot:getIdStr()
 					local virtualSkills = skill_state_tracker:getVirtualSkills(pilotId)
-	
+
 					if virtualSkills and #virtualSkills > 0 then
 						-- Collect virtual skill names
 						local skillNames = {}
@@ -306,7 +305,7 @@ function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkil
 								table.insert(skillNames, GetText(skillData.fullName))
 							end
 						end
-	
+
 						-- Append to description
 						if #skillNames > 0 then
 							return baseDescription .. "\n" .. table.concat(skillNames, ", ")
