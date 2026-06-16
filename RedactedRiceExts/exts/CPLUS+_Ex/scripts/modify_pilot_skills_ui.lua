@@ -33,7 +33,6 @@ local groupAddSequence = 0 -- Counter to maintain group addition order
 local surfaceCache = {}
 local scaledSurfaceCache = {}
 local squadIconCache = {} -- Cache for squad icons at 2x scale
-local enabledSquadIds = {} -- Set of enabled squad IDs
 
 -- constants
 local SKILL_NAME_HEADER = "Skill Name"
@@ -178,7 +177,7 @@ function modify_pilot_skills_ui:isItemEnabled(itemId)
 	end
 
 	-- Check if it's a squad
-	if enabledSquadIds[itemId] then
+	if modApi.mod_squads_by_id[itemId] then
 		return true
 	end
 
@@ -365,11 +364,10 @@ end
 function modify_pilot_skills_ui:getSquadsData()
 	local squadData = {}
 
-	-- Only include enabled squads from cached enabledSquadIds set
 	local modSquadsCount = #modApi.mod_squads
 	for i = 1, modSquadsCount do
 		local squad = modApi.mod_squads[i]
-		if squad and squad.id and enabledSquadIds[squad.id] then
+		if squad and squad.id then
 			-- Get squad name from squad_text
 			local squadName = modApi.squad_text[(i - 1) * 2 + 1] or squad[1] or squad.id
 			squadData[squad.id] = squadName
@@ -2550,32 +2548,17 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 end
 
 function modify_pilot_skills_ui:buildMainContent(scroll)
-	-- Ensure squadIndices is initialized by loading squad selection if needed
-	if not modApi.squadIndices then
-		loadSquadSelection()
-	end
-
-	-- Build set of enabled squad IDs from squadIndices
-	enabledSquadIds = {}
-	-- squadIndices exists - use it to determine which squads are enabled
-	for i = 1, modApi.constants.MAX_SQUADS do
-		if modApi.squadIndices[i] then
-			local squadIndex = modApi.squadIndices[i]
-			local squad = modApi.mod_squads[squadIndex]
-			if squad and squad.id then
-				enabledSquadIds[squad.id] = true
-			end
-		end
-	end
-
-	-- Calculate max squad icon size based on enabled squad icons only
+	-- Calculate max squad icon size based on all registered squads
 	local maxSquadWidth = 0
 	local maxSquadHeight = 0
-	for squadId, _ in pairs(enabledSquadIds) do
-		local squadIcon = getCachedSquadIcon(squadId)
-		if squadIcon then
-			SquadWidth = math.max(maxSquadWidth, squadIcon:w())
-			SquadHeight = math.max(maxSquadHeight, squadIcon:h())
+	for i = 1, #modApi.mod_squads do
+		local squad = modApi.mod_squads[i]
+		if squad and squad.id then
+			local squadIcon = getCachedSquadIcon(squad.id)
+			if squadIcon then
+				SquadWidth = math.max(maxSquadWidth, squadIcon:w())
+				SquadHeight = math.max(maxSquadHeight, squadIcon:h())
+			end
 		end
 	end
 
@@ -2660,7 +2643,6 @@ function modify_pilot_skills_ui:onExit()
 	surfaceCache = {}
 	scaledSurfaceCache = {}
 	squadIconCache = {}
-	enabledSquadIds = {}
 end
 
 -- Creates the main modification dialog
