@@ -245,15 +245,43 @@ utils.unnamedPilotDisplayNames = {
 	Pilot_Detritus = "Corp. Detritus",
 	Pilot_Pinnacle = "Corp. Pinnacle",
 	Pilot_Archive = "Corp. Archive",
-	Pilot_HornetMech = "Cyborg Hornet",
-	Pilot_ScarabMech = "Cyborg Scarab",
-	Pilot_BeetleMech = "Cyborg Beetle",
 }
+
+-- Resolve display name for cyborg pilots without an explicit pilot Name field.
+-- Uses pawn.Name (e.g. "Entborg") or pawn localization key (e.g. BeetleMech -> "Techno-Beetle").
+function utils.getCyborgMechDisplayName(pilotId)
+	if not pilotId then
+		return pilotId
+	end
+
+	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	if pawn and pawn.Name and pawn.Name ~= "" then
+		return GetText(pawn.Name) or pawn.Name
+	end
+
+	local pawnName = pilotId:match("^Pilot_(.+)$")
+	if pawnName then
+		local mechName = GetText(pawnName)
+		if mechName and mechName ~= "" then
+			return mechName
+		end
+	end
+
+	return pilotId
+end
 
 function utils.getPilotDisplayName(pilotOrId)
 	if type(pilotOrId) == "table" and getmetatable(pilotOrId) == memhack.structs.Pilot then
 		local nameKey = pilotOrId:getName():get()
-		return GetText(nameKey) or nameKey or pilotOrId:getIdStr()
+		if nameKey and nameKey ~= "" then
+			return GetText(nameKey) or nameKey or pilotOrId:getIdStr()
+		end
+
+		local pilotId = pilotOrId:getIdStr()
+		if cplus_plus_ex.isCyborg(pilotId) then
+			return utils.getCyborgMechDisplayName(pilotId)
+		end
+		return pilotOrId:getIdStr()
 	end
 
 	local pilotId = pilotOrId
@@ -262,11 +290,15 @@ function utils.getPilotDisplayName(pilotOrId)
 		return pilotId
 	end
 
-	if pilotDef.Name == "" then
+	local pilotName = pilotDef.Name
+	if pilotName == nil or pilotName == "" then
+		if cplus_plus_ex.isCyborg(pilotId) then
+			return utils.getCyborgMechDisplayName(pilotId)
+		end
 		return utils.unnamedPilotDisplayNames[pilotId] or pilotId
 	end
 
-	return GetText(pilotDef.Name) or pilotDef.Name or pilotId
+	return GetText(pilotName) or pilotName or pilotId
 end
 
 function utils.getPilotPortraitPath(pilotId)
