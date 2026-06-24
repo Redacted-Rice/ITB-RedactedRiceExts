@@ -26,7 +26,7 @@ describe("Skill Selection Module", function()
 
 		it("should select the requested number of skills", function()
 			local pilot = helper.createMockPilot("TestPilot")
-			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
+			local availableSkills = plus_manager._subobjects.skill_selection:getAssignableSkillIds()
 			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(availableSkills, pilot, 2)
 
 			assert.is_not_nil(skills)
@@ -38,7 +38,7 @@ describe("Skill Selection Module", function()
 			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
-			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
+			local availableSkills = plus_manager._subobjects.skill_selection:getAssignableSkillIds()
 			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(availableSkills, pilot, 2)
 
 			assert.is_nil(skills)
@@ -63,7 +63,7 @@ describe("Skill Selection Module", function()
 			helper.rebuildRelationships()
 
 			local pilot = helper.createMockPilot("TestPilot")
-			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
+			local availableSkills = plus_manager._subobjects.skill_selection:getAssignableSkillIds()
 			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(availableSkills, pilot, 2)
 
 			assert.is_not_nil(skills)
@@ -83,7 +83,7 @@ describe("Skill Selection Module", function()
 			end)
 
 			local pilot = helper.createMockPilot("TestPilot")
-			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
+			local availableSkills = plus_manager._subobjects.skill_selection:getAssignableSkillIds()
 			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(availableSkills, pilot, 2)
 
 			assert.is_not_nil(skills)
@@ -111,7 +111,7 @@ describe("Skill Selection Module", function()
 
 		it("should use weighted selection when selecting multiple skills", function()
 			local pilot = helper.createMockPilot("TestPilot")
-			local availableSkills = plus_manager._subobjects.skill_selection:_createAvailableSkills()
+			local availableSkills = plus_manager._subobjects.skill_selection:getAssignableSkillIds()
 			local skills = plus_manager._subobjects.skill_selection:selectRandomSkills(availableSkills, pilot, 2)
 
 			assert.is_not_nil(skills)

@@ -182,6 +182,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:registerSkillExclusion(...) return skill_registry:registerSkillExclusion(...) end
 	function cplus_plus_ex:registerSkillToGroup(...) return skill_registry:registerSkillToGroup(...) end
 	function cplus_plus_ex:getRegisteredSkillInfo(...) return skill_registry:getRegisteredSkillInfo(...) end
+	function cplus_plus_ex:isInternalSkill(...) return skill_registry:isInternalSkill(...) end
 
 
 	-- Config
@@ -208,6 +209,7 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:applySkillsToAllPilots() return skill_selection:applySkillsToAllPilots() end
 	function cplus_plus_ex:selectRandomSkill(...) return skill_selection:selectRandomSkill(...) end
 	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
+	function cplus_plus_ex:getAssignableSkillIds(...) return skill_selection:getAssignableSkillIds(...) end
 	-- Virtual skill functions
 	function cplus_plus_ex:canBeVirtualSkill(...) return skill_selection:canBeVirtualSkill(...) end
 	function cplus_plus_ex:registerVirtualSkillSource(...) return skill_selection:registerVirtualSkillSource(...) end
@@ -358,21 +360,21 @@ function cplus_plus_ex:addEvents()
 	memhack.events.onPilotChanged:subscribe(function(pilot, changes)
 		logger.logDebug(TRIGGER_EVENTS, "onPilotChanged")
 		skill_state_tracker:_updateStatesIfNeeded(pilot, changes)
-	end)
+	end, memhack.hooks.INTERNAL_PRIORITY)
 
 	memhack.events.onPilotLvlUpSkillChanged:subscribe(function(pilot, skill, changes)
 		logger.logDebug(TRIGGER_EVENTS, "onPilotLvlUpSkillChanged")
 		skill_state_tracker:_updateAllStates()
-	end)
+	end, memhack.hooks.INTERNAL_PRIORITY)
 
 	-- Subscribe to our own events for skill state tracking as well
 	hooks.events.onPreAssigningLvlUpSkills:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onPreAssigningLvlUpSkills")
 		skill_state_tracker:_beginAssignment()
-	end)
+	end, hooks.INTERNAL_PRIORITY)
 
 	hooks.events.onPostAssigningLvlUpSkills:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onPostAssigningLvlUpSkills")
 		skill_state_tracker:_updateAfterAssignment()
-	end)
+	end, hooks.INTERNAL_PRIORITY)
 end

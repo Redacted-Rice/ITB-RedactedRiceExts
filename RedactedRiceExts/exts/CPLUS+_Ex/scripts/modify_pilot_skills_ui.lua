@@ -386,12 +386,14 @@ function modify_pilot_skills_ui:getSkillsData()
 	local inclusionSkills = {}
 
 	for skillId, skill in pairs(skill_registry.registeredSkills) do
-		local skillName = GetText(skill.shortName) or skill.shortName
-		skills[skillId] = skillName
-		if skill.skillType == "inclusion" then
-			inclusionSkills[skillId] = skillName
-		else
-			defaultSkills[skillId] = skillName
+		if not skill_registry:isInternalSkill(skill) then
+			local skillName = GetText(skill.shortName) or skill.shortName
+			skills[skillId] = skillName
+			if skill.skillType == "inclusion" then
+				inclusionSkills[skillId] = skillName
+			else
+				defaultSkills[skillId] = skillName
+			end
 		end
 	end
 
@@ -670,12 +672,14 @@ function modify_pilot_skills_ui:getSkillsByCategory()
 	local skillsByCategory = {}
 
 	for skillId, skill in pairs(skill_registry.registeredSkills) do
-		local category = skill.category or "Other"
+		if not skill_registry:isInternalSkill(skill) then
+			local category = skill.category or "Other"
 
-		if not skillsByCategory[category] then
-			skillsByCategory[category] = {}
+			if not skillsByCategory[category] then
+				skillsByCategory[category] = {}
+			end
+			table.insert(skillsByCategory[category], skill)
 		end
-		table.insert(skillsByCategory[category], skill)
 	end
 
 	-- Sort skills within each category by short name
@@ -763,7 +767,7 @@ end
 function modify_pilot_skills_ui:getLargestIconWidth()
 	local maxWidth = 0
 	for skillId, skill in pairs(skill_registry.registeredSkills) do
-		if skill.icon and skill.icon ~= "" then
+		if not skill_registry:isInternalSkill(skill) and skill.icon and skill.icon ~= "" then
 			local surface = getCachedSurface(skill.icon)
 			if surface then
 				local scaledWidth = surface:w() * SKILL_ICON_SCALE + (SKILL_ICON_OUTLINE * 2 * SKILL_ICON_SCALE)
@@ -782,7 +786,9 @@ function modify_pilot_skills_ui:_determineColumnLengths()
 	local names = { SKILL_NAME_HEADER }
 
 	for skillId, skill in pairs(skill_registry.registeredSkills) do
-		table.insert(names, GetText(skill.shortName))
+		if not skill_registry:isInternalSkill(skill) then
+			table.insert(names, GetText(skill.shortName))
+		end
 	end
 
 	-- Get max icon width and add spacing
@@ -2290,7 +2296,7 @@ function modify_pilot_skills_ui:buildGroupAddSkill(parent, groupName)
 	local availableSkillsMap = {}
 
 	for skillId, skill in pairs(skill_registry.registeredSkills) do
-		if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
+		if not skill_registry:isInternalSkill(skill) and self:isItemEnabled(skillId) and not group.skillIds[skillId] then
 			availableSkillsMap[skillId] = {
 				name = GetText(skill.shortName) or skill.shortName,
 				tooltip = GetText(skill.description) or skill.description
@@ -2484,7 +2490,7 @@ function modify_pilot_skills_ui:updateGroupDropdowns()
 				local availableSkillsMap = {}
 
 				for skillId, skill in pairs(skill_registry.registeredSkills) do
-					if self:isItemEnabled(skillId) and not group.skillIds[skillId] then
+					if not skill_registry:isInternalSkill(skill) and self:isItemEnabled(skillId) and not group.skillIds[skillId] then
 						availableSkillsMap[skillId] = {
 							name = GetText(skill.shortName) or skill.shortName,
 							tooltip = GetText(skill.description) or skill.description

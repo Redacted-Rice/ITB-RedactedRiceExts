@@ -57,6 +57,8 @@ local hooks = {
 }
 
 -- Use shared utility functions from memhack.hooks
+hooks.DEFAULT_PRIORITY = memhack.hooks.DEFAULT_PRIORITY
+hooks.INTERNAL_PRIORITY = memhack.hooks.INTERNAL_PRIORITY
 hooks.addTo = memhack.hooks.addTo
 hooks.clearHooks = memhack.hooks.clearHooks
 hooks.handleFailure = memhack.hooks.handleFailure

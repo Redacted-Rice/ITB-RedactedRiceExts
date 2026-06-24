@@ -3,7 +3,7 @@
 -- transparently through the standard memhack API
 
 local logger = memhack.logger
-local SUBMODULE = logger.register("CPLUS+", "Pilot Overrides", cplus_plus_ex.DEBUG.STATE_TRACKER and cplus_plus_ex.DEBUG.ENABLED)
+local SUBMODULE = logger.register("CPLUS+", "Pilot Overrides", cplus_plus_ex.DEBUG.OVERRIDES and cplus_plus_ex.DEBUG.ENABLED)
 
 local pilot_overrides = {}
 

@@ -181,6 +181,21 @@ function stateTracker:getSkillSetValues(skill)
 	}
 end
 
+-- Sync tracked set values from raw memory after a bulk skill replace (setLvlUpSkill).
+-- Bulk .set() uses _noFire setters that write memory but leave stale entries in
+-- _skillSetValues keyed by skill address, so _combineBonuses would re-apply old bonuses.
+function stateTracker:syncSkillSetValuesFromMemory(skill)
+	if not skill then
+		return
+	end
+	local structManager = memhack.structManager
+	for _, field in ipairs({"healthBonus", "coresBonus", "gridBonus", "moveBonus"}) do
+		local rawGetter = structManager:makeStdGetterName(field, true)
+		local memoryValue = skill[rawGetter](skill)
+		self:setSkillSetValue(skill, field, memoryValue)
+	end
+end
+
 -- Cleanup stale skill set value trackers
 -- Called by hooks system when pilots/skills are removed
 function stateTracker:cleanupStaleSkillSetValues(activeSkills)
@@ -226,24 +241,21 @@ function stateTracker:checkForPilotAndLvlUpSkillChanges()
 	for _, pilot in ipairs(pilots) do
 		local pilotAddr = pilot:getAddress()
 
-		-- First check for skill changes
-		self:checkForLvlUpSkillChanges(pilot)
-
-		-- Check pilot changes
+		-- Pilot level changes before skill changes so pilotChanged subscribers (e.g.
+		-- skill choice defer) can swap newly earned slots before skillActive runs.
 		local oldState = stateTracker._pilotTrackers[pilotAddr]
 		local newState = self:captureState(pilot, memhack.structs.Pilot.stateDefinition)
 
 		if oldState then
-			-- Compare states and fire hook if changed
 			local changes = self:compareStates(oldState, newState)
 			if next(changes) then
-				-- Call into hooks to fire
 				memhack._subobjects.hooks.firePilotChangedHooks(pilot, changes)
 			end
 		end
 
-		-- Update tracked state
 		stateTracker._pilotTrackers[pilotAddr] = newState
+
+		self:checkForLvlUpSkillChanges(pilot)
 	end
 end
 

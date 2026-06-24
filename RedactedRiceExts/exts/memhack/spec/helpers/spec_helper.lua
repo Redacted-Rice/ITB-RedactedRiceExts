@@ -128,18 +128,45 @@ function M.setupGlobals()
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
 
 	_G.Event = _G.Event or setmetatable({
-		buildErrorMessage = function(prefix, error, ...)
-			return prefix .. tostring(error)
+		buildErrorMessage = function(prefix, errorMsg, ...)
+			return prefix .. tostring(errorMsg)
 		end,
-		isStackOverflowError = function(error)
-			return type(error) == "string" and error:match("stack overflow")
+		isStackOverflowError = function(errorMsg)
+			return type(errorMsg) == "string" and errorMsg:match("stack overflow")
 		end
 	}, {
 		__call = function(self, config)
-			return {
-				dispatch = function() end,
-				subscribe = function() end
+			local event = {
+				subscribers = {},
+				subscribe = function(eventSelf, fn)
+					local sub = {
+						listenerFn = fn,
+						event = eventSelf,
+						isClosed = function()
+							return sub.event == nil
+						end,
+					}
+					table.insert(eventSelf.subscribers, sub)
+					return sub
+				end,
+				unsubscribe = function(eventSelf, subscription)
+					for i, sub in ipairs(eventSelf.subscribers) do
+						if sub == subscription or sub.listenerFn == subscription then
+							table.remove(eventSelf.subscribers, i)
+							sub.event = nil
+							return true
+						end
+					end
+					return false
+				end,
+				dispatch = function(eventSelf, ...)
+					local args = {...}
+					for _, sub in ipairs(eventSelf.subscribers) do
+						sub.listenerFn(unpack(args))
+					end
+				end,
 			}
+			return event
 		end
 	})
 	_G.Game = _G.Game or {}
