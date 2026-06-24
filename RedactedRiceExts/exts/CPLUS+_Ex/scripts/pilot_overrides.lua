@@ -206,9 +206,29 @@ function pilot_overrides:_overrideCombineBonuses()
 
 		logger.logDebug(SUBMODULE, "Combined bonuses into skill1: +%d health, +%d cores, +%d grid, +%d move",
 				totalBonuses.health, totalBonuses.cores, totalBonuses.grid, totalBonuses.move)
+
+		self:_syncPawnHealthBonus()
 	end
 
 	logger.logInfo(SUBMODULE, "Overrode Pilot:_combineBonuses to support virtual skills")
+end
+
+function pilot_overrides:_overrideGetExpectedHealthBonus()
+	local Pilot = memhack.structs.Pilot
+
+	Pilot._getExpectedHealthBonus = function(self)
+		local total = 0
+		for _, skillIndex in ipairs(skill_state_tracker:getPilotEarnedSkillIndexes(self)) do
+			local skillObj = self:getLvlUpSkill(skillIndex)
+			if skillObj then
+				local skillSet = memhack.stateTracker:getSkillSetValues(skillObj)
+				total = total + (skillSet.healthBonus or 0)
+			end
+		end
+		return total
+	end
+
+	logger.logInfo(SUBMODULE, "Overrode Pilot:_getExpectedHealthBonus for virtual skills")
 end
 
 --- Override GetSkillInfo to automatically append virtual skills to pilot descriptions
@@ -329,6 +349,7 @@ function pilot_overrides:init()
 	-- Apply critical overrides
 	self:_overrideGetLvlUpSkill()
 	self:_overrideSetLvlUpSkill()
+	self:_overrideGetExpectedHealthBonus()
 	self:_overrideCombineBonuses()
 
 	logger.logInfo(SUBMODULE, "Pilot overrides initialized successfully")

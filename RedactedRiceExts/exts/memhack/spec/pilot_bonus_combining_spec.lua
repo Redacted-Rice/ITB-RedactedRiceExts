@@ -252,4 +252,75 @@ describe("Pilot Bonus Combining", function()
 			assert.are.equal(0, mockSkill2._gridBonus)
 		end)
 	end)
+
+	describe("Pawn health sync", function()
+		local mockPawn
+
+		before_each(function()
+			mockPawn = {
+				_maxHealth = 10,
+				_health = 10,
+				_dead = false,
+				GetMaxHealth = function(self) return self._maxHealth end,
+				GetHealth = function(self) return self._health end,
+				SetMaxHealth = function(self, value) self._maxHealth = value end,
+				SetHealth = function(self, value) self._health = value end,
+				IsDead = function(self) return self._dead end,
+			}
+
+			for _, skill in ipairs({mockSkill1, mockSkill2}) do
+				skill._healthBonus = 0
+				skill._moveBonus = 0
+				skill._setHealthBonus = function(self, value) self._healthBonus = value end
+				skill._getHealthBonus = function(self) return self._healthBonus end
+				skill._setMoveBonus = function(self, value) self._moveBonus = value end
+				skill._getMoveBonus = function(self) return self._moveBonus end
+			end
+
+			mockPilot._address = 0x5000
+			mockPilot.getAddress = function(self) return self._address end
+			mockPilot.getIdStr = function(self) return "TestPilot" end
+			mockPilot.getPawnId = function(self) return 0 end
+			mockPilot.isPiloting = function(self) return true end
+			mockPilot._combineBonuses = Pilot._combineBonuses
+			mockPilot._getExpectedHealthBonus = Pilot._getExpectedHealthBonus
+			mockPilot._syncPawnHealthBonus = Pilot._syncPawnHealthBonus
+
+			_G.Game = {
+				GetPawn = function(pawnId)
+					if pawnId == 0 then return mockPawn end
+					return nil
+				end,
+			}
+
+			stateTracker._pawnHealthBonusSynced = {}
+		end)
+
+		after_each(function()
+			_G.Game = nil
+		end)
+
+		it("should add pawn HP when skill health bonus increases after combine", function()
+			mockPilot._level = 1
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "healthBonus", 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "healthBonus", 0)
+
+			mockPilot:_combineBonuses()
+
+			assert.are.equal(12, mockPawn._maxHealth)
+			assert.are.equal(12, mockPawn._health)
+		end)
+
+		it("should remove pawn HP when skill health bonus decreases after combine", function()
+			mockPilot._level = 1
+			memhack.stateTracker:setPawnHealthBonusSynced(mockPilot._address, 2)
+			memhack.stateTracker:setSkillSetValue(mockSkill1, "healthBonus", 0)
+			memhack.stateTracker:setSkillSetValue(mockSkill2, "healthBonus", 0)
+
+			mockPilot:_combineBonuses()
+
+			assert.are.equal(10, mockPawn._maxHealth)
+			assert.are.equal(10, mockPawn._health)
+		end)
+	end)
 end)
