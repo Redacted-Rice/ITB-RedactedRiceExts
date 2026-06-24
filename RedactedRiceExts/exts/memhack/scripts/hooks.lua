@@ -11,6 +11,10 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "Hooks", memhack.DEBUG.HOOKS and memhack.DEBUG.ENABLED)
 
 local hooks = {
+	-- Lower priority values run before higher values.
+	DEFAULT_PRIORITY = 100,
+	INTERNAL_PRIORITY = 0,
+
 	-- args:
 	--  Pilot
 	--  changes - map of fields and value changes. e.g. {field = {old = oldVal, new = newVal}}
@@ -49,8 +53,61 @@ function hooks:reload(debugId)
 		local addHook = "add"..eventId:match("on(.+)").."Hook"
 		self[addHook](self, function(...)
 			event:dispatch(...)
-		end)
+		end, hooks.INTERNAL_PRIORITY)
 	end
+end
+
+function hooks:resolveHookPriority(priority)
+	if priority ~= nil then
+		assert(type(priority) == "number", "Hook priority must be a number")
+		return priority
+	end
+	return self.DEFAULT_PRIORITY
+end
+
+function hooks:insertHookByPriority(hookList, entry)
+	for i = 1, #hookList + 1 do
+		if i > #hookList or entry.priority < hookList[i].priority then
+			table.insert(hookList, i, entry)
+			return
+		end
+	end
+end
+
+function hooks:sortEventSubscribers(event, subscriberPriorities)
+	table.sort(event.subscribers, function(a, b)
+		local priorityA = subscriberPriorities[a] or self.DEFAULT_PRIORITY
+		local priorityB = subscriberPriorities[b] or self.DEFAULT_PRIORITY
+		return priorityA < priorityB
+	end)
+end
+
+-- All hook events use priority-ordered subscribe; there is no plain/non-priority path.
+function hooks:installPriorityAwareSubscribe(event)
+	local subscriberPriorities = {}
+	local originalSubscribe = event.subscribe
+	local originalUnsubscribe = event.unsubscribe
+
+	event.subscribe = function(eventSelf, fn, priority)
+		local sub = originalSubscribe(eventSelf, fn)
+		subscriberPriorities[sub] = hooks:resolveHookPriority(priority)
+		hooks:sortEventSubscribers(eventSelf, subscriberPriorities)
+		return sub
+	end
+
+	event.unsubscribe = function(eventSelf, subscription)
+		local result = originalUnsubscribe(eventSelf, subscription)
+		if result and type(subscription) == "table" then
+			subscriberPriorities[subscription] = nil
+		end
+		return result
+	end
+end
+
+function hooks:createHookEvent(eventName)
+	local event = Event({ eventName = eventName })
+	self:installPriorityAwareSubscribe(event)
+	return event
 end
 
 -- Reusable: Add hook registration functions to a table
@@ -72,21 +129,22 @@ function hooks:addTo(owner, debugId)
 		local eventId = "on"..Name
 		local addHook = "add"..Name.."Hook"
 
-		events[eventId] = Event({ eventName = eventId })
+		events[eventId] = hooks:createHookEvent(eventId)
 
 		self[hookId] = {}
-		self[addHook] = function(hookSelf, fn)
+		self[addHook] = function(hookSelf, fn, priority)
 			assert(type(fn) == "function")
-			table.insert(hookSelf[hookId], {
+			local entry = {
 				fn = fn,
-				creator = debug.traceback("", 3)
-			})
+				creator = debug.traceback("", 3),
+				priority = hooks:resolveHookPriority(priority),
+			}
+			hooks:insertHookByPriority(hookSelf[hookId], entry)
 		end
 		-- Add the add hook function to the owner if provided
 		if owner then
-			owner[addHook] = function(ownerSelf, fn)
-				local result = self[addHook](self, fn)
-				return result
+			owner[addHook] = function(ownerSelf, fn, priority)
+				return self[addHook](self, fn, priority)
 			end
 			owner.events = events
 		end

@@ -104,17 +104,23 @@ function Pilot:_applyLevelChange(newLevel, previousLevel, previousXp, previousLe
 	self:_setLevel(newLevel)
 	self:_setLevelUpXp(newLevelUpXp)
 
-	-- Recombine bonuses based on new level
-	self:_combineBonuses()
-
-	-- Build changes table and fire hook
-	-- Hook fire function automatically updates state tracker to prevent double-fire
 	local changes = {
 		level = {old = previousLevel, new = newLevel},
 		xp = {old = previousXp, new = 0},
 		levelUpXp = {old = previousLevelUpXp, new = newLevelUpXp}
 	}
-	memhack.hooks.firePilotChangedHooks(self, changes)
+
+	if newLevel > previousLevel then
+		-- Level-up: pilotChanged before combine so subscribers can adjust earned slots
+		-- before bonuses combine and before skill-change detection runs.
+		memhack.hooks.firePilotChangedHooks(self, changes)
+	end
+
+	self:_combineBonuses()
+
+	if newLevel <= previousLevel then
+		memhack.hooks.firePilotChangedHooks(self, changes)
+	end
 end
 
 
@@ -236,6 +242,14 @@ function Pilot:setLvlUpSkill(index, structOrNewVals)
 	else
 		logger.logError(SUBMODULE, "Unexpected index %d. Should be 1 or 2", index)
 		return
+	end
+
+	-- Bulk skill replace uses _noFire setters; sync set-value tracker from memory
+	-- so _combineBonuses reflects the new skill instead of stale tracked bonuses.
+	local skill = self:getLvlUpSkill(index)
+	if skill then
+		memhack.stateTracker:syncSkillSetValuesFromMemory(skill)
+		self:_combineBonuses()
 	end
 end
 

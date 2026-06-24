@@ -82,6 +82,72 @@ describe("Hooks Module", function()
 		end)
 	end)
 
+	describe("hook priority", function()
+		local callLog
+		local fireFunc
+		local originalHooks
+
+		before_each(function()
+			callLog = {}
+			originalHooks = hooks.pilotChangedHooks
+			hooks.pilotChangedHooks = {}
+			fireFunc = hooks:buildBroadcastFunc("pilotChangedHooks", nil, nil, TEST_SUBMODULE)
+		end)
+
+		after_each(function()
+			if originalHooks then
+				hooks.pilotChangedHooks = originalHooks
+			end
+		end)
+
+		it("should run lower priority hooks before higher priority hooks", function()
+			hooks:addPilotChangedHook(function()
+				table.insert(callLog, "mod")
+			end, 100)
+
+			hooks:addPilotChangedHook(function()
+				table.insert(callLog, "early")
+			end, -100)
+
+			hooks:addPilotChangedHook(function()
+				table.insert(callLog, "internal")
+			end, hooks.INTERNAL_PRIORITY)
+
+			fireFunc()
+
+			assert.are.same({ "early", "internal", "mod" }, callLog)
+		end)
+
+		it("should default hook priority to 100", function()
+			hooks:addPilotChangedHook(function()
+				table.insert(callLog, "default")
+			end)
+
+			assert.are.equal(100, hooks.pilotChangedHooks[1].priority)
+		end)
+
+		it("should order event subscribers by priority", function()
+			local event = hooks:createHookEvent("TestPriorityEvent")
+			local eventLog = {}
+
+			event:subscribe(function()
+				table.insert(eventLog, "late")
+			end, 100)
+
+			event:subscribe(function()
+				table.insert(eventLog, "early")
+			end, -100)
+
+			event:subscribe(function()
+				table.insert(eventLog, "internal")
+			end, hooks.INTERNAL_PRIORITY)
+
+			event:dispatch()
+
+			assert.are.same({ "early", "internal", "late" }, eventLog)
+		end)
+	end)
+
 	describe("buildBroadcastFunc with parent prepending", function()
 		local callLog
 		local fireFunc

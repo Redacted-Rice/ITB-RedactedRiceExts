@@ -57,6 +57,8 @@ end
 --   SECOND (3) - can only appear in slot 2
 -- weight optional default weight for the skill
 -- icon optional path to 21x21 image to display in the skills config menu
+-- internalSkill optional when true, skill can be set via applySkillIdsToPilot but is
+--   omitted from UI and assignment/random pools
 -- constraints optional table defining relationships and constraints for this skill:
 --   groups - string or array of group names this skill belongs to
 --   skillExclusions - string or array of skill IDs that are mutually exclusive with this skill
@@ -84,6 +86,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		slotRestriction = idOrTable.slotRestriction
 		weight = idOrTable.weight
 		icon = idOrTable.icon
+		internalSkill = idOrTable.internalSkill
 		constraints = idOrTable.constraints
 	end
 
@@ -153,6 +156,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 			defaultReusability = defaultReusability,
 			reusabilityLimit = reusabilityLimit,
 			icon = icon,
+			internalSkill = internalSkill == true,
 	}
 
 	-- add a config value with default reusability
@@ -586,6 +590,14 @@ end
 
 function skill_registry:getRegisteredSkillInfo(skillId)
 	return self.registeredSkills[skillId]
+end
+
+function skill_registry:isInternalSkill(skillOrId)
+	local skill = skillOrId
+	if type(skillOrId) == "string" then
+		skill = self.registeredSkills[skillOrId]
+	end
+	return skill ~= nil and skill.internalSkill == true
 end
 
 return skill_registry

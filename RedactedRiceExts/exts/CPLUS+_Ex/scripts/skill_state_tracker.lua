@@ -16,6 +16,7 @@ local SUBMODULE = logger.register("CPLUS+", "StateTracker", cplus_plus_ex.DEBUG.
 
 local hooks = nil
 local utils = nil
+local skill_registry = nil
 
 -- State tracking tables
 function skill_state_tracker:_resetAllTrackers()
@@ -36,6 +37,7 @@ end
 function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
 	utils = cplus_plus_ex._subobjects.utils
+	skill_registry = cplus_plus_ex._subobjects.skill_registry
 
 	return self
 end
@@ -589,6 +591,8 @@ function skill_state_tracker:_updateActiveSkills()
 	-- Determine new active skills state (already in internal format)
 	local newActiveSkills = self:_determineActiveSkillsState()
 	local hooksToFire = {}
+	local pilotsToRecombine = {}
+	local skillsModified = false
 
 	-- Check for newly active skills
 	for skillId, newMechs in pairs(newActiveSkills) do
@@ -598,7 +602,18 @@ function skill_state_tracker:_updateActiveSkills()
 				-- Queue hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
-					table.insert(hooksToFire, {skillId = skillId, isActive = true, pawnId = pawnId, pilot = data.pilot, skillStruct = skillStruct})
+					if skill_registry:isInternalSkill(skillId) then
+						skillsModified = true
+						pilotsToRecombine[data.pilot] = true
+					else
+						table.insert(hooksToFire, {
+							skillId = skillId,
+							isActive = true,
+							pawnId = pawnId,
+							pilot = data.pilot,
+							skillStruct = skillStruct,
+						})
+					end
 				end
 			end
 		end
@@ -612,10 +627,23 @@ function skill_state_tracker:_updateActiveSkills()
 				-- Queue hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
-					table.insert(hooksToFire, {skillId = skillId, isActive = false, pawnId = pawnId, pilot = data.pilot, skillStruct = skillStruct})
+					table.insert(hooksToFire, {
+						skillId = skillId,
+						isActive = false,
+						pawnId = pawnId,
+						pilot = data.pilot,
+						skillStruct = skillStruct,
+					})
 				end
 			end
 		end
+	end
+
+	if skillsModified then
+		for pilot in pairs(pilotsToRecombine) do
+			pilot:_combineBonuses()
+		end
+		newActiveSkills = self:_determineActiveSkillsState()
 	end
 
 	-- Update state

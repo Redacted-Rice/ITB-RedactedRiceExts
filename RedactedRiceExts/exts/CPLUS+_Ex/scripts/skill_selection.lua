@@ -400,19 +400,20 @@ function skill_selection:_getWeightedRandomSkillId(availableSkills)
 	return availableSkills[#availableSkills]
 end
 
-function skill_selection:_createAvailableSkills()
-	-- Create a copy of all available skill IDs as an array. This will be our
-	-- base list and we will narrow it down as we go if we try to assign
-	-- an unallowed skill
+function skill_selection:getAssignableSkillIds()
+	-- Assignable skills only; internal skills can be set explicitly but never assigned randomly.
 	local availableSkills = {}
+	local skill_registry_module = cplus_plus_ex._subobjects.skill_registry
 	for _, skillId in ipairs(skill_config_module.enabledSkillsIds) do
-		table.insert(availableSkills, skillId)
+		if not skill_registry_module:isInternalSkill(skillId) then
+			table.insert(availableSkills, skillId)
+		end
 	end
 	return availableSkills
 end
 
 function skill_selection:_getVirtualCompatibleSkillPool()
-	local availableSkills = self:_createAvailableSkills()
+	local availableSkills = self:getAssignableSkillIds()
 	local virtualCompatibleSkills = {}
 
 	for _, skillId in ipairs(availableSkills) do
@@ -567,9 +568,9 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 		return false
 	end
 
+	local pilotId = pilot:getIdStr()
 	-- ensure game data is initialized
 	skill_selection:_initGameSaveData()
-	local pilotId = pilot:getIdStr()
 	if not GAME.cplus_plus_ex.pilotSkills[pilotId] then
 		GAME.cplus_plus_ex.pilotSkills[pilotId] = {}
 	end
@@ -592,7 +593,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 	if fireHooks == nil then fireHooks = false end
 
-	local availableSkills = self:_createAvailableSkills()
+	local availableSkills = self:getAssignableSkillIds()
 
 	-- Use pilot ID as the key for storing skills for now. Multiple pilots with same ID is
 	-- technically possible but not allowed by vanilla so this may change later
@@ -701,6 +702,17 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	local skill2 = skill_config_module.enabledSkills[skill2Id]
 
 	local skillIds = {skill1Id, skill2Id}
+	local skill_registry_module = cplus_plus_ex._subobjects.skill_registry
+
+	local function isInvalidAssignableSkill(skillId, skill, selectedSkills)
+		if not skill then
+			return true
+		end
+		if skill_registry_module:isInternalSkill(skillId) then
+			return false
+		end
+		return not skill_constraints:checkSkillConstraints(pilot, selectedSkills, skillId)
+	end
 
 	-- If skills are disabled or now violate constraints, assign random ones
 	if not skill2 then
@@ -708,12 +720,12 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	end
 	-- Skill one is checked without skill2 regardless as its first assigned and as such
 	-- has priority in any conflicts
-	if not skill1 or not skill_constraints:checkSkillConstraints(pilot, {}, skill1Id) then
+	if isInvalidAssignableSkill(skill1Id, skill1, {}) then
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
 		skillIds[1] = nil
 		-- Create fresh copy of available skills for this slot to avoid contamination from other slot failures
-		local availableSkillsSlot1 = self:_createAvailableSkills()
+		local availableSkillsSlot1 = self:getAssignableSkillIds()
 		skill1Id = self:selectRandomSkill(availableSkillsSlot1, pilot, 1, skillIds)
 		if not skill1Id then
 			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilotId .. " - constraints too restrictive")
@@ -724,11 +736,11 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		skillIds[1] = skill1Id
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
-	if not skill2 or not skill_constraints:checkSkillConstraints(pilot, {skill1Id}, skill2Id) then
+	if isInvalidAssignableSkill(skill2Id, skill2, {skill1Id}) then
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
 		-- Create fresh copy of available skills for this slot to avoid contamination from other slot failures
-		local availableSkillsSlot2 = self:_createAvailableSkills()
+		local availableSkillsSlot2 = self:getAssignableSkillIds()
 		skill2Id = self:selectRandomSkill(availableSkillsSlot2, pilot, 2, skillIds)
 		if not skill2Id then
 			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilotId .. " - constraints too restrictive")
@@ -761,12 +773,14 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 
 	-- Apply both skills with their determined saveVal
 	if skill1Id ~= pilot:getLvlUpSkill(1):getIdStr() then
-		pilot:setLvlUpSkill(1, self:_skillDataToTable(
-				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses))
+		local skill1Data = self:_skillDataToTable(
+				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
+		pilot:setLvlUpSkill(1, skill1Data)
 	end
 	if skill2Id ~= pilot:getLvlUpSkill(2):getIdStr() then
-		pilot:setLvlUpSkill(2, self:_skillDataToTable(
-				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses))
+		local skill2Data = self:_skillDataToTable(
+				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
+		pilot:setLvlUpSkill(2, skill2Data)
 	end
 
 	-- Commit final level-up skills (including any rerolled during validation above)
