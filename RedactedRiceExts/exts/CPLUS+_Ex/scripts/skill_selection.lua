@@ -857,6 +857,7 @@ function skill_selection:applySkillsToAllPilots()
 
 	-- Only fire post assignment hook if there were new pilots
 	if hasNewPilots then
+		logger.logDebug(SUBMODULE, "Finished assigning skills")
 		hooks.firePostAssigningLvlUpSkillsHooks()
 	end
 end
@@ -999,7 +1000,6 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 
 	-- Sync runtime objects to validated GAME entries
 	skill_state_tracker:_syncVirtualSkillObjects(pilot)
-	pilot:_combineBonuses()
 end
 
 -- Rebuild global per_run used-skill tracking from GAME state for all pilots.

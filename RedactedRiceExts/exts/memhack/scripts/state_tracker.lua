@@ -21,9 +21,6 @@ stateTracker._skillTrackers = {}
 -- These are what external code sees when accessing skills
 -- Actual memory may contain combined values based on pilot level
 stateTracker._skillSetValues = {}
--- Tracks how much pilot skill HP bonus has been applied to the pilot's mech pawn.
--- Keyed by pilot address; used to sync pawn HP when skill bonuses change in memory.
-stateTracker._pawnHealthBonusSynced = {}
 
 -------------------- State Capture and Comparison --------------------
 
@@ -184,43 +181,6 @@ function stateTracker:getSkillSetValues(skill)
 	}
 end
 
--- Sync tracked set values from raw memory after a bulk skill replace (setLvlUpSkill).
--- Bulk .set() uses _noFire setters that write memory but leave stale entries in
--- _skillSetValues keyed by skill address, so _combineBonuses would re-apply old bonuses.
-function stateTracker:syncSkillSetValuesFromMemory(skill)
-	if not skill then
-		return
-	end
-	local structManager = memhack.structManager
-	for _, field in ipairs({"healthBonus", "coresBonus", "gridBonus", "moveBonus"}) do
-		local rawGetter = structManager:makeStdGetterName(field, true)
-		local memoryValue = skill[rawGetter](skill)
-		self:setSkillSetValue(skill, field, memoryValue)
-	end
-end
-
-function stateTracker:getPawnHealthBonusSynced(pilotAddr)
-	return self._pawnHealthBonusSynced[pilotAddr] or 0
-end
-
-function stateTracker:setPawnHealthBonusSynced(pilotAddr, value)
-	self._pawnHealthBonusSynced[pilotAddr] = value
-end
-
--- The game applies skill HP directly to mech pawns at level-up before memhack can
--- intercept skill changes. Mark the current expected bonus as synced so a subsequent
--- _combineBonuses can apply the correct delta when skills are swapped (e.g. defer).
-function stateTracker:reconcilePawnHealthBonusBeforeSkillChange(pilot)
-	if not pilot or type(pilot._getExpectedHealthBonus) ~= "function" then
-		return
-	end
-	local pilotAddr = pilot:getAddress()
-	if not pilotAddr then
-		return
-	end
-	self:setPawnHealthBonusSynced(pilotAddr, pilot:_getExpectedHealthBonus())
-end
-
 -- Cleanup stale skill set value trackers
 -- Called by hooks system when pilots/skills are removed
 function stateTracker:cleanupStaleSkillSetValues(activeSkills)
@@ -274,8 +234,10 @@ function stateTracker:checkForPilotAndLvlUpSkillChanges()
 		if oldState then
 			local changes = self:compareStates(oldState, newState)
 			if next(changes) then
-				if changes.level and changes.level.new > changes.level.old then
-					self:reconcilePawnHealthBonusBeforeSkillChange(pilot)
+				-- If the level changed on the pilot, we need to recombine bonuses as its from the game
+				-- so it would not be detected otherwise
+				if changes.level then
+					pilot:_combineBonuses()
 				end
 				memhack._subobjects.hooks.firePilotChangedHooks(pilot, changes)
 			end
@@ -301,7 +263,6 @@ function stateTracker:cleanupStaleTrackers()
 		-- No game active, clear all trackers
 		stateTracker._pilotTrackers = {}
 		stateTracker._skillTrackers = {}
-		stateTracker._pawnHealthBonusSynced = {}
 		self:cleanupStaleSkillSetValues({})
 		return
 	end
@@ -331,7 +292,6 @@ function stateTracker:cleanupStaleTrackers()
 	for addr in pairs(stateTracker._pilotTrackers) do
 		if not activePilots[addr] then
 			stateTracker._pilotTrackers[addr] = nil
-			stateTracker._pawnHealthBonusSynced[addr] = nil
 		end
 	end
 

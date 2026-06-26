@@ -97,7 +97,8 @@ function PilotLvlUpSkill:setCoresBonus(value)
 	-- Trigger combining logic on parent pilot
 	local pilot = self:getParentPilot()
 	if pilot then
-		-- combine will set memory values
+		-- Trigger combining logic on parent pilot which will set the memory
+		-- values appropriately
 		pilot:_combineBonuses()
 	else
 		self:_setCoresBonus(value)
@@ -108,7 +109,8 @@ function PilotLvlUpSkill:setGridBonus(value)
 	-- Store new set value
 	memhack.stateTracker:setSkillSetValue(self, "gridBonus", value)
 
-	-- Trigger combining logic on parent pilot
+	-- Trigger combining logic on parent pilot which will set the memory
+	-- values appropriately
 	local pilot = self:getParentPilot()
 	if pilot then
 		-- combine will set memory values
@@ -122,10 +124,12 @@ function PilotLvlUpSkill:setMoveBonus(value)
 	-- Store new set value
 	memhack.stateTracker:setSkillSetValue(self, "moveBonus", value)
 
-	-- Trigger combining logic on parent pilot
+	-- Trigger combining logic on parent pilot which will set the memory
+	-- values appropriately
 	local pilot = self:getParentPilot()
 	if pilot then
-		-- combine will set memory values
+		-- Trigger combining logic on parent pilot which will set the memory
+		-- values appropriately
 		pilot:_combineBonuses()
 	else
 		self:_setMoveBonus(value)

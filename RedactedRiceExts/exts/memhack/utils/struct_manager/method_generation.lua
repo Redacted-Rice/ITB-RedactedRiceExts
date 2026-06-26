@@ -355,15 +355,6 @@ function methodGeneration.generateStructSetterToFireOnAnyValueChange(hooksObj, f
 		end
 
 		if anyChanged then
-			local needsSetValueSync = changes.id or changes.healthBonus or changes.coresBonus
-				or changes.gridBonus or changes.moveBonus
-			if needsSetValueSync and type(self.getParentPilot) == "function" then
-				memhack.stateTracker:syncSkillSetValuesFromMemory(self)
-				local pilot = self:getParentPilot()
-				if pilot and type(pilot._combineBonuses) == "function" then
-					pilot:_combineBonuses()
-				end
-			end
 			-- Dynamic lookup of fire function
 			hooksObj[fireFnName](self, changes)
 		end

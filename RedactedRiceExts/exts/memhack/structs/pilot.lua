@@ -110,18 +110,8 @@ function Pilot:_applyLevelChange(newLevel, previousLevel, previousXp, previousLe
 		levelUpXp = {old = previousLevelUpXp, new = newLevelUpXp}
 	}
 
-	if newLevel > previousLevel then
-		-- Level-up: pilotChanged before combine so subscribers can adjust earned slots
-		-- before bonuses combine and before skill-change detection runs.
-		memhack.stateTracker:reconcilePawnHealthBonusBeforeSkillChange(self)
-		memhack.hooks.firePilotChangedHooks(self, changes)
-	end
-
 	self:_combineBonuses()
-
-	if newLevel <= previousLevel then
-		memhack.hooks.firePilotChangedHooks(self, changes)
-	end
+	memhack.hooks.firePilotChangedHooks(self, changes)
 end
 
 
@@ -213,61 +203,6 @@ function Pilot:isPiloting()
 	return self:getPawnId() ~= nil
 end
 
--- Sum health bonuses from earned skill slots using tracked set values.
-function Pilot:_getExpectedHealthBonus()
-	local total = 0
-	local level = self:getLevel()
-	for skillIndex = 1, math.min(level, 2) do
-		local skill = self:getLvlUpSkill(skillIndex)
-		if skill then
-			local setVals = memhack.stateTracker:getSkillSetValues(skill)
-			total = total + (setVals.healthBonus or 0)
-		end
-	end
-	return total
-end
-
--- Skill HP is written to pilot skill memory by _combineBonuses but the game only
--- pushes HP onto mech pawns at native level-up. Apply the delta since last sync.
-function Pilot:_syncPawnHealthBonus()
-	local pilotAddr = self:getAddress()
-	if not pilotAddr then
-		return
-	end
-
-	local expected = self:_getExpectedHealthBonus()
-	local lastSynced = memhack.stateTracker:getPawnHealthBonusSynced(pilotAddr)
-	local delta = expected - lastSynced
-	if delta == 0 then
-		return
-	end
-
-	memhack.stateTracker:setPawnHealthBonusSynced(pilotAddr, expected)
-
-	if not Game or not self:isPiloting() then
-		return
-	end
-
-	local pawn = Game:GetPawn(self:getPawnId())
-	if not pawn or pawn:IsDead() then
-		return
-	end
-
-	local newMax = pawn:GetMaxHealth() + delta
-	local newHealth = pawn:GetHealth() + delta
-	if newHealth > newMax then
-		newHealth = newMax
-	end
-	if newHealth < 1 then
-		newHealth = 1
-	end
-
-	logger.logDebug(SUBMODULE, "syncPawnHealthBonus pilot=%s delta=%d expected=%d",
-		self:getIdStr() or tostring(pilotAddr), delta, expected)
-	pawn:SetMaxHealth(newMax)
-	pawn:SetHealth(newHealth)
-end
-
 -- Convenience getter for level up skill by index
 -- idx is either 1 or 2 for the respective skill
 -- Parent wrapping is already handled:
@@ -298,14 +233,6 @@ function Pilot:setLvlUpSkill(index, structOrNewVals)
 	else
 		logger.logError(SUBMODULE, "Unexpected index %d. Should be 1 or 2", index)
 		return
-	end
-
-	-- Bulk skill replace uses _noFire setters; sync set-value tracker from memory
-	-- so _combineBonuses reflects the new skill instead of stale tracked bonuses.
-	local skill = self:getLvlUpSkill(index)
-	if skill then
-		memhack.stateTracker:syncSkillSetValuesFromMemory(skill)
-		self:_combineBonuses()
 	end
 end
 
@@ -342,12 +269,15 @@ function Pilot:_combineBonuses()
 	local skill1Set = memhack.stateTracker:getSkillSetValues(skill1)
 	local skill2Set = memhack.stateTracker:getSkillSetValues(skill2)
 
+	-- We use the private setters here to directly set the value in memory
+	-- This prevents messing up the "set" values for the skills in state tracker
+
 	-- multiple health and move are handled by game already so just set them
 	skill1:_setHealthBonus(skill1Set.healthBonus)
 	skill1:_setMoveBonus(skill1Set.moveBonus)
 	skill2:_setHealthBonus(skill2Set.healthBonus)
 	skill2:_setMoveBonus(skill2Set.moveBonus)
-	
+
 	-- If level <= 1, restore to base (set) values
 	if pilotLevel <= 1 then
 		-- Set memory to set values (no combining)
@@ -380,8 +310,6 @@ function Pilot:_combineBonuses()
 			skill2:_setGridBonus(skill2Set.gridBonus)
 		end
 	end
-
-	self:_syncPawnHealthBonus()
 end
 
 -- Wrap non-custom setters to fire pilot changed hooks. Custom ones already explicitly call on change
