@@ -139,6 +139,27 @@ function pilot_overrides:_overrideSetLvlUpSkill()
 	logger.logInfo(SUBMODULE, "Overridden Pilot:setLvlUpSkill to support virtual skills")
 end
 
+function pilot_overrides:_specialCaseHandling(pilot, prevHealthBonus, newHealthBonus)
+	if not skill_state_tracker:hasFinishedInitialAssignment() then
+		logger.logDebug(SUBMODULE, "Skills skill yet to be assigned. Skipping for pilot %s", pilot:getIdStr())
+		return 
+	end
+
+	local pawnId = pilot:getPawnId()
+	local pawn = Game:GetPawn(pawnId)
+
+	local maxHealth = pawn:GetMaxHealth()
+	local health = pawn:GetHealth()
+	logger.logDebug(SUBMODULE, "Special Logic check for pilot  %s: Prev health bonus %d, new health bonus %d, current max health %d",
+			 pilot:getIdStr(), prevHealthBonus, newHealthBonus, maxHealth)
+
+	local healthDiff = newHealthBonus - prevHealthBonus
+	if healthDiff ~= 0 then
+		pawn:SetMaxHealth(maxHealth + healthDiff)
+		pawn:SetHealth(health + healthDiff)
+	end
+end
+
 function pilot_overrides:_overrideCombineBonuses()
 	local Pilot = memhack.structs.Pilot
 
@@ -149,31 +170,30 @@ function pilot_overrides:_overrideCombineBonuses()
 
 	Pilot._combineBonuses = function(self)
 		local pilotId = self:getIdStr()
-
-		-- If no pilot ID, use original logic
-		if not pilotId then
-			logger.logDebug(SUBMODULE, "No pilot ID, using original combineBonuses")
-			original_combineBonuses(self)
-			return
-		end
-
-		-- If no virtual skills, use original logic
-		local virtualCount = #skill_state_tracker:getVirtualSkillObjects(pilotId)
-		if virtualCount == 0 then
-			logger.logDebug(SUBMODULE, "No virtual skills for %s, using original combineBonuses", pilotId)
-			original_combineBonuses(self)
-			return
-		end
+		local pilotLevel = self:getLevel()
 
 		-- If we don't have any earned skills, combining doesn't do anything
-		if self:getLevel() < 1 then
+		local virtualCount = #skill_state_tracker:getVirtualSkillObjects(pilotId)
+		if pilotLevel < 1 then
 			logger.logDebug(SUBMODULE, "No earned skills for %s, cant combine the %d virtual skills!", pilotId, virtualCount)
 			original_combineBonuses(self)
 			return
 		end
 
-		-- We have virtual skills - manually combine all skills
-		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", pilotId, virtualCount)
+		-- At this point we have some bonuses so we need to potentially do special
+		-- handling logic for health so precalculate the current and expected max
+		-- health so we can adjust appropriately
+		local skill1 = self:getLvlUpSkill(1)
+		local skill2 = self:getLvlUpSkill(2)
+
+		-- Current health set in memory for the vanilla skills
+		local curHealthBonus = 0
+		if pilotLevel >= 1 then
+			curHealthBonus = skill1:_getHealthBonus()
+			if pilotLevel >= 2 then
+				curHealthBonus = curHealthBonus + skill2:_getHealthBonus()
+			end
+		end
 
 		-- Calculate total bonuses from all sources
 		local totalBonuses = {health = 0, cores = 0, grid = 0, move = 0}
@@ -181,23 +201,39 @@ function pilot_overrides:_overrideCombineBonuses()
 		for _, skillIndex in ipairs(skill_state_tracker:getPilotEarnedSkillIndexes(self)) do
 			logger.logDebug(SUBMODULE, "  Accessing earned skill %d", skillIndex)
 			local skillObj = self:getLvlUpSkill(skillIndex)
-			local skillSet = memhack.stateTracker:getSkillSetValues(skillObj)
-			totalBonuses.health = totalBonuses.health + skillSet.healthBonus
-			totalBonuses.cores = totalBonuses.cores + skillSet.coresBonus
-			totalBonuses.grid = totalBonuses.grid + skillSet.gridBonus
-			totalBonuses.move = totalBonuses.move + skillSet.moveBonus
-			logger.logDebug(SUBMODULE, "  Added earned skill %d: +%d health, +%d cores, +%d grid, +%d move",
-					skillIndex, skillSet.healthBonus, skillSet.coresBonus, skillSet.gridBonus, skillSet.moveBonus)
+			if skillObj then
+				local skillSet = memhack.stateTracker:getSkillSetValues(skillObj)
+				totalBonuses.health = totalBonuses.health + skillSet.healthBonus
+				totalBonuses.cores = totalBonuses.cores + skillSet.coresBonus
+				totalBonuses.grid = totalBonuses.grid + skillSet.gridBonus
+				totalBonuses.move = totalBonuses.move + skillSet.moveBonus
+				logger.logDebug(SUBMODULE, "  Added earned skill %d: +%d health, +%d cores, +%d grid, +%d move",
+						skillIndex, skillSet.healthBonus, skillSet.coresBonus, skillSet.gridBonus, skillSet.moveBonus)
+			else
+				logger.logDebug(SUBMODULE, "  Uninitialized skill %d skipped", skillIndex)
+			end
 		end
+
+		-- If no virtual skills, use original logic
+		if virtualCount == 0 then
+			logger.logDebug(SUBMODULE, "No virtual skills for %s, using original combineBonuses", pilotId)
+			original_combineBonuses(self)
+			pilot_overrides:_specialCaseHandling(self, curHealthBonus, totalBonuses.health)
+			return
+		end
+
+		-- We have virtual skills - combine all skills into one
+		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", pilotId, virtualCount)
 
 		-- For simplicity, just always combine into the first since we already filtered out the second
 		-- skill if it hasn't been earned
+		-- Use private setters to avoid updating the tracked "set" values
 		local skill1 = self:getLvlUpSkill(1)
 		skill1:_setHealthBonus(totalBonuses.health)
 		skill1:_setCoresBonus(totalBonuses.cores)
 		skill1:_setGridBonus(totalBonuses.grid)
 		skill1:_setMoveBonus(totalBonuses.move)
-		
+
 		local skill2 = self:getLvlUpSkill(2)
 		skill2:_setHealthBonus(0)
 		skill2:_setCoresBonus(0)
@@ -206,29 +242,10 @@ function pilot_overrides:_overrideCombineBonuses()
 
 		logger.logDebug(SUBMODULE, "Combined bonuses into skill1: +%d health, +%d cores, +%d grid, +%d move",
 				totalBonuses.health, totalBonuses.cores, totalBonuses.grid, totalBonuses.move)
-
-		self:_syncPawnHealthBonus()
+		pilot_overrides:_specialCaseHandling(self, curHealthBonus, totalBonuses.health)
 	end
 
 	logger.logInfo(SUBMODULE, "Overrode Pilot:_combineBonuses to support virtual skills")
-end
-
-function pilot_overrides:_overrideGetExpectedHealthBonus()
-	local Pilot = memhack.structs.Pilot
-
-	Pilot._getExpectedHealthBonus = function(self)
-		local total = 0
-		for _, skillIndex in ipairs(skill_state_tracker:getPilotEarnedSkillIndexes(self)) do
-			local skillObj = self:getLvlUpSkill(skillIndex)
-			if skillObj then
-				local skillSet = memhack.stateTracker:getSkillSetValues(skillObj)
-				total = total + (skillSet.healthBonus or 0)
-			end
-		end
-		return total
-	end
-
-	logger.logInfo(SUBMODULE, "Overrode Pilot:_getExpectedHealthBonus for virtual skills")
 end
 
 --- Override GetSkillInfo to automatically append virtual skills to pilot descriptions
@@ -349,7 +366,6 @@ function pilot_overrides:init()
 	-- Apply critical overrides
 	self:_overrideGetLvlUpSkill()
 	self:_overrideSetLvlUpSkill()
-	self:_overrideGetExpectedHealthBonus()
 	self:_overrideCombineBonuses()
 
 	logger.logInfo(SUBMODULE, "Pilot overrides initialized successfully")

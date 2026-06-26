@@ -7,9 +7,9 @@ local path = GetParentPath(...)
 -- Controls logging for different components
 memhack.DEBUG = {
 	ENABLED = false,  -- Main switch for all debug logging
-	HOOKS = true,    -- hooks module
-	STRUCTS = true,  -- struct operations
-	STATE_TRACKER = true, -- state_tracker module
+	HOOKS = false,    -- hooks module
+	STRUCTS = false,  -- struct operations
+	STATE_TRACKER = false, -- state_tracker module
 	SCANNER = false, -- scanner operations (very verbose)
 }
 

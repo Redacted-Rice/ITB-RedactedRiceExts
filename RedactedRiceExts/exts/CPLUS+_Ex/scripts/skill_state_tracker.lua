@@ -65,6 +65,10 @@ function skill_state_tracker:_updateStatesIfNeeded(pilot, changes)
 	end
 end
 
+function skill_state_tracker:hasFinishedInitialAssignment()
+	return self._hasAppliedSkill
+end
+
 ------------------ Helper functions ------------------
 
 -- Check if a pilot is high enough level for the skill at the given index to be earned
@@ -640,9 +644,6 @@ function skill_state_tracker:_updateActiveSkills()
 	end
 
 	if skillsModified then
-		for pilot in pairs(pilotsToRecombine) do
-			pilot:_combineBonuses()
-		end
 		newActiveSkills = self:_determineActiveSkillsState()
 	end
 
@@ -714,6 +715,7 @@ function skill_state_tracker:_freeVirtualSkillObject(obj)
 	if not obj then
 		return
 	end
+
 	-- Check if it's a PilotLvlUpSkill struct using memhack's type system
 	if type(obj) ~= "table" or getmetatable(obj) ~= memhack.structs.PilotLvlUpSkill then
 		logger.logWarn(SUBMODULE, "Cannot free virtual skill object: expected PilotLvlUpSkill struct, got %s", type(obj))
@@ -795,13 +797,14 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 	skillObj:_setDescription_noFire(skill.description or "")
 	skillObj:_setSaveVal_noFire(skill.saveVal or 0)
 
-	-- Initialize bonus values (memory is already zeroed, so default to 0)
+	-- Initialize bonus values
 	local healthBonus = (skill.bonuses and skill.bonuses.health) or 0
 	local moveBonus = (skill.bonuses and skill.bonuses.move) or 0
 	local coresBonus = (skill.bonuses and skill.bonuses.cores) or 0
 	local gridBonus = (skill.bonuses and skill.bonuses.grid) or 0
 
-	-- Set bonuses in memory using _noFire
+	-- Set bonuses in memory using _noFire but use the public ones that will update
+	-- the skill tracker and call combineBonuses
 	skillObj:_setHealthBonus_noFire(healthBonus)
 	skillObj:_setMoveBonus_noFire(moveBonus)
 	skillObj:_setCoresBonus_noFire(coresBonus)
@@ -962,6 +965,7 @@ function skill_state_tracker:_syncVirtualSkillObjects(pilot)
 
 	-- Replace with new array
 	self._virtualSkillObjects[pilotId] = newObjects
+	pilot:_combineBonuses()
 
 	logger.logDebug(SUBMODULE, "Synced pilot %s: %d skills in save data = %d objects",
 			pilotId, #savedSkillIds, #newObjects)
@@ -987,7 +991,6 @@ function skill_state_tracker:_syncAllVirtualSkillObjects()
 		-- Only sync if this pilot has virtual skills in save data
 		if GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
 			self:_syncVirtualSkillObjects(pilot)
-			pilot:_combineBonuses()
 		end
 	end
 
