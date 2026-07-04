@@ -140,23 +140,30 @@ function pilot_overrides:_overrideSetLvlUpSkill()
 end
 
 function pilot_overrides:_specialCaseHandling(pilot, prevHealthBonus, newHealthBonus)
+	if not Board then
+		return
+	end 
+
 	if not skill_state_tracker:hasFinishedInitialAssignment() then
 		logger.logDebug(SUBMODULE, "Skills skill yet to be assigned. Skipping for pilot %s", pilot:getIdStr())
 		return 
 	end
 
 	local pawnId = pilot:getPawnId()
-	local pawn = Game:GetPawn(pawnId)
+	-- could be a time pod or island reward pilot
+	if pawnId then
+		local pawn = Board:GetPawn(pawnId)
 
-	local maxHealth = pawn:GetMaxHealth()
-	local health = pawn:GetHealth()
-	logger.logDebug(SUBMODULE, "Special Logic check for pilot  %s: Prev health bonus %d, new health bonus %d, current max health %d",
-			 pilot:getIdStr(), prevHealthBonus, newHealthBonus, maxHealth)
+		local maxHealth = pawn:GetMaxHealth()
+		local health = pawn:GetHealth()
+		logger.logDebug(SUBMODULE, "Special Logic check for pilot  %s: Prev health bonus %d, new health bonus %d, current max health %d",
+				pilot:getIdStr(), prevHealthBonus, newHealthBonus, maxHealth)
 
-	local healthDiff = newHealthBonus - prevHealthBonus
-	if healthDiff ~= 0 then
-		pawn:SetMaxHealth(maxHealth + healthDiff)
-		pawn:SetHealth(health + healthDiff)
+		local healthDiff = newHealthBonus - prevHealthBonus
+		if healthDiff ~= 0 then
+			pawn:SetMaxHealth(maxHealth + healthDiff)
+			pawn:SetHealth(health + healthDiff)
+		end
 	end
 end
 
