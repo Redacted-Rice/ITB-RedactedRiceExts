@@ -11,7 +11,19 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.2.0
+Latest release: 1.3.0
+
+## 1.3.0
+Released: 7/7/2026
+
+compatible with:
+* ItB AE       1.2.93
+* ModLoader    2.9.5
+* ModLoaderExt 1.24
+
+### Notes
+* Added priorities to hooks
+* Cleaned up a bunch of extra logic for combining virtual skill effects into actual ones
 
 ## 1.2.0
 Released: 6/11/2026
