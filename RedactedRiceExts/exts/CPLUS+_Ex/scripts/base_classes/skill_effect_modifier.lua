@@ -146,6 +146,18 @@ local function applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skill
 	end
 end
 
+-- Convert Point to hash for tracking pawn positions
+-- spaceOrX: Point or x coordinate, y: optional y coordinate
+local function getSpaceHash(spaceOrX, y)
+	local pX = spaceOrX
+	local pY = y
+	if not y then
+		pX = spaceOrX.x
+		pY = spaceOrX.y
+	end
+	return pY * 10 + pX
+end
+
 local function applyAttackerSkillsForDeadlyCheck(attackingPawn, spaceDamage, targetPawn, phase)
 	local affectedPawns = {}
 	affectedPawns[attackingPawn:GetId()] = attackingPawn
@@ -165,18 +177,6 @@ local function applyAttackerSkillsForDeadlyCheck(attackingPawn, spaceDamage, tar
 	end
 
 	applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skillsByPriority, priorities)
-end
-
--- Convert Point to hash for tracking pawn positions
--- spaceOrX: Point or x coordinate, y: optional y coordinate
-local function getSpaceHash(spaceOrX, y)
-	local pX = spaceOrX
-	local pY = y
-	if not y then
-		pX = spaceOrX.x
-		pY = spaceOrX.y
-	end
-	return pY * 10 + pX
 end
 
 function SkillEffectModifier:new(tbl)
@@ -344,8 +344,8 @@ local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriori
 			applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skillsByPriority, priorities)
 
 			-- See if its a push we need to account for
-			if spaceDamage.iPush ~= DIR_NONE and SkillEffectModifier:getPawnAt(
-					spaceDamage.loc + DIR_VECTORS[spaceDamage.iPush]) == nil then
+			if spaceDamage.iPush ~= DIR_NONE and spaceDamage.iPush >= 0 and spaceDamage.iPush <= 3 and
+					SkillEffectModifier:getPawnAt(spaceDamage.loc + DIR_VECTORS[spaceDamage.iPush]) == nil then
 				-- Track the movement if needed
 				accountForMove(spaceDamage.loc, spaceDamage.loc + DIR_VECTORS[spaceDamage.iPush])
 
