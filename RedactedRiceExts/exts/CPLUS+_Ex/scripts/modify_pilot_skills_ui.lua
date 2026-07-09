@@ -690,14 +690,16 @@ function modify_pilot_skills_ui:getSkillsByCategory()
 	return skillsByCategory
 end
 
--- calculate total weight of all enabled skills
+-- calculate total weight of all enabled assignable skills
 function modify_pilot_skills_ui:calculateTotalWeight()
 	local totalWeight = 0
-	-- Calculate the total of all enabled skills
+	-- Internal skills are omitted from UI and random pools; exclude them from totals too
 	for _, otherSkillId in ipairs(skill_config.enabledSkillsIds) do
-		local skillConfigObj = skill_config.config.skillConfigs[otherSkillId]
-		if skillConfigObj and skillConfigObj.enabled then
-			totalWeight = totalWeight + skillConfigObj.weight
+		if not skill_registry:isInternalSkill(otherSkillId) then
+			local skillConfigObj = skill_config.config.skillConfigs[otherSkillId]
+			if skillConfigObj and skillConfigObj.enabled then
+				totalWeight = totalWeight + skillConfigObj.weight
+			end
 		end
 	end
 	return totalWeight
