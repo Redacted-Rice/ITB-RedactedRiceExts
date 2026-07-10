@@ -370,21 +370,21 @@ end
 
 -- Helper function to register pilot-skill relationships
 -- Supports both string pilot IDs and function predicates
-function skill_registry:_registerPilotSkillRelationship(targetTable, functionTable, skillId, pilotIdOrFn, relationshipType)
+function skill_registry:_registerSkillRelationship(targetTable, functionTable, skillId, pilotIdOrFn, relationshipType, targetType)
 	if type(pilotIdOrFn) == "function" then
 		-- Store function for later expansion
 		if not functionTable[skillId] then
 			functionTable[skillId] = {}
 		end
 		table.insert(functionTable[skillId], pilotIdOrFn)
-		logger.logDebug(SUBMODULE, "Registered function based pilot %s for skill '%s'", relationshipType, skillId)
+		logger.logDebug(SUBMODULE, "Registered function based %s %s for skill '%s'", targetType, relationshipType, skillId)
 	elseif type(pilotIdOrFn) == "string" then
 		-- Direct pilot ID registration
 		if targetTable[pilotIdOrFn] == nil then
 			targetTable[pilotIdOrFn] = {}
 		end
 		targetTable[pilotIdOrFn][skillId] = true
-		logger.logDebug(SUBMODULE, "%s - Pilot %s %s skill %s", relationshipType, pilotIdOrFn,
+		logger.logDebug(SUBMODULE, "%s - %s %s %s skill %s", targetType, relationshipType, pilotIdOrFn,
 				(relationshipType == "exclusion" and "cannot have" or "can have"), skillId)
 	else
 		logger.logWarn(SUBMODULE, "Invalid pilot identifier type for skill '%s' %s (must be string or function). Ignoring.",
@@ -404,10 +404,10 @@ function skill_registry:registerPilotSkillExclusions(pilotIdOrFn, skillIds)
 		if not self:_validateConstraintType(skillId, "pilotExclusions") then
 			logger.logWarn(SUBMODULE, "Skipping pilotExclusions registration for skill '%s' due to type mismatch", skillId)
 		else
-			self:_registerPilotSkillRelationship(
+			self:_registerSkillRelationship(
 					skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_EXCLUSIONS],
 					self.pilotExclusionFunctions,
-					skillId, pilotIdOrFn, "exclusion"
+					skillId, pilotIdOrFn, "exclusion", "pilot"
 			)
 		end
 	end
@@ -427,10 +427,10 @@ function skill_registry:registerPilotSkillInclusions(pilotIdOrFn, skillIds)
 		if not self:_validateConstraintType(skillId, "pilotInclusions") then
 			logger.logWarn(SUBMODULE, "Skipping pilotInclusions registration for skill '%s' due to type mismatch", skillId)
 		else
-			self:_registerPilotSkillRelationship(
+			self:_registerSkillRelationship(
 					skill_config.codeDefinedRelationships[skill_config.RelationshipType.PILOT_SKILL_INCLUSIONS],
 					self.pilotInclusionFunctions,
-					skillId, pilotIdOrFn, "inclusion"
+					skillId, pilotIdOrFn, "inclusion", "pilot"
 			)
 		end
 	end
@@ -448,10 +448,10 @@ function skill_registry:registerSquadSkillExclusions(squadId, skillIds)
 		if not self:_validateConstraintType(skillId, "squadExclusions") then
 			logger.logWarn(SUBMODULE, "Skipping squadExclusions registration for skill '%s' due to type mismatch", skillId)
 		else
-			self:_registerPilotSkillRelationship(
+			self:_registerSkillRelationship(
 					skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_EXCLUSIONS],
 					{}, -- no function table needed for squads
-					skillId, squadId, "exclusion"
+					skillId, squadId, "exclusion", "squad"
 			)
 		end
 	end
@@ -471,10 +471,10 @@ function skill_registry:registerSquadSkillInclusions(squadId, skillIds)
 		if not self:_validateConstraintType(skillId, "squadInclusions") then
 			logger.logWarn(SUBMODULE, "Skipping squadInclusions registration for skill '%s' due to type mismatch", skillId)
 		else
-			self:_registerPilotSkillRelationship(
+			self:_registerSkillRelationship(
 					skill_config.codeDefinedRelationships[skill_config.RelationshipType.SQUAD_SKILL_INCLUSIONS],
 					{}, -- no function table needed for squads
-					skillId, squadId, "inclusion"
+					skillId, squadId, "inclusion", "squad"
 			)
 		end
 	end
