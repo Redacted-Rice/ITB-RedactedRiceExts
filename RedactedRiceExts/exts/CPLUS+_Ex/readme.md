@@ -11,7 +11,21 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.3.0
+Latest release: 1.3.1
+
+## 1.3.1
+Released: 7/16/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.3.0
+
+### Notes
+* Added fix to handle no standard push values
+* Fix for some cases where custom functions would error based on where/how many enemies are on the board
+* Fixed % chances not adding up to 100%
 
 ## 1.3.0
 Released: 7/7/2026
