@@ -45,7 +45,8 @@ end
 -- Checks if a skill can be assigned to the given pilot
 -- using all registered constraint functions
 -- Returns true if all constraints pass, false otherwise
-function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId)
+-- slotIdx: optional explicit skill slot (1 or 2). When omitted, inferred as #selectedSkills + 1
+function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId, slotIdx)
 	-- Get the skill to check if it's an inclusion skill
 	-- If skill doesn't exist, treat as non-inclusion (default/exclusion behavior)
 	local skill = skill_config_module.enabledSkills[candidateSkillId]
@@ -53,6 +54,9 @@ function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidat
 		logger.logWarn(SUBMODULE, "Skill %s not found in enabled skills", candidateSkillId)
 		return false
 	end
+
+	-- Stash slot on the call for constraint functions that need it
+	self._currentSlotIdx = slotIdx or (#selectedSkills + 1)
 
 	-- If its an inclusion, firt see if its even allowed
 	if utils.isInclusionSkill(skill.skillType) then
@@ -66,6 +70,7 @@ function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidat
 		end
 		-- If no inclusion constraints passed, reject immediately
 		if not hasInclusionMatch then
+			self._currentSlotIdx = nil
 			return false
 		end
 	end
@@ -74,6 +79,7 @@ function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidat
 	-- All must pass to be allowed
 	for _, constraintFn in ipairs(self.constraintFunctions) do
 		if not constraintFn(pilot, selectedSkills, candidateSkillId) then
+			self._currentSlotIdx = nil
 			return false
 		end
 	end
@@ -83,12 +89,14 @@ function skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidat
 		-- All must pass to be allowed
 		for _, constraintFn in ipairs(self.exclusionConstraintFunctions) do
 			if not constraintFn(pilot, selectedSkills, candidateSkillId) then
+				self._currentSlotIdx = nil
 				return false
 			end
 		end
 	end
 
 	-- Made it all the way through - we are good!
+	self._currentSlotIdx = nil
 	return true
 end
 
@@ -114,8 +122,8 @@ end
 -- This enforces slot restrictions (first only, second only, or either)
 function skill_constraints:_registerSlotRestrictionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		-- Calculate current slot index from number of already selected skills
-		local idx = #selectedSkills + 1
+		-- Prefer explicit slot from checkSkillConstraints and fall back to inference
+		local idx = skill_constraints._currentSlotIdx or (#selectedSkills + 1)
 
 		local slotRestriction = skill_config_module.config.skillConfigs[candidateSkillId].slotRestriction
 

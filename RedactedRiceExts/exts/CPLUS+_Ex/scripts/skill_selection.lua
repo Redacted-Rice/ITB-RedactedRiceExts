@@ -433,7 +433,7 @@ function skill_selection:selectRandomSkill(availableSkills, pilot, idx, selected
 			break
 		end
 
-		if skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId) then
+		if skill_constraints:checkSkillConstraints(pilot, selectedSkills, candidateSkillId, idx) then
 			-- If valid, add to the selected but do not remove yet
 			-- Allows for potential duplicates in the future
 			if idx then
@@ -691,6 +691,29 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	return self:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 end
 
+-- Check whether a skill is invalid for assignment
+function skill_selection:_isInvalidAssignableSkill(pilot, skillId, skill, selectedSkills, slotIdx)
+	if not skill then
+		return true
+	end
+	local skill_registry_module = cplus_plus_ex._subobjects.skill_registry
+	if skill_registry_module:isInternalSkill(skillId) then
+		return false
+	end
+	return not skill_constraints:checkSkillConstraints(pilot, selectedSkills, skillId, slotIdx)
+end
+
+-- Check whether an already-stored skill can be kept.
+-- Temporarily ignore this pilot's own per_run claim from rebuild so we don't self-block.
+function skill_selection:_isInvalidExistingSkill(pilot, skillId, skill, selectedSkills, slotIdx)
+	self:_unmarkPerRunSkill(skillId)
+	local invalid = self:_isInvalidAssignableSkill(pilot, skillId, skill, selectedSkills, slotIdx)
+	if not invalid then
+		self:_markPerRunSkillAsUsed(skillId)
+	end
+	return invalid
+end
+
 -- Internal function to validate, assign saveVals, and apply skills to the pilot
 -- Takes storedSkills structure: { {id = skill1Id}, {id = skill2Id} }
 function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
@@ -701,54 +724,42 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	local skill1 = skill_config_module.enabledSkills[skill1Id]
 	local skill2 = skill_config_module.enabledSkills[skill2Id]
 
-	local skillIds = {skill1Id, skill2Id}
-	local skill_registry_module = cplus_plus_ex._subobjects.skill_registry
-
-	local function isInvalidAssignableSkill(skillId, skill, selectedSkills)
-		if not skill then
-			return true
-		end
-		if skill_registry_module:isInternalSkill(skillId) then
-			return false
-		end
-		return not skill_constraints:checkSkillConstraints(pilot, selectedSkills, skillId)
-	end
-
-	-- If skills are disabled or now violate constraints, assign random ones
-	if not skill2 then
-		skillIds[2] = nil
-	end
-	-- Skill one is checked without skill2 regardless as its first assigned and as such
-	-- has priority in any conflicts
-	if isInvalidAssignableSkill(skill1Id, skill1, {}) then
+	-- Skill 1 is checked first and has priority over skill 2
+	if self:_isInvalidExistingSkill(pilot, skill1Id, skill1, {}, 1) then
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
-		skillIds[1] = nil
-		-- Create fresh copy of available skills for this slot to avoid contamination from other slot failures
+		-- Will be released for per run skillsif invalid already
+		local selectedForSlot1 = {}
 		local availableSkillsSlot1 = self:getAssignableSkillIds()
-		skill1Id = self:selectRandomSkill(availableSkillsSlot1, pilot, 1, skillIds)
-		if not skill1Id then
+		local newSkill1Id = self:selectRandomSkill(availableSkillsSlot1, pilot, 1, selectedForSlot1)
+		if not newSkill1Id then
+			-- Restore claim from GAME if replacement failed
+			self:_markPerRunSkillAsUsed(skill1Id)
 			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilotId .. " - constraints too restrictive")
 			return false
 		end
-		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = {id = skill1Id}
+		skill1Id = newSkill1Id
 		storedSkills[1] = {id = skill1Id}
-		skillIds[1] = skill1Id
+		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = storedSkills[1]
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
-	if isInvalidAssignableSkill(skill2Id, skill2, {skill1Id}) then
+
+	if self:_isInvalidExistingSkill(pilot, skill2Id, skill2, {skill1Id}, 2) then
 		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
-		-- Create fresh copy of available skills for this slot to avoid contamination from other slot failures
+		-- Will be released for per run skillsif invalid already
+		local selectedForSlot2 = {skill1Id}
 		local availableSkillsSlot2 = self:getAssignableSkillIds()
-		skill2Id = self:selectRandomSkill(availableSkillsSlot2, pilot, 2, skillIds)
-		if not skill2Id then
+		local newSkill2Id = self:selectRandomSkill(availableSkillsSlot2, pilot, 2, selectedForSlot2)
+		if not newSkill2Id then
+			-- Restore claim from GAME if replacement failed
+			self:_markPerRunSkillAsUsed(skill2Id)
 			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilotId .. " - constraints too restrictive")
 			return false
 		end
-		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = {id = skill2Id}
+		skill2Id = newSkill2Id
 		storedSkills[2] = {id = skill2Id}
-		skillIds[2] = skill2Id
+		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = storedSkills[2]
 		skill2 = skill_config_module.enabledSkills[skill2Id]
 	end
 
@@ -1031,10 +1042,11 @@ end
 -- Record a skill as assigned this run (per_run skills only).
 -- Call after a skill is applied to a pilot, not during pool selection.
 -- Never unmarks on removal - applySkillsToAllPilots rebuilds from GAME when selecitng new skills.
+-- Returns true if the skill was marked as used, false otherwise
 function skill_selection:_markPerRunSkillAsUsed(skillId)
 	local skill = skill_config_module.enabledSkills[skillId]
 	if skill == nil then
-		return
+		return false
 	end
 
 	if skill_config_module.config.skillConfigs[skillId].reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
@@ -1043,9 +1055,28 @@ function skill_selection:_markPerRunSkillAsUsed(skillId)
 		else
 			self.usedSkillsPerRun[skillId] = true
 			logger.logDebug(SUBMODULE, "Committed per_run skill %s for this run", skillId)
+			return true
 		end
 	end
 	-- reusable and per_pilot skills don't need tracking
+	return false
+end
+
+-- Release a per_run claim so a pilot can keep or replace their own stored skill during revalidation.
+-- Returns true if the skill was unmarked, false otherwise
+function skill_selection:_unmarkPerRunSkill(skillId)
+	if not skillId or not self.usedSkillsPerRun[skillId] then
+		return false
+	end
+
+	local config = skill_config_module.config.skillConfigs[skillId]
+	-- Unmark even if currently disabled so replacement selection isn't blocked by a stale claim
+	if not config or config.reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
+		self.usedSkillsPerRun[skillId] = nil
+		logger.logDebug(SUBMODULE, "Released per_run claim for skill %s", skillId)
+		return true
+	end
+	return false
 end
 
 return skill_selection
