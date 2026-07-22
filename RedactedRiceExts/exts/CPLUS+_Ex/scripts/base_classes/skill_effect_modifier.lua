@@ -8,15 +8,22 @@
 --       id = "MySkill",
 --       name = "My Skill",
 --       description = "Modifies weapon effects",
---       priority = 100  -- Optional, default 100. Lower runs first.
+--       priority = 100,  -- Optional, default 100. Lower runs first.
+--       modifiesKillDamage = true,  -- Opt in to modifyKillDamage / OnKillLib
 --   })
 --
 --   function MySkillModifier:modifySpaceDamage(source, attackingPawn, phase, spaceDamage, indexes, targetPawn)
---       -- Modify spaceDamage here
---       -- Optionally return SpaceDamage or array of SpaceDamage to add new damages
+--       local newDamage = self:modifyKillDamage(source, attackingPawn, spaceDamage, indexes, targetPawn, spaceDamage.iDamage)
+--       if newDamage == spaceDamage.iDamage then return end
+--       -- Mutate spaceDamage for real weapon effect builds (icons, sScript, etc.)
 --   end
 --
---   MySkillModifier:baseInit()
+--   function MySkillModifier:modifyKillDamage(source, attackingPawn, spaceDamage, indexes, targetPawn, currentDamage)
+--       -- Return adjusted damage for OnKillLib / Board:IsDeadly preview. No side effects.
+--   end
+--
+-- Set modifiesKillDamage = true in :new{} to opt in. OnKillLib registration is handled
+-- automatically in setupEffect/clearEvents (same lifecycle as other skill events).
 
 local SkillEffectModifier = {}
 
@@ -50,43 +57,19 @@ SkillEffectModifier.PHASE_QUEUED_FINAL_EFFECT = 6
 local registeredSkills = {}
 -- Global event subscriptions
 local globalEventSubscriptions = {}
--- Existing isDeadly function
-local vanillaIsDeadly = nil
 
-local function isDuringWeaponBuild()
-	return modApiExt_internal.nestedCall_GetSkillEffect
-		or modApiExt_internal.nestedCall_GetFinalEffect
-		or modApiExt_internal.nestedCall_GetTargetArea
-		or modApiExt_internal.nestedCall_GetSecondTargetArea
-end
+local onKillLib = cplus_plus_ex._subobjects.onKillLib
 
-local function getWeaponBuildPhase()
-	if modApiExt_internal.nestedCall_GetTargetArea then
-		return SkillEffectModifier.PHASE_TARGET_AREA
-	elseif modApiExt_internal.nestedCall_GetSecondTargetArea then
-		return SkillEffectModifier.PHASE_SECOND_TARGET_AREA
-	elseif modApiExt_internal.nestedCall_GetFinalEffect then
-		return SkillEffectModifier.PHASE_FINAL_EFFECT
+-- Convert Point to hash for tracking pawn positions
+-- spaceOrX: Point or x coordinate, y: optional y coordinate
+local function getSpaceHash(spaceOrX, y)
+	local pX = spaceOrX
+	local pY = y
+	if not y then
+		pX = spaceOrX.x
+		pY = spaceOrX.y
 	end
-	return SkillEffectModifier.PHASE_SKILL_EFFECT
-end
-
--- Global Pawn is often the hover target during GetSkillEffect; prefer the selected/strategy pawn.
-local function getAttackingPawn()
-	if Board then
-		local selected = Board:GetSelectedPawn()
-		if selected then
-			return selected
-		end
-	end
-	if Pawn and Pawn:IsSelected() then
-		return Pawn
-	end
-	return nil
-end
-
-local function copySpaceDamage(spaceDamage)
-	return SpaceDamage(spaceDamage.loc, spaceDamage.iDamage, spaceDamage.iPush or DIR_NONE)
+	return pY * 10 + pX
 end
 
 local function buildSkillsForAffectedPawns(affectedPawns)
@@ -146,37 +129,35 @@ local function applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skill
 	end
 end
 
--- Convert Point to hash for tracking pawn positions
--- spaceOrX: Point or x coordinate, y: optional y coordinate
-local function getSpaceHash(spaceOrX, y)
-	local pX = spaceOrX
-	local pY = y
-	if not y then
-		pX = spaceOrX.x
-		pY = spaceOrX.y
+-- Called by OnKillLib for a single registered skill modifier.
+-- targetPawn and attackingPawn are resolved by onKillLib before invocation.
+local function applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPawn, currentDamage)
+	-- Ensure we have all the needed data
+	if not skill.modifiesKillDamage or not attackingPawn or not spaceDamage or not spaceDamage.loc then
+		return currentDamage
 	end
-	return pY * 10 + pX
-end
 
-local function applyAttackerSkillsForDeadlyCheck(attackingPawn, spaceDamage, targetPawn, phase)
-	local affectedPawns = {}
-	affectedPawns[attackingPawn:GetId()] = attackingPawn
+	-- Modify it for attacking pilot if there is one
+	local damage = currentDamage
+	local attackingPilot = attackingPawn:GetPilot()
+	if attackingPilot and cplus_plus_ex:isSkillOnPilot(skill.id, attackingPilot) then
+		local attackerIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, attackingPilot)
+		damage = skill:modifyKillDamage(SkillEffectModifier.SOURCE_ATTACKER,
+				attackingPawn, spaceDamage, attackerIndexes,
+				targetPawn, damage)
+	end
+
+	-- Modify it for the target pilot if there is one
 	if targetPawn then
-		affectedPawns[targetPawn:GetId()] = targetPawn
+		local targetPilot = targetPawn:GetPilot()
+		if targetPilot and cplus_plus_ex:isSkillOnPilot(skill.id, targetPilot) then
+			local targetIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, targetPilot)
+			damage = skill:modifyKillDamage(SkillEffectModifier.SOURCE_TARGET,
+					attackingPawn, spaceDamage, targetIndexes,
+					targetPawn, damage)
+		end
 	end
-
-	local skillsByPriority, priorities = buildSkillsForAffectedPawns(affectedPawns)
-	if #priorities == 0 then
-		return
-	end
-
-	SkillEffectModifier.spacesWithPawns = {}
-	SkillEffectModifier.pawnPositions = {}
-	if targetPawn and spaceDamage.loc then
-		SkillEffectModifier.spacesWithPawns[getSpaceHash(spaceDamage.loc)] = targetPawn
-	end
-
-	applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skillsByPriority, priorities)
+	return damage
 end
 
 function SkillEffectModifier:new(tbl)
@@ -191,11 +172,11 @@ local function registerGlobalCallbacks()
 
 	table.insert(globalEventSubscriptions, modapiext.events.onSkillBuild:subscribe(
 		function(mission, pawn, weaponId, p1, p2, skillEffect)
-			SkillEffectModifier.processAllSkills(pawn, false, skillEffect, p2)
+			SkillEffectModifier.processAllSkills(pawn, false, skillEffect)
 		end))
 	table.insert(globalEventSubscriptions, modapiext.events.onFinalEffectBuild:subscribe(
 		function(mission, pawn, weaponId, p1, p2, p3, skillEffect)
-			SkillEffectModifier.processAllSkills(pawn, true, skillEffect, p2)
+			SkillEffectModifier.processAllSkills(pawn, true, skillEffect)
 		end))
 
 	logger.logDebug(SUBMODULE, "Registered %d global callbacks", #globalEventSubscriptions)
@@ -212,6 +193,28 @@ local function unregisterGlobalCallbacks()
 	logger.logDebug(SUBMODULE, "Unregistered all global callbacks")
 end
 
+local function registerOnKillModifier(skill)
+	-- If we already have an on kill id, we already added the modifier so don't re-add
+	if skill._onKillModifierId then
+		logger.logWarn(SUBMODULE, "OnKillLib modifier for skill %s already registered", skill.id)
+		return
+	end
+
+	skill._onKillModifierId = onKillLib:AddModifier(function(spaceDamage, targetPawn, attackingPawn, currentDamage)
+			return applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPawn, currentDamage)
+	end, skill.priority, skill.id)
+	logger.logDebug(SUBMODULE, "Registered OnKillLib modifier for skill %s at priority %d",
+			skill.id, skill.priority)
+end
+
+local function unregisterOnKillModifier(skill)
+	if skill._onKillModifierId then
+		onKillLib:RemoveModifier(skill._onKillModifierId)
+		skill._onKillModifierId = nil
+		logger.logDebug(SUBMODULE, "Removed OnKillLib modifier for skill %s", skill.id)
+	end
+end
+
 function SkillEffectModifier:setupEffect()
 	logger.logDebug(SUBMODULE, "Setting up effect modifier for %s", self.id)
 
@@ -221,10 +224,17 @@ function SkillEffectModifier:setupEffect()
 
 	table.insert(registeredSkills, self)
 	logger.logDebug(SUBMODULE, "Registered skill %s (total: %d)", self.id, #registeredSkills)
+
+	if self.modifiesKillDamage then
+		registerOnKillModifier(self)
+	end
 end
 
 function SkillEffectModifier:clearEvents()
 	logger.logDebug(SUBMODULE, "Removing skill %s", self.id)
+
+	-- Just always try to unregister
+	unregisterOnKillModifier(self)
 
 	cplus_plus_ex.baseClasses.SkillActive.clearEvents(self)
 
@@ -241,13 +251,19 @@ function SkillEffectModifier:clearEvents()
 	end
 end
 
--- Override this in derived classes to modify weapon damage
+-- Override this in derived classes to modify weapon damage during effect builds.
 -- source: SOURCE_ATTACKER or SOURCE_TARGET
 -- phase: One of PHASE_* constants for icon placement
 -- indexes: Array of skill slot numbers (e.g., {1}, {2}, or {1,2})
 -- NOTE: This should modify spaceDamage in place and not return anything
 function SkillEffectModifier:modifySpaceDamage(source, attackingPawn, phase, spaceDamage, indexes, targetPawn)
 	logger.logError(SUBMODULE, string.format("SkillEffectModifier modifySpaceDamage not implemented for skill %s", self.id))
+end
+
+-- Override in derived classes to adjust damage for OnKillLib / Board:IsDeadly preview.
+-- Returns the adjusted damage total. No side effects (icons, sScript, etc.).
+function SkillEffectModifier:modifyKillDamage(source, attackingPawn, spaceDamage, indexes, targetPawn, currentDamage)
+	return currentDamage
 end
 
 -- Override this in derived classes to return aggregated effects after all spaceDamages processed
@@ -309,7 +325,7 @@ end
 
 -- Process damage list effect by effect, running all skills per effect in priority order
 -- This ensures positions are always current and skills see each other's modifications
-local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriority, priorities, phase, isQueued, skillEffect)
+local function processEffectByEffect(attackingPawn, effectsTable, skillsByPriority, priorities, phase)
 	if #effectsTable == 0 then
 		return
 	end
@@ -442,7 +458,7 @@ local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsT
 
 		-- Process effects and get any new effects from SkillEffectEvaluated
 		local newEffects = processEffectByEffect(attackingPawn, damagesToProcess,
-				skillsByPriority, priorities, phase, isQueued, skillEffect)
+				skillsByPriority, priorities, phase)
 
 		if newEffects and #newEffects > 0 then
 			logger.logDebug(SUBMODULE, "Pass %d: %d new effects from SkillEffectEvaluated",
@@ -485,7 +501,7 @@ local function processEffectsWithQueuedFlag(attackingPawn, skillEffect, effectsT
 end
 
 -- Main processing function called by modapiext events
-function SkillEffectModifier.processAllSkills(attackingPawn, isFinalEffect, skillEffect, p2)
+function SkillEffectModifier.processAllSkills(attackingPawn, isFinalEffect, skillEffect)
 	if modApiExt_internal.nestedCall_GetSkillEffect or modApiExt_internal.nestedCall_GetFinalEffect then
 		logger.logDebug(SUBMODULE, "Skipping nested call for SkillEffectModifier (GetSkillEffect: %s, GetFinalEffect: %s)",
 				tostring(modApiExt_internal.nestedCall_GetSkillEffect), tostring(modApiExt_internal.nestedCall_GetFinalEffect))
@@ -511,26 +527,5 @@ function SkillEffectModifier.processAllSkills(attackingPawn, isFinalEffect, skil
 		end
 	end
 end
-
-local function onBoardClassInitialized(BoardClass, board)
-	vanillaIsDeadly = board.IsDeadly
-	BoardClass.IsDeadly = function(self, spaceDamage, targetPawn)
-		if not isDuringWeaponBuild() or not spaceDamage or not targetPawn then
-			return vanillaIsDeadly(self, spaceDamage, targetPawn)
-		end
-
-		local attackingPawn = getAttackingPawn()
-		if not attackingPawn then
-			return vanillaIsDeadly(self, spaceDamage, targetPawn)
-		end
-
-		-- Make a copy, apply the skills, and then use the vanilla version
-		local copy = copySpaceDamage(spaceDamage)
-		applyAttackerSkillsForDeadlyCheck(attackingPawn, copy, targetPawn, getWeaponBuildPhase())
-		return vanillaIsDeadly(self, copy, targetPawn)
-	end
-end
-
-modApi.events.onBoardClassInitialized:subscribe(onBoardClassInitialized)
 
 return SkillEffectModifier

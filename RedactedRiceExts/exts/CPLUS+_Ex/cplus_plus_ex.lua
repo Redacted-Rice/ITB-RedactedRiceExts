@@ -81,6 +81,7 @@ cplus_plus_ex.NON_VIRTUAL_SKILLS = {
 }
 
 cplus_plus_ex._subobjects = {}
+cplus_plus_ex._subobjects.onKillLib = require(path.."scripts/libs/onKillLib")
 cplus_plus_ex._subobjects.utils = require(path.."scripts/utils")
 cplus_plus_ex._subobjects.skill_registry = require(path.."scripts/skill_registry")
 cplus_plus_ex._subobjects.skill_config = require(path.."scripts/skill_config")
