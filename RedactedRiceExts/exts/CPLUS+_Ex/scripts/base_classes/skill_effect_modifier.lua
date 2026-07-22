@@ -9,7 +9,7 @@
 --       name = "My Skill",
 --       description = "Modifies weapon effects",
 --       priority = 100,  -- Optional, default 100. Lower runs first.
---       modifiesKillDamage = true,  -- Opt in to modifyKillDamage / OnKillLib
+--       modifiesKillDamage = true,  -- Opt in to modifyKillDamage / DeadlyLib
 --   })
 --
 --   function MySkillModifier:modifySpaceDamage(source, attackingPawn, phase, spaceDamage, indexes, targetPawn)
@@ -19,11 +19,13 @@
 --   end
 --
 --   function MySkillModifier:modifyKillDamage(source, attackingPawn, spaceDamage, indexes, targetPawn, currentDamage)
---       -- Return adjusted damage for OnKillLib / Board:IsDeadly preview. No side effects.
+--       -- Return adjusted damage for DeadlyLib / Board:IsDeadly preview. No side effects.
+--       -- DeadlyLib passes a SpaceDamage copy; iDamage is written back from the return value.
 --   end
 --
--- Set modifiesKillDamage = true in :new{} to opt in. OnKillLib registration is handled
--- automatically in setupEffect/clearEvents (same lifecycle as other skill events).
+-- Set modifiesKillDamage = true in :new{} to opt in. DeadlyLib.events.onIsDeadlyEvaluating
+-- subscription is handled automatically in setupEffect/clearEvents (same lifecycle
+-- as other skill events).
 
 local SkillEffectModifier = {}
 
@@ -58,7 +60,7 @@ local registeredSkills = {}
 -- Global event subscriptions
 local globalEventSubscriptions = {}
 
-local onKillLib = cplus_plus_ex._subobjects.onKillLib
+local deadlyLib = cplus_plus_ex._subobjects.deadlyLib
 
 -- Convert Point to hash for tracking pawn positions
 -- spaceOrX: Point or x coordinate, y: optional y coordinate
@@ -129,16 +131,14 @@ local function applySkillsToSpaceDamage(attackingPawn, spaceDamage, phase, skill
 	end
 end
 
--- Called by OnKillLib for a single registered skill modifier.
--- targetPawn and attackingPawn are resolved by onKillLib before invocation.
-local function applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPawn, currentDamage)
-	-- Ensure we have all the needed data
+-- Called by DeadlyLib for a single registered skill modifier.
+-- Mutates spaceDamage.iDamage in place (receives DeadlyLib's SpaceDamage copy).
+local function applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPawn)
 	if not skill.modifiesKillDamage or not attackingPawn or not spaceDamage or not spaceDamage.loc then
-		return currentDamage
+		return
 	end
 
-	-- Modify it for attacking pilot if there is one
-	local damage = currentDamage
+	local damage = spaceDamage.iDamage
 	local attackingPilot = attackingPawn:GetPilot()
 	if attackingPilot and cplus_plus_ex:isSkillOnPilot(skill.id, attackingPilot) then
 		local attackerIndexes = cplus_plus_ex:getPilotSkillIndices(skill.id, attackingPilot)
@@ -147,7 +147,6 @@ local function applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPaw
 				targetPawn, damage)
 	end
 
-	-- Modify it for the target pilot if there is one
 	if targetPawn then
 		local targetPilot = targetPawn:GetPilot()
 		if targetPilot and cplus_plus_ex:isSkillOnPilot(skill.id, targetPilot) then
@@ -157,7 +156,8 @@ local function applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPaw
 					targetPawn, damage)
 		end
 	end
-	return damage
+
+	spaceDamage.iDamage = damage
 end
 
 function SkillEffectModifier:new(tbl)
@@ -194,24 +194,23 @@ local function unregisterGlobalCallbacks()
 end
 
 local function registerOnKillModifier(skill)
-	-- If we already have an on kill id, we already added the modifier so don't re-add
-	if skill._onKillModifierId then
-		logger.logWarn(SUBMODULE, "OnKillLib modifier for skill %s already registered", skill.id)
+	if skill._deadlySubscription then
+		logger.logWarn(SUBMODULE, "DeadlyLib subscriber for skill %s already registered", skill.id)
 		return
 	end
 
-	skill._onKillModifierId = onKillLib:AddModifier(function(spaceDamage, targetPawn, attackingPawn, currentDamage)
-			return applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPawn, currentDamage)
-	end, skill.priority, skill.id)
-	logger.logDebug(SUBMODULE, "Registered OnKillLib modifier for skill %s at priority %d",
+	skill._deadlySubscription = deadlyLib.events.onIsDeadlyEvaluating:subscribe(function(spaceDamage, attackingPawn, targetPawn)
+		applySkillKillDamage(skill, spaceDamage, targetPawn, attackingPawn)
+	end, skill.priority)
+	logger.logDebug(SUBMODULE, "Subscribed skill %s to DeadlyLib.onIsDeadlyEvaluating at priority %d",
 			skill.id, skill.priority)
 end
 
 local function unregisterOnKillModifier(skill)
-	if skill._onKillModifierId then
-		onKillLib:RemoveModifier(skill._onKillModifierId)
-		skill._onKillModifierId = nil
-		logger.logDebug(SUBMODULE, "Removed OnKillLib modifier for skill %s", skill.id)
+	if skill._deadlySubscription then
+		skill._deadlySubscription:unsubscribe()
+		skill._deadlySubscription = nil
+		logger.logDebug(SUBMODULE, "Unsubscribed skill %s from DeadlyLib.onIsDeadlyEvaluating", skill.id)
 	end
 end
 
@@ -260,7 +259,7 @@ function SkillEffectModifier:modifySpaceDamage(source, attackingPawn, phase, spa
 	logger.logError(SUBMODULE, string.format("SkillEffectModifier modifySpaceDamage not implemented for skill %s", self.id))
 end
 
--- Override in derived classes to adjust damage for OnKillLib / Board:IsDeadly preview.
+-- Override in derived classes to adjust damage for DeadlyLib / Board:IsDeadly preview.
 -- Returns the adjusted damage total. No side effects (icons, sScript, etc.).
 function SkillEffectModifier:modifyKillDamage(source, attackingPawn, spaceDamage, indexes, targetPawn, currentDamage)
 	return currentDamage
