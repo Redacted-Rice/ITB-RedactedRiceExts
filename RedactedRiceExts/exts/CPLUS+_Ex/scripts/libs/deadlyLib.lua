@@ -23,6 +23,13 @@ API:
 
   subscription:unsubscribe()
 
+  DeadlyLib:GetModifiedDamage(spaceDamage, attackingPawn) -> number
+      Runs subscribers against a copy of spaceDamage and returns the final
+      iDamage. Does not mutate the original SpaceDamage.
+
+  DeadlyLib:GetDamageDelta(spaceDamage, attackingPawn) -> number
+      Same evaluation as GetModifiedDamage, returns (modified - original).
+
 Priority guidance (align with SkillEffectModifier.priority):
   INTERNAL_PRIORITY (0) - framework use only
   30-50  - early transformations / blocks
@@ -32,7 +39,7 @@ Priority guidance (align with SkillEffectModifier.priority):
   180-200 - late follow-ups
 ]]
 
-local VERSION = "0.9.0"
+local VERSION = "0.9.1"
 
 local DEBUG = true
 
@@ -108,28 +115,55 @@ local function copySpaceDamage(spaceDamage)
 	)
 end
 
+-- Runs onIsDeadlyEvaluating against a copy of spaceDamage.
+-- Returns originalDamage, modifiedDamage, modifiedCopy.
+local function evaluate(spaceDamage, attackingPawn)
+	Assert.Equals("userdata", type(spaceDamage), "Argument #1")
+
+	local originalDamage = spaceDamage.iDamage
+	local event = DeadlyLib.events.onIsDeadlyEvaluating
+
+	if not spaceDamage.loc or #event.subscribers == 0 then
+		return originalDamage, originalDamage, spaceDamage
+	end
+
+	local modified = copySpaceDamage(spaceDamage)
+	local targetPawn = resolveTargetPawn(spaceDamage)
+
+	logDebug("Evaluating at %s: baseDamage=%s target={%s} attacker={%s} subscribers=%d",
+			spaceDamage.loc:GetString(), tostring(originalDamage),
+			describePawn(targetPawn), describePawn(attackingPawn),
+			#event.subscribers)
+
+	event:dispatch(modified, attackingPawn, targetPawn)
+
+	logDebug("Evaluated at %s: baseDamage=%s modifiedDamage=%s delta=%s",
+			spaceDamage.loc:GetString(), tostring(originalDamage),
+			tostring(modified.iDamage), tostring(modified.iDamage - originalDamage))
+
+	return originalDamage, modified.iDamage, modified
+end
+
+local function getModifiedDamage(self, spaceDamage, attackingPawn)
+	local _, modifiedDamage = evaluate(spaceDamage, attackingPawn)
+	return modifiedDamage
+end
+
+local function getDamageDelta(self, spaceDamage, attackingPawn)
+	local originalDamage, modifiedDamage = evaluate(spaceDamage, attackingPawn)
+	return modifiedDamage - originalDamage
+end
+
 local function onBoardClassInitialized(BoardClass, board)
 	local previousIsDeadly = board.IsDeadly
 
 	BoardClass.IsDeadly = function(self, spaceDamage, attackingPawn)
-		local event = DeadlyLib.events.onIsDeadlyEvaluating
-		if not spaceDamage or not spaceDamage.loc or #event.subscribers == 0 then
+		if not spaceDamage or not spaceDamage.loc
+				or #DeadlyLib.events.onIsDeadlyEvaluating.subscribers == 0 then
 			return previousIsDeadly(self, spaceDamage, attackingPawn)
 		end
 
-		local originalDamage = spaceDamage.iDamage
-		local modified = copySpaceDamage(spaceDamage)
-		local targetPawn = resolveTargetPawn(spaceDamage)
-
-		logDebug("Dispatching onIsDeadlyEvaluating at %s: baseDamage=%s target={%s} attacker={%s} subscribers=%d",
-				spaceDamage.loc:GetString(), tostring(originalDamage),
-				describePawn(targetPawn), describePawn(attackingPawn),
-				#event.subscribers)
-
-		-- ModApi Event style: dispatch args directly to subscribers
-		event:dispatch(modified, attackingPawn, targetPawn)
-
-		local usedDamage = modified.iDamage
+		local originalDamage, usedDamage, modified = evaluate(spaceDamage, attackingPawn)
 		local damageChanged = usedDamage ~= originalDamage
 		local toCheck = damageChanged and modified or spaceDamage
 
@@ -168,9 +202,16 @@ if isNewestVersion then
 	DeadlyLib.events.onIsDeadlyEvaluating = createPriorityEvent("onIsDeadlyEvaluating")
 
 	function DeadlyLib:finalizeInit()
+		self.GetModifiedDamage = getModifiedDamage
+		self.GetDamageDelta = getDamageDelta
+
 		logDebug("Finalized DeadlyLib %s (%d subscriber(s))",
 				VERSION, #self.events.onIsDeadlyEvaluating.subscribers)
 	end
+
+	-- Available immediately for callers that need it before finalizeInit.
+	DeadlyLib.GetModifiedDamage = getModifiedDamage
+	DeadlyLib.GetDamageDelta = getDamageDelta
 
 	modApi.events.onBoardClassInitialized:subscribe(onBoardClassInitialized)
 end
