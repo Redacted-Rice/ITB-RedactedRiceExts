@@ -1,5 +1,5 @@
 --[[
-DeadlyLib - Adjust Board:IsDeadly checks for modified weapon damage.
+DamageModifierLib - Adjust Board:IsDeadly checks for modified weapon damage.
 
 Libs Wiki: https://github.com/Redacted-Rice/ITB-RedactedRiceMods/wiki
 
@@ -14,7 +14,7 @@ modified copy is used for the real IsDeadly check; otherwise the original
 is used unchanged.
 
 API:
-  DeadlyLib.events.onIsDeadlyEvaluating:subscribe(fn, priority) -> Subscription
+  DamageModifierLib.events.onEvaluating:subscribe(fn, priority) -> Subscription
       fn(spaceDamage, attackingPawn, targetPawn)
         spaceDamage   - mutable SpaceDamage COPY (mutate this)
         attackingPawn - pawn passed to Board:IsDeadly
@@ -23,11 +23,11 @@ API:
 
   subscription:unsubscribe()
 
-  DeadlyLib:GetModifiedDamage(spaceDamage, attackingPawn) -> number
+  DamageModifierLib:GetModifiedDamage(spaceDamage, attackingPawn) -> number
       Runs subscribers against a copy of spaceDamage and returns the final
       iDamage. Does not mutate the original SpaceDamage.
 
-  DeadlyLib:GetDamageDelta(spaceDamage, attackingPawn) -> number
+  DamageModifierLib:GetDamageDelta(spaceDamage, attackingPawn) -> number
       Same evaluation as GetModifiedDamage, returns (modified - original).
 
 Priority guidance (align with SkillEffectModifier.priority):
@@ -48,7 +48,7 @@ local INTERNAL_PRIORITY = 0
 
 local function logDebug(fmt, ...)
 	if DEBUG then
-		LOG("DeadlyLib: " .. string.format(fmt, ...))
+		LOG("DamageModifierLib: " .. string.format(fmt, ...))
 	end
 end
 
@@ -115,13 +115,13 @@ local function copySpaceDamage(spaceDamage)
 	)
 end
 
--- Runs onIsDeadlyEvaluating against a copy of spaceDamage.
+-- Runs onEvaluating against a copy of spaceDamage.
 -- Returns originalDamage, modifiedDamage, modifiedCopy.
 local function evaluate(spaceDamage, attackingPawn)
 	Assert.Equals("userdata", type(spaceDamage), "Argument #1")
 
 	local originalDamage = spaceDamage.iDamage
-	local event = DeadlyLib.events.onIsDeadlyEvaluating
+	local event = DamageModifierLib.events.onEvaluating
 
 	if not spaceDamage.loc or #event.subscribers == 0 then
 		return originalDamage, originalDamage, spaceDamage
@@ -159,7 +159,7 @@ local function onBoardClassInitialized(BoardClass, board)
 
 	BoardClass.IsDeadly = function(self, spaceDamage, attackingPawn)
 		if not spaceDamage or not spaceDamage.loc
-				or #DeadlyLib.events.onIsDeadlyEvaluating.subscribers == 0 then
+				or #DamageModifierLib.events.onEvaluating.subscribers == 0 then
 			return previousIsDeadly(self, spaceDamage, attackingPawn)
 		end
 
@@ -176,44 +176,44 @@ local function onBoardClassInitialized(BoardClass, board)
 end
 
 local function onModsInitialized()
-	if VERSION < DeadlyLib.version then
+	if VERSION < DamageModifierLib.version then
 		return
 	end
 
-	if DeadlyLib.initialized then
+	if DamageModifierLib.initialized then
 		return
 	end
 
-	DeadlyLib:finalizeInit()
-	DeadlyLib.initialized = true
+	DamageModifierLib:finalizeInit()
+	DamageModifierLib.initialized = true
 end
 
 modApi.events.onModsInitialized:subscribe(onModsInitialized)
 
-local isNewestVersion = DeadlyLib == nil
-	or modApi:isVersionAbove(VERSION, DeadlyLib.version)
+local isNewestVersion = DamageModifierLib == nil
+	or modApi:isVersionAbove(VERSION, DamageModifierLib.version)
 
 if isNewestVersion then
-	DeadlyLib = DeadlyLib or {}
-	DeadlyLib.version = VERSION
-	DeadlyLib.DEFAULT_PRIORITY = DEFAULT_PRIORITY
-	DeadlyLib.INTERNAL_PRIORITY = INTERNAL_PRIORITY
-	DeadlyLib.events = DeadlyLib.events or {}
-	DeadlyLib.events.onIsDeadlyEvaluating = createPriorityEvent("onIsDeadlyEvaluating")
+	DamageModifierLib = DamageModifierLib or {}
+	DamageModifierLib.version = VERSION
+	DamageModifierLib.DEFAULT_PRIORITY = DEFAULT_PRIORITY
+	DamageModifierLib.INTERNAL_PRIORITY = INTERNAL_PRIORITY
+	DamageModifierLib.events = DamageModifierLib.events or {}
+	DamageModifierLib.events.onEvaluating = createPriorityEvent("onEvaluating")
 
-	function DeadlyLib:finalizeInit()
+	function DamageModifierLib:finalizeInit()
 		self.GetModifiedDamage = getModifiedDamage
 		self.GetDamageDelta = getDamageDelta
 
-		logDebug("Finalized DeadlyLib %s (%d subscriber(s))",
-				VERSION, #self.events.onIsDeadlyEvaluating.subscribers)
+		logDebug("Finalized DamageModifierLib %s (%d subscriber(s))",
+				VERSION, #self.events.onEvaluating.subscribers)
 	end
 
 	-- Available immediately for callers that need it before finalizeInit.
-	DeadlyLib.GetModifiedDamage = getModifiedDamage
-	DeadlyLib.GetDamageDelta = getDamageDelta
+	DamageModifierLib.GetModifiedDamage = getModifiedDamage
+	DamageModifierLib.GetDamageDelta = getDamageDelta
 
 	modApi.events.onBoardClassInitialized:subscribe(onBoardClassInitialized)
 end
 
-return DeadlyLib
+return DamageModifierLib
