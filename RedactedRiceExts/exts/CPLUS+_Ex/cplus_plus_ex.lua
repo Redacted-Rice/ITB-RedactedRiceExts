@@ -169,6 +169,7 @@ function cplus_plus_ex:exposeAPI()
 	-- Expose commonly used submodules/data at root level for easier external access
 	self.hooks = hooks
 	self.events = hooks.events
+	self.damageModifierLib = cplus_plus_ex._subobjects.damageModifierLib
 	self.config = skill_config.config
 	self.SkillConfig = skill_config.SkillConfig
 	self.RelationshipType = skill_config.RelationshipType
