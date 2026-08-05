@@ -212,6 +212,9 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:selectRandomSkill(...) return skill_selection:selectRandomSkill(...) end
 	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
 	function cplus_plus_ex:getAssignableSkillIds(...) return skill_selection:getAssignableSkillIds(...) end
+	-- Per run claim helpers
+	function cplus_plus_ex:markPerRunSkillAsUsed(...) return skill_selection:_markPerRunSkillAsUsed(...) end
+	function cplus_plus_ex:unmarkPerRunSkill(...) return skill_selection:_unmarkPerRunSkill(...) end
 	-- Virtual skill functions
 	function cplus_plus_ex:canBeVirtualSkill(...) return skill_selection:canBeVirtualSkill(...) end
 	function cplus_plus_ex:registerVirtualSkillSource(...) return skill_selection:registerVirtualSkillSource(...) end
