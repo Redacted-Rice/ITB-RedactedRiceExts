@@ -154,15 +154,17 @@ function pilot_overrides:_specialCaseHandling(pilot, prevHealthBonus, newHealthB
 	if pawnId then
 		local pawn = Board:GetPawn(pawnId)
 
-		local maxHealth = pawn:GetMaxHealth()
-		local health = pawn:GetHealth()
-		logger.logDebug(SUBMODULE, "Special Logic check for pilot  %s: Prev health bonus %d, new health bonus %d, current max health %d",
-				pilot:getIdStr(), prevHealthBonus, newHealthBonus, maxHealth)
+		if pawn then
+			local maxHealth = pawn:GetMaxHealth()
+			local health = pawn:GetHealth()
+			logger.logDebug(SUBMODULE, "Special Logic check for pilot  %s: Prev health bonus %d, new health bonus %d, current max health %d",
+					pilot:getIdStr(), prevHealthBonus, newHealthBonus, maxHealth)
 
-		local healthDiff = newHealthBonus - prevHealthBonus
-		if healthDiff ~= 0 then
-			pawn:SetMaxHealth(maxHealth + healthDiff)
-			pawn:SetHealth(health + healthDiff)
+			local healthDiff = newHealthBonus - prevHealthBonus
+			if healthDiff ~= 0 then
+				pawn:SetMaxHealth(maxHealth + healthDiff)
+				pawn:SetHealth(health + healthDiff)
+			end
 		end
 	end
 end
