@@ -128,6 +128,11 @@ bool parseSequenceDataType(const char* str, SequenceScanner::DataType& outType) 
 	return false;
 }
 
+bool parseItBStringDataType(const char* str) {
+	std::string lower = toLower(str);
+	return lower == "itb_string" || lower == "itbstring";
+}
+
 void logScannerErrors(lua_State* L, Scanner* scanner, const char* operation) {
 	if (scanner->hasError()) {
 		const std::vector<std::string, ScannerAllocator<std::string>>& errors = scanner->getErrors();
@@ -763,6 +768,14 @@ int struct_search_add_field(lua_State* L) {
 				return 0; // Error already pushed
 			}
 			(*structPtr)->addSequenceField(offset, (const uint8_t*)data, size);
+		} else if (parseItBStringDataType(typeStr)) {
+			if (!lua_isstring(L, 4)) {
+				luaL_error(L, "Expected string for ITB_STRING data type");
+				return 0;
+			}
+			size_t size;
+			const char* str = lua_tolstring(L, 4, &size);
+			(*structPtr)->addItBStringField(offset, (const uint8_t*)str, size);
 		} else {
 			// Check if it's a struct type (not supported for fields)
 			std::string lowerType = toLower(typeStr);
@@ -881,6 +894,7 @@ void add_scanner_functions(lua_State* L) {
 	lua_pushstring(L, "DOUBLE"); lua_pushstring(L, "double"); lua_rawset(L, -3);
 	lua_pushstring(L, "BOOL"); lua_pushstring(L, "bool"); lua_rawset(L, -3);
 	lua_pushstring(L, "STRING"); lua_pushstring(L, "string"); lua_rawset(L, -3);
+	lua_pushstring(L, "ITB_STRING"); lua_pushstring(L, "itb_string"); lua_rawset(L, -3);
 	lua_pushstring(L, "BYTE_ARRAY"); lua_pushstring(L, "byte_array"); lua_rawset(L, -3);
 	lua_pushstring(L, "STRUCT"); lua_pushstring(L, "struct"); lua_rawset(L, -3);
 	lua_rawset(L, -3);
