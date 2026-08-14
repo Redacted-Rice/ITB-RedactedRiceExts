@@ -45,6 +45,56 @@ bool StructScanner::StructFieldSequence::compare(const uint8_t* keyAddr) const {
     return SequenceScanner::compare(keyAddr + offsetFromKey, val.data(), val.size());
 }
 
+namespace {
+	const int ITB_STRING_STRLEN_OFFSET = 0x10;
+	const int ITB_STRING_UNIONTYPE_OFFSET = 0x14;
+	const int ITB_STRING_LOCAL = 0x0F;
+	const int ITB_STRING_REMOTE = 0x1F;
+}
+
+// StructFieldItBString implementation
+StructScanner::StructFieldItBString::StructFieldItBString(int offsetFromKey, const uint8_t* data, size_t size)
+	: offsetFromKey(offsetFromKey), val(data, data + size) {
+}
+
+bool StructScanner::StructFieldItBString::compare(const uint8_t* keyAddr) const {
+	const uint8_t* itbBase = keyAddr + offsetFromKey;
+	const size_t expectedLen = val.size();
+	if (expectedLen == 0) {
+		return false;
+	}
+
+	__try {
+		const int strLen = *(const int*)(itbBase + ITB_STRING_STRLEN_OFFSET);
+		if (strLen != (int)expectedLen) {
+			return false;
+		}
+
+		const int unionType = *(const int*)(itbBase + ITB_STRING_UNIONTYPE_OFFSET);
+		const uint8_t* strAddr = nullptr;
+
+		if (unionType == ITB_STRING_LOCAL) {
+			strAddr = itbBase;
+		} else if (unionType == ITB_STRING_REMOTE) {
+			const uintptr_t ptr = *(const uintptr_t*)itbBase;
+			if (ptr == 0) {
+				return false;
+			}
+			if (!SafeMemory::is_access_allowed((void*)ptr, expectedLen, false)) {
+				return false;
+			}
+			strAddr = (const uint8_t*)ptr;
+		} else {
+			return false;
+		}
+
+		return memcmp(strAddr, val.data(), expectedLen) == 0;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return false;
+	}
+}
+
 // StructSearch implementation
 void* StructScanner::StructSearch::operator new(size_t size) {
 	return ScannerHeap::allocate(size);
@@ -108,6 +158,11 @@ bool StructScanner::compare(const uint8_t* keyAddr) const {
         }
     }
     for (const StructFieldSequence& field : searchStruct.sequenceFields) {
+        if (!field.compare(keyAddr)) {
+            return false;
+        }
+    }
+    for (const StructFieldItBString& field : searchStruct.itbStringFields) {
         if (!field.compare(keyAddr)) {
             return false;
         }
@@ -254,4 +309,3 @@ bool StructScanner::validateValueDirect(uintptr_t address, uintptr_t regionStart
 	outResult.address = address;
 	return true;
 }
-
