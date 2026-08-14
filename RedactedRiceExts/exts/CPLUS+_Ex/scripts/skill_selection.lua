@@ -593,6 +593,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 	if fireHooks == nil then fireHooks = false end
 
+	self:_initGameSaveData()
+
 	local availableSkills = self:getAssignableSkillIds()
 
 	-- Use pilot ID as the key for storing skills for now. Multiple pilots with same ID is
@@ -718,6 +720,11 @@ end
 -- Takes storedSkills structure: { {id = skill1Id}, {id = skill2Id} }
 function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	local pilotId = pilot:getIdStr()
+
+	self:_initGameSaveData()
+	if not GAME.cplus_plus_ex.pilotSkills[pilotId] then
+		GAME.cplus_plus_ex.pilotSkills[pilotId] = {}
+	end
 
 	local skill1Id = storedSkills[1].id or "<unknown>"
 	local skill2Id = storedSkills[2].id or "<unknown>"
