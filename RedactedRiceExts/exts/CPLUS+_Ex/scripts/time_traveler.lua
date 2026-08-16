@@ -48,9 +48,10 @@ local function buildPilotScanStruct(id, data)
 	local idLen = #id
 	local strLenOffset = PilotLayout.id.offset + ItBStringLayout.strLen.offset
 
-	-- memchr key - low byte of expected strLen at the strLen field offset. Not as good a
-	-- candidate as 'P' was but this makes the scan much simpler as we can assume/always check
-	-- for the struct in a single search
+	-- memchr key: low byte of expected strLen at the strLen field offset. Not as good a
+	-- candidate as 'P' was but this makes the scan much simpler as we can always check
+	-- for the struct in a single search. idLen % 256 is only the memchr hint; for ids
+	-- longer than 255 the exact int field below still filters false key hits.
 	local structDef = memhack.dll.scanner.StructSearch.new(idLen % 256, strLenOffset)
 	structDef:addField(PilotLayout.xp.offset, "int", data.xp)
 	structDef:addField(PilotLayout.level.offset, "int", data.level)
