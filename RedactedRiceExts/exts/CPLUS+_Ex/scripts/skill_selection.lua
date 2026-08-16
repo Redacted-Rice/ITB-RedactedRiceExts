@@ -568,13 +568,6 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 		return false
 	end
 
-	local pilotId = pilot:getIdStr()
-	-- ensure game data is initialized
-	skill_selection:_initGameSaveData()
-	if not GAME.cplus_plus_ex.pilotSkills[pilotId] then
-		GAME.cplus_plus_ex.pilotSkills[pilotId] = {}
-	end
-
 	-- Apply the skills to the pilot
 	if fireHooks == nil then fireHooks = false end
 	local storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
@@ -616,9 +609,18 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 	-- If the skills are not stored, we need to assign them
 	local found = false
 	if storedSkills ~= nil then
-		logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilotId)
-		skillIds = {storedSkills[1].id, storedSkills[2].id}
-		found = true
+		-- Incomplete entries (e.g. empty table left by a failed validate) must not
+		-- short-circuit time-traveler / preserve / random assignment paths
+		if storedSkills[1] and storedSkills[2]
+				and type(storedSkills[1].id) == "string" and type(storedSkills[2].id) == "string" then
+			logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilotId)
+			skillIds = {storedSkills[1].id, storedSkills[2].id}
+			found = true
+		else
+			logger.logWarn(SUBMODULE, "Clearing incomplete stored skills for pilot %s", pilotId)
+			GAME.cplus_plus_ex.pilotSkills[pilotId] = nil
+			storedSkills = nil
+		end
 	end
 	-- if its the time traveler, save the current skills
 	if not found and cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers then
@@ -718,13 +720,12 @@ end
 
 -- Internal function to validate, assign saveVals, and apply skills to the pilot
 -- Takes storedSkills structure: { {id = skill1Id}, {id = skill2Id} }
+-- Only commits GAME.cplus_plus_ex.pilotSkills[pilotId] on full success so failed
+-- validation never leaves an empty/partial entry that blocks later assignment.
 function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	local pilotId = pilot:getIdStr()
 
 	self:_initGameSaveData()
-	if not GAME.cplus_plus_ex.pilotSkills[pilotId] then
-		GAME.cplus_plus_ex.pilotSkills[pilotId] = {}
-	end
 
 	local skill1Id = storedSkills[1].id or "<unknown>"
 	local skill2Id = storedSkills[2].id or "<unknown>"
@@ -745,7 +746,6 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		end
 		skill1Id = newSkill1Id
 		storedSkills[1] = {id = skill1Id}
-		GAME.cplus_plus_ex.pilotSkills[pilotId][1] = storedSkills[1]
 		skill1 = skill_config_module.enabledSkills[skill1Id]
 	end
 
@@ -763,7 +763,6 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		end
 		skill2Id = newSkill2Id
 		storedSkills[2] = {id = skill2Id}
-		GAME.cplus_plus_ex.pilotSkills[pilotId][2] = storedSkills[2]
 		skill2 = skill_config_module.enabledSkills[skill2Id]
 	end
 

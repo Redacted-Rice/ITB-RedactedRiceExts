@@ -5,6 +5,7 @@
 #include "scanner_sequence.h"
 #include "scanner_struct.h"
 #include "../lua_helpers.h"
+#include "../memory.h"
 
 std::string toLower(const char* str) {
 	std::string result(str);
@@ -775,6 +776,11 @@ int struct_search_add_field(lua_State* L) {
 			}
 			size_t size;
 			const char* str = lua_tolstring(L, 4, &size);
+			if (size == 0 || size >= (size_t)MAX_NULL_TERM_STRING_LENGTH) {
+				luaL_error(L, "ITB_STRING length must be 1-%d, got %zu",
+					MAX_NULL_TERM_STRING_LENGTH - 1, size);
+				return 0;
+			}
 			(*structPtr)->addItBStringField(offset, (const uint8_t*)str, size);
 		} else {
 			// Check if it's a struct type (not supported for fields)

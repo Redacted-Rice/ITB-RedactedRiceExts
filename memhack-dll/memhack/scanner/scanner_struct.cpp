@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "scanner_struct.h"
+#include "../memory.h"
 #include "../safememory.h"
 
 #include <cmath>
@@ -46,10 +47,12 @@ bool StructScanner::StructFieldSequence::compare(const uint8_t* keyAddr) const {
 }
 
 namespace {
+	// Keep in sync with RedactedRiceExts/exts/memhack/structs/itb_string.lua
 	const int ITB_STRING_STRLEN_OFFSET = 0x10;
 	const int ITB_STRING_UNIONTYPE_OFFSET = 0x14;
 	const int ITB_STRING_LOCAL = 0x0F;
 	const int ITB_STRING_REMOTE = 0x1F;
+	const size_t ITB_STRING_LOCAL_CAPACITY = 16;
 }
 
 // StructFieldItBString implementation
@@ -60,7 +63,8 @@ StructScanner::StructFieldItBString::StructFieldItBString(int offsetFromKey, con
 bool StructScanner::StructFieldItBString::compare(const uint8_t* keyAddr) const {
 	const uint8_t* itbBase = keyAddr + offsetFromKey;
 	const size_t expectedLen = val.size();
-	if (expectedLen == 0) {
+	// Match ItBString validation / memory API: empty and >= MAX (incl. null term budget) are invalid
+	if (expectedLen == 0 || expectedLen >= (size_t)MAX_NULL_TERM_STRING_LENGTH) {
 		return false;
 	}
 
@@ -74,6 +78,10 @@ bool StructScanner::StructFieldItBString::compare(const uint8_t* keyAddr) const 
 		const uint8_t* strAddr = nullptr;
 
 		if (unionType == ITB_STRING_LOCAL) {
+			// Inline buffer is 16 bytes; game stores LOCAL only when length < 16
+			if (expectedLen >= ITB_STRING_LOCAL_CAPACITY) {
+				return false;
+			}
 			strAddr = itbBase;
 		} else if (unionType == ITB_STRING_REMOTE) {
 			const uintptr_t ptr = *(const uintptr_t*)itbBase;

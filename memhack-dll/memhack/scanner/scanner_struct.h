@@ -53,7 +53,8 @@ public:
         bool compare(const uint8_t* keyAddr) const;
     };
 
-	// ItB game string union: inline buffer (<16 chars) or remote pointer (>=16 chars)
+	// ItB game string union: inline buffer (<16 chars) or remote pointer (>=16 chars).
+	// Layout/constants must stay in sync with RedactedRiceExts/exts/memhack/structs/itb_string.lua
     class StructFieldItBString {
     public:
         int offsetFromKey;
