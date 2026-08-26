@@ -6,10 +6,29 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return self.memhackObj
 	end
 
-	-- Upper case to align with BoardPawn conventions
 	BoardPawn.GetPilot = function(self)
 		local pilot = self:GetMemhackObj():getPilot()
 		return pilot
+	end
+
+	BoardPawn.GetHpCore = function(self)
+		local hpCore = self:GetMemhackObj():getHpCore()
+		return hpCore
+	end
+
+	BoardPawn.SetHpCore = function(self, value)
+		local hpCore = self:GetMemhackObj():setHpCore(value)
+		return hpCore
+	end
+
+	BoardPawn.GetMoveCore = function(self)
+		local moveCore = self:GetMemhackObj():getMoveCore()
+		return moveCore
+	end
+
+	BoardPawn.SetMoveCore = function(self, value)
+		local moveCore = self:GetMemhackObj():setMoveCore(value)
+		return moveCore
 	end
 end
 
