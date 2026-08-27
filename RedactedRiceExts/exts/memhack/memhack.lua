@@ -88,6 +88,7 @@ function memhack:init(mockDll)
 	self.skillCoreSync = self._subobjects.skillCoreSync
 	stateTracker = self._subobjects.stateTracker
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
+	self._subobjects.skillCoreSync:init()
 
 	-- Register events
 	self:addEvents()
