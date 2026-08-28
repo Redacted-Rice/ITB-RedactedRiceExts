@@ -3,11 +3,12 @@
 	The base game seems to guard against multiple bonus cores on loading
 	and because skills are reapplied on load we need special handling
 	to get them to work right on loading.
-	
+
 	This does the following:
 		PostLoadGame (not in mission): apply cores from save.
+		PostLoadGame (in mission): ensure _A/_B/_AB globals, then delayed rebuild.
 		MissionStart: snapshot live cores.
-		MissionEnd: reapply from snapshot.
+		MissionEnd: strip suffixed weapons to base, then reapply snapshot.
 ]]
 
 -- Register with logging system
@@ -26,6 +27,8 @@ skillCoreSync.WEAPON_SLOTS = {
 	{ field = "primary", index = 1 },
 	{ field = "secondary", index = 2 },
 }
+
+skillCoreSync.WEAPON_SUFFIX_VARIANTS = { "_A", "_B", "_AB" }
 
 function skillCoreSync.initGameSaveData()
 	if GAME == nil then
@@ -49,6 +52,12 @@ end
 function skillCoreSync.clearMissionSnapshot()
 	skillCoreSync.initGameSaveData()
 	GAME.memhack.mission_core_snapshot = nil
+end
+
+-- Board is not set until the frame after PostLoadGame when continuing a game
+-- (see mod_loader altered/misc.lua) for the snapshot
+function skillCoreSync.isMissionSaveLoaded()
+	return skillCoreSync.getMissionSnapshot() ~= nil
 end
 
 function skillCoreSync.listToString(list)
@@ -75,8 +84,8 @@ end
 function skillCoreSync.logCores(tag, pawnId, hpCore, moveCore, weapons)
 	local w1 = weapons and weapons[1]
 	local w2 = weapons and weapons[2]
-	logger.logInfo(SUBMODULE,
-			"[Memhack:CoreSync] %s pawn %d hp=%s move=%s w1={power=%s mod1=%s mod2=%s} w2={power=%s mod1=%s mod2=%s}",
+	logger.logDebug(SUBMODULE, 
+			"%s pawn %d hp=%s move=%s w1={power=%s mod1=%s mod2=%s} w2={power=%s mod1=%s mod2=%s}",
 			tag, pawnId, tostring(hpCore), tostring(moveCore),
 			skillCoreSync.listToString(w1 and w1.power),
 			skillCoreSync.listToString(w1 and w1.upgrade1),
@@ -84,7 +93,73 @@ function skillCoreSync.logCores(tag, pawnId, hpCore, moveCore, weapons)
 			skillCoreSync.listToString(w2 and w2.power),
 			skillCoreSync.listToString(w2 and w2.upgrade1),
 			skillCoreSync.listToString(w2 and w2.upgrade2)
-	)
+		)
+end
+
+function skillCoreSync.stripWeaponSuffix(weaponId)
+	if weaponId:sub(-3) == "_AB" then
+		return weaponId:sub(1, -4)
+	end
+	if weaponId:sub(-2) == "_A" or weaponId:sub(-2) == "_B" then
+		return weaponId:sub(1, -3)
+	end
+	return weaponId
+end
+
+function skillCoreSync.getWeaponSuffix(weaponId)
+	if weaponId:sub(-3) == "_AB" then
+		return "_AB"
+	end
+	if weaponId:sub(-2) == "_A" then
+		return "_A"
+	end
+	if weaponId:sub(-2) == "_B" then
+		return "_B"
+	end
+	return ""
+end
+
+function skillCoreSync.hasWeaponSuffix(weaponId)
+	return skillCoreSync.getWeaponSuffix(weaponId) ~= ""
+end
+
+function skillCoreSync.isUpgradePowered(upgrade)
+	return upgrade and (#upgrade == 0 or (upgrade[1] and upgrade[1] > 0))
+end
+
+function skillCoreSync.getUpgradeSuffixFromCores(wdata)
+	if not wdata then
+		return ""
+	end
+	local hasA = skillCoreSync.isUpgradePowered(wdata.upgrade1)
+	local hasB = skillCoreSync.isUpgradePowered(wdata.upgrade2)
+	if hasA and hasB then
+		return "_AB"
+	elseif hasA then
+		return "_A"
+	elseif hasB then
+		return "_B"
+	end
+	return ""
+end
+
+function skillCoreSync.resolveWeaponId(baseId, wdata)
+	local suffix = skillCoreSync.getUpgradeSuffixFromCores(wdata)
+	if suffix ~= "" and _G[baseId .. suffix] ~= nil then
+		return baseId .. suffix
+	end
+	return baseId
+end
+
+function skillCoreSync.logWeaponCoreDiffs(tag, pawnId, slotField, liveCores, snapCores)
+	logger.logDebug(SUBMODULE, "%s pawn %d %s live={power=%s mod1=%s mod2=%s} snap={power=%s mod1=%s mod2=%s}",
+			tag, pawnId, slotField,
+			skillCoreSync.listToString(liveCores and liveCores.power),
+			skillCoreSync.listToString(liveCores and liveCores.upgrade1),
+			skillCoreSync.listToString(liveCores and liveCores.upgrade2),
+			skillCoreSync.listToString(snapCores and snapCores.power),
+			skillCoreSync.listToString(snapCores and snapCores.upgrade1),
+			skillCoreSync.listToString(snapCores and snapCores.upgrade2))
 end
 
 function skillCoreSync.readWeaponIntList(getter, pawn, weaponIndex)
@@ -127,35 +202,7 @@ function skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, fieldName, slot
 	return true
 end
 
-function skillCoreSync.applySkillBonusList(pawn, weaponIndex, spec, saveList)
-	if type(saveList) ~= "table" then
-		return
-	end
-
-	local skillBonusCore = memhack.structs.BoardPawn.CORE_TYPE_SKILL_BONUS
-	for slotIndex, saveVal in ipairs(saveList) do
-		if saveVal == skillBonusCore then
-			local wrote = skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, spec.field, slotIndex, skillBonusCore)
-			logger.logDebug(SUBMODULE,
-				"pawn %d wpnIdx=%d %s slot=%d wrote=%s",
-				pawn:GetId(), weaponIndex, spec.key, slotIndex, tostring(wrote))
-		end
-	end
-end
-
-function skillCoreSync.applySkillBonusWeaponCores(pawn, weaponIndex, wdata)
-	if not pawn or not wdata then
-		return false
-	end
-
-	for _, spec in ipairs(skillCoreSync.LIST_SPECS) do
-		skillCoreSync.applySkillBonusList(pawn, weaponIndex, spec, wdata[spec.key])
-	end
-
-	return true
-end
-
--- Tries first to get from Squad data then will fallback to region data 
+-- Tries first to get from Squad data then will fallback to region data
 function skillCoreSync.getSavePawnTable(pawnId)
 	if SquadData then
 		local ptable = modapiext.pawn:getSavedataTable(pawnId, SquadData)
@@ -169,6 +216,87 @@ function skillCoreSync.getSavePawnTable(pawnId)
 		return modapiext.pawn:getSavedataTable(pawnId, region.player.map_data)
 	end
 	return nil
+end
+
+function skillCoreSync.getSaveNonEmptyWeaponData(pawnId, slotField)
+	local ptable = skillCoreSync.getSavePawnTable(pawnId)
+	if not ptable then
+		return nil
+	end
+	-- Empty slots still seem to return weapon data so ensure its actually
+	-- a weapon before returning
+	local wdata = modapiext.pawn:getWeaponData(ptable, slotField)
+	if not wdata or type(wdata.id) ~= "string" or wdata.id == "" then
+		return nil
+	end
+	return wdata
+end
+
+function skillCoreSync.copyInG(sourceId, destId)
+	local source = _G[sourceId]
+	local copy = {}
+	for k, v in pairs(source) do
+		copy[k] = v
+	end
+	setmetatable(copy, getmetatable(source))
+	_G[destId] = copy
+end
+
+function skillCoreSync.addWeaponSuffixInG(sourceId)
+	if not skillCoreSync.hasWeaponSuffix(sourceId) then
+		return
+	end
+
+	-- We need to add for all suffixes because if the power status does change
+	-- it might not be the same suffix
+	for _, suffix in ipairs(skillCoreSync.WEAPON_SUFFIX_VARIANTS) do
+		local variantId = sourceId .. suffix
+		if _G[variantId] == nil then
+			skillCoreSync.copyInG(sourceId, variantId)
+			logger.logDebug(SUBMODULE, "Added _G[%s] copy from _G[%s]", variantId, sourceId)
+		end
+	end
+end
+
+function skillCoreSync.addAllWeaponSuffixesInGFromSave()
+	for pawnId = 0, 2 do
+		for _, slot in ipairs(skillCoreSync.WEAPON_SLOTS) do
+			local wdata = skillCoreSync.getSaveNonEmptyWeaponData(pawnId, slot.field)
+			if wdata and skillCoreSync.hasWeaponSuffix(wdata.id) then
+				skillCoreSync.addWeaponSuffixInG(wdata.id)
+			end
+		end
+	end
+end
+
+function skillCoreSync.listsEqual(a, b)
+	if a == nil and b == nil then
+		return true
+	end
+	if type(a) ~= "table" or type(b) ~= "table" then
+		return false
+	end
+	if #a ~= #b then
+		return false
+	end
+	for i = 1, #a do
+		if a[i] ~= b[i] then
+			return false
+		end
+	end
+	return true
+end
+
+function skillCoreSync.weaponCoresMatch(live, snap)
+	if not live or not snap then
+		return live == snap
+	end
+	for _, spec in ipairs(skillCoreSync.LIST_SPECS) do
+		if not skillCoreSync.listsEqual(live[spec.key], snap[spec.key]) then
+			return false
+		end
+	end
+	return true
 end
 
 -- Applies a core list to the weapon checking the current data to ensure
@@ -253,6 +381,177 @@ function skillCoreSync.applyPawnCores(pawn, hpCore, moveCore, weapons)
 	end
 end
 
+function skillCoreSync.sanitizeSaveWeaponId(ptable, field, baseId)
+	if ptable and type(baseId) == "string" then
+		ptable[field] = baseId
+	end
+end
+
+-- Remove all weapons then re-add from entries (typeId + optional cores).
+-- Always pass every slot that should remain — callers that only queue
+-- changed slots will drop the others.
+function skillCoreSync.replaceAllWeapons(pawn, entries)
+	local removedTypes = {}
+	for i = pawn:GetWeaponCount(), 1, -1 do
+		removedTypes[i] = pawn:GetWeaponType(i)
+		pawn:RemoveWeapon(i)
+	end
+
+	for i, entry in ipairs(entries) do
+		if entry.typeId then
+			pawn:AddWeapon(entry.typeId, true)
+			local newIndex = pawn:GetWeaponCount()
+			if entry.cores then
+				skillCoreSync.applyWeaponCores(pawn, newIndex, entry.cores)
+			end
+			entry._removedType = removedTypes[i]
+			entry._newIndex = newIndex
+		end
+	end
+	return removedTypes
+end
+
+function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
+	local pawn = Game:GetPawn(pawnId)
+	local ptable = skillCoreSync.getSavePawnTable(pawnId)
+	local pawnSnap = snap and snap[pawnId]
+	if not pawn or not ptable or not pawnSnap or not pawn.RemoveWeapon or not pawn.AddWeapon then
+		return
+	end
+
+	local toAdd = {}
+	local needsRebuild = false
+	local weaponCount = pawn:GetWeaponCount()
+
+	for _, slot in ipairs(skillCoreSync.WEAPON_SLOTS) do
+		local saveWdata = skillCoreSync.getSaveNonEmptyWeaponData(pawnId, slot.field)
+		local liveType = nil
+		local liveCores = nil
+		if slot.index <= weaponCount then
+			liveType = pawn:GetWeaponType(slot.index)
+			liveCores = skillCoreSync.readLiveWeaponCores(pawn, slot.index)
+		end
+
+		if saveWdata or liveType then
+			local snapCores = pawnSnap.weapons and pawnSnap.weapons[slot.index]
+			local slotNeedsRebuild = false
+
+			if saveWdata and skillCoreSync.hasWeaponSuffix(saveWdata.id) then
+				slotNeedsRebuild = true
+				logger.logDebug(SUBMODULE, "load suffix pawn %d %s saveId=%s liveType=%s",
+						pawnId, slot.field, saveWdata.id, tostring(liveType))
+			elseif saveWdata and liveCores and snapCores
+					and not skillCoreSync.weaponCoresMatch(liveCores, snapCores) then
+				slotNeedsRebuild = true
+				skillCoreSync.logWeaponCoreDiffs("load coreDiff", pawnId, slot.field, liveCores, snapCores)
+			end
+
+			local typeId
+			local cores
+			if slotNeedsRebuild then
+				-- Strip suffix from save id and resolve from powered cores.
+				-- AddWeapon uses single-suffix typeId; double-suffix globals
+				-- were already ensured on PostLoadGame.
+				local baseId = skillCoreSync.stripWeaponSuffix(saveWdata.id)
+				cores = snapCores or skillCoreSync.weaponCoresFromSave(saveWdata)
+				typeId = skillCoreSync.resolveWeaponId(baseId, cores)
+			else
+				-- Keep live weapon when this slot does not need rebuild so
+				-- replacing the other slot does not drop it.
+				typeId = liveType
+				cores = liveCores
+				if not typeId and saveWdata then
+					local baseId = skillCoreSync.stripWeaponSuffix(saveWdata.id)
+					cores = snapCores or skillCoreSync.weaponCoresFromSave(saveWdata)
+					typeId = skillCoreSync.resolveWeaponId(baseId, cores)
+				end
+			end
+
+			if slotNeedsRebuild then
+				needsRebuild = true
+			end
+			table.insert(toAdd, {
+				field = slot.field,
+				typeId = typeId,
+				cores = cores,
+			})
+		end
+	end
+
+	if not needsRebuild then
+		return
+	end
+
+	skillCoreSync.replaceAllWeapons(pawn, toAdd)
+	for _, entry in ipairs(toAdd) do
+		logger.logDebug(SUBMODULE, "load replace pawn %d %s %s -> typeId=%s liveType=%s",
+				pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId),
+				tostring(pawn:GetWeaponType(entry._newIndex)))
+	end
+end
+
+function skillCoreSync.rebuildAllPawnWeaponsInMission(snap)
+	if not snap then
+		return
+	end
+	for pawnId = 0, 2 do
+		skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
+	end
+end
+
+function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
+	local pawn = Game:GetPawn(pawnId)
+	local ptable = skillCoreSync.getSavePawnTable(pawnId)
+	if not pawn then
+		return
+	end
+
+	local toAdd = {}
+	local anySuffixed = false
+
+	for _, slot in ipairs(skillCoreSync.WEAPON_SLOTS) do
+		if slot.index <= pawn:GetWeaponCount() then
+			local liveType = pawn:GetWeaponType(slot.index)
+			if liveType and skillCoreSync.hasWeaponSuffix(liveType) then
+				anySuffixed = true
+				local baseId = skillCoreSync.stripWeaponSuffix(liveType)
+				logger.logDebug(SUBMODULE, "missionEnd suffix pawn %d %s liveType=%s baseId=%s",
+						pawnId, slot.field, liveType, baseId)
+				table.insert(toAdd, {
+					field = slot.field,
+					typeId = baseId,
+					baseId = baseId,
+				})
+			elseif liveType then
+				-- Preserve non-suffixed weapons when only the other slot is stripped
+				table.insert(toAdd, {
+					field = slot.field,
+					typeId = liveType,
+				})
+			end
+		end
+	end
+
+	if not anySuffixed then
+		return
+	end
+
+	skillCoreSync.replaceAllWeapons(pawn, toAdd)
+	for _, entry in ipairs(toAdd) do
+		logger.logDebug(SUBMODULE, "missionEnd replace pawn %d %s %s -> %s",
+				pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId))
+		if entry.baseId then
+			skillCoreSync.sanitizeSaveWeaponId(ptable, entry.field, entry.baseId)
+		end
+	end
+end
+
+function skillCoreSync.stripAllSuffixedWeapons()
+	for pawnId = 0, 2 do
+		skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
+	end
+end
+
 function skillCoreSync.syncPawnFromSave(pawnId)
 	local pawn = Game:GetPawn(pawnId)
 	local ptable = skillCoreSync.getSavePawnTable(pawnId)
@@ -317,19 +616,39 @@ function skillCoreSync.applyAllFromSnapshot(snap)
 	end
 end
 
+function skillCoreSync.runLaterWeaponRebuildInMission()
+	modApi:runLater(function()
+		logger.logDebug(SUBMODULE, "onPostLoadGame run later rebuild")
+		skillCoreSync.rebuildAllPawnWeaponsInMission(skillCoreSync.getMissionSnapshot())
+	end)
+end
+
 function skillCoreSync.onPostLoadGame()
+	if skillCoreSync.isMissionSaveLoaded() then
+		logger.logDebug(SUBMODULE, "onPostLoadGame inMission")
+		skillCoreSync.addAllWeaponSuffixesInGFromSave()
+		skillCoreSync.runLaterWeaponRebuildInMission()
+		return
+	end
+	logger.logDebug(SUBMODULE, "onPostLoadGame notInMission")
 	skillCoreSync.syncAllFromSave()
 end
 
 function skillCoreSync.onMissionStart()
+	logger.logDebug(SUBMODULE, "onMissionStart")
 	skillCoreSync.setMissionSnapshot(skillCoreSync.snapshotAllPawnCores())
 end
 
 function skillCoreSync.onMissionEnd()
+	logger.logDebug(SUBMODULE, "onMissionEnd")
 	local snap = skillCoreSync.getMissionSnapshot()
 	if not snap then
+		logger.logDebug(SUBMODULE, "onMissionEnd abort: no snapshot")
 		return
 	end
+	logger.logDebug(SUBMODULE, "onMissionEnd part 1 stripSuffixed")
+	skillCoreSync.stripAllSuffixedWeapons()
+	logger.logDebug(SUBMODULE, "onMissionEnd part 2 applySnapshot")
 	skillCoreSync.applyAllFromSnapshot(snap)
 	skillCoreSync.clearMissionSnapshot()
 end
