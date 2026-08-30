@@ -332,6 +332,41 @@ function skillCoreSync.applyMechCores(pawn, hpCore, moveCore)
 	pawn:SetMoveCore(moveCore)
 end
 
+-- Applies mech cores when they differ from live. Info when changing, debug when unchanged.
+function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCore, moveCore)
+	local liveHp = pawn:GetHpCore()
+	local liveMove = pawn:GetMoveCore()
+	if liveHp == hpCore and liveMove == moveCore then
+		logger.logDebug(SUBMODULE, "%s pawn %d mechCores unchanged hpCore=%s moveCore=%s",
+				tag, pawnId, tostring(liveHp), tostring(liveMove))
+		return false
+	end
+
+	logger.logInfo(SUBMODULE, "%s pawn %d mechCores %s/%s -> %s/%s",
+			tag, pawnId, tostring(liveHp), tostring(liveMove),
+			tostring(hpCore), tostring(moveCore))
+	skillCoreSync.applyMechCores(pawn, hpCore, moveCore)
+	return true
+end
+
+function skillCoreSync.applyPawnWeaponCores(pawn, weapons)
+	for weaponIndex, wdata in pairs(weapons) do
+		if weaponIndex <= pawn:GetWeaponCount() then
+			skillCoreSync.applyWeaponCores(pawn, weaponIndex, wdata)
+		end
+	end
+end
+
+function skillCoreSync.applyPawnMechCoresFromSnapshot(pawnId, snap)
+	local pawn = Game:GetPawn(pawnId)
+	local pawnSnap = snap and snap[pawnId]
+	if not pawn or not pawnSnap then
+		return
+	end
+
+	skillCoreSync.applyPawnMechCores("inMission", pawnId, pawn, pawnSnap.hpCore, pawnSnap.moveCore)
+end
+
 function skillCoreSync.readLiveWeaponCores(pawn, weaponIndex)
 	local cores = {}
 	for _, spec in ipairs(skillCoreSync.LIST_SPECS) do
@@ -368,17 +403,6 @@ function skillCoreSync.weaponsFromSave(ptable)
 		end
 	end
 	return weapons
-end
-
-function skillCoreSync.applyPawnCores(pawn, hpCore, moveCore, weapons)
-	skillCoreSync.applyMechCores(pawn, hpCore, moveCore)
-	if type(weapons) == "table" then
-		for weaponIndex, wdata in pairs(weapons) do
-			if weaponIndex <= pawn:GetWeaponCount() then
-				skillCoreSync.applyWeaponCores(pawn, weaponIndex, wdata)
-			end
-		end
-	end
 end
 
 function skillCoreSync.sanitizeSaveWeaponId(ptable, field, baseId)
@@ -479,12 +503,13 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 	end
 
 	if not needsRebuild then
+		logger.logDebug(SUBMODULE, "load weapons unchanged pawn %d", pawnId)
 		return
 	end
 
 	skillCoreSync.replaceAllWeapons(pawn, toAdd)
 	for _, entry in ipairs(toAdd) do
-		logger.logDebug(SUBMODULE, "load replace pawn %d %s %s -> typeId=%s liveType=%s",
+		logger.logInfo(SUBMODULE, "load replace pawn %d %s %s -> typeId=%s liveType=%s",
 				pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId),
 				tostring(pawn:GetWeaponType(entry._newIndex)))
 	end
@@ -495,6 +520,8 @@ function skillCoreSync.rebuildAllPawnWeaponsInMission(snap)
 		return
 	end
 	for pawnId = 0, 2 do
+		-- Always reapply mech cores on in mission load and potential rebuild the weapons
+		skillCoreSync.applyPawnMechCoresFromSnapshot(pawnId, snap)
 		skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 	end
 end
@@ -533,12 +560,13 @@ function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
 	end
 
 	if not anySuffixed then
+		logger.logDebug(SUBMODULE, "missionEnd weapons unchanged pawn %d", pawnId)
 		return
 	end
 
 	skillCoreSync.replaceAllWeapons(pawn, toAdd)
 	for _, entry in ipairs(toAdd) do
-		logger.logDebug(SUBMODULE, "missionEnd replace pawn %d %s %s -> %s",
+		logger.logInfo(SUBMODULE, "missionEnd replace pawn %d %s %s -> %s",
 				pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId))
 		if entry.baseId then
 			skillCoreSync.sanitizeSaveWeaponId(ptable, entry.field, entry.baseId)
@@ -565,7 +593,8 @@ function skillCoreSync.syncPawnFromSave(pawnId)
 	local moveCore = ptable.movePower[1]
 
 	skillCoreSync.logCores("load", pawnId, hpCore, moveCore, weapons)
-	skillCoreSync.applyPawnCores(pawn, hpCore, moveCore, weapons)
+	skillCoreSync.applyPawnMechCores("load", pawnId, pawn, hpCore, moveCore)
+	skillCoreSync.applyPawnWeaponCores(pawn, weapons)
 end
 
 function skillCoreSync.syncAllFromSave()
@@ -605,7 +634,8 @@ function skillCoreSync.applyPawnSnapshot(pawnId, snap)
 	end
 
 	skillCoreSync.logCores("missionEnd", pawnId, snap.hpCore, snap.moveCore, snap.weapons)
-	skillCoreSync.applyPawnCores(pawn, snap.hpCore, snap.moveCore, snap.weapons)
+	skillCoreSync.applyPawnMechCores("missionEnd", pawnId, pawn, snap.hpCore, snap.moveCore)
+	skillCoreSync.applyPawnWeaponCores(pawn, snap.weapons)
 end
 
 function skillCoreSync.applyAllFromSnapshot(snap)
