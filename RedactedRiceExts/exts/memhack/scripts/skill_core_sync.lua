@@ -349,6 +349,54 @@ function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCore, moveCore)
 	return true
 end
 
+function skillCoreSync.readLivePilotPower(pawn)
+	local pilot = pawn:GetPilot()
+	if not pilot then
+		return nil
+	end
+	return skillCoreSync.copyList(pilot:getPowerList())
+end
+
+function skillCoreSync.pilotPowerFromSave(ptable)
+	if not ptable or not ptable.pilot then
+		return nil
+	end
+	return skillCoreSync.copyList(ptable.pilot.power)
+end
+
+-- Write pilot innate skill power cores without growing the live vector.
+function skillCoreSync.applyPilotPowerList(pawn, sourceList)
+	if type(sourceList) ~= "table" then
+		return false
+	end
+	local pilot = pawn:GetPilot()
+	if not pilot then
+		return false
+	end
+	return pilot:setPowerList(sourceList)
+end
+
+-- Applies pilot power cores when they differ from live. Info when changing, debug when unchanged.
+function skillCoreSync.applyPawnPilotCores(tag, pawnId, pawn, powerList)
+	if type(powerList) ~= "table" then
+		return false
+	end
+	local live = skillCoreSync.readLivePilotPower(pawn)
+	if live == nil then
+		return false
+	end
+	if skillCoreSync.listsEqual(live, powerList) then
+		logger.logDebug(SUBMODULE, "%s pawn %d pilotCores unchanged power=%s",
+				tag, pawnId, skillCoreSync.listToString(live))
+		return false
+	end
+
+	logger.logInfo(SUBMODULE, "%s pawn %d pilotCores %s -> %s",
+			tag, pawnId, skillCoreSync.listToString(live), skillCoreSync.listToString(powerList))
+	skillCoreSync.applyPilotPowerList(pawn, powerList)
+	return true
+end
+
 function skillCoreSync.applyPawnWeaponCores(pawn, weapons)
 	for weaponIndex, wdata in pairs(weapons) do
 		if weaponIndex <= pawn:GetWeaponCount() then
@@ -365,6 +413,7 @@ function skillCoreSync.applyPawnMechCoresFromSnapshot(pawnId, snap)
 	end
 
 	skillCoreSync.applyPawnMechCores("inMission", pawnId, pawn, pawnSnap.hpCore, pawnSnap.moveCore)
+	skillCoreSync.applyPawnPilotCores("inMission", pawnId, pawn, pawnSnap.pilotPower)
 end
 
 function skillCoreSync.readLiveWeaponCores(pawn, weaponIndex)
@@ -594,6 +643,7 @@ function skillCoreSync.syncPawnFromSave(pawnId)
 
 	skillCoreSync.logCores("load", pawnId, hpCore, moveCore, weapons)
 	skillCoreSync.applyPawnMechCores("load", pawnId, pawn, hpCore, moveCore)
+	skillCoreSync.applyPawnPilotCores("load", pawnId, pawn, skillCoreSync.pilotPowerFromSave(ptable))
 	skillCoreSync.applyPawnWeaponCores(pawn, weapons)
 end
 
@@ -611,6 +661,7 @@ function skillCoreSync.snapshotPawnCores(pawnId)
 	return {
 		hpCore = pawn:GetHpCore(),
 		moveCore = pawn:GetMoveCore(),
+		pilotPower = skillCoreSync.readLivePilotPower(pawn),
 		weapons = skillCoreSync.readLiveWeapons(pawn),
 	}
 end
@@ -635,6 +686,7 @@ function skillCoreSync.applyPawnSnapshot(pawnId, snap)
 
 	skillCoreSync.logCores("missionEnd", pawnId, snap.hpCore, snap.moveCore, snap.weapons)
 	skillCoreSync.applyPawnMechCores("missionEnd", pawnId, pawn, snap.hpCore, snap.moveCore)
+	skillCoreSync.applyPawnPilotCores("missionEnd", pawnId, pawn, snap.pilotPower)
 	skillCoreSync.applyPawnWeaponCores(pawn, snap.weapons)
 end
 
