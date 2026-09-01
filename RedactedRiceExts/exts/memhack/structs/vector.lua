@@ -14,6 +14,7 @@ local MemhackVector = memhack.structManager:define("Vector", {
 -- TODO: have a way to create templated type?
 
 MemhackVector.PTR_SIZE = 4
+MemhackVector.INT_SIZE = 4
 
 function MemhackVector:getSize()
 	local result = (self:getNextPtr() - self:getHeadPtr()) / self.PTR_SIZE
@@ -38,4 +39,49 @@ end
 function MemhackVector:getPtrsAll()
 	local result = self:getPtrsRange(1, self:getSize())
 	return result
+end
+
+-- Int-element helpers (e.g. pilot innate skill power list). Size uses the same
+-- 4-byte stride as PTR_SIZE on this build.
+function MemhackVector:getIntSize()
+	local result = (self:getNextPtr() - self:getHeadPtr()) / self.INT_SIZE
+	return result
+end
+
+-- 1 indexed
+function MemhackVector:getIntAt(idx)
+	return memhack.dll.memory.readInt(self:getHeadPtr() + (idx - 1) * self.INT_SIZE)
+end
+
+-- 1 indexed. Does not grow the vector.
+function MemhackVector:setIntAt(idx, value)
+	local size = self:getIntSize()
+	if idx < 1 or idx > size then
+		return false
+	end
+	memhack.dll.memory.writeInt(self:getHeadPtr() + (idx - 1) * self.INT_SIZE, value)
+	return true
+end
+
+function MemhackVector:getIntList()
+	local values = {}
+	for i = 1, self:getIntSize() do
+		values[i] = self:getIntAt(i)
+	end
+	return values
+end
+
+-- Requires #values to match current vector size. Does not grow or shrink.
+function MemhackVector:setIntList(values)
+	if type(values) ~= "table" then
+		return false
+	end
+	local size = self:getIntSize()
+	if #values ~= size then
+		return false
+	end
+	for i, value in ipairs(values) do
+		self:setIntAt(i, value)
+	end
+	return true
 end
