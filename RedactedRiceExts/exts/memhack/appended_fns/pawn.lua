@@ -30,6 +30,22 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		local moveCore = self:GetMemhackObj():setMoveCore(value)
 		return moveCore
 	end
+
+	BoardPawn.GetPilotPowerList = function(self)
+		local pilot = self:GetPilot()
+		if not pilot then
+			return nil
+		end
+		return pilot:getPowerList()
+	end
+
+	BoardPawn.SetPilotPowerList = function(self, values)
+		local pilot = self:GetPilot()
+		if not pilot then
+			return false
+		end
+		return pilot:setPowerList(values)
+	end
 end
 
 modApi.events.onPawnClassInitialized:subscribe(onPawnClassInitialized)
