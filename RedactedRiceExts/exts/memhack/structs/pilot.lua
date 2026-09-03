@@ -95,6 +95,7 @@ genItBStrGetSetWrappers(Pilot, "id")
 genItBStrGetSetWrappers(Pilot, "personality")
 
 -- Innate skill power cores (1-indexed lua list). Does not grow the vector.
+-- List elements use memhack.CORE_TYPE_* values.
 function Pilot:getPowerList()
 	local vec = self:getPower()
 	if not vec then
@@ -111,6 +112,7 @@ function Pilot:setPowerListSlot(slotIndex, value)
 	return vec:setIntAt(slotIndex, value)
 end
 
+-- values: memhack.CORE_TYPE_* list; size must match live vector.
 function Pilot:setPowerList(values)
 	local vec = self:getPower()
 	if not vec then

@@ -6,7 +6,8 @@
 
 	This does the following:
 		PostLoadGame (not in mission): apply cores from save.
-		PostLoadGame (in mission): ensure _A/_B/_AB globals, then delayed rebuild.
+		PostLoadGame (in mission): ensure double suffixed _G copies so vanilla
+			load of saved suffixed weapons does not error, then delayed rebuild.
 		MissionStart: snapshot live cores.
 		MissionEnd: strip suffixed weapons to base, then reapply snapshot.
 ]]
@@ -124,6 +125,8 @@ function skillCoreSync.hasWeaponSuffix(weaponId)
 end
 
 function skillCoreSync.isUpgradePowered(upgrade)
+	-- Same rule as modapiext pawn isPowered where an empty list means the 
+	-- upgrade slot is active with no core costs. non-empty requires upgrade[1] > 0.
 	return upgrade and (#upgrade == 0 or (upgrade[1] and upgrade[1] > 0))
 end
 
@@ -145,6 +148,9 @@ end
 
 function skillCoreSync.resolveWeaponId(baseId, wdata)
 	local suffix = skillCoreSync.getUpgradeSuffixFromCores(wdata)
+	-- Rebuild uses stripped baseId + single suffix (e.g. Weapon_Cannon_AB).
+	-- Falls back to baseId if that variant is not in _G (which it really 
+	-- should be unless something odd is happening)
 	if suffix ~= "" and _G[baseId .. suffix] ~= nil then
 		return baseId .. suffix
 	end
@@ -163,11 +169,11 @@ function skillCoreSync.logWeaponCoreDiffs(tag, pawnId, slotField, liveCores, sna
 end
 
 function skillCoreSync.readWeaponIntList(getter, pawn, weaponIndex)
-	local memedit = memedit:get()
-	if not memedit.weapon[getter] then
+	local meInst = memedit:get()
+	if not meInst.weapon[getter] then
 		return nil
 	end
-	local list = memedit.weapon[getter](pawn, weaponIndex)
+	local list = meInst.weapon[getter](pawn, weaponIndex)
 	if not list then
 		return nil
 	end
@@ -187,6 +193,10 @@ function skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, fieldName, slot
 
 	local pawnAddr = mem.getUserdataAddr(pawn)
 	local weaponListAddr = mem.readPointer(pawnAddr + addresses.vital.delta_weapons)
+	-- weaponIndex is 1 based which matches memedit/BoardPawn. Slot 0 is unused, so
+	-- index 1 is at begin + 0x8. Each entry is 8 bytes (smart pointer). This ends up
+	-- effectively adding 1 to the index making it look like we are treating it as
+	-- 0 based instead of 1 based but this is correct
 	local weaponAddr = mem.readPointer(weaponListAddr + weaponIndex * 0x8)
 	local fieldEntry = addresses.weapon[fieldName]
 	if not fieldEntry or not weaponAddr then
@@ -247,8 +257,13 @@ function skillCoreSync.addWeaponSuffixInG(sourceId)
 		return
 	end
 
-	-- We need to add for all suffixes because if the power status does change
-	-- it might not be the same suffix
+	-- Save stores a suffixed id (e.g. Weapon_Cannon_A). if we have manually applied 
+	-- the fix in mission. During vanilla load the game may look up sourceId .. suffix
+	-- now a double suffixed version based on what it thinks should be powered. To 
+	-- to prevent the lookup from erroring, copy to the weapon to all double-suffixed 
+	-- _G entries (Weapon_Cannon_A_AB, etc.) so the lookup succeeds. Not used
+	-- by resolveWeaponId / AddWeapon rebuild - those use stripped base + suffix (
+	-- single suffixed versions).
 	for _, suffix in ipairs(skillCoreSync.WEAPON_SUFFIX_VARIANTS) do
 		local variantId = sourceId .. suffix
 		if _G[variantId] == nil then
@@ -307,7 +322,10 @@ function skillCoreSync.applyCoreList(pawn, weaponIndex, spec, sourceList)
 	end
 
 	local live = skillCoreSync.readWeaponIntList(spec.get, pawn, weaponIndex)
-	local maxSlots = live and #live or #sourceList
+	if not live then
+		return
+	end
+	local maxSlots = #live
 
 	for slotIndex, sourceVal in ipairs(sourceList) do
 		if slotIndex > maxSlots then
@@ -460,17 +478,30 @@ function skillCoreSync.sanitizeSaveWeaponId(ptable, field, baseId)
 	end
 end
 
--- Remove all weapons then re-add from entries (typeId + optional cores).
--- Always pass every slot that should remain — callers that only queue
--- changed slots will drop the others.
+-- Remove and re-add weapons from the first entry marked replace onward.
+-- Earlier slots are left untouched and later slots are always re-added 
+-- (even if unchanged) to preserve order when a prior slot changed. No op 
+-- if nothing is marked replace.
 function skillCoreSync.replaceAllWeapons(pawn, entries)
+	local firstReplaceIdx = nil
+	for i, entry in ipairs(entries) do
+		if entry.replace then
+			firstReplaceIdx = i
+			break
+		end
+	end
+	if not firstReplaceIdx then
+		return
+	end
+
 	local removedTypes = {}
-	for i = pawn:GetWeaponCount(), 1, -1 do
+	for i = pawn:GetWeaponCount(), firstReplaceIdx, -1 do
 		removedTypes[i] = pawn:GetWeaponType(i)
 		pawn:RemoveWeapon(i)
 	end
 
-	for i, entry in ipairs(entries) do
+	for i = firstReplaceIdx, #entries do
+		local entry = entries[i]
 		if entry.typeId then
 			pawn:AddWeapon(entry.typeId, true)
 			local newIndex = pawn:GetWeaponCount()
@@ -522,9 +553,8 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 			local typeId
 			local cores
 			if slotNeedsRebuild then
-				-- Strip suffix from save id and resolve from powered cores.
-				-- AddWeapon uses single-suffix typeId; double-suffix globals
-				-- were already ensured on PostLoadGame.
+				-- Strip save id to base, then resolve single-suffixed typeId from
+				-- powered cores for AddWeapon (see resolveWeaponId).
 				local baseId = skillCoreSync.stripWeaponSuffix(saveWdata.id)
 				cores = snapCores or skillCoreSync.weaponCoresFromSave(saveWdata)
 				typeId = skillCoreSync.resolveWeaponId(baseId, cores)
@@ -547,6 +577,7 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 				field = slot.field,
 				typeId = typeId,
 				cores = cores,
+				replace = slotNeedsRebuild,
 			})
 		end
 	end
@@ -558,9 +589,11 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 
 	skillCoreSync.replaceAllWeapons(pawn, toAdd)
 	for _, entry in ipairs(toAdd) do
-		logger.logInfo(SUBMODULE, "load replace pawn %d %s %s -> typeId=%s liveType=%s",
-				pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId),
-				tostring(pawn:GetWeaponType(entry._newIndex)))
+		if entry._newIndex then
+			logger.logInfo(SUBMODULE, "load replace pawn %d %s %s -> typeId=%s liveType=%s",
+					pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId),
+					tostring(pawn:GetWeaponType(entry._newIndex)))
+		end
 	end
 end
 
@@ -597,12 +630,14 @@ function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
 					field = slot.field,
 					typeId = baseId,
 					baseId = baseId,
+					replace = true,
 				})
 			elseif liveType then
 				-- Preserve non-suffixed weapons when only the other slot is stripped
 				table.insert(toAdd, {
 					field = slot.field,
 					typeId = liveType,
+					replace = false,
 				})
 			end
 		end
@@ -615,10 +650,12 @@ function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
 
 	skillCoreSync.replaceAllWeapons(pawn, toAdd)
 	for _, entry in ipairs(toAdd) do
-		logger.logInfo(SUBMODULE, "missionEnd replace pawn %d %s %s -> %s",
-				pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId))
-		if entry.baseId then
-			skillCoreSync.sanitizeSaveWeaponId(ptable, entry.field, entry.baseId)
+		if entry._newIndex then
+			logger.logInfo(SUBMODULE, "missionEnd replace pawn %d %s %s -> %s",
+					pawnId, entry.field, tostring(entry._removedType), tostring(entry.typeId))
+			if entry.baseId then
+				skillCoreSync.sanitizeSaveWeaponId(ptable, entry.field, entry.baseId)
+			end
 		end
 	end
 end

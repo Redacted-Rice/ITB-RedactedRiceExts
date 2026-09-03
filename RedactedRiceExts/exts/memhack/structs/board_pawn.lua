@@ -10,11 +10,6 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	hpCore = { offset = 0xC5C, type = "pointer", noSetter = true },
 })
 
--- Values stored at hpCore / moveCore pointed ints
-MemhackBoardPawn.CORE_TYPE_NORMAL = 1
-MemhackBoardPawn.CORE_TYPE_SKILL_BONUS = 2
-MemhackBoardPawn.CORE_TYPE_UNDOABLE = 3 -- transient state before a core slot is locked in
-
 local function readPointedInt(ptr)
 	if not ptr or ptr == 0 then
 		return nil
@@ -30,18 +25,22 @@ local function writePointedInt(ptr, value)
 	return true
 end
 
+-- Returns memhack.CORE_TYPE_* values.
 function MemhackBoardPawn:getMoveCore()
 	return readPointedInt(self:getMoveCorePtr())
 end
 
+-- value: memhack.CORE_TYPE_NORMAL, CORE_TYPE_SKILL_BONUS, or CORE_TYPE_UNDOABLE.
 function MemhackBoardPawn:setMoveCore(value)
 	return writePointedInt(self:getMoveCorePtr(), value)
 end
 
+-- Returns memhack.CORE_TYPE_* values.
 function MemhackBoardPawn:getHpCore()
 	return readPointedInt(self:getHpCorePtr())
 end
 
+-- value: memhack.CORE_TYPE_NORMAL, CORE_TYPE_SKILL_BONUS, or CORE_TYPE_UNDOABLE.
 function MemhackBoardPawn:setHpCore(value)
 	return writePointedInt(self:getHpCorePtr(), value)
 end

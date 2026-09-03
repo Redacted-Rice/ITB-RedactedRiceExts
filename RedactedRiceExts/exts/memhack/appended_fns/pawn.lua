@@ -11,40 +11,28 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return pilot
 	end
 
+	-- Returns memhack.CORE_TYPE_* values
 	BoardPawn.GetHpCore = function(self)
 		local hpCore = self:GetMemhackObj():getHpCore()
 		return hpCore
 	end
 
+	-- value: memhack.CORE_TYPE_* values
 	BoardPawn.SetHpCore = function(self, value)
 		local hpCore = self:GetMemhackObj():setHpCore(value)
 		return hpCore
 	end
 
+	-- Returns memhack.CORE_TYPE_* values
 	BoardPawn.GetMoveCore = function(self)
 		local moveCore = self:GetMemhackObj():getMoveCore()
 		return moveCore
 	end
 
+	-- value: memhack.CORE_TYPE_* values
 	BoardPawn.SetMoveCore = function(self, value)
 		local moveCore = self:GetMemhackObj():setMoveCore(value)
 		return moveCore
-	end
-
-	BoardPawn.GetPilotPowerList = function(self)
-		local pilot = self:GetPilot()
-		if not pilot then
-			return nil
-		end
-		return pilot:getPowerList()
-	end
-
-	BoardPawn.SetPilotPowerList = function(self, values)
-		local pilot = self:GetPilot()
-		if not pilot then
-			return false
-		end
-		return pilot:setPowerList(values)
 	end
 end
 

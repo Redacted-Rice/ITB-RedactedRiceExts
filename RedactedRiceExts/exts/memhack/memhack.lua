@@ -6,13 +6,18 @@ local path = GetParentPath(...)
 -- Debug Configuration - Set to false in production
 -- Controls logging for different components
 memhack.DEBUG = {
-	ENABLED = true,  -- Main switch for all debug logging
+	ENABLED = false,  -- Main switch for all debug logging
 	HOOKS = false,    -- hooks module
 	STRUCTS = false,  -- struct operations
 	STATE_TRACKER = false, -- state_tracker module
 	SCANNER = false, -- scanner operations (very verbose)
-	SKILL_CORE_SYNC = true, -- skill core bonus syncing
+	SKILL_CORE_SYNC = false, -- skill core bonus syncing
 }
+
+-- Shared ITB constants (mech, weapon, and pilot core slot values)
+for name, value in pairs(require(path.."utils/constants")) do
+	memhack[name] = value
+end
 
 -- Load logging utilities first and expose at memhack level
 memhack.logger = require(path.."utils/logger")
