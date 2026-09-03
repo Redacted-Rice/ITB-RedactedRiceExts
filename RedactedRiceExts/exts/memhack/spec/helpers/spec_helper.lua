@@ -124,6 +124,10 @@ function M.setupGlobals()
 	_G.modApi.events.onGameClassInitialized = { subscribe = function() end }
 	_G.modApi.events.onPawnClassInitialized = { subscribe = function() end }
 	_G.modApi.events.onBoardClassInitialized = { subscribe = function() end }
+	_G.modApi.events.onPostLoadGame = { subscribe = function() end }
+	_G.modApi.events.onMissionStart = { subscribe = function() end }
+	_G.modApi.events.onMissionEnd = { subscribe = function() end }
+	_G.modApi.runLater = _G.modApi.runLater or function(_, fn) fn() end
 	-- onModsFirstLoaded fires immediately to initialize structs
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
 
