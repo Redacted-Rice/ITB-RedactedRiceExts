@@ -76,6 +76,14 @@ function M.makeMockPawn(initialTypes, opts)
 		table.insert(self._weapons, typeId)
 	end
 
+	function pawn:GetType()
+		return opts.pawnType or "TestMech"
+	end
+
+	function pawn:GetClass()
+		return opts.pawnClass or (_G[self:GetType()] and _G[self:GetType()].Class)
+	end
+
 	return pawn
 end
 

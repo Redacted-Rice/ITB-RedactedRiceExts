@@ -408,14 +408,17 @@ describe("Skill Core Sync", function()
 			assert.are.same({}, pawn._removeLog)
 		end)
 
-		it("rebuilds when live cores differ from snapshot (unsuffixed save -> _B)", function()
+		it("applies core diffs in place without Remove/Add when save id is unsuffixed", function()
 			restoreFns()
 			saveFn(skillCoreSync, "readLiveWeaponCores")
 			skillCoreSync.readLiveWeaponCores = function()
 				return sampleCores({ 1 }, { 0 }, { 0 })
 			end
+			local applied = {}
 			saveFn(skillCoreSync, "applyWeaponCores")
-			skillCoreSync.applyWeaponCores = function() end
+			skillCoreSync.applyWeaponCores = function(_, weaponIndex, cores)
+				applied[#applied + 1] = { weaponIndex = weaponIndex, cores = cores }
+			end
 
 			local ptable = makeSavePtable({ primaryId = prefix, secondary = false })
 			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
@@ -426,7 +429,11 @@ describe("Skill Core Sync", function()
 			local snap = { [1] = { weapons = { [1] = snapCores } } }
 			skillCoreSync.rebuildPawnWeaponsInMission(1, snap)
 
-			assert.are.equal(prefix .. "_B", pawn:GetWeaponType(1))
+			assert.are.equal(prefix, pawn:GetWeaponType(1))
+			assert.are.same({}, pawn._removeLog)
+			assert.are.equal(1, #applied)
+			assert.are.equal(1, applied[1].weaponIndex)
+			assert.are.same(snapCores, applied[1].cores)
 		end)
 
 		it("stripSuffixedWeaponsForPawn replaces suffixed live weapons with base ids", function()

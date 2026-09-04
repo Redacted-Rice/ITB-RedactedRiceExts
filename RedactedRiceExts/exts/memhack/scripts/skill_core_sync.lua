@@ -540,14 +540,19 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 			local snapCores = pawnSnap.weapons and pawnSnap.weapons[slot.index]
 			local slotNeedsRebuild = false
 
+			-- Only Remove/Add for suffixed save ids. Core-only diffs (including
+			-- wrong-class +1 power slots) are written in place so we do not
+			-- recreate the weapon with AddWeapon(..., true) / PowerCost=0,
+			-- which drops the class-penalty slot. Those stay correct until
+			-- mission end reapply.
 			if saveWdata and skillCoreSync.hasWeaponSuffix(saveWdata.id) then
 				slotNeedsRebuild = true
 				logger.logDebug(SUBMODULE, "load suffix pawn %d %s saveId=%s liveType=%s",
 						pawnId, slot.field, saveWdata.id, tostring(liveType))
-			elseif saveWdata and liveCores and snapCores
+			elseif liveCores and snapCores
 					and not skillCoreSync.weaponCoresMatch(liveCores, snapCores) then
-				slotNeedsRebuild = true
-				skillCoreSync.logWeaponCoreDiffs("load coreDiff", pawnId, slot.field, liveCores, snapCores)
+				skillCoreSync.logWeaponCoreDiffs("load coreDiff inPlace", pawnId, slot.field, liveCores, snapCores)
+				skillCoreSync.applyWeaponCores(pawn, slot.index, snapCores)
 			end
 
 			local typeId
