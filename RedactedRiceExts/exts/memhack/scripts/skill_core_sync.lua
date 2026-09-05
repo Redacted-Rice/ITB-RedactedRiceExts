@@ -539,6 +539,7 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 		if saveWdata or liveType then
 			local snapCores = pawnSnap.weapons and pawnSnap.weapons[slot.index]
 			local slotNeedsRebuild = false
+			local coresSyncedFromSnap = false
 
 			-- Only Remove/Add for suffixed save ids. Core-only diffs (including
 			-- wrong-class +1 power slots) are written in place so we do not
@@ -553,6 +554,7 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 					and not skillCoreSync.weaponCoresMatch(liveCores, snapCores) then
 				skillCoreSync.logWeaponCoreDiffs("load coreDiff inPlace", pawnId, slot.field, liveCores, snapCores)
 				skillCoreSync.applyWeaponCores(pawn, slot.index, snapCores)
+				coresSyncedFromSnap = true
 			end
 
 			local typeId
@@ -567,7 +569,7 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 				-- Keep live weapon when this slot does not need rebuild so
 				-- replacing the other slot does not drop it.
 				typeId = liveType
-				cores = liveCores
+				cores = coresSyncedFromSnap and snapCores or liveCores
 				if not typeId and saveWdata then
 					local baseId = skillCoreSync.stripWeaponSuffix(saveWdata.id)
 					cores = snapCores or skillCoreSync.weaponCoresFromSave(saveWdata)

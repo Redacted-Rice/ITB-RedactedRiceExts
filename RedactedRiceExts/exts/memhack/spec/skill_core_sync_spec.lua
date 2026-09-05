@@ -436,6 +436,52 @@ describe("Skill Core Sync", function()
 			assert.are.same(snapCores, applied[1].cores)
 		end)
 
+		it("reverts secondary snapshot cores when primary suffix rebuild forces replace", function()
+			restoreFns()
+			local driftedSecondary = sampleCores({ 9 }, { 0 }, { 0 })
+			local snapSecondary = sampleCores({ 2 }, { 0 }, { 0 })
+			saveFn(skillCoreSync, "readLiveWeaponCores")
+			skillCoreSync.readLiveWeaponCores = function(_, weaponIndex)
+				if weaponIndex == 1 then
+					return sampleCores({ 1 }, { 0 }, { 0 })
+				end
+				return driftedSecondary
+			end
+			local applied = {}
+			saveFn(skillCoreSync, "applyWeaponCores")
+			skillCoreSync.applyWeaponCores = function(_, weaponIndex, cores)
+				applied[#applied + 1] = { weaponIndex = weaponIndex, cores = cores }
+			end
+
+			local ptable = makeSavePtable({ primaryId = prefix .. "_A" })
+			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
+			local pawn = makeMockPawn({ prefix .. "_A", prefix })
+			gameMocks.pawns[1] = pawn
+
+			local snap = {
+				[1] = {
+					weapons = {
+						[1] = sampleCores({ 1 }, { 0 }, { 0 }),
+						[2] = snapSecondary,
+					},
+				},
+			}
+			skillCoreSync.rebuildPawnWeaponsInMission(1, snap)
+
+			assert.are.equal(prefix, pawn:GetWeaponType(1))
+			assert.are.equal(prefix, pawn:GetWeaponType(2))
+			assert.are.same({ 2, 1 }, pawn._removeLog)
+			local secondaryApplies = {}
+			for _, call in ipairs(applied) do
+				if call.weaponIndex == 2 then
+					secondaryApplies[#secondaryApplies + 1] = call
+				end
+			end
+			assert.is_true(#secondaryApplies >= 1)
+			assert.are.same(snapSecondary, secondaryApplies[#secondaryApplies].cores)
+			assert.are_not.same(driftedSecondary, secondaryApplies[#secondaryApplies].cores)
+		end)
+
 		it("stripSuffixedWeaponsForPawn replaces suffixed live weapons with base ids", function()
 			restoreFns()
 			saveFn(skillCoreSync, "applyWeaponCores")
