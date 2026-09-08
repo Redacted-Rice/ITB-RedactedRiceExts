@@ -14,12 +14,28 @@ Please enjoy and contact us if you run into any issues.
 
 # Extensions
 
-* memhack - v1.3.0 - Extension to expose additional functionality via direct memory access
-* CPLUS+ Ex - v1.3.1 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+* memhack - v1.4.0 - Extension to expose additional functionality via direct memory access
+* CPLUS+ Ex - v1.4.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 
 # Releases
 
-Latest release: 1.3.1
+Latest release: 1.4
+
+## 1.4.0
+
+Released: 9/XX/2026
+
+* memhack - v1.4.0
+* CPLUS+ Ex - v1.4.0
+
+### Notes
+* Added skill core sync for saving and restoring bonus cores and weapon upgrade cores
+* DamageModifierLib integrated for modifying weapon damage during skill builds
+* Reworked skill effect modifier base class to use events
+* Fixed per-run and legendary skill reapplication edge cases
+* Fixed time traveler errors when pilot was not found
+* Added skill choice mark APIs for pending selection handling
+* Fixed weapon cost handling for wrong class type extra costs
 
 ## 1.3.1
 

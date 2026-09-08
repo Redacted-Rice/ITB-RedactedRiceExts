@@ -11,7 +11,22 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.3.0
+Latest release: 1.4.0
+
+## 1.4.0
+Released: 9/XX/2026
+
+compatible with:
+* ItB AE       1.2.93
+* ModLoader    2.9.5
+* ModLoaderExt 1.24
+
+### Notes
+* Added skill core sync for bonus cores and weapon upgrade cores
+* Added get/set APIs for mech bonus cores
+* Fixed core application on mission load, reload, and continue
+* Added power saving and restoring for pilot abilities
+* Fixed weapon cost handling for wrong class type extra costs
 
 ## 1.3.0
 Released: 7/7/2026

@@ -11,7 +11,23 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.3.1
+Latest release: 1.4.0
+
+## 1.4.0
+Released: 9/XX/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.4.0
+
+### Notes
+* Integrated DamageModifierLib for modifying weapon damage during skill builds
+* Reworked skill effect modifier base class to use events
+* Fixed per-run and legendary skill reapplication edge cases
+* Fixed time traveler errors when pilot was not found
+* Added skill choice mark APIs for pending selection handling
 
 ## 1.3.1
 Released: 7/16/2026
