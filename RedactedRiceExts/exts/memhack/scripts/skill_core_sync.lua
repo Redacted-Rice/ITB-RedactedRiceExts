@@ -828,12 +828,12 @@ end
 function skillCoreSync.onMissionStart()
 	logger.logDebug(SUBMODULE, "onMissionStart")
 	local snap = skillCoreSync.snapshotAllPawnCores()
-	if next(snap) == nil then
-		skillCoreSync.clearMissionSnapshot()
-		logger.logDebug(SUBMODULE, "onMissionStart skip: no pawns need skill core sync")
-		return
-	end
+	-- Always store a table even if empty so mid mission will see it and load
+	-- as expected
 	skillCoreSync.setMissionSnapshot(snap)
+	if next(snap) == nil then
+		logger.logDebug(SUBMODULE, "onMissionStart: no pawns need skill core sync")
+	end
 end
 
 function skillCoreSync.onMissionEnd()
