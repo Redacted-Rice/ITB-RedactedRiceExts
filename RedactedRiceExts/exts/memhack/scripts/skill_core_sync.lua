@@ -4,11 +4,14 @@
 	and because skills are reapplied on load we need special handling
 	to get them to work right on loading.
 
-	This does the following:
+	All sync work is gated: a pawn is only handled when it has any
+	CORE_TYPE_SKILL_BONUS (2) cores across hp/move/pilot/weapons.
+
+	This does the following when gated in:
 		PostLoadGame (not in mission): apply cores from save.
 		PostLoadGame (in mission): ensure double suffixed _G copies so vanilla
 			load of saved suffixed weapons does not error, then delayed rebuild.
-		MissionStart: snapshot live cores.
+		MissionStart: snapshot live cores (only for pawns that need sync).
 		MissionEnd: strip suffixed weapons to base, then reapply snapshot.
 ]]
 
@@ -274,11 +277,14 @@ function skillCoreSync.addWeaponSuffixInG(sourceId)
 end
 
 function skillCoreSync.addAllWeaponSuffixesInGFromSave()
+	local snap = skillCoreSync.getMissionSnapshot()
 	for pawnId = 0, 2 do
-		for _, slot in ipairs(skillCoreSync.WEAPON_SLOTS) do
-			local wdata = skillCoreSync.getSaveNonEmptyWeaponData(pawnId, slot.field)
-			if wdata and skillCoreSync.hasWeaponSuffix(wdata.id) then
-				skillCoreSync.addWeaponSuffixInG(wdata.id)
+		if snap and snap[pawnId] then
+			for _, slot in ipairs(skillCoreSync.WEAPON_SLOTS) do
+				local wdata = skillCoreSync.getSaveNonEmptyWeaponData(pawnId, slot.field)
+				if wdata and skillCoreSync.hasWeaponSuffix(wdata.id) then
+					skillCoreSync.addWeaponSuffixInG(wdata.id)
+				end
 			end
 		end
 	end
@@ -312,6 +318,51 @@ function skillCoreSync.weaponCoresMatch(live, snap)
 		end
 	end
 	return true
+end
+
+function skillCoreSync.countCoreTypeInList(list, coreType)
+	if type(list) ~= "table" then
+		return 0
+	end
+	local count = 0
+	for _, value in ipairs(list) do
+		if value == coreType then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+-- Counts CORE_TYPE_* values across mech hp/move, pilot power, and all weapon lists.
+function skillCoreSync.countPawnCoreType(pawnSnap, coreType)
+	if not pawnSnap then
+		return 0
+	end
+	local count = 0
+	if pawnSnap.hpCore == coreType then
+		count = count + 1
+	end
+	if pawnSnap.moveCore == coreType then
+		count = count + 1
+	end
+	count = count + skillCoreSync.countCoreTypeInList(pawnSnap.pilotPower, coreType)
+	if pawnSnap.weapons then
+		for _, cores in pairs(pawnSnap.weapons) do
+			for _, spec in ipairs(skillCoreSync.LIST_SPECS) do
+				count = count + skillCoreSync.countCoreTypeInList(cores[spec.key], coreType)
+			end
+		end
+	end
+	return count
+end
+
+-- True when this pawn has any skill-bonus cores and needs sync handling.
+function skillCoreSync.needsSkillCoreSync(pawnSnap, tag, pawnId)
+	local count = skillCoreSync.countPawnCoreType(pawnSnap, memhack.CORE_TYPE_SKILL_BONUS)
+	local needed = count > 0
+	logger.logDebug(SUBMODULE, "%s needsSkillCoreSync pawn %s bonusCount=%d needed=%s",
+			tag or "check", tostring(pawnId), count, tostring(needed))
+	return needed
 end
 
 -- Applies a core list to the weapon checking the current data to ensure
@@ -604,13 +655,19 @@ function skillCoreSync.rebuildAllPawnWeaponsInMission(snap)
 		return
 	end
 	for pawnId = 0, 2 do
-		-- Always reapply mech cores on in mission load and potential rebuild the weapons
-		skillCoreSync.applyPawnMechCoresFromSnapshot(pawnId, snap)
-		skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
+		if snap[pawnId] then
+			skillCoreSync.applyPawnMechCoresFromSnapshot(pawnId, snap)
+			skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
+		end
 	end
 end
 
 function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
+	local snap = skillCoreSync.getMissionSnapshot()
+	if not snap or not snap[pawnId] then
+		return
+	end
+
 	local pawn = Game:GetPawn(pawnId)
 	local ptable = skillCoreSync.getSavePawnTable(pawnId)
 	if not pawn then
@@ -676,14 +733,22 @@ function skillCoreSync.syncPawnFromSave(pawnId)
 		return
 	end
 
-	-- Get the target weapon data and mech cores from the save data
 	local weapons = skillCoreSync.weaponsFromSave(ptable)
 	local hpCore = ptable.healthPower[1]
 	local moveCore = ptable.movePower[1]
+	local saveSnap = {
+		hpCore = hpCore,
+		moveCore = moveCore,
+		pilotPower = skillCoreSync.pilotPowerFromSave(ptable),
+		weapons = weapons,
+	}
+	if not skillCoreSync.needsSkillCoreSync(saveSnap, "load", pawnId) then
+		return
+	end
 
 	skillCoreSync.logCores("load", pawnId, hpCore, moveCore, weapons)
 	skillCoreSync.applyPawnMechCores("load", pawnId, pawn, hpCore, moveCore)
-	skillCoreSync.applyPawnPilotCores("load", pawnId, pawn, skillCoreSync.pilotPowerFromSave(ptable))
+	skillCoreSync.applyPawnPilotCores("load", pawnId, pawn, saveSnap.pilotPower)
 	skillCoreSync.applyPawnWeaponCores(pawn, weapons)
 end
 
@@ -698,12 +763,16 @@ function skillCoreSync.snapshotPawnCores(pawnId)
 	if not pawn then
 		return nil
 	end
-	return {
+	local snap = {
 		hpCore = pawn:GetHpCore(),
 		moveCore = pawn:GetMoveCore(),
 		pilotPower = skillCoreSync.readLivePilotPower(pawn),
 		weapons = skillCoreSync.readLiveWeapons(pawn),
 	}
+	if not skillCoreSync.needsSkillCoreSync(snap, "missionStart", pawnId) then
+		return nil
+	end
+	return snap
 end
 
 function skillCoreSync.snapshotAllPawnCores()
@@ -758,7 +827,13 @@ end
 
 function skillCoreSync.onMissionStart()
 	logger.logDebug(SUBMODULE, "onMissionStart")
-	skillCoreSync.setMissionSnapshot(skillCoreSync.snapshotAllPawnCores())
+	local snap = skillCoreSync.snapshotAllPawnCores()
+	if next(snap) == nil then
+		skillCoreSync.clearMissionSnapshot()
+		logger.logDebug(SUBMODULE, "onMissionStart skip: no pawns need skill core sync")
+		return
+	end
+	skillCoreSync.setMissionSnapshot(snap)
 end
 
 function skillCoreSync.onMissionEnd()

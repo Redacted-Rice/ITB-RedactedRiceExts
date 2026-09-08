@@ -172,6 +172,47 @@ describe("Skill Core Sync", function()
 		end)
 	end)
 
+	describe("skill bonus core gating", function()
+		local bonus = memhack.CORE_TYPE_SKILL_BONUS
+
+		it("countPawnCoreType sums hp, move, pilot, and weapon bonus cores", function()
+			local snap = {
+				hpCore = bonus,
+				moveCore = 1,
+				pilotPower = { bonus, 1 },
+				weapons = {
+					[1] = sampleCores({ bonus }, { 0 }, { 0 }),
+					[2] = sampleCores({ 1 }, { 0 }, { 0 }),
+				},
+			}
+			assert.are.equal(3, skillCoreSync.countPawnCoreType(snap, bonus))
+		end)
+
+		it("needsSkillCoreSync is false when there are no bonus cores", function()
+			assert.is_false(skillCoreSync.needsSkillCoreSync({
+				hpCore = 1,
+				moveCore = 1,
+				pilotPower = { 1 },
+				weapons = { [1] = sampleCores({ 1 }, { 0 }, { 0 }) },
+			}))
+		end)
+
+		it("needsSkillCoreSync is true when there is any bonus core", function()
+			assert.is_true(skillCoreSync.needsSkillCoreSync({
+				hpCore = bonus,
+				moveCore = 1,
+				pilotPower = { 1 },
+				weapons = {},
+			}))
+			assert.is_true(skillCoreSync.needsSkillCoreSync({
+				hpCore = 1,
+				moveCore = 1,
+				pilotPower = { 1 },
+				weapons = { [1] = sampleCores({ bonus }, { 0 }, { 0 }) },
+			}))
+		end)
+	end)
+
 	describe("weaponCoresFromSave and pilotPowerFromSave", function()
 		it("copies weapon core lists from save weapon data", function()
 			local wdata = {
@@ -453,6 +494,7 @@ describe("Skill Core Sync", function()
 			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
 			local pawn = makeMockPawn({ prefix .. "_A", prefix .. "_B" })
 			gameMocks.pawns[1] = pawn
+			skillCoreSync.setMissionSnapshot({ [1] = { hpCore = 2, moveCore = 2, pilotPower = { 2 } } })
 
 			skillCoreSync.stripSuffixedWeaponsForPawn(1)
 
@@ -462,7 +504,20 @@ describe("Skill Core Sync", function()
 			assert.are.same({ false, false }, pawn._addForceLog)
 		end)
 
-		it("syncPawnFromSave applies save cores to pawn", function()
+		it("stripSuffixedWeaponsForPawn no ops when pawn was not snapshotted", function()
+			restoreFns()
+			local ptable = makeSavePtable({ primaryId = prefix .. "_A", secondary = false })
+			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
+			local pawn = makeMockPawn({ prefix .. "_A" })
+			gameMocks.pawns[1] = pawn
+
+			skillCoreSync.stripSuffixedWeaponsForPawn(1)
+
+			assert.are.equal(prefix .. "_A", pawn:GetWeaponType(1))
+			assert.are.same({}, pawn._removeLog)
+		end)
+
+		it("syncPawnFromSave applies save cores when any bonus core is present", function()
 			restoreFns()
 			local mechCalls = 0
 			local pilotCalls = 0
@@ -480,6 +535,17 @@ describe("Skill Core Sync", function()
 				weaponCalls = weaponCalls + 1
 			end
 
+			local bonus = memhack.CORE_TYPE_SKILL_BONUS
+			local ptable = makeSavePtable({
+				primaryId = prefix,
+				secondary = false,
+				pilotPower = { bonus },
+			})
+			ptable.healthPower = { bonus }
+			ptable.movePower = { bonus }
+			ptable.primary.power = { bonus }
+			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
+			_G.SquadData = squadSource
 			gameMocks.pawns[1] = makeMockPawn({ prefix })
 			skillCoreSync.syncPawnFromSave(1)
 
@@ -488,43 +554,85 @@ describe("Skill Core Sync", function()
 			assert.are.equal(1, weaponCalls)
 		end)
 
-		it("snapshotPawnCores captures live mech, pilot, and weapon cores", function()
+		it("syncPawnFromSave skips when there are no bonus cores", function()
 			restoreFns()
-			saveFn(skillCoreSync, "readLiveWeaponCores")
-			skillCoreSync.readLiveWeaponCores = function()
-				return sampleCores({ 8 }, { 0 }, { 0 })
+			local weaponCalls = 0
+			saveFn(skillCoreSync, "applyPawnWeaponCores")
+			skillCoreSync.applyPawnWeaponCores = function()
+				weaponCalls = weaponCalls + 1
 			end
 
-			local pawn = makeMockPawn({ prefix }, { hpCore = 11, moveCore = 12, pilotPower = { 13 } })
+			local ptable = makeSavePtable({
+				primaryId = prefix,
+				secondary = false,
+				pilotPower = { 1 },
+			})
+			ptable.healthPower = { 1 }
+			ptable.movePower = { 1 }
+			ptable.primary.power = { 1 }
+			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
+			_G.SquadData = squadSource
+			gameMocks.pawns[1] = makeMockPawn({ prefix })
+			skillCoreSync.syncPawnFromSave(1)
+
+			assert.are.equal(0, weaponCalls)
+		end)
+
+		it("snapshotPawnCores captures live cores when any bonus core is present", function()
+			restoreFns()
+			local bonus = memhack.CORE_TYPE_SKILL_BONUS
+			saveFn(skillCoreSync, "readLiveWeaponCores")
+			skillCoreSync.readLiveWeaponCores = function()
+				return sampleCores({ bonus }, { 0 }, { 0 })
+			end
+
+			local pawn = makeMockPawn({ prefix }, { hpCore = bonus, moveCore = bonus, pilotPower = { bonus } })
 			gameMocks.pawns[1] = pawn
 
 			local snap = skillCoreSync.snapshotPawnCores(1)
-			assert.are.equal(11, snap.hpCore)
-			assert.are.equal(12, snap.moveCore)
-			assert.are.same({ 13 }, snap.pilotPower)
-			assert.are.same({ 8 }, snap.weapons[1].power)
+			assert.are.equal(bonus, snap.hpCore)
+			assert.are.equal(bonus, snap.moveCore)
+			assert.are.same({ bonus }, snap.pilotPower)
+			assert.are.same({ bonus }, snap.weapons[1].power)
 		end)
 
-		it("applyPawnSnapshot restores mech and pilot cores using real apply functions", function()
+		it("snapshotPawnCores returns nil when there are no bonus cores", function()
+			restoreFns()
+			saveFn(skillCoreSync, "readLiveWeaponCores")
+			skillCoreSync.readLiveWeaponCores = function()
+				return sampleCores({ 1 }, { 0 }, { 0 })
+			end
+
+			gameMocks.pawns[1] = makeMockPawn({ prefix }, { hpCore = 1, moveCore = 1, pilotPower = { 1 } })
+			assert.is_nil(skillCoreSync.snapshotPawnCores(1))
+		end)
+
+		it("applyPawnSnapshot restores mech, pilot, and weapon cores", function()
 			restoreFns()
 
+			local applied = {}
+			saveFn(skillCoreSync, "applyWeaponCores")
+			skillCoreSync.applyWeaponCores = function(_, weaponIndex, cores)
+				applied[#applied + 1] = { weaponIndex = weaponIndex, cores = cores }
+			end
+
+			local bonus = memhack.CORE_TYPE_SKILL_BONUS
+			local weapon = sampleCores({ bonus }, { 0 }, { 0 })
 			local pawn = makeMockPawn({ prefix }, { hpCore = 1, moveCore = 2, pilotPower = { 3 } })
 			gameMocks.pawns[1] = pawn
 
-			saveFn(skillCoreSync, "applyPawnWeaponCores")
-			skillCoreSync.applyPawnWeaponCores = function() end
-
-			local snap = {
-				hpCore = 9,
+			skillCoreSync.applyPawnSnapshot(1, {
+				hpCore = bonus,
 				moveCore = 10,
 				pilotPower = { 4, 5 },
-				weapons = {},
-			}
-			skillCoreSync.applyPawnSnapshot(1, snap)
+				weapons = { [1] = weapon },
+			})
 
-			assert.are.equal(9, pawn:GetHpCore())
+			assert.are.equal(bonus, pawn:GetHpCore())
 			assert.are.equal(10, pawn:GetMoveCore())
 			assert.are.same({ 4, 5 }, pawn:GetPilot():getPowerList())
+			assert.are.equal(1, #applied)
+			assert.are.same(weapon, applied[1].cores)
 		end)
 
 		it("onMissionStart stores snapshot from all pawns", function()
@@ -695,6 +803,7 @@ describe("Skill Core Sync", function()
 			})
 			_G.SquadData = {}
 			installModApiExt({ byPawnId = { [0] = ptable } })
+			skillCoreSync.setMissionSnapshot({ [0] = { hpCore = 2, moveCore = 2, pilotPower = { 2 } } })
 
 			skillCoreSync.addAllWeaponSuffixesInGFromSave()
 
