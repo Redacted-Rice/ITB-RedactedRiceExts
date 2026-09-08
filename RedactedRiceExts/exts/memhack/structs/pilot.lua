@@ -58,6 +58,8 @@ local Pilot = memhack.structManager:define("Pilot", {
 	personality = { offset = 0x94, type = "struct", subType = "ItBString", hideSetter = true},  -- used for validation
 	sex = { offset = 0xC8, type = "int", hideSetter = true }, -- used for validation
 	lvlUpSkills = { offset = 0xCC, type = "pointer", subType = "PilotLvlUpSkillsArray"},
+	-- Innate pilot skill power core list (std::vector<int>), same role as weapon PowerList
+	power = { offset = 0x24C, type = "struct", subType = "Vector", noSetter = true },
 	prevTimelines = { offset = 0x27C, type = "int" },
 }, validatePilot)
 -- Vtables don't match :(
@@ -91,6 +93,33 @@ genItBStrGetSetWrappers(Pilot, "name")
 genItBStrGetSetWrappers(Pilot, "skill")
 genItBStrGetSetWrappers(Pilot, "id")
 genItBStrGetSetWrappers(Pilot, "personality")
+
+-- Innate skill power cores (1-indexed lua list). Does not grow the vector.
+-- List elements use memhack.CORE_TYPE_* values.
+function Pilot:getPowerList()
+	local vec = self:getPower()
+	if not vec then
+		return nil
+	end
+	return vec:getIntList()
+end
+
+function Pilot:setPowerListSlot(slotIndex, value)
+	local vec = self:getPower()
+	if not vec then
+		return false
+	end
+	return vec:setIntAt(slotIndex, value)
+end
+
+-- values: memhack.CORE_TYPE_* list; size must match live vector.
+function Pilot:setPowerList(values)
+	local vec = self:getPower()
+	if not vec then
+		return false
+	end
+	return vec:setIntList(values)
+end
 
 Pilot._calculateLevelUpXp = function(level)
 	local result = (level + 1) * 25

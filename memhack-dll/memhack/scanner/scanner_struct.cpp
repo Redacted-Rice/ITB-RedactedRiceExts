@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "scanner_struct.h"
+#include "../memory.h"
 #include "../safememory.h"
 
 #include <cmath>
@@ -43,6 +44,63 @@ StructScanner::StructFieldSequence::StructFieldSequence(int offsetFromKey, const
 
 bool StructScanner::StructFieldSequence::compare(const uint8_t* keyAddr) const {
     return SequenceScanner::compare(keyAddr + offsetFromKey, val.data(), val.size());
+}
+
+namespace {
+	// Keep in sync with RedactedRiceExts/exts/memhack/structs/itb_string.lua
+	const int ITB_STRING_STRLEN_OFFSET = 0x10;
+	const int ITB_STRING_UNIONTYPE_OFFSET = 0x14;
+	const int ITB_STRING_LOCAL = 0x0F;
+	const int ITB_STRING_REMOTE = 0x1F;
+	const size_t ITB_STRING_LOCAL_CAPACITY = 16;
+}
+
+// StructFieldItBString implementation
+StructScanner::StructFieldItBString::StructFieldItBString(int offsetFromKey, const uint8_t* data, size_t size)
+	: offsetFromKey(offsetFromKey), val(data, data + size) {
+}
+
+bool StructScanner::StructFieldItBString::compare(const uint8_t* keyAddr) const {
+	const uint8_t* itbBase = keyAddr + offsetFromKey;
+	const size_t expectedLen = val.size();
+	// Match ItBString validation / memory API: empty and >= MAX (incl. null term budget) are invalid
+	if (expectedLen == 0 || expectedLen >= (size_t)MAX_NULL_TERM_STRING_LENGTH) {
+		return false;
+	}
+
+	__try {
+		const int strLen = *(const int*)(itbBase + ITB_STRING_STRLEN_OFFSET);
+		if (strLen != (int)expectedLen) {
+			return false;
+		}
+
+		const int unionType = *(const int*)(itbBase + ITB_STRING_UNIONTYPE_OFFSET);
+		const uint8_t* strAddr = nullptr;
+
+		if (unionType == ITB_STRING_LOCAL) {
+			// Inline buffer is 16 bytes; game stores LOCAL only when length < 16
+			if (expectedLen >= ITB_STRING_LOCAL_CAPACITY) {
+				return false;
+			}
+			strAddr = itbBase;
+		} else if (unionType == ITB_STRING_REMOTE) {
+			const uintptr_t ptr = *(const uintptr_t*)itbBase;
+			if (ptr == 0) {
+				return false;
+			}
+			if (!SafeMemory::is_access_allowed((void*)ptr, expectedLen, false)) {
+				return false;
+			}
+			strAddr = (const uint8_t*)ptr;
+		} else {
+			return false;
+		}
+
+		return memcmp(strAddr, val.data(), expectedLen) == 0;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER) {
+		return false;
+	}
 }
 
 // StructSearch implementation
@@ -108,6 +166,11 @@ bool StructScanner::compare(const uint8_t* keyAddr) const {
         }
     }
     for (const StructFieldSequence& field : searchStruct.sequenceFields) {
+        if (!field.compare(keyAddr)) {
+            return false;
+        }
+    }
+    for (const StructFieldItBString& field : searchStruct.itbStringFields) {
         if (!field.compare(keyAddr)) {
             return false;
         }
@@ -254,4 +317,3 @@ bool StructScanner::validateValueDirect(uintptr_t address, uintptr_t regionStart
 	outResult.address = address;
 	return true;
 }
-

@@ -30,6 +30,7 @@ bool parseByte(lua_State* L, int index, uint8_t& outByte);
 bool parseScanType(const char* str, ScanType& outType);
 bool parseBasicDataType(const char* str, BasicScanner::DataType& outType);
 bool parseSequenceDataType(const char* str, SequenceScanner::DataType& outType);
+bool parseItBStringDataType(const char* str);
 
 void logScannerErrors(lua_State* L, Scanner* scanner, const char* operation);
 

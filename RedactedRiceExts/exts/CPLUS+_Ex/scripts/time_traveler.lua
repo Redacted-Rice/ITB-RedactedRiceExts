@@ -39,6 +39,48 @@ time_traveler.registeredFields = {}
 local utils = nil
 local skill_selection = nil
 
+-- Build a struct scan definition for locating a pilot in memory.
+-- Anchors on ItBString strLen (same offset for local and remote id storage).
+-- Id text is verified via itb_string, which reads unionType and compares inline or through the heap pointer.
+local function buildPilotScanStruct(id, data)
+	local PilotLayout = memhack.structs.Pilot._layout
+	local ItBStringLayout = memhack.structs.ItBString._layout
+	local idLen = #id
+	local strLenOffset = PilotLayout.id.offset + ItBStringLayout.strLen.offset
+
+	-- memchr key: low byte of expected strLen at the strLen field offset. Not as good a
+	-- candidate as 'P' was but this makes the scan much simpler as we can always check
+	-- for the struct in a single search. idLen % 256 is only the memchr hint; for ids
+	-- longer than 255 the exact int field below still filters false key hits.
+	local structDef = memhack.dll.scanner.StructSearch.new(idLen % 256, strLenOffset)
+	structDef:addField(PilotLayout.xp.offset, "int", data.xp)
+	structDef:addField(PilotLayout.level.offset, "int", data.level)
+	structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
+	-- Exact strLen int (filters key hits where only the low byte matched)
+	structDef:addField(strLenOffset, "int", idLen)
+	-- Will handle local and remote ITB strings
+	structDef:addField(PilotLayout.id.offset, "itb_string", id)
+
+	return structDef
+end
+
+-- Validate a scan hit and return the pilot struct, or nil if id/validation fails.
+local function acceptScannedPilot(baseAddr, id)
+	local traveler = memhack.structs.Pilot.new(baseAddr, true)
+	if not traveler then
+		return nil
+	end
+
+	local scannedId = traveler:getIdStr()
+	if scannedId ~= id then
+		logger.logDebug(SUBMODULE, "Scan candidate at 0x%X rejected: expected id %s, got %s",
+			baseAddr, id, tostring(scannedId))
+		return nil
+	end
+
+	return traveler
+end
+
 -- Initialize the module
 function time_traveler:init()
 	utils = cplus_plus_ex._subobjects.utils
@@ -286,17 +328,11 @@ function time_traveler:_scanForTimeTraveler()
 		if pilot and id ~= pilot.id then
 			logger.logDebug(SUBMODULE, "Skipping pilot Id %s", id)
 		else
-			logger.logDebug(SUBMODULE, "Scanning for pilot %s with timelines == %d, xp == %d, level == %d",
-				id, data.prevTimelines + 1, data.xp, data.level)
+			logger.logDebug(SUBMODULE, "Scanning for pilot %s (id len %d) with timelines == %d, xp == %d, level == %d",
+				id, #id, data.prevTimelines + 1, data.xp, data.level)
 
-			local PilotLayout = memhack.structs.Pilot._layout
+			local structDef = buildPilotScanStruct(id, data)
 			local scanner = memhack.dll.scanner.new("struct", {checkTiming = cplus_plus_ex.DEBUG.TIME_TRAVELER})
-			local structDef = memhack.dll.scanner.StructSearch.new(string.byte(id:sub(1,1)), PilotLayout.id.offset)
-			--structDef:addField(PilotLayout.vtable.offset, "int", memhack.structs.Pilot._vtableAddr)
-			structDef:addField(PilotLayout.xp.offset, "int", data.xp)
-			structDef:addField(PilotLayout.level.offset, "int", data.level)
-			structDef:addField(PilotLayout.prevTimelines.offset, "int", data.prevTimelines + 1)
-			structDef:addField(PilotLayout.id.offset, "string", id)
 
 			local results = scanner:firstScan("exact", structDef)
 
@@ -308,7 +344,7 @@ function time_traveler:_scanForTimeTraveler()
 				local matches = scanner:getResults()
 				for _, result in ipairs(matches.results) do
 					local baseAddr = result.address
-					local traveler = memhack.structs.Pilot.new(baseAddr, true)
+					local traveler = acceptScannedPilot(baseAddr, id)
 					if traveler then
 						table.insert(time_traveler.potentialTimeTravelers, traveler)
 						logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)

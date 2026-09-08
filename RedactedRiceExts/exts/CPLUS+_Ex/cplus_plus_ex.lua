@@ -81,6 +81,7 @@ cplus_plus_ex.NON_VIRTUAL_SKILLS = {
 }
 
 cplus_plus_ex._subobjects = {}
+cplus_plus_ex._subobjects.damageModifierLib = require(path.."scripts/libs/damageModifierLib")
 cplus_plus_ex._subobjects.utils = require(path.."scripts/utils")
 cplus_plus_ex._subobjects.skill_registry = require(path.."scripts/skill_registry")
 cplus_plus_ex._subobjects.skill_config = require(path.."scripts/skill_config")
@@ -168,6 +169,7 @@ function cplus_plus_ex:exposeAPI()
 	-- Expose commonly used submodules/data at root level for easier external access
 	self.hooks = hooks
 	self.events = hooks.events
+	self.damageModifierLib = cplus_plus_ex._subobjects.damageModifierLib
 	self.config = skill_config.config
 	self.SkillConfig = skill_config.SkillConfig
 	self.RelationshipType = skill_config.RelationshipType
@@ -210,6 +212,9 @@ function cplus_plus_ex:exposeAPI()
 	function cplus_plus_ex:selectRandomSkill(...) return skill_selection:selectRandomSkill(...) end
 	function cplus_plus_ex:selectRandomSkills(...) return skill_selection:selectRandomSkills(...) end
 	function cplus_plus_ex:getAssignableSkillIds(...) return skill_selection:getAssignableSkillIds(...) end
+	-- Per run claim helpers
+	function cplus_plus_ex:markPerRunSkillAsUsed(...) return skill_selection:_markPerRunSkillAsUsed(...) end
+	function cplus_plus_ex:unmarkPerRunSkill(...) return skill_selection:_unmarkPerRunSkill(...) end
 	-- Virtual skill functions
 	function cplus_plus_ex:canBeVirtualSkill(...) return skill_selection:canBeVirtualSkill(...) end
 	function cplus_plus_ex:registerVirtualSkillSource(...) return skill_selection:registerVirtualSkillSource(...) end

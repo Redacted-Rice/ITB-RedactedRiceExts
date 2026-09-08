@@ -53,11 +53,25 @@ public:
         bool compare(const uint8_t* keyAddr) const;
     };
 
+	// ItB game string union: inline buffer (<16 chars) or remote pointer (>=16 chars).
+	// Layout/constants must stay in sync with RedactedRiceExts/exts/memhack/structs/itb_string.lua
+    class StructFieldItBString {
+    public:
+        int offsetFromKey;
+        std::vector<uint8_t, ScannerAllocator<uint8_t>> val;
+
+    	StructFieldItBString(int offsetFromKey, const uint8_t* data, size_t size);
+    	~StructFieldItBString() {}
+
+        bool compare(const uint8_t* keyAddr) const;
+    };
+
     class StructSearch {
     public:
         uint8_t searchKey;
         std::vector<StructFieldBasic, ScannerAllocator<StructFieldBasic>> basicFields;
         std::vector<StructFieldSequence, ScannerAllocator<StructFieldSequence>> sequenceFields;
+        std::vector<StructFieldItBString, ScannerAllocator<StructFieldItBString>> itbStringFields;
 		// Offset of the search key from struct base address. Defaults to 0
         int keyOffsetFromBase;
         size_t sizeBeforeKey;
@@ -105,6 +119,13 @@ public:
             int offsetFromKey = offsetFromBase - keyOffsetFromBase;
             sequenceFields.emplace_back(offsetFromKey, data, size);
             adjustSizes(offsetFromKey, size);
+        }
+
+        void addItBStringField(int offsetFromBase, const uint8_t* data, size_t size) {
+            int offsetFromKey = offsetFromBase - keyOffsetFromBase;
+            itbStringFields.emplace_back(offsetFromKey, data, size);
+            // Full ItBString layout through unionType at 0x14
+            adjustSizes(offsetFromKey, 0x18);
         }
 
         size_t getSize() const { return sizeBeforeKey + sizeFromKey; }

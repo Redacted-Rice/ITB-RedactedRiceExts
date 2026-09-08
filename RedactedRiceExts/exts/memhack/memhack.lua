@@ -11,7 +11,13 @@ memhack.DEBUG = {
 	STRUCTS = false,  -- struct operations
 	STATE_TRACKER = false, -- state_tracker module
 	SCANNER = false, -- scanner operations (very verbose)
+	SKILL_CORE_SYNC = false, -- skill core bonus syncing
 }
+
+-- Shared ITB constants (mech, weapon, and pilot core slot values)
+for name, value in pairs(require(path.."utils/constants")) do
+	memhack[name] = value
+end
 
 -- Load logging utilities first and expose at memhack level
 memhack.logger = require(path.."utils/logger")
@@ -82,9 +88,12 @@ function memhack:init(mockDll)
 	-- Now initialize state tracker which references the structs
 	-- Wrap hooks to update state trackers to prevent double firing from state tracking
 	self._subobjects.stateTracker = require(path.."scripts/state_tracker")
+	self._subobjects.skillCoreSync = require(path.."scripts/skill_core_sync")
 	self.stateTracker = self._subobjects.stateTracker
+	self.skillCoreSync = self._subobjects.skillCoreSync
 	stateTracker = self._subobjects.stateTracker
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
+	self._subobjects.skillCoreSync:init()
 
 	-- Register events
 	self:addEvents()
