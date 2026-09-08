@@ -482,7 +482,9 @@ end
 -- Earlier slots are left untouched and later slots are always re-added 
 -- (even if unchanged) to preserve order when a prior slot changed. No op 
 -- if nothing is marked replace.
-function skillCoreSync.replaceAllWeapons(pawn, entries)
+-- forceEnable: passed to AddWeapon. In mission use true so PowerCost is
+-- zeroed for combat and on mission end use false and reapply cores after
+function skillCoreSync.replaceAllWeapons(pawn, entries, forceEnable)
 	local firstReplaceIdx = nil
 	for i, entry in ipairs(entries) do
 		if entry.replace then
@@ -503,7 +505,7 @@ function skillCoreSync.replaceAllWeapons(pawn, entries)
 	for i = firstReplaceIdx, #entries do
 		local entry = entries[i]
 		if entry.typeId then
-			pawn:AddWeapon(entry.typeId, true)
+			pawn:AddWeapon(entry.typeId, forceEnable)
 			local newIndex = pawn:GetWeaponCount()
 			if entry.cores then
 				skillCoreSync.applyWeaponCores(pawn, newIndex, entry.cores)
@@ -587,7 +589,7 @@ function skillCoreSync.rebuildPawnWeaponsInMission(pawnId, snap)
 		return
 	end
 
-	skillCoreSync.replaceAllWeapons(pawn, toAdd)
+	skillCoreSync.replaceAllWeapons(pawn, toAdd, true)
 	for _, entry in ipairs(toAdd) do
 		if entry._newIndex then
 			logger.logInfo(SUBMODULE, "load replace pawn %d %s %s -> typeId=%s liveType=%s",
@@ -648,7 +650,8 @@ function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
 		return
 	end
 
-	skillCoreSync.replaceAllWeapons(pawn, toAdd)
+	-- Do not force enable then onMissionEnd reapplies
+	skillCoreSync.replaceAllWeapons(pawn, toAdd, false)
 	for _, entry in ipairs(toAdd) do
 		if entry._newIndex then
 			logger.logInfo(SUBMODULE, "missionEnd replace pawn %d %s %s -> %s",
