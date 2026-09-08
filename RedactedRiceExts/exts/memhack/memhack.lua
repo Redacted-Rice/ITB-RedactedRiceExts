@@ -11,7 +11,7 @@ memhack.DEBUG = {
 	STRUCTS = false,  -- struct operations
 	STATE_TRACKER = false, -- state_tracker module
 	SCANNER = false, -- scanner operations (very verbose)
-	SKILL_CORE_SYNC = true, -- skill core bonus syncing
+	SKILL_CORE_SYNC = false, -- skill core bonus syncing
 }
 
 -- Shared ITB constants (mech, weapon, and pilot core slot values)
