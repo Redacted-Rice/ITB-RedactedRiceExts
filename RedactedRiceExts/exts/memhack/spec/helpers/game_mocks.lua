@@ -10,6 +10,7 @@ function M.makeMockPawn(initialTypes, opts)
 		_weapons = {},
 		_removeLog = {},
 		_addLog = {},
+		_addForceLog = {},
 		_hpCore = opts.hpCore or 0,
 		_moveCore = opts.moveCore or 0,
 	}
@@ -71,8 +72,9 @@ function M.makeMockPawn(initialTypes, opts)
 		table.remove(self._weapons, index)
 	end
 
-	function pawn:AddWeapon(typeId, _ignored)
+	function pawn:AddWeapon(typeId, forceEnable)
 		table.insert(self._addLog, typeId)
+		table.insert(self._addForceLog, forceEnable)
 		table.insert(self._weapons, typeId)
 	end
 
