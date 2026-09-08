@@ -251,12 +251,26 @@ describe("Skill Core Sync", function()
 			skillCoreSync.replaceAllWeapons(pawn, {
 				{ typeId = "NewPrimary", replace = true, cores = cores },
 				{ typeId = "NewSecondary", replace = true, cores = cores },
-			})
+			}, true)
 
 			assert.are.equal(2, #applied)
 			assert.are.equal(1, applied[1].weaponIndex)
 			assert.are.equal(2, applied[2].weaponIndex)
 			assert.are.same(cores, applied[1].cores)
+		end)
+
+		it("passes forceEnable through to AddWeapon", function()
+			local forced = makeMockPawn({ "Primary_A" })
+			skillCoreSync.replaceAllWeapons(forced, {
+				{ typeId = "Primary", replace = true },
+			}, true)
+			assert.are.same({ true }, forced._addForceLog)
+
+			local unforced = makeMockPawn({ "Primary_A" })
+			skillCoreSync.replaceAllWeapons(unforced, {
+				{ typeId = "Primary", replace = true },
+			}, false)
+			assert.are.same({ false }, unforced._addForceLog)
 		end)
 	end)
 
@@ -384,6 +398,7 @@ describe("Skill Core Sync", function()
 
 			assert.are.equal(prefix, pawn:GetWeaponType(1))
 			assert.are.same({ 1 }, pawn._removeLog)
+			assert.are.same({ true }, pawn._addForceLog)
 		end)
 
 		it("no ops rebuild when live cores match snapshot", function()
@@ -444,6 +459,7 @@ describe("Skill Core Sync", function()
 			assert.are.equal(prefix, pawn:GetWeaponType(1))
 			assert.are.equal(prefix, pawn:GetWeaponType(2))
 			assert.are.equal(prefix, ptable.primary)
+			assert.are.same({ false, false }, pawn._addForceLog)
 		end)
 
 		it("syncPawnFromSave applies save cores to pawn", function()
