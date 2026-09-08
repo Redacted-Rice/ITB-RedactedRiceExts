@@ -646,6 +646,17 @@ describe("Skill Core Sync", function()
 			assert.are.same(expected, skillCoreSync.getMissionSnapshot())
 		end)
 
+		it("onMissionStart keeps empty snapshot so mid-mission load is detected", function()
+			saveFn(skillCoreSync, "snapshotAllPawnCores")
+			skillCoreSync.snapshotAllPawnCores = function()
+				return {}
+			end
+
+			skillCoreSync.onMissionStart()
+			assert.are.same({}, skillCoreSync.getMissionSnapshot())
+			assert.is_true(skillCoreSync.isMissionSaveLoaded())
+		end)
+
 		it("onMissionEnd clears snapshot after strip and restore", function()
 			local snap = { [0] = { hpCore = 1 } }
 			skillCoreSync.setMissionSnapshot(snap)
