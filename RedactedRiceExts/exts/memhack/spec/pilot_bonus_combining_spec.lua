@@ -2,9 +2,11 @@
 -- Verifies that cores and grid bonuses are properly combined based on pilot level
 
 local specHelper = require("helpers/spec_helper")
+local testUtil = require("helpers/test_util")
 
 -- Initialize the extension with mock DLL
 local memhack = specHelper.initMemhack()
+local makeMockLvlUpSkill = testUtil.makeMockLvlUpSkill
 local Pilot = memhack.structs.Pilot
 local stateTracker = memhack.stateTracker
 
@@ -15,30 +17,8 @@ describe("Pilot Bonus Combining", function()
 		-- Reset state tracker
 		stateTracker._skillSetValues = {}
 
-		-- Create mock skills with memory and set values
-		mockSkill1 = {
-			_address = 0x1000,
-			_coresBonus = 0,
-			_gridBonus = 0,
-
-			getAddress = function(self) return self._address end,
-			_getCoresBonus = function(self) return self._coresBonus end,
-			_setCoresBonus = function(self, value) self._coresBonus = value end,
-			_getGridBonus = function(self) return self._gridBonus end,
-			_setGridBonus = function(self, value) self._gridBonus = value end,
-		}
-
-		mockSkill2 = {
-			_address = 0x2000,
-			_coresBonus = 0,
-			_gridBonus = 0,
-
-			getAddress = function(self) return self._address end,
-			_getCoresBonus = function(self) return self._coresBonus end,
-			_setCoresBonus = function(self, value) self._coresBonus = value end,
-			_getGridBonus = function(self) return self._gridBonus end,
-			_setGridBonus = function(self, value) self._gridBonus = value end,
-		}
+		mockSkill1 = makeMockLvlUpSkill(0x1000)
+		mockSkill2 = makeMockLvlUpSkill(0x2000)
 
 		mockLvlUpSkills = {
 			getSkill1 = function(self) return mockSkill1 end,
