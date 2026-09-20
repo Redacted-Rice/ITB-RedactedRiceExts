@@ -14,7 +14,7 @@ Please enjoy and contact us if you run into any issues.
 Latest release: 1.4.0
 
 ## 1.4.0
-Released: 9/XX/2026
+Released: 9/19/2026
 
 compatible with:
 * ItB AE       1.2.93
