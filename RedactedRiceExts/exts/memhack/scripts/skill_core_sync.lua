@@ -173,7 +173,7 @@ end
 
 function skillCoreSync.readWeaponIntList(getter, pawn, weaponIndex)
 	local meInst = memedit:get()
-	if not meInst.weapon[getter] then
+	if not meInst or not meInst.weapon[getter] then
 		return nil
 	end
 	local list = meInst.weapon[getter](pawn, weaponIndex)
@@ -187,9 +187,12 @@ function skillCoreSync.readWeaponIntList(getter, pawn, weaponIndex)
 	return values
 end
 
-function skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, fieldName, slotIndex, value)
+-- Writes one weapon core slot via memedit addresses + memhack memory.
+-- Verifies the write by reading back through memedit and logs a warning on failure.
+function skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, fieldName, slotIndex, value, getter)
 	local addresses = memedit:loadAddressesFromFile()
 	if not addresses then
+		logger.logWarn(SUBMODULE, "writeWeaponIntListSlot: memedit addresses unavailable")
 		return false
 	end
 	local mem = memhack.dll.memory
@@ -203,15 +206,33 @@ function skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, fieldName, slot
 	local weaponAddr = mem.readPointer(weaponListAddr + weaponIndex * 0x8)
 	local fieldEntry = addresses.weapon[fieldName]
 	if not fieldEntry or not weaponAddr then
+		logger.logWarn(SUBMODULE,
+				"writeWeaponIntListSlot: could not resolve weapon %d field %s",
+				weaponIndex, fieldName)
 		return false
 	end
 
 	local vecAddr = mem.readPointer(weaponAddr + fieldEntry[1])
 	if not vecAddr or vecAddr == 0 then
+		logger.logWarn(SUBMODULE,
+				"writeWeaponIntListSlot: null vector for weapon %d field %s",
+				weaponIndex, fieldName)
 		return false
 	end
 
 	mem.writeInt(vecAddr + (slotIndex - 1) * 4, value)
+
+	if getter then
+		local live = skillCoreSync.readWeaponIntList(getter, pawn, weaponIndex)
+		if not live or live[slotIndex] ~= value then
+			logger.logWarn(SUBMODULE,
+					"writeWeaponIntListSlot verify failed weapon=%d field=%s slot=%d expected=%s got=%s",
+					weaponIndex, fieldName, slotIndex, tostring(value),
+					tostring(live and live[slotIndex]))
+			return false
+		end
+	end
+
 	return true
 end
 
@@ -382,7 +403,8 @@ function skillCoreSync.applyCoreList(pawn, weaponIndex, spec, sourceList)
 		if slotIndex > maxSlots then
 			break
 		end
-		skillCoreSync.writeWeaponIntListSlot(pawn, weaponIndex, spec.field, slotIndex, sourceVal)
+		skillCoreSync.writeWeaponIntListSlot(
+				pawn, weaponIndex, spec.field, slotIndex, sourceVal, spec.get)
 	end
 end
 
