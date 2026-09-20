@@ -19,11 +19,11 @@ Please enjoy and contact us if you run into any issues.
 
 # Releases
 
-Latest release: 1.4
+Latest release: 1.4.0
 
 ## 1.4.0
 
-Released: 9/XX/2026
+Released: 9/19/2026
 
 * memhack - v1.4.0
 * CPLUS+ Ex - v1.4.0
