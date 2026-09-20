@@ -2,9 +2,11 @@
 -- Verifies that set values are properly tracked separately from memory values
 
 local specHelper = require("helpers/spec_helper")
+local testUtil = require("helpers/test_util")
 
 -- Initialize the extension with mock DLL
 local memhack = specHelper.initMemhack()
+local makeMockLvlUpSkill = testUtil.makeMockLvlUpSkill
 local stateTracker = memhack.stateTracker
 
 describe("Skill Set Value Tracking", function()
@@ -14,18 +16,7 @@ describe("Skill Set Value Tracking", function()
 		-- Reset the tracker
 		stateTracker._skillSetValues = {}
 
-		-- Create a mock skill with address and hidden getters
-		mockSkill = {
-			_address = 0x12345,
-			_coresBonus = 2,
-			_gridBonus = 3,
-
-			getAddress = function(self) return self._address end,
-			_getCoresBonus = function(self) return self._coresBonus end,
-			_setCoresBonus = function(self, value) self._coresBonus = value end,
-			_getGridBonus = function(self) return self._gridBonus end,
-			_setGridBonus = function(self, value) self._gridBonus = value end,
-		}
+		mockSkill = makeMockLvlUpSkill(0x12345, { coresBonus = 2, gridBonus = 3 })
 	end)
 
 	describe("getSkillSetValue", function()
@@ -138,15 +129,7 @@ describe("Skill Set Value Tracking", function()
 
 	describe("Multiple skills", function()
 		it("should track values independently for different skills", function()
-			local skill2 = {
-				_address = 0x99999,
-				_coresBonus = 10,
-				_gridBonus = 20,
-
-				getAddress = function(self) return self._address end,
-				_getCoresBonus = function(self) return self._coresBonus end,
-				_getGridBonus = function(self) return self._gridBonus end,
-			}
+			local skill2 = makeMockLvlUpSkill(0x99999, { coresBonus = 10, gridBonus = 20 })
 
 			stateTracker:setSkillSetValue(mockSkill, "coresBonus", 5)
 			stateTracker:setSkillSetValue(skill2, "coresBonus", 15)

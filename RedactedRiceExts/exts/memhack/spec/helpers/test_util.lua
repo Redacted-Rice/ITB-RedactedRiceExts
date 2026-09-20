@@ -28,4 +28,44 @@ function M.restoreFns()
 	savedFns = {}
 end
 
+-- Mock PilotLvlUpSkill with hidden getters used by state_tracker getSkillSetValue
+function M.makeMockLvlUpSkill(address, opts)
+	opts = opts or {}
+	return {
+		_address = address,
+		_healthBonus = opts.healthBonus or 0,
+		_moveBonus = opts.moveBonus or 0,
+		_coresBonus = opts.coresBonus or 0,
+		_gridBonus = opts.gridBonus or 0,
+
+		getAddress = function(self)
+			return self._address
+		end,
+		_getHealthBonus = function(self)
+			return self._healthBonus
+		end,
+		_setHealthBonus = function(self, value)
+			self._healthBonus = value
+		end,
+		_getMoveBonus = function(self)
+			return self._moveBonus
+		end,
+		_setMoveBonus = function(self, value)
+			self._moveBonus = value
+		end,
+		_getCoresBonus = function(self)
+			return self._coresBonus
+		end,
+		_setCoresBonus = function(self, value)
+			self._coresBonus = value
+		end,
+		_getGridBonus = function(self)
+			return self._gridBonus
+		end,
+		_setGridBonus = function(self, value)
+			self._gridBonus = value
+		end,
+	}
+end
+
 return M

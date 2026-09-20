@@ -59,7 +59,10 @@ Priority guidance (lower runs first):
 
 local VERSION = "1.0.0"
 
-local DEBUG = true
+local DEBUG = cplus_plus_ex
+		and cplus_plus_ex.DEBUG
+		and cplus_plus_ex.DEBUG.DAMAGE_MODIFIER_LIB
+		and cplus_plus_ex.DEBUG.ENABLED
 
 local DEFAULT_PRIORITY = 100
 local INTERNAL_PRIORITY = 0

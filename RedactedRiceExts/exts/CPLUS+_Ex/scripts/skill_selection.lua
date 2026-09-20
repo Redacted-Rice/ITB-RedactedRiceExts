@@ -166,7 +166,7 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds, source)
 				logger.logDebug(SUBMODULE, "Added virtual skill %s (source: %s) to pilot %s at slot %d",
 						skillId, source, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 
-				self:_markPerRunSkillAsUsed(skillId)
+				self:markPerRunSkillAsUsed(skillId)
 				successCount = successCount + 1
 			end
 		end
@@ -218,7 +218,7 @@ function skill_selection:applyVirtualSkillIdsToPilot(pilot, virtualSkills, defau
 					id = skillId,
 					source = entrySource,
 				})
-				self:_markPerRunSkillAsUsed(skillId)
+				self:markPerRunSkillAsUsed(skillId)
 				logger.logInfo(SUBMODULE, "Applied virtual skill %s (source: %s) to pilot %s (slot %d)",
 						skillId, entrySource, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
 			end
@@ -710,10 +710,10 @@ end
 -- Check whether an already stored skill can be kept.
 -- Temporarily ignore this pilot's own per_run claim from rebuild so we don't self block.
 function skill_selection:_isInvalidExistingSkill(pilot, skillId, skill, selectedSkills, slotIdx)
-	self:_unmarkPerRunSkill(skillId)
+	self:unmarkPerRunSkill(skillId)
 	local invalid = self:_isInvalidAssignableSkill(pilot, skillId, skill, selectedSkills, slotIdx)
 	if not invalid then
-		self:_markPerRunSkillAsUsed(skillId)
+		self:markPerRunSkillAsUsed(skillId)
 	end
 	return invalid
 end
@@ -740,7 +740,6 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		local availableSkillsSlot1 = self:getAssignableSkillIds()
 		local newSkill1Id = self:selectRandomSkill(availableSkillsSlot1, pilot, 1, selectedForSlot1)
 		if not newSkill1Id then
-			self:_markPerRunSkillAsUsed(skill1Id)
 			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilotId .. " - constraints too restrictive")
 			return false
 		end
@@ -757,7 +756,8 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		local availableSkillsSlot2 = self:getAssignableSkillIds()
 		local newSkill2Id = self:selectRandomSkill(availableSkillsSlot2, pilot, 2, selectedForSlot2)
 		if not newSkill2Id then
-			self:_markPerRunSkillAsUsed(skill2Id)
+			-- Roll back skill 1 claim if it was marked during revalidation above
+			self:unmarkPerRunSkill(skill1Id)
 			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilotId .. " - constraints too restrictive")
 			return false
 		end
@@ -797,8 +797,8 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	end
 
 	-- Commit final level-up skills (including any rerolled during validation above)
-	self:_markPerRunSkillAsUsed(skill1Id)
-	self:_markPerRunSkillAsUsed(skill2Id)
+	self:markPerRunSkillAsUsed(skill1Id)
+	self:markPerRunSkillAsUsed(skill2Id)
 
 	-- Validate virtual skills in GAME, sync runtime objects
 	self:_validateAndSyncVirtualSkills(pilot)
@@ -1005,7 +1005,7 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 		if newSkillId then
 			table.insert(newVirtualSkills, { id = newSkillId, source = source })
 			table.insert(constraintCheckSkills, newSkillId)
-			self:_markPerRunSkillAsUsed(newSkillId)
+			self:markPerRunSkillAsUsed(newSkillId)
 		end
 	end
 
@@ -1025,7 +1025,7 @@ function skill_selection:_rebuildUsedSkillsPerRunFromGameState(pilots)
 		if storedSkills then
 			for _, skillData in ipairs(storedSkills) do
 				if skillData and skillData.id then
-					self:_markPerRunSkillAsUsed(skillData.id)
+					self:markPerRunSkillAsUsed(skillData.id)
 				end
 			end
 		end
@@ -1034,7 +1034,7 @@ function skill_selection:_rebuildUsedSkillsPerRunFromGameState(pilots)
 			for _, skillEntry in ipairs(virtualSkills) do
 				local skillId = skillEntry.id
 				if skillId then
-					self:_markPerRunSkillAsUsed(skillId)
+					self:markPerRunSkillAsUsed(skillId)
 				end
 			end
 		end
@@ -1044,7 +1044,7 @@ end
 -- Record a skill as assigned this run (per_run skills only).
 -- Call after a skill is applied to a pilot, not during pool selection.
 -- Never unmarks on removal - applySkillsToAllPilots rebuilds from GAME when selecitng new skills.
-function skill_selection:_markPerRunSkillAsUsed(skillId)
+function skill_selection:markPerRunSkillAsUsed(skillId)
 	local skill = skill_config_module.enabledSkills[skillId]
 	if skill == nil then
 		return
@@ -1062,7 +1062,7 @@ function skill_selection:_markPerRunSkillAsUsed(skillId)
 end
 
 -- Release a per_run claim so a pilot can keep or replace their own stored skill during revalidation.
-function skill_selection:_unmarkPerRunSkill(skillId)
+function skill_selection:unmarkPerRunSkill(skillId)
 	if not skillId or not self.usedSkillsPerRun[skillId] then
 		return
 	end
