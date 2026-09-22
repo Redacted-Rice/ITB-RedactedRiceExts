@@ -59,7 +59,7 @@ function pilot_overrides:_overrideGetLvlUpSkill()
 		return virtualSkills[virtualIndex]
 	end
 
-	logger.logInfo(SUBMODULE, "Overridden Pilot:getLvlUpSkill to support virtual skills")
+	logger.logDebug(SUBMODULE, "Overridden Pilot:getLvlUpSkill to support virtual skills")
 end
 
 -------------------- Override: setLvlUpSkill --------------------
@@ -136,7 +136,7 @@ function pilot_overrides:_overrideSetLvlUpSkill()
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Overridden Pilot:setLvlUpSkill to support virtual skills")
+	logger.logDebug(SUBMODULE, "Overridden Pilot:setLvlUpSkill to support virtual skills")
 end
 
 function pilot_overrides:_specialCaseHandling(pilot, prevHealthBonus, newHealthBonus)
@@ -254,7 +254,7 @@ function pilot_overrides:_overrideCombineBonuses()
 		pilot_overrides:_specialCaseHandling(self, curHealthBonus, totalBonuses.health)
 	end
 
-	logger.logInfo(SUBMODULE, "Overrode Pilot:_combineBonuses to support virtual skills")
+	logger.logDebug(SUBMODULE, "Overrode Pilot:_combineBonuses to support virtual skills")
 end
 
 --- Override GetSkillInfo to automatically append virtual skills to pilot descriptions
@@ -267,7 +267,7 @@ function pilot_overrides:applyGetSkillInfoOverride()
 		logger.logDebug(SUBMODULE, "GetSkillInfo override already applied, skipping")
 		return
 	end
-	logger.logInfo(SUBMODULE, "Overriding GetSkillInfo to automatically append virtual skills")
+	logger.logDebug(SUBMODULE, "Overriding GetSkillInfo to automatically append virtual skills")
 
 	-- Store the original function
 	if not original_GetSkillInfo then
@@ -296,7 +296,7 @@ function pilot_overrides:applyGetSkillInfoOverride()
 
 	-- Mark as applied
 	getSkillInfoOverrideApplied = true
-	logger.logInfo(SUBMODULE, "GetSkillInfo override applied successfully")
+	logger.logDebug(SUBMODULE, "GetSkillInfo override applied successfully")
 end
 
 --- Build skill description with virtual skills appended
@@ -370,14 +370,14 @@ end
 --- Initialize all pilot overrides
 --- Must be called after skill_state_tracker is initialized
 function pilot_overrides:init()
-	logger.logInfo(SUBMODULE, "Initializing Pilot overrides for virtual skills support")
+	logger.logDebug(SUBMODULE, "Initializing Pilot overrides for virtual skills support")
 
 	-- Apply critical overrides
 	self:_overrideGetLvlUpSkill()
 	self:_overrideSetLvlUpSkill()
 	self:_overrideCombineBonuses()
 
-	logger.logInfo(SUBMODULE, "Pilot overrides initialized successfully")
+	logger.logDebug(SUBMODULE, "Pilot overrides initialized successfully")
 	return self
 end
 

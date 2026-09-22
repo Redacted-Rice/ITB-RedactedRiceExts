@@ -160,7 +160,7 @@ function extra_info_ui:checkAndUpdate()
 	-- Check if selection changed
 	local selectionChanged = (selectedPawnId ~= lastSelectedPawnId) or (pilotId ~= lastPilotId)
 	if selectionChanged or sizeChanged then
-		logger.logInfo(SUBMODULE, "Update triggered: selectionChanged=%s, sizeChanged=%s",
+		logger.logDebug(SUBMODULE, "Update triggered: selectionChanged=%s, sizeChanged=%s",
 			tostring(selectionChanged), tostring(sizeChanged))
 		lastSelectedPawnId = selectedPawnId
 		lastPilotId = pilotId
@@ -373,7 +373,7 @@ function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot, pilotId)
 	-- Position panel relative to back_1
 	panel.x = back1X + PANEL_REFERENCE_OFFSET_X
 	panel.y = back1Y + PANEL_REFERENCE_OFFSET_Y
-	logger.logInfo(SUBMODULE, "Showing virtual skills panel for pilot %s with %d icons at (%d, %d)",
+	logger.logDebug(SUBMODULE, "Showing virtual skills panel for pilot %s with %d icons at (%d, %d)",
 		pilotId, #panelIconData, panel.x, panel.y)
 
 	-- Show panel
@@ -469,7 +469,7 @@ function extra_info_ui:showEarnedSkillsIcons(back1X, back1Y, pilot, pilotId)
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "Showing %d earned skill icons for pilot %s at (%d, %d)",
+	logger.logDebug(SUBMODULE, "Showing %d earned skill icons for pilot %s at (%d, %d)",
 		#earnedSkillWidgets, pilotId, back1X, back1Y)
 end
 

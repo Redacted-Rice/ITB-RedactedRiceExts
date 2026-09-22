@@ -769,7 +769,7 @@ function skill_config:registerSkillToGroupToRuntime(skillId, groupName)
 	end
 
 	self:_rebuildGroups()
-	logger.logInfo(SUBMODULE, "Added skill '%s' to group '%s'", skillId, groupName)
+	logger.logDebug(SUBMODULE, "Added skill '%s' to group '%s'", skillId, groupName)
 	return true
 end
 
@@ -816,14 +816,14 @@ function skill_config:removeSkillFromGroupFromRuntime(skillId, groupName)
 	end
 
 	self:_rebuildGroups()
-	logger.logInfo(SUBMODULE, "Removed skill '%s' from group '%s'", skillId, groupName)
+	logger.logDebug(SUBMODULE, "Removed skill '%s' from group '%s'", skillId, groupName)
 	return true
 end
 
 function skill_config:addGroupToRuntime(groupName)
 	self.config.emptyGroups[groupName] = true
 	self:_rebuildGroups()
-	logger.logInfo(SUBMODULE, "Created empty group '%s'", groupName)
+	logger.logDebug(SUBMODULE, "Created empty group '%s'", groupName)
 end
 
 function skill_config:deleteGroupFromRuntime(groupName)
@@ -845,7 +845,7 @@ function skill_config:deleteGroupFromRuntime(groupName)
 	-- Remove group UI state
 	self.config.groupsCollapseStates[groupName] = nil
 
-	logger.logInfo(SUBMODULE, "Deleted group '%s'", groupName)
+	logger.logDebug(SUBMODULE, "Deleted group '%s'", groupName)
 end
 
 function skill_config:getGroup(groupName)

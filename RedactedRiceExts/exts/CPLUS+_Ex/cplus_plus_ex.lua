@@ -332,7 +332,7 @@ function cplus_plus_ex:addEvents()
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
-		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
+		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
 		skill_selection:_resetRandomSession()
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()
@@ -342,7 +342,7 @@ function cplus_plus_ex:addEvents()
 
 		pilot_overrides:applyGetSkillInfoOverride()
 
-		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
+		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
 	end)
 
 	modApi.events.onGameExited:subscribe(function()

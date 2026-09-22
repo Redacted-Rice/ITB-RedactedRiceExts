@@ -904,7 +904,7 @@ function skill_state_tracker:_freeAllVirtualSkillObjects()
 	end
 
 	if totalCount > 0 then
-		logger.logInfo(SUBMODULE, "Freed %d virtual skill objects for all pilots during cleanup", totalCount)
+		logger.logDebug(SUBMODULE, "Freed %d virtual skill objects for all pilots during cleanup", totalCount)
 	end
 end
 

@@ -165,7 +165,7 @@ function utils._initPilotTracking()
 		end
 	end
 
-	logger.logInfo(SUBMODULE, "CreatePilot override applied for pilot tracking")
+	logger.logDebug(SUBMODULE, "CreatePilot override applied for pilot tracking")
 end
 
 -- Populate registry with existing pilots (called after all mods load)

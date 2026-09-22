@@ -314,7 +314,7 @@ end
 
 -- Called when a skill is enabled or disabled in the Skills Configuration section
 function modify_pilot_skills_ui:skillEnableChanged(skillId, enabled)
-	logger.logInfo(SUBMODULE, "skillEnableChanged called: skillId=%s, enabled=%s", skillId, tostring(enabled))
+	logger.logDebug(SUBMODULE, "skillEnableChanged called: skillId=%s, enabled=%s", skillId, tostring(enabled))
 
 	-- Repopulate all relationship sections
 	for relationshipType, section in pairs(relationshipSections) do
