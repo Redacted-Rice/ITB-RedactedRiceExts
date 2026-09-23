@@ -86,6 +86,7 @@ cplus_plus_ex._subobjects.damageModifierLib = require(path.."scripts/libs/damage
 cplus_plus_ex._subobjects.utils = require(path.."scripts/utils")
 cplus_plus_ex._subobjects.skill_registry = require(path.."scripts/skill_registry")
 cplus_plus_ex._subobjects.skill_config = require(path.."scripts/skill_config")
+cplus_plus_ex._subobjects.pilot_uid = require(path.."scripts/pilot_uid")
 cplus_plus_ex._subobjects.skill_selection = require(path.."scripts/skill_selection")
 cplus_plus_ex._subobjects.skill_constraints = require(path.."scripts/skill_constraints")
 cplus_plus_ex._subobjects.time_traveler = require(path.."scripts/time_traveler")
@@ -105,6 +106,7 @@ cplus_plus_ex.baseClasses.SkillEffectModifier = require(path.."scripts/base_clas
 local utils = cplus_plus_ex._subobjects.utils
 local skill_registry = cplus_plus_ex._subobjects.skill_registry
 local skill_config = cplus_plus_ex._subobjects.skill_config
+local pilot_uid = cplus_plus_ex._subobjects.pilot_uid
 local skill_selection = cplus_plus_ex._subobjects.skill_selection
 local skill_constraints = cplus_plus_ex._subobjects.skill_constraints
 local time_traveler = cplus_plus_ex._subobjects.time_traveler
@@ -122,6 +124,7 @@ function cplus_plus_ex:initModules()
 	skill_config:init()
 	skill_constraints:init()
 	skill_registry:init()
+	pilot_uid:init()
 	skill_selection:init()
 	time_traveler:init()
 	modify_pilot_skills_ui:init()
@@ -309,6 +312,7 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onSaveGame:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onSaveGame")
 		skill_state_tracker:_updateAllStates()
+		pilot_uid:resetTracking()
 		skill_selection:applySkillsToAllPilots()
 		time_traveler:_updateDataOnSave()
 	end)
@@ -333,6 +337,7 @@ function cplus_plus_ex:addEvents()
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
 		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
+		pilot_uid:resetTracking()
 		skill_selection:_resetRandomSession()
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()

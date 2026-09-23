@@ -340,111 +340,67 @@ describe("Skill Selection Module", function()
 		end)
 	end)
 
-	describe("SaveVal Assignment Logic", function()
+	describe("Pilot UID SaveVals", function()
 		local skill_selection
-		local registeredSkill
+		local pilot_uid
 
 		before_each(function()
 			skill_selection = plus_manager._subobjects.skill_selection
-			-- Set up a base registered skill
-			registeredSkill = {
-				id = "TestSkill",
-				shortName = "TS",
-				fullName = "Test Skill",
-				description = "Test",
-				saveVal = -1  -- Default to random assignment
-			}
+			pilot_uid = plus_manager._subobjects.pilot_uid
+			GAME.cplus_plus_ex.pilotSkills = {}
+			GAME.cplus_plus_ex.pilotVirtualSkills = {}
 		end)
 
-		-- Preference: registered, stored, in-memory
-		it("should use registered saveVal when available", function()
-			registeredSkill.saveVal = 3
-			local storedSkill = {id = "TestSkill", saveVal = 5}
-			local inMemory = 7
+		it("should mint distinct UIDs for same id pilots", function()
+			local pilot1 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 1001})
+			local pilot2 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 1002})
+			-- Give both the same saveVal pair so one must remint
+			pilot1:getLvlUpSkill(1):setSaveVal(0)
+			pilot1:getLvlUpSkill(2):setSaveVal(1)
+			pilot2:getLvlUpSkill(1):setSaveVal(0)
+			pilot2:getLvlUpSkill(2):setSaveVal(1)
 
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, nil)
+			local key1 = pilot_uid:_ensurePilotUid(pilot1)
+			local key2 = pilot_uid:_ensurePilotUid(pilot2)
 
-			assert.equals(3, result)
-			assert.equals(3, storedSkill.saveVal)
+			assert.is_not_nil(key1)
+			assert.is_not_nil(key2)
+			assert.is_not.equals(key1, key2)
 		end)
 
-		it("should use stored saveVal if no registered", function()
-			local storedSkill = {id = "TestSkill", saveVal = 5}
-			local inMemory = 7
+		it("should preserve saveVals across applySkillIdsToPilot", function()
+			helper.setupTestSkills({
+				{id = "SkillA", shortName = "SA", fullName = "SkillA", description = "Test"},
+				{id = "SkillB", shortName = "SB", fullName = "SkillB", description = "Test"},
+				{id = "SkillC", shortName = "SC", fullName = "SkillC", description = "Test"},
+				{id = "SkillD", shortName = "SD", fullName = "SkillD", description = "Test"},
+			})
 
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, nil)
+			local mockPilot, tracking = helper.createMockPilotWithTracking("TestPilot")
+			mockPilot:getLvlUpSkill(1):setSaveVal(4)
+			mockPilot:getLvlUpSkill(2):setSaveVal(9)
 
-			assert.equals(5, result)
-			assert.equals(5, storedSkill.saveVal)
+			skill_selection:applySkillIdsToPilot(mockPilot, {"SkillA", "SkillB"}, false)
+			assert.equals(4, tracking.skill1SaveVal)
+			assert.equals(9, tracking.skill2SaveVal)
+
+			skill_selection:applySkillIdsToPilot(mockPilot, {"SkillC", "SkillD"}, false)
+			assert.equals(4, tracking.skill1SaveVal)
+			assert.equals(9, tracking.skill2SaveVal)
+			assert.is_not_nil(GAME.cplus_plus_ex.pilotSkills["TestPilot:4:9"])
 		end)
 
-		it("should use stored saveVal if registered conflicts", function()
-			registeredSkill.saveVal = 3
-			local storedSkill = {id = "TestSkill", saveVal = 5}
-			local inMemory = 7
+		it("should treat second same id pilot as not yet assigned this run", function()
+			local pilot1 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 3001})
+			local pilot2 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 3002})
+			pilot1:getLvlUpSkill(1):setSaveVal(0)
+			pilot1:getLvlUpSkill(2):setSaveVal(1)
+			pilot2:getLvlUpSkill(1):setSaveVal(2)
+			pilot2:getLvlUpSkill(2):setSaveVal(3)
 
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, 3)
-
-			assert.equals(5, result)
-			assert.equals(5, storedSkill.saveVal)
-		end)
-
-		it("should use in-memory value when no registered or stored", function()
-			local storedSkill = {id = "TestSkill"}
-			local inMemory = 5
-
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, nil)
-
-			assert.equals(5, result)
-			assert.equals(5, storedSkill.saveVal)
-		end)
-
-		it("should use in-memory value when registered and stored conflict", function()
-			registeredSkill.saveVal = 3
-			local storedSkill = {id = "TestSkill", saveVal = 3}
-			local inMemory = 5
-
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, 3)
-
-			assert.equals(5, result)
-			assert.equals(5, storedSkill.saveVal)
-		end)
-
-		it("should generate random saveVal when no values", function()
-			local storedSkill = {id = "TestSkill"}
-
-			helper.mockMathRandomInt({3})
-
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", nil, nil)
-
-			assert.equals(3, result)
-			assert.equals(3, storedSkill.saveVal)
-		end)
-
-		it("should generate random saveVal when all values conflict and is below saveVal", function()
-			registeredSkill.saveVal = 3
-			local storedSkill = {id = "TestSkill", saveVal = 3}
-			local inMemory = 3
-
-			helper.mockMathRandomInt({2}) -- 2 is below saveVal so kept as is
-
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, 3)
-
-			assert.equals(2, result)
-			assert.equals(2, storedSkill.saveVal)
-		end)
-
-		it("should generate random saveVal when all values conflict", function()
-			registeredSkill.saveVal = 3
-			local storedSkill = {id = "TestSkill", saveVal = 3}
-			local inMemory = 3
-
-			helper.mockMathRandomInt({3}) -- 3 is excluded val so it will be bumped to 4
-
-			local result = skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, "TestPilot", "TestSkill", inMemory, 3)
-
-			assert.equals(4, result)
-			assert.equals(4, storedSkill.saveVal)
+			skill_selection._pilotsAssignedThisRun["Pilot_Cyborg:0:1"] = true
+			assert.is_true(skill_selection._pilotsAssignedThisRun[pilot1:getUidStr()])
+			assert.is_nil(skill_selection._pilotsAssignedThisRun[pilot2:getUidStr()])
 		end)
 	end)
 end)
