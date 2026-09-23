@@ -41,10 +41,6 @@ function skill_registry:_postModsLoaded()
 	self:_expandPilotConstraintFunctions(allPilotIds)
 end
 
--- saveVal is optional and must be between 0-13 (vanilla range). This will be used so if
--- the extension fails to load or is uninstalled, a suitable vanilla skill will be used
--- instead. If not provided or out of range, a random vanilla value will be used.
--- The save data in vanilla only supports 0-13. Anything out of range is clamped to this range
 -- defaultReusability is optional defines the default/starting reusability. Defaults to per_pilot to align with vanilla
 --   REUSABLE (1) - can be assigned to any pilot any number of times
 --   PER_PILOT (2) - a pilot can only have this skill once - vanilla behavior
@@ -72,6 +68,7 @@ end
 function skill_registry:registerSkill(category, idOrTable, shortName, fullName, description, bonuses, skillType, saveVal,
 		defaultReusability, reusabilityLimit, slotRestriction, weight, icon, constraints)
 	local id = idOrTable
+	local deprecatedSaveVal = saveVal
 	if type(idOrTable) == "table" then
 		id = idOrTable.id
 		shortName = idOrTable.shortName
@@ -79,7 +76,7 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		description = idOrTable.description
 		bonuses = idOrTable.bonuses
 		skillType = idOrTable.skillType
-		saveVal = idOrTable.saveVal
+		deprecatedSaveVal = idOrTable.saveVal
 		-- allows single reusability value to be passed in as defaultReusability & reusabilityLimit
 		defaultReusability = idOrTable.defaultReusability or idOrTable.reusability
 		-- nil will default to defaultReusability
@@ -98,17 +95,8 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 		return
 	end
 
-	-- Validate and normalize saveVal
-	-- Default to -1 if not provided
-	local originalSaveVal = saveVal
-	saveVal = saveVal or -1
-	-- Convert non-numbers or values outside 0-13 range to -1 (random assignment)
-	if type(saveVal) ~= "number" or saveVal < 0 or saveVal > 13 then
-		if originalSaveVal ~= nil and originalSaveVal ~= -1 then
-			logger.logWarn(SUBMODULE, "Skill '" .. id .. "' has invalid saveVal '" .. tostring(originalSaveVal) ..
-					"' (must be 0-13 or -1). Using random assignment (-1) instead.")
-		end
-		saveVal = -1
+	if deprecatedSaveVal ~= nil then
+		logger.logWarn(SUBMODULE, "Skill '%s' saveVal is no longer supported (pilot identity uses pilot_uid). Ignoring.", id)
 	end
 
 	-- Validate and normalize defaultReusability
@@ -153,7 +141,6 @@ function skill_registry:registerSkill(category, idOrTable, shortName, fullName, 
 	skill_registry.registeredSkills[id] = { id = id, category = category, shortName = shortName, fullName = fullName, description = description,
 			bonuses = bonuses or {},
 			skillType = skillType or "default",
-			saveVal = saveVal,
 			defaultReusability = defaultReusability,
 			reusabilityLimit = reusabilityLimit,
 			icon = icon,

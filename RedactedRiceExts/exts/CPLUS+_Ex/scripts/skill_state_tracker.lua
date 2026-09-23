@@ -795,7 +795,8 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 	skillObj:_setShortName_noFire(skill.shortName or skillId)
 	skillObj:_setFullName_noFire(skill.fullName or skillId)
 	skillObj:_setDescription_noFire(skill.description or "")
-	skillObj:_setSaveVal_noFire(skill.saveVal or 0)
+	-- Virtual skills are not lvl-up slots. saveVal 0 keeps them out of UID pairing.
+	skillObj:_setSaveVal_noFire(0)
 
 	-- Initialize bonus values
 	local healthBonus = (skill.bonuses and skill.bonuses.health) or 0
