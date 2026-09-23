@@ -25,7 +25,6 @@ function skill_registry:init()
 	utils = cplus_plus_ex._subobjects.utils
 
 	self:_registerVanilla()
-	self:_registerCoreVanillaSkillGroups()
 	return self
 end
 
@@ -290,15 +289,6 @@ function skill_registry:_registerVanilla()
 	for _, skill in ipairs(cplus_plus_ex.VANILLA_SKILLS) do
 		self:registerSkill("Vanilla", skill)
 	end
-end
-
-function skill_registry:_registerCoreVanillaSkillGroups()
-	local groups = cplus_plus_ex.GROUPS
-	self:registerSkillToGroup("Health", groups.ADD_HEALTH)
-	self:registerSkillToGroup("Skilled", groups.ADD_HEALTH)
-	self:registerSkillToGroup("Move", groups.ADD_MOVE)
-	self:registerSkillToGroup("Skilled", groups.ADD_MOVE)
-	self:registerSkillToGroup("Adrenaline", groups.ADD_MOVE)
 end
 
 -- Helper function to validate constraint compatibility with skill type
