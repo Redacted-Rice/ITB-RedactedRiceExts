@@ -1,5 +1,5 @@
 -- Tests for skill_registry module
--- Registration, saveVal validation, and skill management
+-- Registration and skill management
 
 local helper = require("helpers/plus_manager_helper")
 local plus_manager = helper.plus_manager
@@ -92,25 +92,14 @@ describe("Skill Registry Module", function()
 		end)
 	end)
 
-	describe("SaveVal Validation", function()
-		it("should accept valid boundary saveVal values (0 and 13)", function()
-			plus_manager:registerSkill("test", {id = "Skill0", shortName = "S0", fullName = "Skill0", description = "Test", saveVal = 0})
-			assert.equals(0, plus_manager._subobjects.skill_registry.registeredSkills["Skill0"].saveVal)
-
-			plus_manager:registerSkill("test", {id = "Skill13", shortName = "S13", fullName = "Skill13", description = "Test", saveVal = 13})
-			assert.equals(13, plus_manager._subobjects.skill_registry.registeredSkills["Skill13"].saveVal)
-		end)
-
-		it("should convert invalid saveVal to -1", function()
-			plus_manager:registerSkill("test", {id = "SkillAbove", shortName = "SA", fullName = "SkillAbove", description = "Test", saveVal = 14})
-			assert.equals(-1, plus_manager._subobjects.skill_registry.registeredSkills["SkillAbove"].saveVal)
-
-			plus_manager:registerSkill("test", {id = "SkillBelow", shortName = "SB", fullName = "SkillBelow", description = "Test", saveVal = -2})
-			assert.equals(-1, plus_manager._subobjects.skill_registry.registeredSkills["SkillBelow"].saveVal)
+	describe("deprecated saveVal", function()
+		it("should ignore saveVal on registerSkill", function()
+			plus_manager:registerSkill("test", {id = "SkillDeprecated", shortName = "SD", fullName = "SkillDeprecated", description = "Test", saveVal = 5})
+			assert.is_nil(plus_manager._subobjects.skill_registry.registeredSkills["SkillDeprecated"].saveVal)
 		end)
 	end)
 
-	describe("Identity SaveVal preservation", function()
+	describe("pilot UID preservation", function()
 		local mockPilot
 		local tracking
 
@@ -123,8 +112,8 @@ describe("Skill Registry Module", function()
 
 		it("should preserve UID saveVals when applying stored skills", function()
 			helper.setupTestSkills({
-				{id = "SkillDefined1", shortName = "SD1", fullName = "SkillDefined1", description = "Test", saveVal = 0},
-				{id = "SkillDefined2", shortName = "SD2", fullName = "SkillDefined2", description = "Test", saveVal = 1},
+				{id = "SkillDefined1", shortName = "SD1", fullName = "SkillDefined1", description = "Test"},
+				{id = "SkillDefined2", shortName = "SD2", fullName = "SkillDefined2", description = "Test"},
 			})
 
 			GAME.cplus_plus_ex.pilotSkills["TestPilot:5:7"] = {{id = "SkillDefined1"}, {id = "SkillDefined2"}}
@@ -138,8 +127,8 @@ describe("Skill Registry Module", function()
 
 		it("should preserve saveVals when applying skills to a new pilot", function()
 			helper.setupTestSkills({
-				{id = "SkillRandom1", shortName = "SR1", fullName = "SkillRandom1", description = "Test", saveVal = -1},
-				{id = "SkillRandom2", shortName = "SR2", fullName = "SkillRandom2", description = "Test", saveVal = -1},
+				{id = "SkillRandom1", shortName = "SR1", fullName = "SkillRandom1", description = "Test"},
+				{id = "SkillRandom2", shortName = "SR2", fullName = "SkillRandom2", description = "Test"},
 			})
 
 			mockPilot:getLvlUpSkill(1):setSaveVal(3)
@@ -154,10 +143,10 @@ describe("Skill Registry Module", function()
 
 		it("should keep UID saveVals across skill id swaps", function()
 			helper.setupTestSkills({
-				{id = "SkillA", shortName = "SA", fullName = "SkillA", description = "Test", saveVal = 0},
-				{id = "SkillB", shortName = "SB", fullName = "SkillB", description = "Test", saveVal = 1},
-				{id = "SkillC", shortName = "SC", fullName = "SkillC", description = "Test", saveVal = 2},
-				{id = "SkillD", shortName = "SD", fullName = "SkillD", description = "Test", saveVal = 3},
+				{id = "SkillA", shortName = "SA", fullName = "SkillA", description = "Test"},
+				{id = "SkillB", shortName = "SB", fullName = "SkillB", description = "Test"},
+				{id = "SkillC", shortName = "SC", fullName = "SkillC", description = "Test"},
+				{id = "SkillD", shortName = "SD", fullName = "SkillD", description = "Test"},
 			})
 
 			GAME.cplus_plus_ex.pilotSkills["TestPilot:5:7"] = {{id = "SkillA"}, {id = "SkillB"}}
