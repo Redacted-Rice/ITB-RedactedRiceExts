@@ -23,6 +23,11 @@ M.createMockPilot = function(params)
 	
 	local mockPilot = memhackMocks.createMockPilot(params)
 	
+	-- Match memhack Pilot metatable checks used by CPLUS+ APIs
+	if _G.memhack and _G.memhack.structs and _G.memhack.structs.Pilot then
+		setmetatable(mockPilot, _G.memhack.structs.Pilot)
+	end
+
 	-- Add getPawnId method (returns pawnId if piloting, nil otherwise)
 	mockPilot.getPawnId = function(self)
 		if not _G.Game or not _G.Board then return nil end
@@ -91,7 +96,9 @@ function M.createMockPilotWithTracking(pilotId)
 		-- structOrNewVals should be a table with skill properties
 		if type(structOrNewVals) == "table" then
 			skill._id = structOrNewVals.id
-			skill._save_val = structOrNewVals.saveVal
+			if structOrNewVals.saveVal ~= nil then
+				skill._save_val = structOrNewVals.saveVal
+			end
 			if structOrNewVals.coresBonus or structOrNewVals.gridBonus or structOrNewVals.healthBonus or structOrNewVals.moveBonus then
 				skill._cores_bonus = structOrNewVals.coresBonus or 0
 				skill._grid_bonus = structOrNewVals.gridBonus or 0
@@ -99,10 +106,12 @@ function M.createMockPilotWithTracking(pilotId)
 				skill._move_bonus = structOrNewVals.moveBonus or 0
 			end
 
-			if index == 1 then
-				tracking.skill1SaveVal = structOrNewVals.saveVal
-			else
-				tracking.skill2SaveVal = structOrNewVals.saveVal
+			if structOrNewVals.saveVal ~= nil then
+				if index == 1 then
+					tracking.skill1SaveVal = structOrNewVals.saveVal
+				else
+					tracking.skill2SaveVal = structOrNewVals.saveVal
+				end
 			end
 		else
 			error("setLvlUpSkill expects a table parameter")

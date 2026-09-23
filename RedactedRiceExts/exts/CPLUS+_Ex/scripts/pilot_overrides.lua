@@ -41,18 +41,12 @@ function pilot_overrides:_overrideGetLvlUpSkill()
 		end
 
 		-- Virtual skills (3+): get from CPLUS+ tracking
-		local pilotId = self:getIdStr()
-		if not pilotId then
-			logger.logError(SUBMODULE, "Cannot get skill for pilot with no ID")
-			return nil
-		end
-
-		local virtualSkills = skill_state_tracker:getVirtualSkillObjects(pilotId)
+		local virtualSkills = skill_state_tracker:getVirtualSkillObjects(self)
 		local virtualIndex = index - cplus_plus_ex.MAX_SKILL_SLOTS
 
 		if virtualIndex > #virtualSkills then
 			logger.logDebug(SUBMODULE, "Pilot %s does not have skill at index %d (has %d virtual skills)",
-				pilotId, index, #virtualSkills)
+				self:getUidStr(), index, #virtualSkills)
 			return nil
 		end
 
@@ -89,18 +83,12 @@ function pilot_overrides:_overrideSetLvlUpSkill()
 		end
 
 		-- Virtual skills (3+): modify CPLUS+ tracked objects
-		local pilotId = self:getIdStr()
-		if not pilotId then
-			logger.logError(SUBMODULE, "Cannot set skill for pilot with no ID")
-			return
-		end
-
-		local virtualSkills = skill_state_tracker:getVirtualSkillObjects(pilotId)
+		local virtualSkills = skill_state_tracker:getVirtualSkillObjects(self)
 		local virtualIndex = index - cplus_plus_ex.MAX_SKILL_SLOTS
 
 		if virtualIndex > #virtualSkills then
 			logger.logError(SUBMODULE, "Pilot %s does not have skill at index %d (has %d virtual skills)",
-				pilotId, index, #virtualSkills)
+				self:getUidStr(), index, #virtualSkills)
 			return
 		end
 
@@ -142,11 +130,11 @@ end
 function pilot_overrides:_specialCaseHandling(pilot, prevHealthBonus, newHealthBonus)
 	if not Board then
 		return
-	end 
+	end
 
 	if not skill_state_tracker:hasFinishedInitialAssignment() then
-		logger.logDebug(SUBMODULE, "Skills skill yet to be assigned. Skipping for pilot %s", pilot:getIdStr())
-		return 
+		logger.logDebug(SUBMODULE, "Skills skill yet to be assigned. Skipping for pilot %s", pilot:getUidStr())
+		return
 	end
 
 	local pawnId = pilot:getPawnId()
@@ -158,7 +146,7 @@ function pilot_overrides:_specialCaseHandling(pilot, prevHealthBonus, newHealthB
 			local maxHealth = pawn:GetMaxHealth()
 			local health = pawn:GetHealth()
 			logger.logDebug(SUBMODULE, "Special Logic check for pilot  %s: Prev health bonus %d, new health bonus %d, current max health %d",
-					pilot:getIdStr(), prevHealthBonus, newHealthBonus, maxHealth)
+					pilot:getUidStr(), prevHealthBonus, newHealthBonus, maxHealth)
 
 			local healthDiff = newHealthBonus - prevHealthBonus
 			if healthDiff ~= 0 then
@@ -178,13 +166,12 @@ function pilot_overrides:_overrideCombineBonuses()
 	end
 
 	Pilot._combineBonuses = function(self)
-		local pilotId = self:getIdStr()
 		local pilotLevel = self:getLevel()
 
 		-- If we don't have any earned skills, combining doesn't do anything
-		local virtualCount = #skill_state_tracker:getVirtualSkillObjects(pilotId)
+		local virtualCount = #skill_state_tracker:getVirtualSkillObjects(self)
 		if pilotLevel < 1 then
-			logger.logDebug(SUBMODULE, "No earned skills for %s, cant combine the %d virtual skills!", pilotId, virtualCount)
+			logger.logDebug(SUBMODULE, "No earned skills for %s, cant combine the %d virtual skills!", self:getUidStr(), virtualCount)
 			original_combineBonuses(self)
 			return
 		end
@@ -225,14 +212,14 @@ function pilot_overrides:_overrideCombineBonuses()
 
 		-- If no virtual skills, use original logic
 		if virtualCount == 0 then
-			logger.logDebug(SUBMODULE, "No virtual skills for %s, using original combineBonuses", pilotId)
+			logger.logDebug(SUBMODULE, "No virtual skills for %s, using original combineBonuses", self:getUidStr())
 			original_combineBonuses(self)
 			pilot_overrides:_specialCaseHandling(self, curHealthBonus, totalBonuses.health)
 			return
 		end
 
 		-- We have virtual skills - combine all skills into one
-		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", pilotId, virtualCount)
+		logger.logDebug(SUBMODULE, "Combining bonuses for %s with %d virtual skills", self:getUidStr(), virtualCount)
 
 		-- For simplicity, just always combine into the first since we already filtered out the second
 		-- skill if it hasn't been earned
@@ -311,8 +298,7 @@ function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkil
 			for _, timeTravelerPilot in ipairs(time_traveler.potentialTimeTravelers) do
 				local pilotSkill = timeTravelerPilot:getSkill():get()
 				if pilotSkill == pilotSkillId then
-					local pilotId = timeTravelerPilot:getIdStr()
-					local virtualSkills = skill_state_tracker:getVirtualSkills(pilotId)
+					local virtualSkills = skill_state_tracker:getVirtualSkills(timeTravelerPilot)
 
 					if virtualSkills and #virtualSkills > 0 then
 						-- Collect virtual skill names
@@ -341,8 +327,7 @@ function pilot_overrides:buildVirtualSkillDescription(baseDescription, pilotSkil
 		local pilotSkill = pilotStruct:getSkill():get()
 
 		if pilotSkill == pilotSkillId then
-			local pilotId = pilotStruct:getIdStr()
-			local virtualSkills = skill_state_tracker:getVirtualSkills(pilotId)
+			local virtualSkills = skill_state_tracker:getVirtualSkills(pilotStruct)
 
 			if virtualSkills and #virtualSkills > 0 then
 				-- Collect virtual skill names

@@ -1,6 +1,9 @@
 -- Sets up the globals and memhack extension for testing
 local M = {}
 
+-- Lua 5.1 compatibility: unpack is global in 5.1, table.unpack in 5.2+
+local unpack = unpack or table.unpack
+
 -- Create a mock DLL
 local function createMockDll()
 	local mockMemory = {}
