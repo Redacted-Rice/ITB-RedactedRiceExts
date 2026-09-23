@@ -29,6 +29,12 @@ local TRIGGER_EVENTS = logger.register("CPLUS+", "Trigger Events", cplus_plus_ex
 -- Constants
 cplus_plus_ex.MAX_SKILL_SLOTS = 2  -- Maximum number of skill slots per pilot
 
+-- Core stat exclusion groups for vanilla skills
+cplus_plus_ex.GROUPS = {
+	ADD_HEALTH = "Add Health",
+	ADD_MOVE = "Add Move",
+}
+
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
 local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
 local PER_PILOT = cplus_plus_ex.REUSABLILITY.PER_PILOT
