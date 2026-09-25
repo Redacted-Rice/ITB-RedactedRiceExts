@@ -63,11 +63,15 @@ end
 function pilot_uid:_registerPilotUid(pilot)
 	local sv1, sv2 = self:_readSaveValPair(pilot)
 	local key = self:_saveValPairToKey(sv1, sv2)
-	if self._usedSaveValKeys[key] ~= nil then
-		logger.logError(SUBMODULE, "_registerUid: key %d already registered to pilot %s - overwritting to pilot %s",
-				key, self._usedSaveValKeys[key]:getUidStr(), pilot:getUidStr())
-		self._usedSaveValKeys[key] = pilot
-		return
+	local existing = self._usedSaveValKeys[key]
+	if existing ~= nil then
+		if existing == pilot then
+			return self:_makePilotUid(pilot:getIdStr(), sv1, sv2)
+		end
+		logger.logWarn(SUBMODULE,
+				"_registerPilotUid: key %d already registered to %s; reminting for pilot %s",
+				key, existing:getUidStr(), pilot:getIdStr())
+		return self:_mintAndBind(pilot)
 	end
 
 	-- Insert it in our lookup table
@@ -79,12 +83,13 @@ function pilot_uid:_registerPilotUid(pilot)
 		if list[i] > key then
 			table.insert(list, i, key)
 			self._usedSaveValKeyCount = self._usedSaveValKeyCount + 1
-			return
+			return self:_makePilotUid(pilot:getIdStr(), sv1, sv2)
 		end
 	end
 	list[#list + 1] = key
 	-- And our count
 	self._usedSaveValKeyCount = self._usedSaveValKeyCount + 1
+	return self:_makePilotUid(pilot:getIdStr(), sv1, sv2)
 end
 
 function pilot_uid:_getPilotUidOwner(pilot)
@@ -97,7 +102,7 @@ function pilot_uid:_isPilotRegistered(pilot)
 	return owner ~= nil and owner == pilot
 end
 
-function pilot_uid:_isPilotUinque(pilot)
+function pilot_uid:_isPilotUnique(pilot)
 	local owner = self:_getPilotUidOwner(pilot)
 	return owner == nil or owner == pilot
 end
@@ -110,25 +115,13 @@ function pilot_uid:_readSaveValPair(pilot)
 	return pilot:getLvlUpSkill(1):getSaveVal(), pilot:getLvlUpSkill(2):getSaveVal()
 end
 
--- TODO: See about removing
-function pilot_uid:_ensureGameTables()
-	if GAME == nil then
-		GAME = {}
-	end
-	if GAME.cplus_plus_ex == nil then
-		GAME.cplus_plus_ex = {}
-	end
-	GAME.cplus_plus_ex.pilotSkills = GAME.cplus_plus_ex.pilotSkills or {}
-	GAME.cplus_plus_ex.pilotVirtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills or {}
-end
-
 function pilot_uid:_mintAndBind(pilot)
 	local pilotId = pilot:getIdStr()
 	local range = SAVE_VAL_KEY_COUNT - self._usedSaveValKeyCount
 
 	if range <= 0 then
-		logger.logError(SUBMODULE, "_mintAndBind: exhausted all saveVal keys")
-		return 0, 1, self:_makePilotUid(pilotId, 0, 1)
+		logger.logError(SUBMODULE, "_mintAndBind: exhausted all saveVal keys for pilot %s", pilotId)
+		return nil
 	end
 
 	local draw = math.random(range) - 1
@@ -139,8 +132,7 @@ function pilot_uid:_mintAndBind(pilot)
 	pilot:getLvlUpSkill(1):_setSaveVal_noFire(sv1)
 	pilot:getLvlUpSkill(2):_setSaveVal_noFire(sv2)
 
-	self:_registerPilotUid(pilot)
-	local uid = self:_makePilotUid(pilotId, sv1, sv2)
+	local uid = self:_registerPilotUid(pilot)
 	logger.logInfo(SUBMODULE, "minted, registered, and bound UID %s", uid)
 	return uid
 end
@@ -158,11 +150,11 @@ function pilot_uid:_ensurePilotUid(pilot)
 	-- If its already registered, return the UID.
 	if self:_isPilotRegistered(pilot) then
 		return currUid
-	elseif self:_isPilotUinque(pilot) then
+	elseif self:_isPilotUnique(pilot) then
 		-- If its unique, register it and return the UID.
-		self:_registerPilotUid(pilot)
-		logger.logDebug(SUBMODULE, "_ensurePilotUid registering UID %s", currUid)
-		return currUid
+		local uid = self:_registerPilotUid(pilot)
+		logger.logDebug(SUBMODULE, "_ensurePilotUid registering UID %s", uid)
+		return uid
 	else
 		-- If its not unique, mint a new one and return it.
 		return self:_mintAndBind(pilot)
