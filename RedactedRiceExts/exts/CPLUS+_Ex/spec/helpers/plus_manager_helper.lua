@@ -211,6 +211,7 @@ function M.resetState()
 	local skill_selection = pm._subobjects.skill_selection
 	local time_traveler = pm._subobjects.time_traveler
 	local skill_state_tracker = pm._subobjects.skill_state_tracker
+	local pilot_uid = pm._subobjects.pilot_uid
 
 	-- Reset skill_registry module state
 	skill_registry.registeredSkills = {}
@@ -231,6 +232,9 @@ function M.resetState()
 	skill_constraints:_registerPilotExclusionConstraintFunction()
 	skill_constraints:_registerSquadExclusionConstraintFunction()
 	skill_constraints:_registerSkillExclusionConstraintFunction()
+
+	-- Reset pilot_uid tracking
+	pilot_uid:resetTracking()
 
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil

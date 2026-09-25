@@ -72,6 +72,24 @@ describe("pilot_uid", function()
 		assert.equals(6, sv2)
 	end)
 
+	it("remints when _registerPilotUid hits a collision with another pilot", function()
+		local p1 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 71})
+		local p2 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 72})
+		p1:getLvlUpSkill(1):setSaveVal(0)
+		p1:getLvlUpSkill(2):setSaveVal(1)
+		p2:getLvlUpSkill(1):setSaveVal(0)
+		p2:getLvlUpSkill(2):setSaveVal(1)
+
+		pilot_uid:_registerPilotUid(p1)
+
+		helper.mockMathRandomInt({195})
+		local uid = pilot_uid:_registerPilotUid(p2)
+
+		assert.equals("Pilot_Cyborg:13:13", uid)
+		assert.equals(p1, pilot_uid._usedSaveValKeys[14])
+		assert.equals(p2, pilot_uid._usedSaveValKeys[195])
+	end)
+
 	it("resetTracking clears used saveVal keys", function()
 		local p1 = helper.createMockPilot({pilotId = "Pilot_A", address = 61})
 		p1:getLvlUpSkill(1):setSaveVal(4)
