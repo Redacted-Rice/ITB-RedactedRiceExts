@@ -818,8 +818,8 @@ function skill_selection:_assignNewPilot(pilot)
 	self:applySkillsToPilot(pilot, isNewPilot)
 
 	if isNewPilot then
-		-- Fire pre hook
 		skill_selection._pilotsAssignedThisRun[uid] = true
+		-- Fire post hook
 		hooks.firePostAssigningLvlUpSkillsHooks()
 	end
 end

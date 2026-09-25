@@ -206,7 +206,7 @@ function extra_info_ui:collectVirtualSkillIcons(pilot)
 			if skillInfo and skillInfo.icon then
 				local title = GetText(skillInfo.fullName)
 				local description = GetText(skillInfo.description)
-				logger.logDebug(SUBMODULE, "Adding virtual skill icon: %s", pilot:getUidStr())
+				logger.logDebug(SUBMODULE, "Adding virtual skill icon: %s", skillId)
 				self:addIcon(skillInfo.icon, title, description)
 			end
 		end
