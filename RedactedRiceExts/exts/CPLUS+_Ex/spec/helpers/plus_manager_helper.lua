@@ -50,29 +50,36 @@ function M.setupGlobals()
 	_G.modApi.currentMod = "cplus_plus_ex"
 	_G.modApi.appendAsset = function(self, ...) end
 	_G.modApi.events = _G.modApi.events or {}
-	_G.modApi.events.onSaveGame = { subscribe = function() end }
-	_G.modApi.events.onPodWindowShown = { subscribe = function() end }
-	_G.modApi.events.onPerfectIslandWindowShown = { subscribe = function() end }
-	_G.modApi.events.onGameEntered = { subscribe = function() end }
-	_G.modApi.events.onGameExited = { subscribe = function() end }
-	_G.modApi.events.onGameVictory = { subscribe = function() end }
-	_G.modApi.events.onMainMenuEntered = { subscribe = function() end }
-	_G.modApi.events.onHangarEntered = { subscribe = function() end }
+	local function stubEvent()
+		return { subscribe = function() end, dispatch = function() end }
+	end
+	setmetatable(_G.modApi.events, {
+		__index = function(t, k)
+			local ev = stubEvent()
+			rawset(t, k, ev)
+			return ev
+		end,
+	})
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
-	_G.modApi.events.onModsLoaded = { subscribe = function() end }
 	_G.modApi.scheduleHook = function() end
 
 	_G.Event = _G.Event or function() return {dispatch = function() end, subscribe = function() end} end
 	_G.Game = _G.Game or {}
 	_G.Board = nil
 
-	_G.sdlext = _G.sdlext or {
-		addModContent = function() end
-	}
+	_G.sdlext = _G.sdlext or {}
+	_G.sdlext.addModContent = _G.sdlext.addModContent or function() end
+	_G.sdlext.getSurface = _G.sdlext.getSurface or function(opts)
+		return {
+			w = function() return 1 end,
+			h = function() return 1 end,
+		}
+	end
 
 	_G.GAME = {
 		cplus_plus_ex = {
 			pilotSkills = {},
+			pilotVirtualSkills = {},
 			randomSeed = 12345,
 			randomSeedCnt = 0
 		}
@@ -132,6 +139,16 @@ function M.stubMemhack()
 		-- Stub hook registration functions
 		addPilotChangedHook = function(self, fn) end,
 		addPilotLvlUpSkillChangedHook = function(self, fn) end,
+		structs = (function()
+			local Pilot = {}
+			Pilot.__index = Pilot
+			local PilotLvlUpSkill = {}
+			PilotLvlUpSkill.__index = PilotLvlUpSkill
+			return {
+				Pilot = Pilot,
+				PilotLvlUpSkill = PilotLvlUpSkill,
+			}
+		end)(),
 	}
 end
 
@@ -160,12 +177,14 @@ function M.resetState()
 		_G.GAME = {
 			cplus_plus_ex = {
 				pilotSkills = {},
+				pilotVirtualSkills = {},
 				randomSeed = 12345,
 				randomSeedCnt = 0
 			}
 		}
 	else
 		_G.GAME.cplus_plus_ex.pilotSkills = {}
+		_G.GAME.cplus_plus_ex.pilotVirtualSkills = {}
 		_G.GAME.cplus_plus_ex.randomSeed = 12345
 		_G.GAME.cplus_plus_ex.randomSeedCnt = 0
 	end
@@ -192,6 +211,7 @@ function M.resetState()
 	local skill_selection = pm._subobjects.skill_selection
 	local time_traveler = pm._subobjects.time_traveler
 	local skill_state_tracker = pm._subobjects.skill_state_tracker
+	local pilot_uid = pm._subobjects.pilot_uid
 
 	-- Reset skill_registry module state
 	skill_registry.registeredSkills = {}
@@ -213,6 +233,9 @@ function M.resetState()
 	skill_constraints:_registerSquadExclusionConstraintFunction()
 	skill_constraints:_registerSkillExclusionConstraintFunction()
 
+	-- Reset pilot_uid tracking
+	pilot_uid:resetTracking()
+
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil
 	skill_selection.usedSkillsPerRun = {}
@@ -232,6 +255,7 @@ function M.resetState()
 	skill_selection._pilotsAssignedThisRun = {}
 	skill_selection.usedSkillsPerRun = {}
 	skill_selection.localRandomCount = nil
+
 
 	-- Reset hooks module state to clear any added during tests
 	local hooks_module = pm.hooks

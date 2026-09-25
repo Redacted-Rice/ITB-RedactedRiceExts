@@ -28,8 +28,8 @@ time_traveler.potentialTimeTravelers = {}
 -- Format: {
 --   [modId] = {
 --     [fieldName] = {
---       save = function(pilotId) -> value,  -- Function to get value to save
---       restore = function(pilotId, value),  -- Function to restore value
+--       save = function(pilot) -> value,  -- Function to get value to save
+--       restore = function(pilot, value),  -- Function to restore value
 --     }
 --   }
 -- }
@@ -38,6 +38,7 @@ time_traveler.registeredFields = {}
 -- Local references to other submodules (set during init)
 local utils = nil
 local skill_selection = nil
+local pilot_uid = nil
 
 -- Build a struct scan definition for locating a pilot in memory.
 -- Anchors on ItBString strLen (same offset for local and remote id storage).
@@ -85,14 +86,49 @@ end
 function time_traveler:init()
 	utils = cplus_plus_ex._subobjects.utils
 	skill_selection = cplus_plus_ex._subobjects.skill_selection
+	pilot_uid = cplus_plus_ex._subobjects.pilot_uid
 	return self
+end
+
+-- Memory scan matches on pilot type id, not UID.
+function time_traveler:_getScanIdFromPersistentEntry(storageKey, data)
+	if data and data.pilotId then
+		return data.pilotId
+	end
+	-- legacy - storage key is the pilot type id
+	return storageKey
+end
+
+function time_traveler:_lookupPersistentData(pilot)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		return nil, nil
+	end
+
+	self:_loadPersistentDataIfNeeded()
+
+	if not self.lastSavedPersistentData then
+		return nil, nil
+	end
+
+	-- Try lookup by UID
+	local uid = pilot:getUidStr()
+	if self.lastSavedPersistentData[uid] then
+		return self.lastSavedPersistentData[uid], uid
+	end
+
+	-- If that doesn't work, try legacy lookup (by pilot ID)
+	local legacyKey = pilot:getIdStr()
+	if self.lastSavedPersistentData[legacyKey] then
+		return self.lastSavedPersistentData[legacyKey], legacyKey
+	end
+	return nil, legacyKey
 end
 
 -- Register a field to persist across time travel
 -- modId: unique identifier for the mod (e.g., "pilots_plus")
 -- fieldName: name of the field to persist (e.g., "warbot_added_count")
--- saveFn: function(pilotId) -> value to save
--- restoreFn: function(pilotId, value) to restore the value
+-- saveFn: function(pilot) -> value to save
+-- restoreFn: function(pilot, value) to restore the value
 function time_traveler:registerTimeTravelerData(modId, fieldName, saveFn, restoreFn)
 	if type(modId) ~= "string" or modId == "" then
 		logger.logError(SUBMODULE, "registerTimeTravelerData: modId must be a non-empty string")
@@ -178,49 +214,53 @@ function time_traveler:_refreshLastSavedPersistentData()
 
 	local changed = false
 	time_traveler.lastSavedPersistentData = time_traveler.lastSavedPersistentData or {}
-	local skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
 
 	for _, pilot in pairs(pilots) do
-		local id = pilot:getIdStr()
-		time_traveler.lastSavedPersistentData[id] = time_traveler.lastSavedPersistentData[id] or {}
-		if time_traveler.lastSavedPersistentData[id].name ~= pilot:getNameStr() then
-			time_traveler.lastSavedPersistentData[id].name = pilot:getNameStr()
+		local uid = pilot:getUidStr()
+		time_traveler.lastSavedPersistentData[uid] = time_traveler.lastSavedPersistentData[uid] or {}
+		local entry = time_traveler.lastSavedPersistentData[uid]
+		if entry.pilotId ~= pilot:getIdStr() then
+			entry.pilotId = pilot:getIdStr()
 			changed = true
 		end
-		if time_traveler.lastSavedPersistentData[id].xp ~= pilot:getXp() then
-			time_traveler.lastSavedPersistentData[id].xp = pilot:getXp()
+		if entry.name ~= pilot:getNameStr() then
+			entry.name = pilot:getNameStr()
 			changed = true
 		end
-		if time_traveler.lastSavedPersistentData[id].level ~= pilot:getLevel() then
-			time_traveler.lastSavedPersistentData[id].level = pilot:getLevel()
+		if entry.xp ~= pilot:getXp() then
+			entry.xp = pilot:getXp()
 			changed = true
 		end
-		if time_traveler.lastSavedPersistentData[id].skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
-			time_traveler.lastSavedPersistentData[id].skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
+		if entry.level ~= pilot:getLevel() then
+			entry.level = pilot:getLevel()
 			changed = true
 		end
-		if time_traveler.lastSavedPersistentData[id].skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
-			time_traveler.lastSavedPersistentData[id].skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
+		if entry.skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
+			entry.skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
 			changed = true
 		end
-		if time_traveler.lastSavedPersistentData[id].prevTimelines ~= pilot:getPrevTimelines() then
-			time_traveler.lastSavedPersistentData[id].prevTimelines = pilot:getPrevTimelines()
+		if entry.skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
+			entry.skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
+			changed = true
+		end
+		if entry.prevTimelines ~= pilot:getPrevTimelines() then
+			entry.prevTimelines = pilot:getPrevTimelines()
 			changed = true
 		end
 
 		local virtualSkills = {}
-		local gameVirtual = GAME.cplus_plus_ex.pilotVirtualSkills[id]
+		local gameVirtual = GAME.cplus_plus_ex.pilotVirtualSkills[uid]
 		if gameVirtual then
-			for _, entry in ipairs(gameVirtual) do
-				table.insert(virtualSkills, { id = entry.id, source = entry.source })
+			for _, skillEntry in ipairs(gameVirtual) do
+				table.insert(virtualSkills, { id = skillEntry.id, source = skillEntry.source })
 			end
 		end
-		local currentVirtualSkills = time_traveler.lastSavedPersistentData[id].virtualSkills or {}
+		local currentVirtualSkills = entry.virtualSkills or {}
 		local virtualSkillsChanged = #virtualSkills ~= #currentVirtualSkills
 		if not virtualSkillsChanged then
-			for i, entry in ipairs(virtualSkills) do
+			for i, skillEntry in ipairs(virtualSkills) do
 				local cur = currentVirtualSkills[i]
-				if not cur or cur.id ~= entry.id or cur.source ~= entry.source then
+				if not cur or cur.id ~= skillEntry.id or cur.source ~= skillEntry.source then
 					virtualSkillsChanged = true
 					break
 				end
@@ -228,35 +268,31 @@ function time_traveler:_refreshLastSavedPersistentData()
 		end
 
 		if virtualSkillsChanged then
-			time_traveler.lastSavedPersistentData[id].virtualSkills = virtualSkills
+			entry.virtualSkills = virtualSkills
 			changed = true
 		end
 
 		-- Save custom registered fields for this pilot
-		if not time_traveler.lastSavedPersistentData[id].customData then
-			time_traveler.lastSavedPersistentData[id].customData = {}
-		end
+		entry.customData = entry.customData or {}
 
 		for modId, fields in pairs(self.registeredFields) do
-			if not time_traveler.lastSavedPersistentData[id].customData[modId] then
-				time_traveler.lastSavedPersistentData[id].customData[modId] = {}
-			end
+			entry.customData[modId] = entry.customData[modId] or {}
 
 			for fieldName, fieldDef in pairs(fields) do
 				-- Call the save function to get the value
-				local success, value = pcall(fieldDef.save, id)
+				local success, value = pcall(fieldDef.save, pilot)
 				if success then
 					-- Check if value changed
-					local oldValue = time_traveler.lastSavedPersistentData[id].customData[modId][fieldName]
+					local oldValue = entry.customData[modId][fieldName]
 					if oldValue ~= value then
-						time_traveler.lastSavedPersistentData[id].customData[modId][fieldName] = value
+						entry.customData[modId][fieldName] = value
 						changed = true
 						logger.logDebug(SUBMODULE, "Saved custom field %s.%s for pilot %s: %s",
-							modId, fieldName, id, tostring(value))
+							modId, fieldName, uid, tostring(value))
 					end
 				else
 					logger.logError(SUBMODULE, "Failed to save custom field %s.%s for pilot %s: %s",
-						modId, fieldName, id, value)
+						modId, fieldName, uid, value)
 				end
 			end
 		end
@@ -301,8 +337,8 @@ function time_traveler:_updateDataOnSave()
 					-- Clear out last_run_pilots to ensure no stale data
 					readObj.cplus_plus_ex.last_run_pilots = {}
 					for _, pilot in pairs(Game:GetAvailablePilots()) do
-						local id = pilot:getIdStr()
-						readObj.cplus_plus_ex.last_run_pilots[id] = time_traveler.lastSavedPersistentData[id]
+						local uid = pilot:getUidStr()
+						readObj.cplus_plus_ex.last_run_pilots[uid] = time_traveler.lastSavedPersistentData[uid]
 					end
 				end
 		)
@@ -324,14 +360,15 @@ function time_traveler:_scanForTimeTraveler()
 		end
 	end
 
-	for id, data in pairs(time_traveler.lastSavedPersistentData) do
-		if pilot and id ~= pilot.id then
-			logger.logDebug(SUBMODULE, "Skipping pilot Id %s", id)
+	for storageKey, data in pairs(time_traveler.lastSavedPersistentData) do
+		local scanId = self:_getScanIdFromPersistentEntry(storageKey, data)
+		if pilot and scanId ~= pilot.id then
+			logger.logDebug(SUBMODULE, "Skipping storage key %s (scan id %s)", storageKey, scanId)
 		else
-			logger.logDebug(SUBMODULE, "Scanning for pilot %s (id len %d) with timelines == %d, xp == %d, level == %d",
-				id, #id, data.prevTimelines + 1, data.xp, data.level)
+			logger.logDebug(SUBMODULE, "Scanning storage key %s (scan id %s) with timelines == %d, xp == %d, level == %d",
+				storageKey, scanId, data.prevTimelines + 1, data.xp, data.level)
 
-			local structDef = buildPilotScanStruct(id, data)
+			local structDef = buildPilotScanStruct(scanId, data)
 			local scanner = memhack.dll.scanner.new("struct", {checkTiming = cplus_plus_ex.DEBUG.TIME_TRAVELER})
 
 			local results = scanner:firstScan("exact", structDef)
@@ -344,10 +381,11 @@ function time_traveler:_scanForTimeTraveler()
 				local matches = scanner:getResults()
 				for _, result in ipairs(matches.results) do
 					local baseAddr = result.address
-					local traveler = acceptScannedPilot(baseAddr, id)
+					local traveler = acceptScannedPilot(baseAddr, scanId)
 					if traveler then
 						table.insert(time_traveler.potentialTimeTravelers, traveler)
-						logger.logDebug(SUBMODULE, "found potential time traveler pilot %s at 0x%X, setting skills to %s and %s", id, baseAddr, data.skill1, data.skill2)
+						logger.logDebug(SUBMODULE, "found potential time traveler key %s at 0x%X, setting skills to %s and %s",
+							storageKey, baseAddr, data.skill1, data.skill2)
 						skill_selection:applySkillIdsToPilot(traveler, {data.skill1, data.skill2}, false)
 						-- Set any virtual skills too
 						if data.virtualSkills and type(data.virtualSkills) == "table" and #data.virtualSkills > 0 then
@@ -359,7 +397,7 @@ function time_traveler:_scanForTimeTraveler()
 						end
 
 						-- Restore custom registered data
-						self:_restoreCustomData(id, data)
+						self:_restoreCustomData(traveler, data)
 					end
 				end
 			end
@@ -379,17 +417,15 @@ function time_traveler:_getTimeTravelerFromMemory()
 		if not valid then
 			logger.logWarn(SUBMODULE, "Pilot at idx %s is invalid (%s) - must not be time traveler!", idx, err)
 		else
-			-- Look up this pilot's data from saved persistent data
-			local pilotId = pilot:getIdStr()
-			local pilotData = time_traveler.lastSavedPersistentData[pilotId]
+			local pilotData, storageKey = self:_lookupPersistentData(pilot)
 
 			if pilotData then
-				logger.logDebug(SUBMODULE, "Checking pilot %s timelines: %d vs expected %d",
-						pilotId, pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
+				logger.logDebug(SUBMODULE, "Checking pilot %s (key %s) timelines: %d vs expected %d",
+						pilot:getUidStr(), storageKey, pilot:getPrevTimelines(), pilotData.prevTimelines + 1)
 				if pilot:getPrevTimelines() == pilotData.prevTimelines + 1 then
 					time_traveler.potentialTimeTravelers = {pilot}
 					skill_selection:applySkillIdsToPilot(pilot, {pilotData.skill1, pilotData.skill2}, false)
-					logger.logInfo(SUBMODULE, "Found time traveler: " .. pilotId)
+					logger.logInfo(SUBMODULE, "Found time traveler: %s", pilot:getUidStr())
 					-- Set virtual skills too
 					if pilotData.virtualSkills and type(pilotData.virtualSkills) == "table" and #pilotData.virtualSkills > 0 then
 						skill_selection:applyVirtualSkillIdsToPilot(pilot, pilotData.virtualSkills)
@@ -400,25 +436,27 @@ function time_traveler:_getTimeTravelerFromMemory()
 					end
 
 					-- Restore custom registered data
-					self:_restoreCustomData(pilotId, pilotData)
+					self:_restoreCustomData(pilot, pilotData)
 				end
 			else
-				logger.logDebug(SUBMODULE, "No saved data for pilot %s - not a time traveler", pilotId)
+				logger.logDebug(SUBMODULE, "No saved data for pilot %s - not a time traveler", pilot:getUidStr())
 			end
 		end
 	end
 end
 
 -- Restore custom data for a time traveler
--- timeTravelerId: the pilot ID of the time traveler
--- data: the saved persistent data for this pilot
-function time_traveler:_restoreCustomData(timeTravelerId, data)
+function time_traveler:_restoreCustomData(pilot, data)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "_restoreCustomData: expected Pilot struct, got %s", type(pilot))
+		return
+	end
 	if not data.customData then
-		logger.logDebug(SUBMODULE, "No custom data to restore for pilot %s", timeTravelerId)
+		logger.logDebug(SUBMODULE, "No custom data to restore for pilot %s", pilot:getUidStr())
 		return
 	end
 
-	logger.logInfo(SUBMODULE, "Restoring custom data for time traveler %s", timeTravelerId)
+	logger.logInfo(SUBMODULE, "Restoring custom data for time traveler %s", pilot:getUidStr())
 
 	for modId, modData in pairs(data.customData) do
 		local fields = self.registeredFields[modId]
@@ -430,13 +468,13 @@ function time_traveler:_restoreCustomData(timeTravelerId, data)
 				if not fieldDef then
 					logger.logWarn(SUBMODULE, "Field %s.%s is not registered, skipping restore", modId, fieldName)
 				else
-					local success, err = pcall(fieldDef.restore, timeTravelerId, savedValue)
+					local success, err = pcall(fieldDef.restore, pilot, savedValue)
 					if success then
 						logger.logInfo(SUBMODULE, "Restored custom field %s.%s for time traveler %s: %s",
-							modId, fieldName, timeTravelerId, tostring(savedValue))
+							modId, fieldName, pilot:getUidStr(), tostring(savedValue))
 					else
 						logger.logError(SUBMODULE, "Failed to restore custom field %s.%s for time traveler %s: %s",
-							modId, fieldName, timeTravelerId, err)
+							modId, fieldName, pilot:getUidStr(), err)
 					end
 				end
 			end
@@ -475,36 +513,32 @@ end
 
 -- Get virtual skills for a time traveler from persistent data and refreshes any
 -- custom/extra data from the time traveler to GAME
--- @param pilotId string The pilot ID
 -- @return table|nil Array of { id, source } entries, or nil if none found
-function time_traveler:refreshTimeTravlerDataAndGetVirtSkills(pilotId)
-	self:_loadPersistentDataIfNeeded()
-
-	if not self.lastSavedPersistentData then
-		logger.logDebug(SUBMODULE, "No persistent data available for refreshTimeTravlerDataAndGetVirtSkills")
+function time_traveler:refreshTimeTravlerDataAndGetVirtSkills(pilot)
+	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
+		logger.logError(SUBMODULE, "refreshTimeTravlerDataAndGetVirtSkills: expected Pilot struct, got %s", type(pilot))
 		return nil
 	end
 
-	local persistentData = self.lastSavedPersistentData[pilotId]
+	local persistentData = self:_lookupPersistentData(pilot)
 	if not persistentData then
-		logger.logDebug(SUBMODULE, "No persistent data found for pilot %s", pilotId)
+		logger.logDebug(SUBMODULE, "No persistent data found for pilot %s", pilot:getUidStr())
 		return nil
 	end
 
 	if not persistentData.virtualSkills or #persistentData.virtualSkills == 0 then
-		logger.logDebug(SUBMODULE, "No virtual skills in persistent data for pilot %s", pilotId)
+		logger.logDebug(SUBMODULE, "No virtual skills in persistent data for pilot %s", pilot:getUidStr())
 		return nil
 	end
 
-	-- Restore custom registered data
-	self:_restoreCustomData(pilotId, persistentData)
+	self:_restoreCustomData(pilot, persistentData)
 
 	local ids = {}
 	for _, entry in ipairs(persistentData.virtualSkills) do
 		table.insert(ids, entry.id)
 	end
 	logger.logInfo(SUBMODULE, "Retrieved %d virtual skills for time traveler %s from persistent data: %s",
-			#persistentData.virtualSkills, pilotId, table.concat(ids, ", "))
+			#persistentData.virtualSkills, pilot:getUidStr(), table.concat(ids, ", "))
 
 	return persistentData.virtualSkills
 end

@@ -161,8 +161,6 @@ end
 -- Only allows pilots in specific squads to receive certain inclusion skills
 function skill_constraints:_registerSquadInclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		local pilotId = pilot:getIdStr()
-
 		-- Get squad ID
 		local squadId = GAME and GAME.additionalSquadData and GAME.additionalSquadData.squad
 		if not squadId then
@@ -202,8 +200,6 @@ end
 -- Prevents all pilots in certain squads from receiving certain skills
 function skill_constraints:_registerSquadExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		local pilotId = pilot:getIdStr()
-
 		-- Get squad ID
 		local squadId = GAME and GAME.additionalSquadData and GAME.additionalSquadData.squad
 
@@ -213,7 +209,7 @@ function skill_constraints:_registerSquadExclusionConstraintFunction()
 			skill_config_module.config.squadSkillExclusions[squadId][candidateSkillId]
 
 		if hasExclusion then
-			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (squad %s excluded)", candidateSkillId, pilotId, squadId)
+			logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (squad %s excluded)", candidateSkillId, pilot:getUidStr(), squadId)
 		end
 
 		return not hasExclusion
@@ -223,7 +219,6 @@ end
 -- This enforces per_pilot and per_run skill restrictions
 function skill_constraints:_registerReusabilityConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		local pilotId = pilot:getIdStr()
 		local skill = skill_config_module.enabledSkills[candidateSkillId]
 
 		local reusability = skill_config_module.config.skillConfigs[candidateSkillId].reusability
@@ -238,7 +233,7 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 			for _, skillId in pairs(selectedSkills) do
 				if skillId == candidateSkillId then
 					logger.logDebug(SUBMODULE, "Prevented %s skill %s for pilot %s (already selected)",
-							reusability, candidateSkillId, pilotId)
+							reusability, candidateSkillId, pilot:getUidStr())
 					return false
 				end
 			end
@@ -247,7 +242,7 @@ function skill_constraints:_registerReusabilityConstraintFunction()
 			if reusability == cplus_plus_ex.REUSABLILITY.PER_RUN then
 				if skill_selection.usedSkillsPerRun[candidateSkillId] then
 					logger.logDebug(SUBMODULE, "Prevented per_run skill %s for pilot %s (already used this run)",
-							candidateSkillId, pilotId)
+							candidateSkillId, pilot:getUidStr())
 					return false
 				end
 			end
@@ -260,15 +255,12 @@ end
 -- This enforces skill to skill exclusions
 function skill_constraints:_registerSkillExclusionConstraintFunction()
 	self:registerConstraintFunction(function(pilot, selectedSkills, candidateSkillId)
-		-- pilot id for logging
-		local pilotId = pilot:getIdStr()
-
 		-- Check if candidate is excluded by any already selected skill
 		if skill_config_module.config.skillExclusions[candidateSkillId] then
 			for _, selectedSkillId in pairs(selectedSkills) do
 				if skill_config_module.config.skillExclusions[candidateSkillId][selectedSkillId] then
 					logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (mutually exclusive with already selected skill %s)",
-							candidateSkillId, pilotId, selectedSkillId)
+							candidateSkillId, pilot:getUidStr(), selectedSkillId)
 					return false
 				end
 			end
@@ -286,8 +278,6 @@ function skill_constraints:_registerGroupExclusionConstraintFunction()
 			return true
 		end
 
-		local pilotId = pilot:getIdStr()
-
 		-- Find which groups the candidate skill belongs to
 		for groupName, group in pairs(skill_config_module.groups) do
 			-- Skip if group is disabled
@@ -296,7 +286,7 @@ function skill_constraints:_registerGroupExclusionConstraintFunction()
 				for _, selectedSkillId in pairs(selectedSkills) do
 					if group.skillIds[selectedSkillId] then
 						logger.logDebug(SUBMODULE, "Prevented skill %s for pilot %s (group '%s' already has skill %s)",
-								candidateSkillId, pilotId, groupName, selectedSkillId)
+								candidateSkillId, pilot:getUidStr(), groupName, selectedSkillId)
 						return false
 					end
 				end

@@ -38,7 +38,7 @@ local earnedSkillWidgets = {}  -- Array of icon UI elements
 
 -- Shared state
 local lastSelectedPawnId = nil
-local lastPilotId = nil
+local lastPilot = nil
 local currentPilot = nil
 local currentPawn = nil
 local lastScreenWidth = nil
@@ -98,9 +98,9 @@ end
 
 -- Clear selected data to force refresh on next update
 function extra_info_ui:clearSelectedData()
-	if lastSelectedPawnId or lastPilotId then
+	if lastSelectedPawnId or lastPilot then
 		lastSelectedPawnId = nil
-		lastPilotId = nil
+		lastPilot = nil
 		logger.logDebug(SUBMODULE, "Cleared selection data")
 		return true
 	end
@@ -144,7 +144,6 @@ function extra_info_ui:checkAndUpdate()
 	end
 
 	local pilot, pawnId, pawn = self:getSelectedPilot()
-	local pilotId = pilot and pilot:getIdStr() or nil
 
 	-- Check screen size changes
 	local currentWidth = ScreenSizeX()
@@ -158,16 +157,16 @@ function extra_info_ui:checkAndUpdate()
 	end
 
 	-- Check if selection changed
-	local selectionChanged = (selectedPawnId ~= lastSelectedPawnId) or (pilotId ~= lastPilotId)
+	local selectionChanged = (selectedPawnId ~= lastSelectedPawnId) or (pilot ~= lastPilot)
 	if selectionChanged or sizeChanged then
 		logger.logInfo(SUBMODULE, "Update triggered: selectionChanged=%s, sizeChanged=%s",
 			tostring(selectionChanged), tostring(sizeChanged))
 		lastSelectedPawnId = selectedPawnId
-		lastPilotId = pilotId
+		lastPilot = pilot
 
 		-- Update both UIs with the same back_1 position
-		self:showVirtualSkillsPanel(back1X, back1Y, pilot, pilotId)
-		self:showEarnedSkillsIcons(back1X, back1Y, pilot, pilotId)
+		self:showVirtualSkillsPanel(back1X, back1Y, pilot)
+		self:showEarnedSkillsIcons(back1X, back1Y, pilot)
 	end
 end
 
@@ -198,11 +197,10 @@ function extra_info_ui:collectVirtualSkillIcons(pilot)
 		return
 	end
 
-	local pilotId = pilot:getIdStr()
-	local virtualSkills = cplus_plus_ex:getVirtualSkills(pilotId)
+	local virtualSkills = cplus_plus_ex:getVirtualSkills(pilot)
 
 	if virtualSkills and #virtualSkills > 0 then
-		logger.logDebug(SUBMODULE, "Collecting %d virtual skill icons for pilot %s", #virtualSkills, pilotId)
+		logger.logDebug(SUBMODULE, "Collecting %d virtual skill icons for pilot %s", #virtualSkills, pilot:getUidStr())
 		for _, skillId in ipairs(virtualSkills) do
 			local skillInfo = cplus_plus_ex:getRegisteredSkillInfo(skillId)
 			if skillInfo and skillInfo.icon then
@@ -213,7 +211,7 @@ function extra_info_ui:collectVirtualSkillIcons(pilot)
 			end
 		end
 	end
-	logger.logDebug(SUBMODULE, "Collected virtual skill icons for pilot %s", pilotId)
+	logger.logDebug(SUBMODULE, "Collected virtual skill icons for pilot %s", pilot:getUidStr())
 end
 
 -- Build a panel icon UI element with tooltip
@@ -277,7 +275,7 @@ function extra_info_ui:rebuildContent()
 	self:collectVirtualSkillIcons(pilot)
 
 	-- Fire hook to allow mods to add their own icons
-	logger.logDebug(SUBMODULE, "rebuildContent: firing ExtraInfoSelectedChanged hooks for pilot %s", pilot:getIdStr())
+	logger.logDebug(SUBMODULE, "rebuildContent: firing ExtraInfoSelectedChanged hooks for pilot %s", pilot:getUidStr())
 	cplus_plus_ex.hooks.fireExtraInfoSelectedChangedHooks(self, pawn, pilot)
 	logger.logDebug(SUBMODULE, "rebuildContent: hooks fired, icon count=%d", #panelIconData)
 
@@ -352,10 +350,10 @@ function extra_info_ui:hideVirtualSkillsPanel()
 end
 
 -- Show/update the virtual skills panel with given back_1 position
-function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot, pilotId)
+function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot)
 	if not panel then return end
 
-	if not pilot or not pilotId then
+	if not pilot then
 		self:hideVirtualSkillsPanel()
 		return
 	end
@@ -365,7 +363,7 @@ function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot, pilotId)
 
 	-- If no content, hide and return
 	if #panelIconData == 0 then
-		logger.logDebug(SUBMODULE, "No virtual skills for pilot %s, hiding panel", pilotId)
+		logger.logDebug(SUBMODULE, "No virtual skills for pilot %s, hiding panel", pilot:getUidStr())
 		self:hideVirtualSkillsPanel()
 		return
 	end
@@ -374,7 +372,7 @@ function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot, pilotId)
 	panel.x = back1X + PANEL_REFERENCE_OFFSET_X
 	panel.y = back1Y + PANEL_REFERENCE_OFFSET_Y
 	logger.logInfo(SUBMODULE, "Showing virtual skills panel for pilot %s with %d icons at (%d, %d)",
-		pilotId, #panelIconData, panel.x, panel.y)
+		pilot:getUidStr(), #panelIconData, panel.x, panel.y)
 
 	-- Show panel
 	panel:show()
@@ -425,13 +423,13 @@ function extra_info_ui:hideEarnedSkillsIcons()
 end
 
 -- Show/update earned skill icons with given back_1 position
-function extra_info_ui:showEarnedSkillsIcons(back1X, back1Y, pilot, pilotId)
+function extra_info_ui:showEarnedSkillsIcons(back1X, back1Y, pilot)
 	if not self:shouldShowEarnedSkillIcons() then
 		self:hideEarnedSkillsIcons()
 		return
 	end
 
-	if not pilot or not pilotId then
+	if not pilot then
 		self:hideEarnedSkillsIcons()
 		return
 	end
@@ -470,7 +468,7 @@ function extra_info_ui:showEarnedSkillsIcons(back1X, back1Y, pilot, pilotId)
 	end
 
 	logger.logInfo(SUBMODULE, "Showing %d earned skill icons for pilot %s at (%d, %d)",
-		#earnedSkillWidgets, pilotId, back1X, back1Y)
+		#earnedSkillWidgets, pilot:getUidStr(), back1X, back1Y)
 end
 
 -------------------------------------------------------------------------------
