@@ -792,16 +792,17 @@ function skill_selection:applySkillsToAllPilots()
 		return
 	end
 
-	-- Assign skills for all squad and storage pilots
-	local pilots = Game:GetAvailablePilots()
-	logger.logDebug(SUBMODULE, "Checking and maybe doing skill assignment for %d pilots", #pilots)
+	-- Walk available pilots, reminting any duplicate UIDs before skill lookup
+	local entries, _ = pilot_uid:getAvailablePilotsWithUids()
+	logger.logDebug(SUBMODULE, "Checking and maybe doing skill assignment for %d pilots", #entries)
 
 	-- Check if any pilots have not had skills assigned yet this run
 	local newPilots = {}
-	for _, pilot in pairs(pilots) do
-		local uid = pilot:getUidStr()
-		if not skill_selection._pilotsAssignedThisRun[uid] then
-			table.insert(newPilots, pilot)
+	local pilots = {}
+	for _, entry in ipairs(entries) do
+		table.insert(pilots, entry.pilot)
+		if not skill_selection._pilotsAssignedThisRun[entry.uid] then
+			table.insert(newPilots, entry)
 		end
 	end
 	local hasNewPilots = #newPilots > 0
@@ -821,8 +822,9 @@ function skill_selection:applySkillsToAllPilots()
 	local successCount = 0
 	local failCount = 0
 
-	for _, pilot in pairs(newPilots) do
-		local uid = pilot:getUidStr()
+	for _, entry in pairs(newPilots) do
+		local pilot = entry.pilot
+		local uid = entry.uid
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[uid]
 		logger.logInfo(SUBMODULE, "applySkillsToAllPilots %s @%s new=%s",
 				uid, tostring(pilot._address), tostring(isNewPilot))
@@ -830,7 +832,8 @@ function skill_selection:applySkillsToAllPilots()
 		local success = self:applySkillsToPilot(pilot, isNewPilot)
 		if success then
 			successCount = successCount + 1
-			-- Mark pilot as assigned this run
+			-- Re read in case anything adjusted saveVals and mark assigned
+			uid = pilot:getUidStr()
 			if isNewPilot then
 				skill_selection._pilotsAssignedThisRun[uid] = true
 			end
@@ -869,7 +872,8 @@ function skill_selection:_selectSkillsForPerfectIslandPilot()
 end
 
 function skill_selection:_assignNewPilot(pilot)
-	local uid = pilot:getUidStr()
+	-- Remint if this reward pilot collides with any available pilot's UID
+	local uid = pilot_uid:ensureUniqueAmongAvailable(pilot)
 	local isNewPilot = not skill_selection._pilotsAssignedThisRun[uid]
 
 	if isNewPilot then
@@ -881,6 +885,7 @@ function skill_selection:_assignNewPilot(pilot)
 	self:applySkillsToPilot(pilot, isNewPilot)
 
 	if isNewPilot then
+		uid = pilot:getUidStr()
 		skill_selection._pilotsAssignedThisRun[uid] = true
 		-- Fire post hook
 		hooks.firePostAssigningLvlUpSkillsHooks()
