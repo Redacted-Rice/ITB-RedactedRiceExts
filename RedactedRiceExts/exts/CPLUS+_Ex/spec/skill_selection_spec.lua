@@ -359,11 +359,37 @@ describe("Skill Selection Module", function()
 			pilot2:getLvlUpSkill(1):setSaveVal(0)
 			pilot2:getLvlUpSkill(2):setSaveVal(1)
 
-			local key1 = pilot_uid:_ensurePilotUid(pilot1)
-			local key2 = pilot_uid:_ensurePilotUid(pilot2)
+			local key1 = pilot_uid:_readUid(pilot1)
+			local key2 = pilot_uid:_readUid(pilot2)
 
 			assert.equals("Pilot_Cyborg:0:1", key1)
 			assert.equals(key1, key2)
+		end)
+
+		it("should remint duplicate UIDs when applying skills to all pilots", function()
+			helper.setupTestSkills({
+				{id = "SkillA", shortName = "SA", fullName = "SkillA", description = "Test"},
+				{id = "SkillB", shortName = "SB", fullName = "SkillB", description = "Test"},
+				{id = "SkillC", shortName = "SC", fullName = "SkillC", description = "Test"},
+				{id = "SkillD", shortName = "SD", fullName = "SkillD", description = "Test"},
+			})
+
+			local pilot1 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 1001})
+			local pilot2 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 1002})
+			pilot1:getLvlUpSkill(1):setSaveVal(0)
+			pilot1:getLvlUpSkill(2):setSaveVal(1)
+			pilot2:getLvlUpSkill(1):setSaveVal(0)
+			pilot2:getLvlUpSkill(2):setSaveVal(1)
+
+			_G.Game.GetAvailablePilots = function() return {pilot1, pilot2} end
+
+			skill_selection:applySkillsToAllPilots()
+
+			local uid1 = pilot1:getUidStr()
+			local uid2 = pilot2:getUidStr()
+			assert.is_not.equals(uid1, uid2)
+			assert.is_not_nil(GAME.cplus_plus_ex.pilotSkills[uid1])
+			assert.is_not_nil(GAME.cplus_plus_ex.pilotSkills[uid2])
 		end)
 
 		it("should preserve saveVals across applySkillIdsToPilot", function()
