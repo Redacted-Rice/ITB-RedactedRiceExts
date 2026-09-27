@@ -6,9 +6,9 @@ local path = GetParentPath(...)
 -- Debug Configuration - Set to false in production
 -- Controls logging for different components
 memhack.DEBUG = {
-	ENABLED = false,  -- Main switch for all debug logging
+	ENABLED = true,  -- Main switch for all debug logging
 	HOOKS = false,    -- hooks module
-	STRUCTS = false,  -- struct operations
+	STRUCTS = true,  -- struct operations (saveVal writes)
 	STATE_TRACKER = false, -- state_tracker module
 	SCANNER = false, -- scanner operations (very verbose)
 	SKILL_CORE_SYNC = false, -- skill core bonus syncing

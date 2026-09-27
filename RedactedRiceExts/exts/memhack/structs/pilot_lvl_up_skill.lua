@@ -1,3 +1,7 @@
+local logger = memhack.logger
+local DEBUGGING = memhack.DEBUG.STRUCTS and memhack.DEBUG.ENABLED	
+local SUBMODULE = logger.register("Memhack", "PilotLvlUpSkill", DEBUGGING)
+
 local PilotLvlUpSkill = memhack.structManager:define("PilotLvlUpSkill", {
 	-- This is the main value used to determine skill effect in game. Note that the + move, hp, & cores
 	-- skills use the bonus values below instead
@@ -147,6 +151,48 @@ methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "coresBonus", memhack.h
 methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "gridBonus", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
 methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "moveBonus", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
 methodGen.wrapSetterToFireOnValueChange(PilotLvlUpSkill, "saveVal", memhack.hooks, "firePilotLvlUpSkillChangedHooks")
+
+if DEBUGGING then
+	local function describeSaveValWriteContext(skill)
+		local pilot = skill:getParentPilot()
+		local pilotId = pilot and pilot:getIdStr() or "<no pilot>"
+		local addr = pilot and pilot._address or nil
+		local slot = "?"
+		if pilot then
+			local lvlUpSkills = pilot:getLvlUpSkills()
+			if lvlUpSkills:getSkill1() == skill then
+				slot = "1"
+			elseif lvlUpSkills:getSkill2() == skill then
+				slot = "2"
+			end
+		end
+		local skillId = skill:getIdStr() or "<nil>"
+		return pilotId, slot, skillId, addr
+	end
+
+	local function wrapSaveValSetterForLogging(setterName, noFire)
+		local inner = PilotLvlUpSkill[setterName]
+		if not inner then
+			logger.logError(SUBMODULE, "wrapSaveValSetterForLogging: %s not found", setterName)
+			return
+		end
+
+		PilotLvlUpSkill[setterName] = function(self, newVal)
+			local oldVal = self:getSaveVal()
+			inner(self, newVal)
+			if newVal ~= oldVal then
+				local pilotId, slot, skillId, addr = describeSaveValWriteContext(self)
+				logger.logInfo(SUBMODULE,
+						"saveVal write%s: %s @%s slot %s %s %d -> %d",
+						noFire and " (noFire)" or "", pilotId, tostring(addr), slot, skillId, oldVal, newVal)
+			end
+		end
+	end
+
+	-- Log all saveVal writes, including UID minting via _setSaveVal_noFire.
+	wrapSaveValSetterForLogging("_setSaveVal_noFire", true)
+	wrapSaveValSetterForLogging("setSaveVal", false)
+end
 
 -- generate full setter that triggers on change of any value
 PilotLvlUpSkill[selfSetter] = methodGen.generateStructSetterToFireOnAnyValueChange(

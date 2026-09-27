@@ -351,10 +351,9 @@ describe("Skill Selection Module", function()
 			GAME.cplus_plus_ex.pilotVirtualSkills = {}
 		end)
 
-		it("should mint distinct UIDs for same id pilots", function()
+		it("should treat same id+saveVals as the same uid", function()
 			local pilot1 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 1001})
 			local pilot2 = helper.createMockPilot({pilotId = "Pilot_Cyborg", address = 1002})
-			-- Give both the same saveVal pair so one must remint
 			pilot1:getLvlUpSkill(1):setSaveVal(0)
 			pilot1:getLvlUpSkill(2):setSaveVal(1)
 			pilot2:getLvlUpSkill(1):setSaveVal(0)
@@ -363,9 +362,8 @@ describe("Skill Selection Module", function()
 			local key1 = pilot_uid:_ensurePilotUid(pilot1)
 			local key2 = pilot_uid:_ensurePilotUid(pilot2)
 
-			assert.is_not_nil(key1)
-			assert.is_not_nil(key2)
-			assert.is_not.equals(key1, key2)
+			assert.equals("Pilot_Cyborg:0:1", key1)
+			assert.equals(key1, key2)
 		end)
 
 		it("should preserve saveVals across applySkillIdsToPilot", function()
