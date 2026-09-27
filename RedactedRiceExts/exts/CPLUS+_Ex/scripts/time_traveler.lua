@@ -207,44 +207,51 @@ function time_traveler:_loadPersistentDataIfNeeded()
 end
 
 function time_traveler:_refreshLastSavedPersistentData()
-	local pilots = Game and Game:GetAvailablePilots() or nil
-	if not pilots then
+	if not Game then
+		return false
+	end
+
+	-- Resolve UID conflicts before persisting so two pilots cannot
+	-- overwrite the same last_run_pilots entry.
+	local entries = pilot_uid:getAvailablePilotsWithUids()
+	if not entries or #entries == 0 then
 		return false
 	end
 
 	local changed = false
 	time_traveler.lastSavedPersistentData = time_traveler.lastSavedPersistentData or {}
 
-	for _, pilot in pairs(pilots) do
-		local uid = pilot:getUidStr()
+	for _, entry in ipairs(entries) do
+		local pilot = entry.pilot
+		local uid = entry.uid
 		time_traveler.lastSavedPersistentData[uid] = time_traveler.lastSavedPersistentData[uid] or {}
-		local entry = time_traveler.lastSavedPersistentData[uid]
-		if entry.pilotId ~= pilot:getIdStr() then
-			entry.pilotId = pilot:getIdStr()
+		local entryData = time_traveler.lastSavedPersistentData[uid]
+		if entryData.pilotId ~= pilot:getIdStr() then
+			entryData.pilotId = pilot:getIdStr()
 			changed = true
 		end
-		if entry.name ~= pilot:getNameStr() then
-			entry.name = pilot:getNameStr()
+		if entryData.name ~= pilot:getNameStr() then
+			entryData.name = pilot:getNameStr()
 			changed = true
 		end
-		if entry.xp ~= pilot:getXp() then
-			entry.xp = pilot:getXp()
+		if entryData.xp ~= pilot:getXp() then
+			entryData.xp = pilot:getXp()
 			changed = true
 		end
-		if entry.level ~= pilot:getLevel() then
-			entry.level = pilot:getLevel()
+		if entryData.level ~= pilot:getLevel() then
+			entryData.level = pilot:getLevel()
 			changed = true
 		end
-		if entry.skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
-			entry.skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
+		if entryData.skill1 ~= pilot:getLvlUpSkills():getSkill1():getIdStr() then
+			entryData.skill1 = pilot:getLvlUpSkills():getSkill1():getIdStr()
 			changed = true
 		end
-		if entry.skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
-			entry.skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
+		if entryData.skill2 ~= pilot:getLvlUpSkills():getSkill2():getIdStr() then
+			entryData.skill2 = pilot:getLvlUpSkills():getSkill2():getIdStr()
 			changed = true
 		end
-		if entry.prevTimelines ~= pilot:getPrevTimelines() then
-			entry.prevTimelines = pilot:getPrevTimelines()
+		if entryData.prevTimelines ~= pilot:getPrevTimelines() then
+			entryData.prevTimelines = pilot:getPrevTimelines()
 			changed = true
 		end
 
@@ -255,7 +262,7 @@ function time_traveler:_refreshLastSavedPersistentData()
 				table.insert(virtualSkills, { id = skillEntry.id, source = skillEntry.source })
 			end
 		end
-		local currentVirtualSkills = entry.virtualSkills or {}
+		local currentVirtualSkills = entryData.virtualSkills or {}
 		local virtualSkillsChanged = #virtualSkills ~= #currentVirtualSkills
 		if not virtualSkillsChanged then
 			for i, skillEntry in ipairs(virtualSkills) do
@@ -268,24 +275,24 @@ function time_traveler:_refreshLastSavedPersistentData()
 		end
 
 		if virtualSkillsChanged then
-			entry.virtualSkills = virtualSkills
+			entryData.virtualSkills = virtualSkills
 			changed = true
 		end
 
 		-- Save custom registered fields for this pilot
-		entry.customData = entry.customData or {}
+		entryData.customData = entryData.customData or {}
 
 		for modId, fields in pairs(self.registeredFields) do
-			entry.customData[modId] = entry.customData[modId] or {}
+			entryData.customData[modId] = entryData.customData[modId] or {}
 
 			for fieldName, fieldDef in pairs(fields) do
 				-- Call the save function to get the value
 				local success, value = pcall(fieldDef.save, pilot)
 				if success then
 					-- Check if value changed
-					local oldValue = entry.customData[modId][fieldName]
+					local oldValue = entryData.customData[modId][fieldName]
 					if oldValue ~= value then
-						entry.customData[modId][fieldName] = value
+						entryData.customData[modId][fieldName] = value
 						changed = true
 						logger.logDebug(SUBMODULE, "Saved custom field %s.%s for pilot %s: %s",
 							modId, fieldName, uid, tostring(value))
@@ -336,8 +343,8 @@ function time_traveler:_updateDataOnSave()
 					readObj.cplus_plus_ex = readObj.cplus_plus_ex or {}
 					-- Clear out last_run_pilots to ensure no stale data
 					readObj.cplus_plus_ex.last_run_pilots = {}
-					for _, pilot in pairs(Game:GetAvailablePilots()) do
-						local uid = pilot:getUidStr()
+					for _, entry in ipairs(pilot_uid:getAvailablePilotsWithUids()) do
+						local uid = entry.uid
 						readObj.cplus_plus_ex.last_run_pilots[uid] = time_traveler.lastSavedPersistentData[uid]
 					end
 				end
