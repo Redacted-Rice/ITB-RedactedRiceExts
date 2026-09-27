@@ -8,11 +8,12 @@ local path = GetParentPath(...)
 
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
-	ENABLED = false,  -- Disable/enable all debug logging
+	ENABLED = true,  -- Disable/enable all debug logging
 	TRIGGER_EVENTS = false,
 	CONFIG = false,
 	REGISTRY = false,
-	SELECTION = false,
+	SELECTION = true,
+	PILOT_UID = true,
 	CONSTRAINTS = false,
 	STATE_TRACKER = false,
 	TIME_TRAVELER = false,
@@ -318,7 +319,6 @@ function cplus_plus_ex:addEvents()
 	modApi.events.onSaveGame:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onSaveGame")
 		skill_state_tracker:_updateAllStates()
-		pilot_uid:resetTracking()
 		skill_selection:applySkillsToAllPilots()
 		time_traveler:_updateDataOnSave()
 	end)
@@ -342,8 +342,9 @@ function cplus_plus_ex:addEvents()
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
-		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
-		pilot_uid:resetTracking()
+		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
+		-- Only does stuff if appropriate debug flags are enabled
+		skill_selection:debugLogSavedPilotSkillData()
 		skill_selection:_resetRandomSession()
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()
@@ -353,7 +354,7 @@ function cplus_plus_ex:addEvents()
 
 		pilot_overrides:applyGetSkillInfoOverride()
 
-		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
+		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
 	end)
 
 	modApi.events.onGameExited:subscribe(function()

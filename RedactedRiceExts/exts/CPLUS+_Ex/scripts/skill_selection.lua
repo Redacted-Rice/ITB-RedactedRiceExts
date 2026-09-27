@@ -6,7 +6,8 @@ local skill_selection = {}
 
 -- Register with logging system
 local logger = memhack.logger
-local SUBMODULE = logger.register("CPLUS+", "SkillSelection", cplus_plus_ex.DEBUG.SELECTION and cplus_plus_ex.DEBUG.ENABLED)
+local DEBUG_SELECTION = cplus_plus_ex.DEBUG.SELECTION and cplus_plus_ex.DEBUG.ENABLED
+local SUBMODULE = logger.register("CPLUS+", "SkillSelection", DEBUG_SELECTION)
 
 -- Module state
 skill_selection.localRandomCount = nil  -- Track local random count for this session
@@ -72,6 +73,61 @@ function skill_selection:_initGameSaveData()
 
 	if GAME.cplus_plus_ex.randomSeedCnt == nil then
 		GAME.cplus_plus_ex.randomSeedCnt = 0
+	end
+end
+
+local function formatStoredSkillPair(skills)
+	if type(skills) ~= "table" then
+		return "<invalid>"
+	end
+	local s1 = skills[1] and skills[1].id or "<nil>"
+	local s2 = skills[2] and skills[2].id or "<nil>"
+	return string.format("[%s, %s]", s1, s2)
+end
+
+local function formatVirtualSkillList(skills)
+	if type(skills) ~= "table" or #skills == 0 then
+		return "(none)"
+	end
+	local parts = {}
+	for _, entry in ipairs(skills) do
+		if entry.source then
+			table.insert(parts, string.format("%s@%s", entry.id or "<nil>", entry.source))
+		else
+			table.insert(parts, entry.id or "<nil>")
+		end
+	end
+	return table.concat(parts, ", ")
+end
+
+-- Dump pilot UID -> skill mappings from GAME save data (debug only).
+function skill_selection:debugLogSavedPilotSkillData()
+	if not DEBUG_SELECTION then
+		return
+	end
+
+	self:_initGameSaveData()
+
+	local pilotSkills = GAME.cplus_plus_ex.pilotSkills
+	local entryCount = 0
+	for _ in pairs(pilotSkills) do
+		entryCount = entryCount + 1
+	end
+
+	logger.logDebug(SUBMODULE, "pilotSkills entries: %d", entryCount)
+	for uid, skills in pairs(pilotSkills) do
+		logger.logDebug(SUBMODULE, "  %s -> %s", uid, formatStoredSkillPair(skills))
+	end
+
+	local pilotVirtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills
+	local virtualCount = 0
+	for _ in pairs(pilotVirtualSkills) do
+		virtualCount = virtualCount + 1
+	end
+
+	logger.logDebug(SUBMODULE, "pilotVirtualSkills entries: %d", virtualCount)
+	for uid, skills in pairs(pilotVirtualSkills) do
+		logger.logDebug(SUBMODULE, "  %s -> %s", uid, formatVirtualSkillList(skills))
 	end
 end
 
@@ -548,14 +604,18 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- short-circuit time-traveler / preserve / random assignment paths
 		if storedSkills[1] and storedSkills[2]
 				and type(storedSkills[1].id) == "string" and type(storedSkills[2].id) == "string" then
-			logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilot:getUidStr())
 			skillIds = {storedSkills[1].id, storedSkills[2].id}
 			found = true
+			logger.logInfo(SUBMODULE, "pilotSkills hit %s @%s -> %s",
+					pilotUid, tostring(pilot._address), formatStoredSkillPair(storedSkills))
 		else
-			logger.logWarn(SUBMODULE, "Clearing incomplete stored skills for pilot %s", pilot:getUidStr())
+			logger.logWarn(SUBMODULE, "pilotSkills incomplete for %s @%s; clearing",
+					pilotUid, tostring(pilot._address))
 			GAME.cplus_plus_ex.pilotSkills[pilotUid] = nil
 			storedSkills = nil
 		end
+	else
+		logger.logInfo(SUBMODULE, "pilotSkills miss %s @%s", pilotUid, tostring(pilot._address))
 	end
 	-- if its the time traveler, save the current skills
 	if not found and cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers then
@@ -565,13 +625,13 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- be one at this point that matches our address
 		found = time_traveler:narrowTimeTraveler(pilot._address)
 		if found then
-			logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilot:getUidStr(), pilot._address)
+			logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilotUid, pilot._address)
 
 			-- Get regular skills from the time traveler pilot object
 			local lus = time_traveler.potentialTimeTravelers[1]:getLvlUpSkills()
 			skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
 			storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-			logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilot:getUidStr())
+			logger.logDebug(SUBMODULE, "time traveler skills %s -> %s", pilotUid, formatStoredSkillPair(storedSkills))
 
 			-- Virtual skills are stored in GAME and not in the pilot object itself so we need to load
 			-- these from persistent memory instead of from the time traveler directly
@@ -587,8 +647,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 					})
 					table.insert(loadedIds, skillEntry.id)
 				end
-				logger.logInfo(SUBMODULE, "Populated GAME state with %d virtual skills for time traveler %s: %s",
-					#loadedIds, pilot:getUidStr(), table.concat(loadedIds, ", "))
+				logger.logDebug(SUBMODULE, "time traveler virtual skills %s: %s",
+					pilotUid, table.concat(loadedIds, ", "))
 			end
 		end
 	end
@@ -602,7 +662,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- Convert to table format so we can associat saveVals and update in game state
 		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 
-		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilot:getUidStr())
+		logger.logInfo(SUBMODULE, "assign random %s @%s -> %s",
+				pilotUid, tostring(pilot._address), formatStoredSkillPair(storedSkills))
 	end
 
 	-- Use common validation and application logic
@@ -690,8 +751,8 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 
 	-- Get the stored skills
 	GAME.cplus_plus_ex.pilotSkills[pilotUid] = storedSkills
-	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilot:getUidStr() ..
-		": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
+	logger.logInfo(SUBMODULE, "Applying skills to pilot %s @%s: [%s, %s]",
+		pilotUid, tostring(pilot._address), storedSkills[1].id, storedSkills[2].id)
 
 	-- Apply skill ids/text/bonuses but keep UID saveVals.
 	-- Always rewrite when id changes; also rewrite if saveVals drifted off UID.
@@ -763,6 +824,8 @@ function skill_selection:applySkillsToAllPilots()
 	for _, pilot in pairs(newPilots) do
 		local uid = pilot:getUidStr()
 		local isNewPilot = not skill_selection._pilotsAssignedThisRun[uid]
+		logger.logInfo(SUBMODULE, "applySkillsToAllPilots %s @%s new=%s",
+				uid, tostring(pilot._address), tostring(isNewPilot))
 
 		local success = self:applySkillsToPilot(pilot, isNewPilot)
 		if success then
