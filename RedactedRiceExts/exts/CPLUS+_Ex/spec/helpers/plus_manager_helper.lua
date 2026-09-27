@@ -233,9 +233,6 @@ function M.resetState()
 	skill_constraints:_registerSquadExclusionConstraintFunction()
 	skill_constraints:_registerSkillExclusionConstraintFunction()
 
-	-- Reset pilot_uid tracking
-	pilot_uid:resetTracking()
-
 	-- Reset skill_selection module state
 	skill_selection.localRandomCount = nil
 	skill_selection.usedSkillsPerRun = {}
