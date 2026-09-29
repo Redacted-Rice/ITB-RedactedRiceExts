@@ -8,12 +8,12 @@ local path = GetParentPath(...)
 
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
-	ENABLED = true,  -- Disable/enable all debug logging
+	ENABLED = false,  -- Disable/enable all debug logging
 	TRIGGER_EVENTS = false,
 	CONFIG = false,
 	REGISTRY = false,
-	SELECTION = true,
-	PILOT_UID = true,
+	SELECTION = false,
+	PILOT_UID = false,
 	CONSTRAINTS = false,
 	STATE_TRACKER = false,
 	TIME_TRAVELER = false,

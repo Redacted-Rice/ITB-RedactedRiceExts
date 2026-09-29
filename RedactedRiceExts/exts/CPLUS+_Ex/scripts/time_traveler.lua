@@ -521,9 +521,9 @@ end
 -- Get virtual skills for a time traveler from persistent data and refreshes any
 -- custom/extra data from the time traveler to GAME
 -- @return table|nil Array of { id, source } entries, or nil if none found
-function time_traveler:refreshTimeTravlerDataAndGetVirtSkills(pilot)
+function time_traveler:refreshTimeTravelerDataAndGetVirtSkills(pilot)
 	if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
-		logger.logError(SUBMODULE, "refreshTimeTravlerDataAndGetVirtSkills: expected Pilot struct, got %s", type(pilot))
+		logger.logError(SUBMODULE, "refreshTimeTravelerDataAndGetVirtSkills: expected Pilot struct, got %s", type(pilot))
 		return nil
 	end
 

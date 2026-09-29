@@ -107,7 +107,7 @@ function pilot_uid:_resolveAvailablePilots()
 	_resolveClaimed = {}
 	_resolveEntries = {}
 
-	for _, pilot in pairs(pilots) do
+	for _, pilot in ipairs(pilots) do
 		local uid = self:_claimOrMintUid(pilot, _resolveClaimed)
 		table.insert(_resolveEntries, {pilot = pilot, uid = uid})
 	end
