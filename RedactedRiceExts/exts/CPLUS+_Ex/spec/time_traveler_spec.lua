@@ -44,7 +44,7 @@ describe("time_traveler", function()
 		assert.equals("Health", data.skill1)
 		assert.equals("Pilot_A", key)
 
-		local virtualSkills = time_traveler:refreshTimeTravlerDataAndGetVirtSkills(mockPilot)
+		local virtualSkills = time_traveler:refreshTimeTravelerDataAndGetVirtSkills(mockPilot)
 		assert.equals(1, #virtualSkills)
 		assert.equals("Bonus", virtualSkills[1].id)
 	end)

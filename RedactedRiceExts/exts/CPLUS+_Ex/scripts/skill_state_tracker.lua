@@ -17,7 +17,6 @@ local SUBMODULE = logger.register("CPLUS+", "StateTracker", cplus_plus_ex.DEBUG.
 local hooks = nil
 local utils = nil
 local skill_registry = nil
-local pilot_uid = nil
 
 -- State tracking tables
 function skill_state_tracker:_resetAllTrackers()
@@ -30,7 +29,7 @@ function skill_state_tracker:_resetAllTrackers()
 	self._hasAppliedSkill = false
 	self._isAssigningSkills = false
 	self._enabledSkills = {}  -- skillId -> true (skill is enabled in config)
-	self._inRunSkills = {}    -- skillId -> {pilotAddr -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
+	self._inRunSkills = {}    -- skillId -> {pilotUid -> {pilot, skillIndices}} where skillIndices is array of 1 and/or 2
 	self._activeSkills = {}   -- skillId -> {pawnId -> {pilot, skillIndices}}
 	self._virtualSkillObjects = {}  -- pilotUid -> array of PilotLvlUpSkill objects for more than 2 skills
 end
@@ -39,7 +38,6 @@ function skill_state_tracker:init()
 	hooks = cplus_plus_ex._subobjects.hooks
 	utils = cplus_plus_ex._subobjects.utils
 	skill_registry = cplus_plus_ex._subobjects.skill_registry
-	pilot_uid = cplus_plus_ex._subobjects.pilot_uid
 
 	return self
 end
@@ -428,7 +426,7 @@ function skill_state_tracker:getSkillObjsInRun(skillId)
 end
 
 -- Determine in-run skills state for all enabled skills
--- Returns in internal state format: {skillId -> {pilotAddr -> {pilot, skillIndices}}}
+-- Returns in internal state format: {skillId -> {pilotUid -> {pilot, skillIndices}}}
 function skill_state_tracker:_determineInRunSkillsState()
 	local result = {}
 	if not Game then return result end
@@ -436,7 +434,7 @@ function skill_state_tracker:_determineInRunSkillsState()
 	-- Loop through pilots once and build state for all skills
 	local availablePilots = Game:GetAvailablePilots()
 	for _, pilot in ipairs(availablePilots) do
-		local pilotAddr = pilot:getAddress()
+		local pilotUid = pilot:getUidStr()
 		-- Check each skill slot
 		for _, skillIndex in ipairs(self:getPilotEarnedSkillIndexes(pilot)) do
 			local skill = self:_getSkillByIndex(pilot, skillIndex)
@@ -445,13 +443,13 @@ function skill_state_tracker:_determineInRunSkillsState()
 				if not result[skillId] then
 					result[skillId] = {}
 				end
-				if not result[skillId][pilotAddr] then
-					result[skillId][pilotAddr] = {
+				if not result[skillId][pilotUid] then
+					result[skillId][pilotUid] = {
 						pilot = pilot,
 						skillIndices = {},
 					}
 				end
-				table.insert(result[skillId][pilotAddr].skillIndices, skillIndex)
+				table.insert(result[skillId][pilotUid].skillIndices, skillIndex)
 			end
 		end
 	end
@@ -474,8 +472,8 @@ function skill_state_tracker:_updateInRunSkills()
 	-- Check for newly added pilots with skills
 	for skillId, newPilots in pairs(newInRunSkills) do
 		local oldPilots = self._inRunSkills[skillId] or {}
-		for pilotAddr, data in pairs(newPilots) do
-			if not oldPilots[pilotAddr] then
+		for pilotUid, data in pairs(newPilots) do
+			if not oldPilots[pilotUid] then
 				-- Queue hook for each skill instance
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)
@@ -488,8 +486,8 @@ function skill_state_tracker:_updateInRunSkills()
 	-- Check for removed pilots with skills
 	for skillId, oldPilots in pairs(self._inRunSkills) do
 		local newPilots = newInRunSkills[skillId] or {}
-		for pilotAddr, data in pairs(oldPilots) do
-			if not newPilots[pilotAddr] then
+		for pilotUid, data in pairs(oldPilots) do
+			if not newPilots[pilotUid] then
 				-- Queue hook for each skill instance. Skill may be nil if pilot was removed
 				for _, skillIndex in ipairs(data.skillIndices) do
 					local skillStruct = self:_getSkillByIndex(data.pilot, skillIndex)

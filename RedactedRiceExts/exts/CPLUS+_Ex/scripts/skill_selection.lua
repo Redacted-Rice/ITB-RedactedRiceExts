@@ -635,7 +635,7 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 			-- Virtual skills are stored in GAME and not in the pilot object itself so we need to load
 			-- these from persistent memory instead of from the time traveler directly
-			local virtualSkills = time_traveler:refreshTimeTravlerDataAndGetVirtSkills(pilot)
+			local virtualSkills = time_traveler:refreshTimeTravelerDataAndGetVirtSkills(pilot)
 			if virtualSkills then
 				GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] = {}
 				local loadedIds = {}
@@ -755,19 +755,17 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		pilotUid, tostring(pilot._address), storedSkills[1].id, storedSkills[2].id)
 
 	-- Apply skill ids/text/bonuses but keep UID saveVals.
-	-- Always rewrite when id changes; also rewrite if saveVals drifted off UID.
+	-- Rewrite only when the skill id changed. SaveVals are identity and must stay put.
 	local cur1 = pilot:getLvlUpSkill(1)
 	local cur2 = pilot:getLvlUpSkill(2)
 	local saveVal1, saveVal2 = pilot_uid:_readSaveValPair(pilot)
-	local need1 = skill1Id ~= cur1:getIdStr() or cur1:getSaveVal() ~= saveVal1
-	local need2 = skill2Id ~= cur2:getIdStr() or cur2:getSaveVal() ~= saveVal2
 
-	if need1 then
+	if skill1Id ~= cur1:getIdStr() then
 		local skill1Data = self:_skillDataToTable(
 				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
 		pilot:setLvlUpSkill(1, skill1Data)
 	end
-	if need2 then
+	if skill2Id ~= cur2:getIdStr() then
 		local skill2Data = self:_skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
 		pilot:setLvlUpSkill(2, skill2Data)
