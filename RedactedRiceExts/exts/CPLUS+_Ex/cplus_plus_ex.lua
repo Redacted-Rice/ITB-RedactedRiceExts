@@ -176,6 +176,27 @@ function cplus_plus_ex.isFlyingCyborg(pilotId)
 	return pawn ~= nil and pawn.Flying == true
 end
 
+-- Checks if a pilot ID corresponds to a burrower cyborg
+-- This checks both that the pilot is a cyborg AND that their pawn has Burrows = true
+function cplus_plus_ex.isBurrowerCyborg(pilotId)
+	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Burrows == true
+end
+
+-- Checks if a pilot ID corresponds to a jumper cyborg
+-- This checks both that the pilot is a cyborg AND that their pawn has Jumper = true
+function cplus_plus_ex.isJumperCyborg(pilotId)
+	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Jumper == true
+end
+
+-- Checks if a pilot ID corresponds to a teleporter cyborg
+-- This checks both that the pilot is a cyborg AND that their pawn has Teleporter = true
+function cplus_plus_ex.isTeleporterCyborg(pilotId)
+	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Teleporter == true
+end
+
 function cplus_plus_ex:exposeAPI()
 	-- Expose commonly used submodules/data at root level for easier external access
 	self.hooks = hooks
