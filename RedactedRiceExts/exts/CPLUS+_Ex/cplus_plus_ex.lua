@@ -141,62 +141,6 @@ function cplus_plus_ex:initModules()
 	pilot_overrides:init()
 end
 
--- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
--- Returns the pawn struct if it exists and has Class == "TechnoVek", otherwise returns nil
-function cplus_plus_ex.getTechnoVekPawn(pilotId)
-	if not pilotId or type(pilotId) ~= "string" then
-		return nil
-	end
-
-	-- Extract pawn name from pilot ID (e.g., "Pilot_BeetleMech" -> "BeetleMech")
-	local pawnName = pilotId:match("^Pilot_(.+)$")
-	if not pawnName then
-		return nil
-	end
-
-	-- Check if the pawn exists and is a TechnoVek
-	local pawn = _G[pawnName]
-	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
-		return pawn
-	end
-
-	return nil
-end
-
--- Checks if a pilot ID corresponds to a cyborg pilot
--- Cyborgs are identified by their pawn having Class == "TechnoVek"
-function cplus_plus_ex.isCyborg(pilotId)
-	return cplus_plus_ex.getTechnoVekPawn(pilotId) ~= nil
-end
-
--- Checks if a pilot ID corresponds to a flying cyborg
--- This checks both that the pilot is a cyborg AND that their pawn has Flying = true
-function cplus_plus_ex.isFlyingCyborg(pilotId)
-	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
-	return pawn ~= nil and pawn.Flying == true
-end
-
--- Checks if a pilot ID corresponds to a burrower cyborg
--- This checks both that the pilot is a cyborg AND that their pawn has Burrows = true
-function cplus_plus_ex.isBurrowerCyborg(pilotId)
-	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
-	return pawn ~= nil and pawn.Burrows == true
-end
-
--- Checks if a pilot ID corresponds to a jumper cyborg
--- This checks both that the pilot is a cyborg AND that their pawn has Jumper = true
-function cplus_plus_ex.isJumperCyborg(pilotId)
-	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
-	return pawn ~= nil and pawn.Jumper == true
-end
-
--- Checks if a pilot ID corresponds to a teleporter cyborg
--- This checks both that the pilot is a cyborg AND that their pawn has Teleporter = true
-function cplus_plus_ex.isTeleporterCyborg(pilotId)
-	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
-	return pawn ~= nil and pawn.Teleporter == true
-end
-
 function cplus_plus_ex:exposeAPI()
 	-- Expose commonly used submodules/data at root level for easier external access
 	self.hooks = hooks
@@ -205,6 +149,14 @@ function cplus_plus_ex:exposeAPI()
 	self.config = skill_config.config
 	self.SkillConfig = skill_config.SkillConfig
 	self.RelationshipType = skill_config.RelationshipType
+
+	-- Utility functions
+	self.getTechnoVekPawn = utils.getTechnoVekPawn
+	self.isCyborg = utils.isCyborg
+	self.isFlyingCyborg = utils.isFlyingCyborg
+	self.isBurrowerCyborg = utils.isBurrowerCyborg
+	self.isJumperCyborg = utils.isJumperCyborg
+	self.isTeleporterCyborg = utils.isTeleporterCyborg
 
 	-- Expose API functions that delegate to submodules
 	-- Regisration

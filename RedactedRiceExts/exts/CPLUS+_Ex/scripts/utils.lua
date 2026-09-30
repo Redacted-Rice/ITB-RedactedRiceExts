@@ -247,6 +247,55 @@ utils.unnamedPilotDisplayNames = {
 	Pilot_Archive = "Corp. Archive",
 }
 
+-- Pawn struct if pilot is a TechnoVek cyborg, else nil
+function utils.getTechnoVekPawn(pilotId)
+	if not pilotId or type(pilotId) ~= "string" then
+		return nil
+	end
+
+	-- Pilot_BeetleMech -> BeetleMech
+	local pawnName = pilotId:match("^Pilot_(.+)$")
+	if not pawnName then
+		return nil
+	end
+
+	local pawn = _G[pawnName]
+	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
+		return pawn
+	end
+
+	return nil
+end
+
+-- cyborg = pawn Class == "TechnoVek"
+function utils.isCyborg(pilotId)
+	return utils.getTechnoVekPawn(pilotId) ~= nil
+end
+
+-- cyborg with Flying set
+function utils.isFlyingCyborg(pilotId)
+	local pawn = utils.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Flying
+end
+
+-- cyborg with Burrows set
+function utils.isBurrowerCyborg(pilotId)
+	local pawn = utils.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Burrows
+end
+
+-- cyborg with Jumper set
+function utils.isJumperCyborg(pilotId)
+	local pawn = utils.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Jumper
+end
+
+-- cyborg with Teleporter set
+function utils.isTeleporterCyborg(pilotId)
+	local pawn = utils.getTechnoVekPawn(pilotId)
+	return pawn ~= nil and pawn.Teleporter
+end
+
 -- Resolve display name for cyborg pilots without an explicit pilot Name field.
 -- Uses pawn.Name (e.g. "Entborg") or pawn localization key (e.g. BeetleMech -> "Techno-Beetle").
 function utils.getCyborgMechDisplayName(pilotId)
@@ -254,7 +303,7 @@ function utils.getCyborgMechDisplayName(pilotId)
 		return pilotId
 	end
 
-	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
+	local pawn = utils.getTechnoVekPawn(pilotId)
 	if pawn and pawn.Name and pawn.Name ~= "" then
 		return GetText(pawn.Name) or pawn.Name
 	end
@@ -278,7 +327,7 @@ function utils.getPilotDisplayName(pilotOrId)
 		end
 
 		local pilotId = pilotOrId:getIdStr()
-		if cplus_plus_ex.isCyborg(pilotId) then
+		if utils.isCyborg(pilotId) then
 			return utils.getCyborgMechDisplayName(pilotId)
 		end
 		return pilotOrId:getIdStr()
@@ -292,7 +341,7 @@ function utils.getPilotDisplayName(pilotOrId)
 
 	local pilotName = pilotDef.Name
 	if pilotName == nil or pilotName == "" then
-		if cplus_plus_ex.isCyborg(pilotId) then
+		if utils.isCyborg(pilotId) then
 			return utils.getCyborgMechDisplayName(pilotId)
 		end
 		return utils.unnamedPilotDisplayNames[pilotId] or pilotId
