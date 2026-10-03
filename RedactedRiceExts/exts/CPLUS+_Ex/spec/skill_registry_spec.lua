@@ -1,5 +1,5 @@
 -- Tests for skill_registry module
--- Registration, saveVal validation, and skill management
+-- Registration and skill management
 
 local helper = require("helpers/plus_manager_helper")
 local plus_manager = helper.plus_manager
@@ -92,78 +92,72 @@ describe("Skill Registry Module", function()
 		end)
 	end)
 
-	describe("SaveVal Validation", function()
-		it("should accept valid boundary saveVal values (0 and 13)", function()
-			plus_manager:registerSkill("test", {id = "Skill0", shortName = "S0", fullName = "Skill0", description = "Test", saveVal = 0})
-			assert.equals(0, plus_manager._subobjects.skill_registry.registeredSkills["Skill0"].saveVal)
-
-			plus_manager:registerSkill("test", {id = "Skill13", shortName = "S13", fullName = "Skill13", description = "Test", saveVal = 13})
-			assert.equals(13, plus_manager._subobjects.skill_registry.registeredSkills["Skill13"].saveVal)
-		end)
-
-		it("should convert invalid saveVal to -1", function()
-			plus_manager:registerSkill("test", {id = "SkillAbove", shortName = "SA", fullName = "SkillAbove", description = "Test", saveVal = 14})
-			assert.equals(-1, plus_manager._subobjects.skill_registry.registeredSkills["SkillAbove"].saveVal)
-
-			plus_manager:registerSkill("test", {id = "SkillBelow", shortName = "SB", fullName = "SkillBelow", description = "Test", saveVal = -2})
-			assert.equals(-1, plus_manager._subobjects.skill_registry.registeredSkills["SkillBelow"].saveVal)
+	describe("deprecated saveVal", function()
+		it("should ignore saveVal on registerSkill", function()
+			plus_manager:registerSkill("test", {id = "SkillDeprecated", shortName = "SD", fullName = "SkillDeprecated", description = "Test", saveVal = 5})
+			assert.is_nil(plus_manager._subobjects.skill_registry.registeredSkills["SkillDeprecated"].saveVal)
 		end)
 	end)
 
-	describe("Automatic SaveVal Selection and Conflict Resolution", function()
+	describe("pilot UID preservation", function()
 		local mockPilot
 		local tracking
 
 		before_each(function()
-			-- Create mock pilot with tracking using convenience helper
 			mockPilot, tracking = helper.createMockPilotWithTracking("TestPilot")
+			-- Distinct UID pair already on the pilot
+			mockPilot:getLvlUpSkill(1):setSaveVal(5)
+			mockPilot:getLvlUpSkill(2):setSaveVal(7)
 		end)
 
-		it("should use defined saveVal when provided", function()
+		it("should preserve UID saveVals when applying stored skills", function()
 			helper.setupTestSkills({
-				{id = "SkillDefined1", shortName = "SD1", fullName = "SkillDefined1", description = "Test", saveVal = 5},
-				{id = "SkillDefined2", shortName = "SD2", fullName = "SkillDefined2", description = "Test", saveVal = 7},
+				{id = "SkillDefined1", shortName = "SD1", fullName = "SkillDefined1", description = "Test"},
+				{id = "SkillDefined2", shortName = "SD2", fullName = "SkillDefined2", description = "Test"},
 			})
 
-			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {{id = "SkillDefined1"}, {id = "SkillDefined2"}}
+			GAME.cplus_plus_ex.pilotSkills["TestPilot:5:7"] = {{id = "SkillDefined1"}, {id = "SkillDefined2"}}
 
 			plus_manager:applySkillsToPilot(mockPilot)
 
 			assert.equals(5, tracking.skill1SaveVal)
 			assert.equals(7, tracking.skill2SaveVal)
+			assert.equals("TestPilot:5:7", mockPilot:getUidStr())
 		end)
 
-		it("should assign random saveVal (0-13) when set to -1", function()
+		it("should preserve saveVals when applying skills to a new pilot", function()
 			helper.setupTestSkills({
-				{id = "SkillRandom1", shortName = "SR1", fullName = "SkillRandom1", description = "Test", saveVal = -1},
-				{id = "SkillRandom2", shortName = "SR2", fullName = "SkillRandom2", description = "Test", saveVal = -1},
+				{id = "SkillRandom1", shortName = "SR1", fullName = "SkillRandom1", description = "Test"},
+				{id = "SkillRandom2", shortName = "SR2", fullName = "SkillRandom2", description = "Test"},
 			})
 
-			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {{id = "SkillRandom1"}, {id = "SkillRandom2"}}
+			mockPilot:getLvlUpSkill(1):setSaveVal(3)
+			mockPilot:getLvlUpSkill(2):setSaveVal(3)
 
 			plus_manager:applySkillsToPilot(mockPilot)
 
-			-- Should be in valid range
-			assert.is_true(tracking.skill1SaveVal >= 0 and tracking.skill1SaveVal <= 13, "Skill1 saveVal should be 0-13")
-			assert.is_true(tracking.skill2SaveVal >= 0 and tracking.skill2SaveVal <= 13, "Skill2 saveVal should be 0-13")
-
-			-- Should be different (conflict resolution)
-			assert.is_not.equals(tracking.skill1SaveVal, tracking.skill2SaveVal, "Random saveVals should be different")
+			assert.equals(3, tracking.skill1SaveVal)
+			assert.equals(3, tracking.skill2SaveVal)
+			assert.equals("TestPilot:3:3", mockPilot:getUidStr())
 		end)
 
-		it("should resolve conflicts when both skills have same defined saveVal", function()
+		it("should keep UID saveVals across skill id swaps", function()
 			helper.setupTestSkills({
-				{id = "SkillConflict1", shortName = "SC1", fullName = "SkillConflict1", description = "Test", saveVal = 6},
-				{id = "SkillConflict2", shortName = "SC2", fullName = "SkillConflict2", description = "Test", saveVal = 6},
+				{id = "SkillA", shortName = "SA", fullName = "SkillA", description = "Test"},
+				{id = "SkillB", shortName = "SB", fullName = "SkillB", description = "Test"},
+				{id = "SkillC", shortName = "SC", fullName = "SkillC", description = "Test"},
+				{id = "SkillD", shortName = "SD", fullName = "SkillD", description = "Test"},
 			})
 
-			GAME.cplus_plus_ex.pilotSkills["TestPilot"] = {{id = "SkillConflict1"}, {id = "SkillConflict2"}}
-
+			GAME.cplus_plus_ex.pilotSkills["TestPilot:5:7"] = {{id = "SkillA"}, {id = "SkillB"}}
 			plus_manager:applySkillsToPilot(mockPilot)
+			assert.equals(5, tracking.skill1SaveVal)
+			assert.equals(7, tracking.skill2SaveVal)
 
-			assert.equals(6, tracking.skill1SaveVal, "Skill1 should keep its defined saveVal")
-			assert.is_not.equals(6, tracking.skill2SaveVal, "Skill2 should be reassigned")
-			assert.is_true(tracking.skill2SaveVal >= 0 and tracking.skill2SaveVal <= 13, "Skill2 should be in valid range")
+			plus_manager:applySkillIdsToPilot(mockPilot, {"SkillC", "SkillD"}, false)
+			assert.equals(5, tracking.skill1SaveVal)
+			assert.equals(7, tracking.skill2SaveVal)
+			assert.equals("TestPilot:5:7", mockPilot:getUidStr())
 		end)
 	end)
 end)

@@ -55,6 +55,7 @@ function M.createMockSkill(params)
 	skill.setHealthBonus = makeSetter("_health_bonus")
 	skill.setMoveBonus = makeSetter("_move_bonus")
 	skill.setSaveVal = makeSetter("_save_val")
+	skill._setSaveVal_noFire = skill.setSaveVal
 
 	-- Add parent getters using helper
 	skill.getParentPilot = makeParentGetter("Pilot")
@@ -165,7 +166,9 @@ function M.createMockPilot(params)
 	mockPilot.setLvlUpSkill = function(self, skillNum, skillId, shortName, fullName, description, saveVal, bonuses)
 		local skill = (skillNum == 1) and self._lvlUpSkills._skill1 or self._lvlUpSkills._skill2
 		skill._id = skillId
-		skill._save_val = saveVal
+		if saveVal ~= nil then
+			skill._save_val = saveVal
+		end
 		if bonuses then
 			skill._cores_bonus = bonuses.cores or 0
 			skill._grid_bonus = bonuses.grid or 0
