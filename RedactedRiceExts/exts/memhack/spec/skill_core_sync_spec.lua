@@ -671,9 +671,45 @@ describe("Skill Core Sync", function()
 				table.insert(order, "apply")
 			end
 
+			skillCoreSync.onMissionEnd({})
+			assert.are.same({ "strip", "apply" }, order)
+			assert.is_nil(skillCoreSync.getMissionSnapshot())
+		end)
+
+		it("onMissionEnd clears snapshot when mission is nil", function()
+			local snap = { [0] = { hpCore = 1 } }
+			skillCoreSync.setMissionSnapshot(snap)
+			local order = {}
+
+			saveFn(skillCoreSync, "stripAllSuffixedWeapons")
+			skillCoreSync.stripAllSuffixedWeapons = function()
+				table.insert(order, "strip")
+			end
+			saveFn(skillCoreSync, "applyAllFromSnapshot")
+			skillCoreSync.applyAllFromSnapshot = function()
+				table.insert(order, "apply")
+			end
+
 			skillCoreSync.onMissionEnd()
 			assert.are.same({ "strip", "apply" }, order)
 			assert.is_nil(skillCoreSync.getMissionSnapshot())
+		end)
+
+		it("onMissionEnd skips strip and restore when NextPhase is set", function()
+			local snap = { [0] = { hpCore = 1 } }
+			skillCoreSync.setMissionSnapshot(snap)
+
+			saveFn(skillCoreSync, "stripAllSuffixedWeapons")
+			skillCoreSync.stripAllSuffixedWeapons = function()
+				error("should not strip on next phase")
+			end
+			saveFn(skillCoreSync, "applyAllFromSnapshot")
+			skillCoreSync.applyAllFromSnapshot = function()
+				error("should not apply on next phase")
+			end
+
+			skillCoreSync.onMissionEnd({ NextPhase = "Final_Mission_2" })
+			assert.are.same(snap, skillCoreSync.getMissionSnapshot())
 		end)
 
 		it("onPostLoadGame syncs from save when not in mission", function()
