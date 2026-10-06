@@ -17,7 +17,8 @@
 
 -- Register with logging system
 local logger = memhack.logger
-local SUBMODULE = logger.register("Memhack", "SkillCoreSync", memhack.DEBUG.SKILL_CORE_SYNC and memhack.DEBUG.ENABLED)
+local debug = memhack.DEBUG.SKILL_CORE_SYNC and memhack.DEBUG.ENABLED
+local SUBMODULE = logger.register("Memhack", "SkillCoreSync", debug)
 
 local skillCoreSync = {}
 
@@ -88,7 +89,7 @@ end
 function skillCoreSync.logCores(tag, pawnId, hpCore, moveCore, weapons)
 	local w1 = weapons and weapons[1]
 	local w2 = weapons and weapons[2]
-	logger.logDebug(SUBMODULE, 
+	logger.logDebug(SUBMODULE,
 			"%s pawn %d hp=%s move=%s w1={power=%s mod1=%s mod2=%s} w2={power=%s mod1=%s mod2=%s}",
 			tag, pawnId, tostring(hpCore), tostring(moveCore),
 			skillCoreSync.listToString(w1 and w1.power),
@@ -858,7 +859,12 @@ function skillCoreSync.onMissionStart()
 	end
 end
 
-function skillCoreSync.onMissionEnd()
+function skillCoreSync.onMissionEnd(mission)
+	if mission and mission.NextPhase then
+		logger.logDebug(SUBMODULE, "onMissionEnd: next phase, skipping")
+		return
+	end
+
 	logger.logDebug(SUBMODULE, "onMissionEnd")
 	local snap = skillCoreSync.getMissionSnapshot()
 	if not snap then
