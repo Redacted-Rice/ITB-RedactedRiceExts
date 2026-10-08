@@ -265,9 +265,9 @@ function cplus_plus_ex:init()
 	self:initModules()
 	self:exposeAPI()
 
-	-- Initialize base skill classes
-	self.baseClasses.SkillTrait:baseInit()
-	self.baseClasses.SkillActive:baseInit()
+	-- Initialize base skill class hooks once for all SkillTrait / SkillActive skills
+	self.baseClasses.SkillTrait:_baseInit()
+	self.baseClasses.SkillActive:_baseInit()
 
 	-- Initialize pilot tracking override (before any mods create pilots)
 	utils._initPilotTracking()
