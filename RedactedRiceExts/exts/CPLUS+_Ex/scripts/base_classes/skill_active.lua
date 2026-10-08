@@ -15,8 +15,6 @@
 --           -- Your logic here
 --       end))
 --   end
---
---   MySkillActive:baseInit()
 
 local SkillActive = {}
 SkillActive.skills = {}
@@ -50,9 +48,9 @@ function SkillActive:clearEvents()
 	self.events = {}
 end
 
--- Call this in your mod's load() function
-function SkillActive:baseInit()
-	cplus_plus_ex.events.onSkillActive:subscribe(self.clearAndReSetUpEffect)
+-- Internal: called once by cplus_plus_ex:init()
+function SkillActive:_baseInit()
+	cplus_plus_ex.events.onSkillActive:subscribe(SkillActive.clearAndReSetUpEffect)
 end
 
 -- Internal callback

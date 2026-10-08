@@ -10,8 +10,6 @@
 --   function MySkillTrait:applyTrait(pawnId, pawn, isActive)
 --       -- Your implementation here
 --   end
---
---   MySkillTrait:baseInit()
 
 local SkillTrait = {}
 SkillTrait.skills = {}
@@ -37,9 +35,9 @@ function SkillTrait:applyTrait(pawnId, pawn, isActive)
 	logger.logError(SUBMODULE, string.format("SkillTrait applyTrait not implemented for skill %s", self.id))
 end
 
--- Call this in your mod's load() function
-function SkillTrait:baseInit()
-	cplus_plus_ex.events.onSkillActive:subscribe(self.checkAndApplyTrait)
+-- Internal: called once by cplus_plus_ex:init()
+function SkillTrait:_baseInit()
+	cplus_plus_ex.events.onSkillActive:subscribe(SkillTrait.checkAndApplyTrait)
 end
 
 -- Internal callback
