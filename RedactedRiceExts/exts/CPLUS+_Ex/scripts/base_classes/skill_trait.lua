@@ -37,6 +37,11 @@ end
 
 -- Internal: called once by cplus_plus_ex:init()
 function SkillTrait:_baseInit()
+	-- Guard against multiple calls
+	if SkillTrait._baseInited then
+		return
+	end
+	SkillTrait._baseInited = true
 	cplus_plus_ex.events.onSkillActive:subscribe(SkillTrait.checkAndApplyTrait)
 end
 
