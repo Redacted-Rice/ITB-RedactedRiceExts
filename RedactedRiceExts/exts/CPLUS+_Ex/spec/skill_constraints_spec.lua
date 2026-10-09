@@ -306,7 +306,7 @@ describe("Skill Constraints Module", function()
 		end)
 	end)
 
-	describe("Pilot Exclusion Scanning from Global", function()
+	describe("Pilot exclusion scanning from registry ids", function()
 		local Pilot = {}
 		Pilot.__index = Pilot
 
@@ -323,7 +323,7 @@ describe("Skill Constraints Module", function()
 			end
 		end)
 
-		it("should scan _G for pilots with Blacklist and register exclusions", function()
+		it("should read Blacklist exclusions for known pilot ids", function()
 			_G.Pilot_TestA = setmetatable({
 				Name = "Test Pilot A",
 				Blacklist = {"Health", "Move"}
@@ -334,7 +334,7 @@ describe("Skill Constraints Module", function()
 				Blacklist = {"Grid"}
 			}, Pilot)
 
-			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal({"Pilot_TestA", "Pilot_TestB"})
 			helper.rebuildRelationships()
 
 			local exclusionsA = plus_manager.config.pilotSkillExclusions["Pilot_TestA"]
@@ -352,7 +352,7 @@ describe("Skill Constraints Module", function()
 				Name = "No Blacklist Pilot"
 			}, Pilot)
 
-			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal({"Pilot_TestNoBlacklist"})
 
 			local exclusions = plus_manager.config.pilotSkillExclusions["Pilot_TestNoBlacklist"]
 			assert.is_nil(exclusions)
@@ -362,7 +362,7 @@ describe("Skill Constraints Module", function()
 			plus_manager:registerPilotSkillExclusions("Pilot_Manual", {"Health"})
 			helper.rebuildRelationships()
 
-			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal()
+			plus_manager._subobjects.skill_registry:_readPilotExclusionsFromGlobal({})
 			helper.rebuildRelationships()
 
 			local manualExclusions = plus_manager.config.pilotSkillExclusions["Pilot_Manual"]

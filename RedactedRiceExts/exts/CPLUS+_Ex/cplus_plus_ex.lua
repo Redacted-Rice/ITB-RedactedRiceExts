@@ -13,6 +13,7 @@ cplus_plus_ex.DEBUG = {
 	CONFIG = false,
 	REGISTRY = false,
 	SELECTION = false,
+	PILOT_UID = false,
 	CONSTRAINTS = false,
 	STATE_TRACKER = false,
 	TIME_TRAVELER = false,
@@ -28,6 +29,12 @@ local TRIGGER_EVENTS = logger.register("CPLUS+", "Trigger Events", cplus_plus_ex
 
 -- Constants
 cplus_plus_ex.MAX_SKILL_SLOTS = 2  -- Maximum number of skill slots per pilot
+
+-- Core stat exclusion groups for vanilla skills
+cplus_plus_ex.GROUPS = {
+	ADD_HEALTH = "Add Health",
+	ADD_MOVE = "Add Move",
+}
 
 cplus_plus_ex.REUSABLILITY = { [1] = "REUSABLE", REUSABLE = 1, [2] = "PER_PILOT", PER_PILOT = 2, [3] = "PER_RUN", PER_RUN = 3}
 local REUSABLE = cplus_plus_ex.REUSABLILITY.REUSABLE
@@ -52,20 +59,20 @@ cplus_plus_ex.DEFAULT_REUSABILITY = PER_PILOT
 cplus_plus_ex.DEFAULT_SLOT_RESTRICTION = cplus_plus_ex.SLOT_RESTRICTION.ANY
 cplus_plus_ex.DEFAULT_WEIGHT = 1.0
 cplus_plus_ex.VANILLA_SKILLS = {
-	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, saveVal = 0, reusability = REUSABLE },
-	{id = "Move", icon = "img/combat/icons/icon_Pilot_Move.png", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, saveVal = 1, reusability = REUSABLE },
-	{id = "Grid", icon = "img/combat/icons/icon_Pilot_Grid.png", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, saveVal = 2, reusability = REUSABLE },
-	{id = "Reactor", icon = "img/combat/icons/icon_Pilot_Reactor.png", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, saveVal = 3, reusability = REUSABLE },
-	{id = "Opener", icon = "img/advanced/combat/icons/icon_Pilot_Opener.png", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", saveVal = 4, reusability = PER_PILOT }, -- doesn't work
-	{id = "Closer", icon = "img/advanced/combat/icons/icon_Pilot_Closer.png", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", saveVal = 5, reusability = PER_PILOT }, -- doesn't work
-	{id = "Popular", icon = "img/advanced/combat/icons/icon_Pilot_Popular.png", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", saveVal = 6, reusability = PER_PILOT }, -- doesn't work
-	{id = "Thick", icon = "img/advanced/combat/icons/icon_Pilot_Thick.png", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", saveVal = 7, reusability = PER_PILOT }, -- doesn't make sense
-	{id = "Skilled", icon = "img/advanced/combat/icons/icon_Pilot_Skilled.png", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, saveVal = 8, reusability = REUSABLE },
-	{id = "Invulnerable", icon = "img/advanced/combat/icons/icon_Pilot_Invulnerable.png", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", saveVal = 9, reusability = PER_PILOT }, -- doesn't make sense
-	{id = "Adrenaline", icon = "img/advanced/combat/icons/icon_Pilot_Adrenaline.png", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", saveVal = 10, reusability = PER_PILOT }, -- doesn't work
-	{id = "Pain", icon = "img/advanced/combat/icons/icon_Pilot_Pain.png", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", saveVal = 11, reusability = PER_PILOT }, -- doesn't work
-	{id = "Regen", icon = "img/advanced/combat/icons/icon_Pilot_Regen.png", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", saveVal = 12, reusability = PER_PILOT }, -- doesn't work
-	{id = "Conservative", icon = "img/advanced/combat/icons/icon_Pilot_Conservative.png", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", saveVal = 13, reusability = PER_PILOT }, -- doesn't work
+	{id = "Health", icon = "img/combat/icons/icon_Pilot_Health.png", shortName = "Pilot_HealthShort", fullName = "Pilot_HealthName", description= "Pilot_HealthDesc", bonuses = {health = 2}, reusability = REUSABLE },
+	{id = "Move", icon = "img/combat/icons/icon_Pilot_Move.png", shortName = "Pilot_MoveShort", fullName = "Pilot_MoveName", description= "Pilot_MoveDesc", bonuses = {move = 1}, reusability = REUSABLE },
+	{id = "Grid", icon = "img/combat/icons/icon_Pilot_Grid.png", shortName = "Pilot_GridShort", fullName = "Pilot_GridName", description= "Pilot_GridDesc", bonuses = {grid = 3}, reusability = REUSABLE },
+	{id = "Reactor", icon = "img/combat/icons/icon_Pilot_Reactor.png", shortName = "Pilot_ReactorShort", fullName = "Pilot_ReactorName", description= "Pilot_ReactorDesc", bonuses = {cores = 1}, reusability = REUSABLE },
+	{id = "Opener", icon = "img/advanced/combat/icons/icon_Pilot_Opener.png", shortName = "Pilot_OpenerName", fullName = "Pilot_OpenerName", description= "Pilot_OpenerDesc", reusability = PER_PILOT }, -- doesn't work
+	{id = "Closer", icon = "img/advanced/combat/icons/icon_Pilot_Closer.png", shortName = "Pilot_CloserName", fullName = "Pilot_CloserName", description= "Pilot_CloserDesc", reusability = PER_PILOT }, -- doesn't work
+	{id = "Popular", icon = "img/advanced/combat/icons/icon_Pilot_Popular.png", shortName = "Pilot_PopularName", fullName = "Pilot_PopularName", description= "Pilot_PopularDesc", reusability = PER_PILOT }, -- doesn't work
+	{id = "Thick", icon = "img/advanced/combat/icons/icon_Pilot_Thick.png", shortName = "Pilot_ThickName", fullName = "Pilot_ThickName", description= "Pilot_ThickDesc", reusability = PER_PILOT }, -- doesn't make sense
+	{id = "Skilled", icon = "img/advanced/combat/icons/icon_Pilot_Skilled.png", shortName = "Pilot_SkilledName", fullName = "Pilot_SkilledName", description= "Pilot_SkilledDesc", bonuses = {health = 2, move = 1}, reusability = REUSABLE },
+	{id = "Invulnerable", icon = "img/advanced/combat/icons/icon_Pilot_Invulnerable.png", shortName = "Pilot_InvulnerableName", fullName = "Pilot_InvulnerableName", description= "Pilot_InvulnerableDesc", reusability = PER_PILOT }, -- doesn't make sense
+	{id = "Adrenaline", icon = "img/advanced/combat/icons/icon_Pilot_Adrenaline.png", shortName = "Pilot_AdrenalineName", fullName = "Pilot_AdrenalineName", description= "Pilot_AdrenalineDesc", reusability = PER_PILOT }, -- doesn't work
+	{id = "Pain", icon = "img/advanced/combat/icons/icon_Pilot_Pain.png", shortName = "Pilot_PainName", fullName = "Pilot_PainName", description= "Pilot_PainDesc", reusability = PER_PILOT }, -- doesn't work
+	{id = "Regen", icon = "img/advanced/combat/icons/icon_Pilot_Regen.png", shortName = "Pilot_RegenName", fullName = "Pilot_RegenName", description= "Pilot_RegenDesc", reusability = PER_PILOT }, -- doesn't work
+	{id = "Conservative", icon = "img/advanced/combat/icons/icon_Pilot_Conservative.png", shortName = "Pilot_ConservativeName", fullName = "Pilot_ConservativeName", description= "Pilot_ConservativeDesc", reusability = PER_PILOT }, -- doesn't work
 }
 
 -- Skills that cannot be used as virtual skills due to hardcoded vanilla behavior
@@ -86,6 +93,7 @@ cplus_plus_ex._subobjects.damageModifierLib = require(path.."scripts/libs/damage
 cplus_plus_ex._subobjects.utils = require(path.."scripts/utils")
 cplus_plus_ex._subobjects.skill_registry = require(path.."scripts/skill_registry")
 cplus_plus_ex._subobjects.skill_config = require(path.."scripts/skill_config")
+cplus_plus_ex._subobjects.pilot_uid = require(path.."scripts/pilot_uid")
 cplus_plus_ex._subobjects.skill_selection = require(path.."scripts/skill_selection")
 cplus_plus_ex._subobjects.skill_constraints = require(path.."scripts/skill_constraints")
 cplus_plus_ex._subobjects.time_traveler = require(path.."scripts/time_traveler")
@@ -105,6 +113,7 @@ cplus_plus_ex.baseClasses.SkillEffectModifier = require(path.."scripts/base_clas
 local utils = cplus_plus_ex._subobjects.utils
 local skill_registry = cplus_plus_ex._subobjects.skill_registry
 local skill_config = cplus_plus_ex._subobjects.skill_config
+local pilot_uid = cplus_plus_ex._subobjects.pilot_uid
 local skill_selection = cplus_plus_ex._subobjects.skill_selection
 local skill_constraints = cplus_plus_ex._subobjects.skill_constraints
 local time_traveler = cplus_plus_ex._subobjects.time_traveler
@@ -122,6 +131,7 @@ function cplus_plus_ex:initModules()
 	skill_config:init()
 	skill_constraints:init()
 	skill_registry:init()
+	pilot_uid:init()
 	skill_selection:init()
 	time_traveler:init()
 	modify_pilot_skills_ui:init()
@@ -129,41 +139,6 @@ function cplus_plus_ex:initModules()
 
 	-- Initialize pilot overrides after skill_state_tracker
 	pilot_overrides:init()
-end
-
--- Helper function that returns the pawn struct if the pilot corresponds to a TechnoVek cyborg
--- Returns the pawn struct if it exists and has Class == "TechnoVek", otherwise returns nil
-function cplus_plus_ex.getTechnoVekPawn(pilotId)
-	if not pilotId or type(pilotId) ~= "string" then
-		return nil
-	end
-
-	-- Extract pawn name from pilot ID (e.g., "Pilot_BeetleMech" -> "BeetleMech")
-	local pawnName = pilotId:match("^Pilot_(.+)$")
-	if not pawnName then
-		return nil
-	end
-
-	-- Check if the pawn exists and is a TechnoVek
-	local pawn = _G[pawnName]
-	if pawn and type(pawn) == "table" and pawn.Class == "TechnoVek" then
-		return pawn
-	end
-
-	return nil
-end
-
--- Checks if a pilot ID corresponds to a cyborg pilot
--- Cyborgs are identified by their pawn having Class == "TechnoVek"
-function cplus_plus_ex.isCyborg(pilotId)
-	return cplus_plus_ex.getTechnoVekPawn(pilotId) ~= nil
-end
-
--- Checks if a pilot ID corresponds to a flying cyborg
--- This checks both that the pilot is a cyborg AND that their pawn has Flying = true
-function cplus_plus_ex.isFlyingCyborg(pilotId)
-	local pawn = cplus_plus_ex.getTechnoVekPawn(pilotId)
-	return pawn ~= nil and pawn.Flying == true
 end
 
 function cplus_plus_ex:exposeAPI()
@@ -174,6 +149,14 @@ function cplus_plus_ex:exposeAPI()
 	self.config = skill_config.config
 	self.SkillConfig = skill_config.SkillConfig
 	self.RelationshipType = skill_config.RelationshipType
+
+	-- Utility functions
+	self.getTechnoVekPawn = utils.getTechnoVekPawn
+	self.isCyborg = utils.isCyborg
+	self.isFlyingCyborg = utils.isFlyingCyborg
+	self.isBurrowerCyborg = utils.isBurrowerCyborg
+	self.isJumperCyborg = utils.isJumperCyborg
+	self.isTeleporterCyborg = utils.isTeleporterCyborg
 
 	-- Expose API functions that delegate to submodules
 	-- Regisration
@@ -282,9 +265,9 @@ function cplus_plus_ex:init()
 	self:initModules()
 	self:exposeAPI()
 
-	-- Initialize base skill classes
-	self.baseClasses.SkillTrait:baseInit()
-	self.baseClasses.SkillActive:baseInit()
+	-- Initialize base skill class hooks once for all SkillTrait / SkillActive skills
+	self.baseClasses.SkillTrait:_baseInit()
+	self.baseClasses.SkillActive:_baseInit()
 
 	-- Initialize pilot tracking override (before any mods create pilots)
 	utils._initPilotTracking()
@@ -332,7 +315,9 @@ function cplus_plus_ex:addEvents()
 
 	-- clear on load/reload
 	modApi.events.onModsLoaded:subscribe(function()
-		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
+		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
+		-- Only does stuff if appropriate debug flags are enabled
+		skill_selection:debugLogSavedPilotSkillData()
 		skill_selection:_resetRandomSession()
 		skill_selection:_clearPilotTracking()
 		skill_state_tracker:_resetAllTrackers()
@@ -342,7 +327,7 @@ function cplus_plus_ex:addEvents()
 
 		pilot_overrides:applyGetSkillInfoOverride()
 
-		logger.logInfo(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
+		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
 	end)
 
 	modApi.events.onGameExited:subscribe(function()

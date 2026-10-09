@@ -6,12 +6,13 @@ local skill_selection = {}
 
 -- Register with logging system
 local logger = memhack.logger
-local SUBMODULE = logger.register("CPLUS+", "SkillSelection", cplus_plus_ex.DEBUG.SELECTION and cplus_plus_ex.DEBUG.ENABLED)
+local DEBUG_SELECTION = cplus_plus_ex.DEBUG.SELECTION and cplus_plus_ex.DEBUG.ENABLED
+local SUBMODULE = logger.register("CPLUS+", "SkillSelection", DEBUG_SELECTION)
 
 -- Module state
 skill_selection.localRandomCount = nil  -- Track local random count for this session
 skill_selection.usedSkillsPerRun = {}   -- skillId -> true for per_run skills used this run
-skill_selection._pilotsAssignedThisRun = {}  -- pilotId -> true for pilots assigned this run
+skill_selection._pilotsAssignedThisRun = {}  -- pilotUid -> true for pilots assigned this run
 skill_selection.virtualSkillSourceCallbacks = {}  -- sourceId -> onSkillInvalidatedCallback
 
 -- Local references to other submodules (set during init)
@@ -20,6 +21,7 @@ local skill_config_module = nil
 local utils = nil
 local hooks = nil
 local skill_state_tracker = nil
+local pilot_uid = nil
 
 -- Initialize the module
 function skill_selection:init()
@@ -28,6 +30,7 @@ function skill_selection:init()
 	utils = cplus_plus_ex._subobjects.utils
 	hooks = cplus_plus_ex._subobjects.hooks
 	skill_state_tracker = cplus_plus_ex._subobjects.skill_state_tracker
+	pilot_uid = cplus_plus_ex._subobjects.pilot_uid
 
 	return self
 end
@@ -70,6 +73,61 @@ function skill_selection:_initGameSaveData()
 
 	if GAME.cplus_plus_ex.randomSeedCnt == nil then
 		GAME.cplus_plus_ex.randomSeedCnt = 0
+	end
+end
+
+local function formatStoredSkillPair(skills)
+	if type(skills) ~= "table" then
+		return "<invalid>"
+	end
+	local s1 = skills[1] and skills[1].id or "<nil>"
+	local s2 = skills[2] and skills[2].id or "<nil>"
+	return string.format("[%s, %s]", s1, s2)
+end
+
+local function formatVirtualSkillList(skills)
+	if type(skills) ~= "table" or #skills == 0 then
+		return "(none)"
+	end
+	local parts = {}
+	for _, entry in ipairs(skills) do
+		if entry.source then
+			table.insert(parts, string.format("%s@%s", entry.id or "<nil>", entry.source))
+		else
+			table.insert(parts, entry.id or "<nil>")
+		end
+	end
+	return table.concat(parts, ", ")
+end
+
+-- Dump pilot UID -> skill mappings from GAME save data (debug only).
+function skill_selection:debugLogSavedPilotSkillData()
+	if not DEBUG_SELECTION then
+		return
+	end
+
+	self:_initGameSaveData()
+
+	local pilotSkills = GAME.cplus_plus_ex.pilotSkills
+	local entryCount = 0
+	for _ in pairs(pilotSkills) do
+		entryCount = entryCount + 1
+	end
+
+	logger.logDebug(SUBMODULE, "pilotSkills entries: %d", entryCount)
+	for uid, skills in pairs(pilotSkills) do
+		logger.logDebug(SUBMODULE, "  %s -> %s", uid, formatStoredSkillPair(skills))
+	end
+
+	local pilotVirtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills
+	local virtualCount = 0
+	for _ in pairs(pilotVirtualSkills) do
+		virtualCount = virtualCount + 1
+	end
+
+	logger.logDebug(SUBMODULE, "pilotVirtualSkills entries: %d", virtualCount)
+	for uid, skills in pairs(pilotVirtualSkills) do
+		logger.logDebug(SUBMODULE, "  %s -> %s", uid, formatVirtualSkillList(skills))
 	end
 end
 
@@ -139,12 +197,12 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds, source)
 	end
 
 	self:_initGameSaveData()
-	local pilotId = pilot:getIdStr()
+	local pilotUid = pilot:getUidStr()
 	local successCount = 0
 
 	-- Initialize virtual skills array for this pilot if needed
-	if not GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] then
-		GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+	if not GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] then
+		GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] = {}
 	end
 
 	for _, skillId in ipairs(skillIds) do
@@ -158,13 +216,14 @@ function skill_selection:addVirtualSkillsToPilot(pilot, skillIds, source)
 				logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
 			else
 				-- Store as object with metadata
-				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], {
+				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid], {
 						id = skillId,
 						source = source,
 				})
 
 				logger.logDebug(SUBMODULE, "Added virtual skill %s (source: %s) to pilot %s at slot %d",
-						skillId, source, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+						skillId, source, pilot:getUidStr(),
+						cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid])
 
 				self:markPerRunSkillAsUsed(skillId)
 				successCount = successCount + 1
@@ -199,10 +258,10 @@ function skill_selection:applyVirtualSkillIdsToPilot(pilot, virtualSkills, defau
 	end
 
 	self:_initGameSaveData()
-	local pilotId = pilot:getIdStr()
+	local pilotUid = pilot:getUidStr()
 
 	-- Replace the entire virtual skills array (like applySkillIdsToPilot does for regular skills)
-	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] = {}
 
 	for _, skillEntry in ipairs(virtualSkills) do
 		local skillId = skillEntry.id and skillEntry.id or skillEntry
@@ -214,18 +273,19 @@ function skill_selection:applyVirtualSkillIdsToPilot(pilot, virtualSkills, defau
 			if not skill then
 				logger.logWarn(SUBMODULE, "Skill %s is not enabled or does not exist", skillId)
 			else
-				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], {
+				table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid], {
 					id = skillId,
 					source = entrySource,
 				})
 				self:markPerRunSkillAsUsed(skillId)
 				logger.logInfo(SUBMODULE, "Applied virtual skill %s (source: %s) to pilot %s (slot %d)",
-						skillId, entrySource, pilotId, cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId])
+						skillId, entrySource, pilot:getUidStr(),
+						cplus_plus_ex.MAX_SKILL_SLOTS + #GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid])
 			end
 		end
 	end
 
-	if #GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] > 0 then
+	if #GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] > 0 then
 		-- Sync objects and update virtual bonuses
 		skill_state_tracker:_updateAllStates()
 	end
@@ -268,18 +328,19 @@ function skill_selection:addRandomVirtualSkillsToPilot(pilot, count, source)
 		local potentialSkills = utils.shallowcopy(virtualCompatibleSkills)
 
 		-- We use a virtual slot index here (MAX_SKILL_SLOTS + current virtual count + 1)
-		local pilotId = pilot:getIdStr()
+		local pilotUid = pilot:getUidStr()
 		self:_initGameSaveData()
-		local virtualSlotIndex = cplus_plus_ex.MAX_SKILL_SLOTS + #(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] or {}) + 1
+		local virtualSlotIndex = cplus_plus_ex.MAX_SKILL_SLOTS + #(GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] or {}) + 1
 
 		local skillId = self:selectRandomSkill(potentialSkills, pilot, virtualSlotIndex, assignedSkills)
 
 		if skillId then
 			table.insert(selectedSkills, skillId)
 			table.insert(assignedSkills, skillId)
-			logger.logDebug(SUBMODULE, "Selected random virtual skill %s for pilot %s (source: %s)", skillId, pilotId, source)
+			logger.logDebug(SUBMODULE, "Selected random virtual skill %s for pilot %s (source: %s)",
+				skillId, pilot:getUidStr(), source)
 		else
-			logger.logWarn(SUBMODULE, "Failed to find valid random virtual skill %d for pilot %s", i, pilotId)
+			logger.logWarn(SUBMODULE, "Failed to find valid random virtual skill %d for pilot %s", i, pilot:getUidStr())
 			break
 		end
 	end
@@ -301,11 +362,11 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 	end
 
 	self:_initGameSaveData()
-	local pilotId = pilot:getIdStr()
-	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+	local pilotUid = pilot:getUidStr()
+	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid]
 
 	if not virtualSkills or #virtualSkills == 0 then
-		logger.logWarn(SUBMODULE, "Pilot %s has no virtual skills to remove", pilotId)
+		logger.logWarn(SUBMODULE, "Pilot %s has no virtual skills to remove", pilot:getUidStr())
 		return false
 	end
 
@@ -313,10 +374,10 @@ function skill_selection:removeVirtualSkillFromPilot(pilot, skillId)
 		if skillData.id == skillId then
 			-- Remove from save data
 			table.remove(virtualSkills, i)
-			logger.logInfo(SUBMODULE, "Removed virtual skill %s from pilot %s", skillId, pilotId)
+			logger.logInfo(SUBMODULE, "Removed virtual skill %s from pilot %s", skillId, pilot:getUidStr())
 
 			-- Remove the corresponding object from state tracker
-			skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilotId, skillId)
+			skill_state_tracker:_removeVirtualSkillObjectBySkillId(pilot, skillId)
 
 			-- Update virtual bonuses and fire hooks
 			skill_state_tracker:_updateAllStates()
@@ -333,14 +394,14 @@ function skill_selection:clearVirtualSkillsFromPilot(pilot)
 	end
 
 	self:_initGameSaveData()
-	local pilotId = pilot:getIdStr()
+	local pilotUid = pilot:getUidStr()
 
 	-- Clear save data
-	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
-	logger.logInfo(SUBMODULE, "Cleared all virtual skills from pilot %s", pilotId)
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] = {}
+	logger.logInfo(SUBMODULE, "Cleared all virtual skills from pilot %s", pilot:getUidStr())
 
 	-- Clear the corresponding objects from state tracker
-	skill_state_tracker:_clearVirtualSkillObjects(pilotId)
+	skill_state_tracker:_clearVirtualSkillObjects(pilot)
 
 	-- Update virtual bonuses and fire hooks
 	skill_state_tracker:_updateAllStates()
@@ -487,67 +548,6 @@ function skill_selection:_skillDataToTable(id, shortName, fullName, description,
 		moveBonus = bonuses.move or 0, saveVal = saveVal}
 end
 
--- Generate a random saveVal (0-13), optionally excluding a specific value
--- If excludeVal is provided, generates 0-12 and increments if >= excludeVal
--- This ensures the returned value is different from excludeVal
-function skill_selection:_generateSaveVal(excludeVal)
-	if excludeVal == nil then
-		return math.random(0, 13)
-	else
-		local val = math.random(0, 12)
-		if val >= excludeVal then
-			val = val + 1
-		end
-		return val
-	end
-end
-
--- Assign or get saveVal for a skill, ensuring it's different from excludeVal
--- preassignedVal: the current saveVal from memory (preassigned value to preserve if possible)
--- Preference: registered, stored, in-memory
-function skill_selection:_getOrAssignSaveVal(storedSkill, registeredSkill, pilotId, skillId, preassignedVal, excludeVal)
-	-- Determine our starting save val
-	-- In order registered, stored, in-memory
-	local resolved = false
-	local saveVal = nil
-	if registeredSkill.saveVal and registeredSkill.saveVal >= 0 then
-		if registeredSkill.saveVal == excludeVal then
-			logger.logDebug(SUBMODULE, "Found registered saveVal %d but it conflicts with excludeVal", excludeVal)
-		else
-			saveVal = registeredSkill.saveVal
-			logger.logDebug(SUBMODULE, "Found registered saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
-		end
-	end
-
-	if not saveVal and storedSkill.saveVal and storedSkill.saveVal >= 0 then
-		if storedSkill.saveVal == excludeVal then
-			logger.logDebug(SUBMODULE, "Found stored saveVal %d but it conflicts with excludeVal", excludeVal)
-		else
-			saveVal = storedSkill.saveVal
-			logger.logDebug(SUBMODULE, "Found stored saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
-		end
-	end
-
-	if not saveVal and preassignedVal and preassignedVal >= 0 then
-		if preassignedVal == excludeVal then
-			logger.logDebug(SUBMODULE, "Found preassinged saveVal %d but it conflicts with excludeVal", excludeVal)
-		else
-			saveVal = preassignedVal
-			logger.logDebug(SUBMODULE, "Found preassinged saveVal %d for skill %s for pilot %s", saveVal, skillId, pilotId)
-		end
-	end
-
-	-- Check for conflict with excludeVal and reassign if needed
-	if not saveVal then
-		saveVal = self:_generateSaveVal(excludeVal)
-		logger.logDebug(SUBMODULE, "SaveVal conflict detected for pilot %s, reassigned saveVal to %d", pilotId, saveVal)
-	end
-
-	-- Store the assigned saveVal
-	storedSkill.saveVal = saveVal
-	return saveVal
-end
-
 -- Apply specific skills to a pilot
 -- Takes a memhack pilot struct and specific skill IDs to apply
 -- skillIds: table with two skill IDs {skill1Id, skill2Id}
@@ -567,6 +567,8 @@ function skill_selection:applySkillIdsToPilot(pilot, skillIds, fireHooks)
 		logger.logError(SUBMODULE, "applySkillIdsToPilot: expected skillId strings, got %s and %s", type(skillIds[1]), type(skillIds[2]))
 		return false
 	end
+
+	local pilotUid = pilot:getUidStr()
 
 	-- Apply the skills to the pilot
 	if fireHooks == nil then fireHooks = false end
@@ -590,20 +592,9 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 
 	local availableSkills = self:getAssignableSkillIds()
 
-	-- Use pilot ID as the key for storing skills for now. Multiple pilots with same ID is
-	-- technically possible but not allowed by vanilla so this may change later
-	local pilotId = pilot:getIdStr()
-
-	-- Check if we have any stored pilot skills to determine if this is a new run or
-	-- a mid run when CPLUS+ was enabled
-	local hasAnyStoredSkills = false
-	for _ in pairs(GAME.cplus_plus_ex.pilotSkills) do
-		hasAnyStoredSkills = true
-		break
-	end
-
-	-- Try to get stored skills
-	local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+	-- Try to get stored skills by pilot UID
+	local pilotUid = pilot:getUidStr()
+	local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotUid]
 	local skillIds = {}
 
 	-- If the skills are not stored, we need to assign them
@@ -613,14 +604,18 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- short-circuit time-traveler / preserve / random assignment paths
 		if storedSkills[1] and storedSkills[2]
 				and type(storedSkills[1].id) == "string" and type(storedSkills[2].id) == "string" then
-			logger.logDebug(SUBMODULE, "Read stored skill for pilot %s", pilotId)
 			skillIds = {storedSkills[1].id, storedSkills[2].id}
 			found = true
+			logger.logInfo(SUBMODULE, "pilotSkills hit %s @%s -> %s",
+					pilotUid, tostring(pilot._address), formatStoredSkillPair(storedSkills))
 		else
-			logger.logWarn(SUBMODULE, "Clearing incomplete stored skills for pilot %s", pilotId)
-			GAME.cplus_plus_ex.pilotSkills[pilotId] = nil
+			logger.logWarn(SUBMODULE, "pilotSkills incomplete for %s @%s; clearing",
+					pilotUid, tostring(pilot._address))
+			GAME.cplus_plus_ex.pilotSkills[pilotUid] = nil
 			storedSkills = nil
 		end
+	else
+		logger.logInfo(SUBMODULE, "pilotSkills miss %s @%s", pilotUid, tostring(pilot._address))
 	end
 	-- if its the time traveler, save the current skills
 	if not found and cplus_plus_ex._subobjects.time_traveler.potentialTimeTravelers then
@@ -630,51 +625,30 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- be one at this point that matches our address
 		found = time_traveler:narrowTimeTraveler(pilot._address)
 		if found then
-			logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilotId, pilot._address)
+			logger.logDebug(SUBMODULE, "Found time traveler pilot %s at %d", pilotUid, pilot._address)
 
 			-- Get regular skills from the time traveler pilot object
 			local lus = time_traveler.potentialTimeTravelers[1]:getLvlUpSkills()
 			skillIds = {lus:getSkill1():getIdStr(), lus:getSkill2():getIdStr()}
 			storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-			logger.logDebug(SUBMODULE, "Read time traveler skills for pilot %s", pilotId)
+			logger.logDebug(SUBMODULE, "time traveler skills %s -> %s", pilotUid, formatStoredSkillPair(storedSkills))
 
 			-- Virtual skills are stored in GAME and not in the pilot object itself so we need to load
 			-- these from persistent memory instead of from the time traveler directly
-			local virtualSkills = time_traveler:refreshTimeTravlerDataAndGetVirtSkills(pilotId)
+			local virtualSkills = time_traveler:refreshTimeTravelerDataAndGetVirtSkills(pilot)
 			if virtualSkills then
-				self:_initGameSaveData()
-				GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = {}
+				GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] = {}
 				local loadedIds = {}
 				for _, skillEntry in ipairs(virtualSkills) do
 					-- Insert a copy
-					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotId], {
+					table.insert(GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid], {
 						id = skillEntry.id,
 						source = skillEntry.source,
 					})
 					table.insert(loadedIds, skillEntry.id)
 				end
-				logger.logInfo(SUBMODULE, "Populated GAME state with %d virtual skills for time traveler %s: %s",
-					#loadedIds, pilotId, table.concat(loadedIds, ", "))
-			end
-		end
-	end
-	-- Check if we should preserve existing vanilla skills
-	-- If its the first run or a run without, try to preserve existing skills
-	if not found and not hasAnyStoredSkills then
-		local pilotXp = pilot:getXp()
-		local pilotLevel = pilot:getLevel()
-
-		if pilotXp > 0 or pilotLevel > 0 then
-			-- Pilot existed before CPLUS+ was active - preserve their current skills
-			local memSkill1 = pilot:getLvlUpSkill(1)
-			local memSkill2 = pilot:getLvlUpSkill(2)
-
-			if memSkill1 and memSkill2 then
-				skillIds = {memSkill1:getIdStr(), memSkill2:getIdStr()}
-				storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
-				found = true
-				logger.logInfo(SUBMODULE, "Preserving existing skills for pilot " .. pilotId .. " (XP=" .. pilotXp ..
-						", Level=" .. pilotLevel .. ") - first time with CPLUS+ active")
+				logger.logDebug(SUBMODULE, "time traveler virtual skills %s: %s",
+					pilotUid, table.concat(loadedIds, ", "))
 			end
 		end
 	end
@@ -688,7 +662,8 @@ function skill_selection:applySkillsToPilot(pilot, fireHooks)
 		-- Convert to table format so we can associat saveVals and update in game state
 		storedSkills = { {id = skillIds[1]}, {id = skillIds[2]} }
 
-		logger.logDebug(SUBMODULE, "Assigning random skills to pilot %s", pilotId)
+		logger.logInfo(SUBMODULE, "assign random %s @%s -> %s",
+				pilotUid, tostring(pilot._address), formatStoredSkillPair(storedSkills))
 	end
 
 	-- Use common validation and application logic
@@ -718,12 +693,13 @@ function skill_selection:_isInvalidExistingSkill(pilot, skillId, skill, selected
 	return invalid
 end
 
--- Internal function to validate, assign saveVals, and apply skills to the pilot
+-- Internal function to validate and apply skills to the pilot.
+-- saveVals are UID tokens and are preserved across skill id changes.
 -- Takes storedSkills structure: { {id = skill1Id}, {id = skill2Id} }
--- Only commits GAME.cplus_plus_ex.pilotSkills[pilotId] on full success so failed
+-- Only commits GAME.cplus_plus_ex.pilotSkills[pilotUid] on full success so failed
 -- validation never leaves an empty/partial entry that blocks later assignment.
 function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
-	local pilotId = pilot:getIdStr()
+	local pilotUid = pilot:getUidStr()
 
 	self:_initGameSaveData()
 
@@ -734,13 +710,13 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 
 	-- Skill 1 is checked first and has priority over skill 2
 	if self:_isInvalidExistingSkill(pilot, skill1Id, skill1, {}, 1) then
-		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 1 " .. skill1Id ..
+		logger.logWarn(SUBMODULE, "Pilot " .. pilot:getUidStr() .. " skill 1 " .. skill1Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
 		local selectedForSlot1 = {}
 		local availableSkillsSlot1 = self:getAssignableSkillIds()
 		local newSkill1Id = self:selectRandomSkill(availableSkillsSlot1, pilot, 1, selectedForSlot1)
 		if not newSkill1Id then
-			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilotId .. " - constraints too restrictive")
+			logger.logError(SUBMODULE, "Failed to find valid skill 1 for pilot " .. pilot:getUidStr() .. " - constraints too restrictive")
 			return false
 		end
 		skill1Id = newSkill1Id
@@ -749,7 +725,7 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 	end
 
 	if self:_isInvalidExistingSkill(pilot, skill2Id, skill2, {skill1Id}, 2) then
-		logger.logWarn(SUBMODULE, "Pilot " .. pilotId .. " skill 2 " .. skill2Id ..
+		logger.logWarn(SUBMODULE, "Pilot " .. pilot:getUidStr() .. " skill 2 " .. skill2Id ..
 				" is invalid (disabled or violates constraints), assigning new one")
 		-- Only skill1 as prior selection. Do not include old skill2 (would make slot idx infer as 3).
 		local selectedForSlot2 = {skill1Id}
@@ -758,7 +734,7 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		if not newSkill2Id then
 			-- Roll back skill 1 claim if it was marked during revalidation above
 			self:unmarkPerRunSkill(skill1Id)
-			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilotId .. " - constraints too restrictive")
+			logger.logError(SUBMODULE, "Failed to find valid skill 2 for pilot " .. pilot:getUidStr() .. " - constraints too restrictive")
 			return false
 		end
 		skill2Id = newSkill2Id
@@ -773,24 +749,23 @@ function skill_selection:_validateAndApplySkills(pilot, storedSkills, fireHooks)
 		hooks.fireSkillsSelectedHooks(pilot, skill1Id, skill2Id)
 	end
 
-	-- Read current saveVals from memory (preassigned values to preserve if possible)
-	local preassignedSaveVal1 = pilot:getLvlUpSkill(1) and pilot:getLvlUpSkill(1):getSaveVal() or nil
-	local preassignedSaveVal2 = pilot:getLvlUpSkill(2) and pilot:getLvlUpSkill(2):getSaveVal() or nil
+	-- Get the stored skills
+	GAME.cplus_plus_ex.pilotSkills[pilotUid] = storedSkills
+	logger.logInfo(SUBMODULE, "Applying skills to pilot %s @%s: [%s, %s]",
+		pilotUid, tostring(pilot._address), storedSkills[1].id, storedSkills[2].id)
 
-	-- Assign saveVals, ensuring they're different
-	local saveVal1 = self:_getOrAssignSaveVal(storedSkills[1], skill1, pilotId, skill1Id, preassignedSaveVal1, nil)
-	local saveVal2 = self:_getOrAssignSaveVal(storedSkills[2], skill2, pilotId, skill2Id, preassignedSaveVal2, saveVal1)
-	GAME.cplus_plus_ex.pilotSkills[pilotId] = storedSkills
+	-- Apply skill ids/text/bonuses but keep UID saveVals.
+	-- Rewrite only when the skill id changed. SaveVals are identity and must stay put.
+	local cur1 = pilot:getLvlUpSkill(1)
+	local cur2 = pilot:getLvlUpSkill(2)
+	local saveVal1, saveVal2 = pilot_uid:_readSaveValPair(pilot)
 
-	logger.logInfo(SUBMODULE, "Applying skills to pilot " .. pilotId .. ": [" .. storedSkills[1].id .. ", " .. storedSkills[2].id .. "]")
-
-	-- Apply both skills with their determined saveVal
-	if skill1Id ~= pilot:getLvlUpSkill(1):getIdStr() then
+	if skill1Id ~= cur1:getIdStr() then
 		local skill1Data = self:_skillDataToTable(
 				skill1Id, skill1.shortName, skill1.fullName, skill1.description, saveVal1, skill1.bonuses)
 		pilot:setLvlUpSkill(1, skill1Data)
 	end
-	if skill2Id ~= pilot:getLvlUpSkill(2):getIdStr() then
+	if skill2Id ~= cur2:getIdStr() then
 		local skill2Data = self:_skillDataToTable(
 				skill2Id, skill2.shortName, skill2.fullName, skill2.description, saveVal2, skill2.bonuses)
 		pilot:setLvlUpSkill(2, skill2Data)
@@ -815,16 +790,17 @@ function skill_selection:applySkillsToAllPilots()
 		return
 	end
 
-	-- Assign skills for all squad and storage pilots
-	local pilots = Game:GetAvailablePilots()
-	logger.logDebug(SUBMODULE, "Checking and maybe doing skill assignment for %d pilots", #pilots)
+	-- Walk available pilots, reminting any duplicate UIDs before skill lookup
+	local entries, _ = pilot_uid:getAvailablePilotsWithUids()
+	logger.logDebug(SUBMODULE, "Checking and maybe doing skill assignment for %d pilots", #entries)
 
 	-- Check if any pilots have not had skills assigned yet this run
 	local newPilots = {}
-	for _, pilot in pairs(pilots) do
-		local pilotId = pilot:getIdStr()
-		if not skill_selection._pilotsAssignedThisRun[pilotId] then
-			table.insert(newPilots, pilot)
+	local pilots = {}
+	for _, entry in ipairs(entries) do
+		table.insert(pilots, entry.pilot)
+		if not skill_selection._pilotsAssignedThisRun[entry.uid] then
+			table.insert(newPilots, entry)
 		end
 	end
 	local hasNewPilots = #newPilots > 0
@@ -844,20 +820,24 @@ function skill_selection:applySkillsToAllPilots()
 	local successCount = 0
 	local failCount = 0
 
-	for _, pilot in pairs(newPilots) do
-		local pilotId = pilot:getIdStr()
-		local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
+	for _, entry in pairs(newPilots) do
+		local pilot = entry.pilot
+		local uid = entry.uid
+		local isNewPilot = not skill_selection._pilotsAssignedThisRun[uid]
+		logger.logInfo(SUBMODULE, "applySkillsToAllPilots %s @%s new=%s",
+				uid, tostring(pilot._address), tostring(isNewPilot))
 
 		local success = self:applySkillsToPilot(pilot, isNewPilot)
 		if success then
 			successCount = successCount + 1
-			-- Mark pilot as assigned this run
+			-- Re read in case anything adjusted saveVals and mark assigned
+			uid = pilot:getUidStr()
 			if isNewPilot then
-			   skill_selection._pilotsAssignedThisRun[pilotId] = true
+				skill_selection._pilotsAssignedThisRun[uid] = true
 			end
 		else
 			failCount = failCount + 1
-			logger.logError(SUBMODULE, "Could not assign valid skills to pilot " .. pilotId ..
+			logger.logError(SUBMODULE, "Could not assign valid skills to pilot " .. pilot:getUidStr() ..
 					" - constraints are impossible to satisfy. Check relationship settings.")
 		end
 	end
@@ -879,33 +859,20 @@ function skill_selection:_selectSkillsForPodPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPodRewardPilot()
 	if not pilot then return end
-
-	local pilotId = pilot:getIdStr()
-	-- It should always be a new pilot
-	local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
-
-	if isNewPilot then
-		-- Fire pre hook
-		hooks.firePreAssigningLvlUpSkillsHooks()
-	end
-
-	-- Apply skills with hooks
-	self:applySkillsToPilot(pilot, isNewPilot)
-
-	if isNewPilot then
-		skill_selection._pilotsAssignedThisRun[pilotId] = true
-		hooks.firePostAssigningLvlUpSkillsHooks()
-	end
+	self:_assignNewPilot(pilot)
 end
 
 function skill_selection:_selectSkillsForPerfectIslandPilot()
 	-- If its a pilot, assign skills
 	local pilot = Game:GetPerfectIslandRewardPilot()
 	if not pilot then return end
+	self:_assignNewPilot(pilot)
+end
 
-	local pilotId = pilot:getIdStr()
-	-- It may not be "new" if they minimized the menu and brought it back up
-	local isNewPilot = not skill_selection._pilotsAssignedThisRun[pilotId]
+function skill_selection:_assignNewPilot(pilot)
+	-- Remint if this reward pilot collides with any available pilot's UID
+	local uid = pilot_uid:ensureUniqueAmongAvailable(pilot)
+	local isNewPilot = not skill_selection._pilotsAssignedThisRun[uid]
 
 	if isNewPilot then
 		-- Fire pre hook
@@ -916,9 +883,9 @@ function skill_selection:_selectSkillsForPerfectIslandPilot()
 	self:applySkillsToPilot(pilot, isNewPilot)
 
 	if isNewPilot then
-		skill_selection._pilotsAssignedThisRun[pilotId] = true
-
-		-- Fire post hook and immediately update states
+		uid = pilot:getUidStr()
+		skill_selection._pilotsAssignedThisRun[uid] = true
+		-- Fire post hook
 		hooks.firePostAssigningLvlUpSkillsHooks()
 	end
 end
@@ -928,14 +895,15 @@ end
 -- Invalid ones can be specially handled with a registered callback or will be re-rolled otherwise
 function skill_selection:_validateAndSyncVirtualSkills(pilot)
 	self:_initGameSaveData()
-	local pilotId = pilot:getIdStr()
-	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+	local pilotUid = pilot:getUidStr()
+	local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid]
 
 	if not virtualSkills or #virtualSkills == 0 then
 		return -- No virtual skills to validate
 	end
 
-	logger.logDebug(SUBMODULE, "Validating and syncing %d virtual skills for pilot %s", #virtualSkills, pilotId)
+	logger.logDebug(SUBMODULE, "Validating and syncing %d virtual skills for pilot %s",
+		#virtualSkills, pilot:getUidStr())
 
 	-- Get only the real skills (not virtual) for constraint checking base
 	local realSkills = {}
@@ -963,13 +931,16 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 
 		local isInvalid = false
 		if not self:canBeVirtualSkill(skillId) then
-			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s cannot be virtual, removing", skillId, skillSlot, pilotId)
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s cannot be virtual, removing",
+				skillId, skillSlot, pilot:getUidStr())
 			isInvalid = true
 		elseif not skill then
-			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s is disabled, removing", skillId, skillSlot, pilotId)
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s is disabled, removing",
+				skillId, skillSlot, pilot:getUidStr())
 			isInvalid = true
 		elseif not skill_constraints:checkSkillConstraints(pilot, constraintCheckSkills, skillId) then
-			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing", skillId, skillSlot, pilotId)
+			logger.logWarn(SUBMODULE, "Virtual skill %s at slot %d for pilot %s violates constraints, removing",
+				skillId, skillSlot, pilot:getUidStr())
 			isInvalid = true
 		end
 
@@ -981,10 +952,10 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 				local rerolledSkillId = self:selectRandomSkill(potentialSkills, pilot, nil, constraintCheckSkills)
 				if rerolledSkillId then
 					newSkillId = rerolledSkillId
-					logger.logInfo(SUBMODULE, "Rerolled virtual skill %s -> %s for pilot %s", skillId, newSkillId, pilotId)
+					logger.logInfo(SUBMODULE, "Rerolled virtual skill %s -> %s for pilot %s", skillId, newSkillId, pilot:getUidStr())
 				else
 					newSkillId = nil
-					logger.logWarn(SUBMODULE, "Failed to reroll invalid skill %s for pilot %s, removing", skillId, pilotId)
+					logger.logWarn(SUBMODULE, "Failed to reroll invalid skill %s for pilot %s, removing", skillId, pilot:getUidStr())
 				end
 			else
 				local success, result = pcall(callback, pilot, skillData, constraintCheckSkills)
@@ -993,12 +964,12 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 					logger.logError(SUBMODULE, "Error in onSkillInvalidated for source %s: %s", source, result)
 				elseif result == nil then
 					newSkillId = nil
-					logger.logDebug(SUBMODULE, "Removing invalid virtual skill %s for pilot %s (source: %s) because callback returned nil", skillId, pilotId, source)
+					logger.logDebug(SUBMODULE, "Removing invalid virtual skill %s for pilot %s (source: %s) because callback returned nil", skillId, pilot:getUidStr(), source)
 				elseif result == skillId then
-					logger.logDebug(SUBMODULE, "Kept invalid virtual skill %s for pilot %s (source: %s)", skillId, pilotId, source)
+					logger.logDebug(SUBMODULE, "Kept invalid virtual skill %s for pilot %s (source: %s)", skillId, pilot:getUidStr(), source)
 				else
 					newSkillId = result
-					logger.logDebug(SUBMODULE, "Adding virtual skill %s for pilot %s (source: %s)", result, pilotId, source)
+					logger.logDebug(SUBMODULE, "Adding virtual skill %s for pilot %s (source: %s)", result, pilot:getUidStr(), source)
 				end
 			end
 		end
@@ -1009,7 +980,7 @@ function skill_selection:_validateAndSyncVirtualSkills(pilot)
 		end
 	end
 
-	GAME.cplus_plus_ex.pilotVirtualSkills[pilotId] = newVirtualSkills
+	GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid] = newVirtualSkills
 
 	-- Sync runtime objects to validated GAME entries
 	skill_state_tracker:_syncVirtualSkillObjects(pilot)
@@ -1020,8 +991,8 @@ end
 function skill_selection:_rebuildUsedSkillsPerRunFromGameState(pilots)
 	self.usedSkillsPerRun = {}
 	for _, pilot in pairs(pilots) do
-		local pilotId = pilot:getIdStr()
-		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotId]
+		local pilotUid = pilot:getUidStr()
+		local storedSkills = GAME.cplus_plus_ex.pilotSkills[pilotUid]
 		if storedSkills then
 			for _, skillData in ipairs(storedSkills) do
 				if skillData and skillData.id then
@@ -1029,7 +1000,7 @@ function skill_selection:_rebuildUsedSkillsPerRunFromGameState(pilots)
 				end
 			end
 		end
-		local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotId]
+		local virtualSkills = GAME.cplus_plus_ex.pilotVirtualSkills[pilotUid]
 		if virtualSkills then
 			for _, skillEntry in ipairs(virtualSkills) do
 				local skillId = skillEntry.id
