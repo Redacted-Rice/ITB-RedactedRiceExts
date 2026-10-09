@@ -11,7 +11,19 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.4.0
+Latest release: 1.4.1
+
+## 1.4.1
+Released: 10/XX/2026
+
+compatible with:
+* ItB AE       1.2.93
+* ModLoader    2.9.5
+* ModLoaderExt 1.24
+
+### Notes
+* Fix core sync issue for second part of final mission
+* Some better debugging
 
 ## 1.4.0
 Released: 9/19/2026

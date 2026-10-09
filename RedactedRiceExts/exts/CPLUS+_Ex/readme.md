@@ -11,7 +11,25 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.4.0
+Latest release: 2.0.0
+
+## 2.0.0
+Released: 10/XX/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.5
+* ModLoaderExt  1.24
+* memhack       1.4.1
+
+### Notes
+* Pilot identity is now Pilot UID (pilot id + both skill save values) instead of memory address. This now supports multiple pilots with the same pilot id in one run (e.g. duplicate cyborgs)!
+* Removed custom skill saveVal registration - this is now reserved for above mentioned PilotUID logic
+* Added GROUPS constants for vanilla and common skill groups (health, move, grid, revive, etc.)
+* Cyborg pilot helpers and movement type exclusion support
+* Fixed stuck pending skills and multi-phase mission state loss in some cases
+* Fixing and guarding against multi-init on skill base classes
+* Pulled in latest damage mod lib update
 
 ## 1.4.0
 Released: 9/19/2026
