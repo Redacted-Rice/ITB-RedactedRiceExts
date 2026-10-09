@@ -14,12 +14,27 @@ Please enjoy and contact us if you run into any issues.
 
 # Extensions
 
-* memhack - v1.4.0 - Extension to expose additional functionality via direct memory access
-* CPLUS+ Ex - v1.4.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+* memhack - v1.4.1 - Extension to expose additional functionality via direct memory access
+* CPLUS+ Ex - v2.0.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 
 # Releases
 
-Latest release: 1.4.0
+Latest release: 2.0.0
+
+## 2.0.0
+
+Released: 10/XX/2026
+
+* memhack - v1.4.1
+* CPLUS+ Ex - v2.0.0
+
+### Notes
+* Pilot identity is now Pilot UID (pilot id + both skill save values) instead of memory address. This now supports multiple pilots with the same pilot id in one run (e.g. duplicate cyborgs)!
+* Removed custom skill saveVal registration - this is now reserved for above mentioned PilotUID logic
+* Cyborg pilot helpers and movement type exclusion support
+* Fixed stuck pending skills and multi-phase mission state loss in some cases
+* Fixing and guarding against multi-init on skill base classes
+* Fix core sync issue for second part of final mission
 
 ## 1.4.0
 
