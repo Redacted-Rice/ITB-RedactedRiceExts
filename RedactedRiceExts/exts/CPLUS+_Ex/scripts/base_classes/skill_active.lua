@@ -50,6 +50,11 @@ end
 
 -- Internal: called once by cplus_plus_ex:init()
 function SkillActive:_baseInit()
+	-- Guard against multiple calls
+	if SkillActive._baseInited then
+		return
+	end
+	SkillActive._baseInited = true
 	cplus_plus_ex.events.onSkillActive:subscribe(SkillActive.clearAndReSetUpEffect)
 end
 
