@@ -23,7 +23,7 @@ Latest release: 2.0.0
 
 ## 2.0.0
 
-Released: 10/XX/2026
+Released: 10/15/2026
 
 * memhack - v1.4.1
 * CPLUS+ Ex - v2.0.0

@@ -183,27 +183,31 @@ function time_traveler:_clearGameData()
 	end
 end
 
--- Load persistent data if not already loaded
+-- Load persistent data if not already loaded. Returns true if cache is ready.
 function time_traveler:_loadPersistentDataIfNeeded()
-	if not time_traveler.lastSavedPersistentData then
-		if not modApi:isProfilePath() then
-			logger.logDebug(SUBMODULE, "Skipping persistent data load: not in profile path")
-			return
-		end
-		logger.logDebug(SUBMODULE, "Loading persistent data")
-		time_traveler.lastSavedPersistentData = {}
+	if time_traveler.lastSavedPersistentData then
+		return true
+	end
 
-		sdlext.config(
-			modApi:getCurrentProfilePath().."modcontent.lua",
-			function(obj)
-				if obj.cplus_plus_ex and obj.cplus_plus_ex.last_run_pilots then
-					for id, data in pairs(obj.cplus_plus_ex.last_run_pilots) do
-						time_traveler.lastSavedPersistentData[id] = data
-					end
+	if not modApi:isProfilePath() then
+		logger.logDebug(SUBMODULE, "Skipping persistent data load: not in profile path")
+		return false
+	end
+
+	logger.logDebug(SUBMODULE, "Loading persistent data")
+	time_traveler.lastSavedPersistentData = {}
+
+	sdlext.config(
+		modApi:getCurrentProfilePath().."modcontent.lua",
+		function(obj)
+			if obj.cplus_plus_ex and obj.cplus_plus_ex.last_run_pilots then
+				for id, data in pairs(obj.cplus_plus_ex.last_run_pilots) do
+					time_traveler.lastSavedPersistentData[id] = data
 				end
 			end
-		)
-	end
+		end
+	)
+	return true
 end
 
 function time_traveler:_refreshLastSavedPersistentData()
@@ -311,15 +315,15 @@ end
 
 -- Check if persistent data has changed
 function time_traveler:_persistentDataChanged()
-	local changed = false
-	if not time_traveler.lastSavedPersistentData then
-		local loaded = self:_loadPersistentDataIfNeeded()
-		if not loaded then
-			self:_refreshLastSavedPersistentData()
-		end
+	local wasUninitialized = time_traveler.lastSavedPersistentData == nil
+	if not self:_loadPersistentDataIfNeeded() then
+		logger.logDebug(SUBMODULE, "Persistent data changed: no (not loaded)")
+		return false
+	end
+
+	local changed = self:_refreshLastSavedPersistentData()
+	if wasUninitialized then
 		changed = true
-	else
-		changed = self:_refreshLastSavedPersistentData()
 	end
 
 	logger.logDebug(SUBMODULE, "Persistent data changed: %s", changed and "yes" or "no")
