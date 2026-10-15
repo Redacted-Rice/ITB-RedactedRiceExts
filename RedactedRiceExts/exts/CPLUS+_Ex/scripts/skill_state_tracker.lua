@@ -219,11 +219,11 @@ function skill_state_tracker:isSkillOnPilots(skillId, pilots, checkEarned)
 
 	if checkEarned == nil then checkEarned = true end
 
-	for _, pilot in ipairs(pilots) do
+	for idx, pilot in ipairs(pilots) do
 		if pilot then
 			-- Validate pilot struct
 			if type(pilot) ~= "table" or getmetatable(pilot) ~= memhack.structs.Pilot then
-				logger.logWarn(SUBMODULE, "isSkillOnPilots: skipping invalid pilot struct (type: %s)", type(pilot))
+				logger.logWarn(SUBMODULE, "isSkillOnPilots: skipping invalid pilot struct at index %d (type: %s)", idx, type(pilot))
 			else
 				-- Check real skills
 				for skillIndex = 1, cplus_plus_ex.MAX_SKILL_SLOTS do
@@ -270,7 +270,7 @@ function skill_state_tracker:getPilotsWithSkill(skillId, pilots, checkEarned)
 	if not pilots or #pilots == 0 then return result end
 
 	if checkEarned == nil then checkEarned = true end
-	for _, pilot in ipairs(pilots) do
+	for idx, pilot in ipairs(pilots) do
 		if pilot then
 			local skillIndices = {}
 
