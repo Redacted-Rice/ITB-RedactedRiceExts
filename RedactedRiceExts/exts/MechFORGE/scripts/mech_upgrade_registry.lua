@@ -9,7 +9,7 @@ local utils = mech_forge._subobjects.utils
 
 mech_upgrade_registry._byMechType = {}
 
-function mech_upgrade_registry:_validateApplyRemoveFns(mechType, slot, onApply, onRemove)
+function mech_upgrade_registry:_validateUpgradeCallbacks(mechType, slot, onApply, onRemove, onCoreChange)
 	local hasApply = onApply ~= nil
 	local hasRemove = onRemove ~= nil
 	if hasApply ~= hasRemove then
@@ -18,13 +18,19 @@ function mech_upgrade_registry:_validateApplyRemoveFns(mechType, slot, onApply, 
 			mechType, slot)
 		return false
 	end
-	if hasApply and type(onApply) ~= "function" then
-		logger.logError(SUBMODULE, "registerMechUpgrade: onApply must be a function for %s %s", mechType, slot)
-		return false
-	end
-	if hasRemove and type(onRemove) ~= "function" then
-		logger.logError(SUBMODULE, "registerMechUpgrade: onRemove must be a function for %s %s", mechType, slot)
-		return false
+
+	local callbacks = {
+		{ fn = onApply, name = "onApply" },
+		{ fn = onRemove, name = "onRemove" },
+		{ fn = onCoreChange, name = "onCoreChange" },
+	}
+	for _, callback in ipairs(callbacks) do
+		if callback.fn ~= nil and type(callback.fn) ~= "function" then
+			logger.logError(SUBMODULE,
+				"registerMechUpgrade: %s must be a function for %s %s",
+				callback.name, mechType, slot)
+			return false
+		end
 	end
 	return true
 end
@@ -33,8 +39,9 @@ end
 -- slot must be mech_forge.VANILLA_UPGRADES.HEALTH or .MOVE
 -- label required (positional or label field in table) to display for the upgrade
 -- onApply/onRemove optional but both must be set or both omitted
+-- onCoreChange optional, any core value change on this slot
 -- Config args can optionally be passed as a table instead
-function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable, onApply, onRemove)
+function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable, onApply, onRemove, onCoreChange)
 	if type(mechType) ~= "string" or mechType == "" then
 		logger.logError(SUBMODULE, "registerMechUpgrade: mechType must be a non-empty string")
 		return false
@@ -46,6 +53,7 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 		label = labelOrTable.label
 		onApply = labelOrTable.onApply
 		onRemove = labelOrTable.onRemove
+		onCoreChange = labelOrTable.onCoreChange
 	end
 
 	-- Ensure its a valid slot
@@ -62,8 +70,7 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 		return false
 	end
 
-	-- Validate the apply/remove functions if passed
-	if not self:_validateApplyRemoveFns(mechType, slot, onApply, onRemove) then
+	if not self:_validateUpgradeCallbacks(mechType, slot, onApply, onRemove, onCoreChange) then
 		return false
 	end
 
@@ -76,7 +83,12 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 	if entry[slot] ~= nil then
 		logger.logWarn(SUBMODULE, "registerMechUpgrade: overwriting existing %s upgrade for %s", slot, mechType)
 	end
-	entry[slot] = { label = label, onApply = onApply, onRemove = onRemove }
+	entry[slot] = {
+		label = label,
+		onApply = onApply,
+		onRemove = onRemove,
+		onCoreChange = onCoreChange,
+	}
 	logger.logInfo(SUBMODULE, "Registered MechFORGE %s upgrade for %s", slot, mechType)
 	return true
 end
