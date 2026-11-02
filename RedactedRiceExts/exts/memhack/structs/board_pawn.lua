@@ -54,9 +54,9 @@ end
 
 -- Convert back to a vanilla pawn class by seraching for the exposed pawn with the
 -- expected address
-function MemhackBoardPawn:toVanillaPawn()
+function MemhackBoardPawn:toVanilla()
 	local addr = self:getAddress()
-	if not addr or addr == 0 or not Board then
+	if not addr or addr == 0 then
 		return nil
 	end
 

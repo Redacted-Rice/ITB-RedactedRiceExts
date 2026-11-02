@@ -198,7 +198,7 @@ local function onGameClassInitialized(GameClass)
 		end
 
 		-- Convert it to a vanilla pawn for API consistency
-		return memPawn:toVanillaPawn()
+		return memPawn:toVanilla()
 	end
 
 	GameClass.SetSelectedPawn = function(self, pawn)

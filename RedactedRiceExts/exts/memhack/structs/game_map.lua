@@ -11,3 +11,21 @@ local MemhackGameMap = memhack.structManager:define("GameMap", {
 	unknownObj2 = { offset = 0xC204, type = "pointer", subType = "UnknownObj2", noSetter = true },
 	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen", noSetter = true },
 })
+
+-- Converts the memhack object back to the vanilla game object safely
+function MemhackGameMap:toVanilla()
+	if not Game then
+		return nil
+	end
+
+	local addr = self:getAddress()
+	if not addr or addr == 0 then
+		return nil
+	end
+
+	if memhack.dll.memory.getUserdataAddr(Game) == addr then
+		return Game
+	end
+
+	return nil
+end
