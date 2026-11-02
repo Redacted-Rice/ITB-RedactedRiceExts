@@ -35,6 +35,13 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return moveCore
 	end
 
+	-- Only a set fn and not a get because the get is defined by the game already
+	-- This function seems to only work if the pawn doesn't have movement available. Not sure why but
+	-- its good enough for my needs ATM so not investigating further
+	BoardPawn.SetArmedWeaponId = function(self, value)
+		self:GetMemhackObj():setArmedWeaponId(value)
+	end
+
 	-- Only a setter. Use vanilla GetType if you need the value. This mirrors that API
 	BoardPawn.SetType = function(self, pawnType)
 		Assert.Equals("userdata", type(self), "Argument #0")
