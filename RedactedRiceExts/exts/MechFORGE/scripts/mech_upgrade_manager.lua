@@ -8,6 +8,39 @@ local SUBMODULE = logger.register("MechFORGE", "UpgradeManager", mech_forge.DEBU
 local hooks = nil
 local mech_upgrade_registry = nil
 
+function mech_upgrade_manager:_adjustVanillaHealthBonus(pawn, config, restore)
+	local bonus = mech_forge.VANILLA_BONUSES.HEALTH
+	local delta = restore and bonus or -bonus
+	-- Max base health affects outside of mission. MaxHealth and Health is inside mission. Set both in case
+	-- someone wants to edit this in the middle of a mission maybe. It shouldn't hurt to do both
+	local maxBase = pawn:GetMaxBaseHealth()
+	local maxHealth = pawn:GetMaxHealth()
+	pawn:SetMaxBaseHealth(maxBase + delta)
+	pawn:SetMaxHealth(maxHealth + delta)
+	pawn:SetHealth(pawn:GetHealth() + delta)
+	logger.logDebug(SUBMODULE,
+		"vanilla health %s %s delta %d maxBase %d->%d",
+		restore and "restore" or "revert", config.label, delta, maxBase, maxBase + delta)
+end
+
+function mech_upgrade_manager:_adjustVanillaMoveBonus(pawn, config, restore)
+	local bonus = mech_forge.VANILLA_BONUSES.MOVE
+	local delta = restore and bonus or -bonus
+	local moveSpeed = pawn:GetMoveSpeed()
+	pawn:SetMoveSpeed(moveSpeed + delta)
+	logger.logDebug(SUBMODULE,
+		"vanilla move %s %s delta %d move %d->%d",
+		restore and "restore" or "revert", config.label, delta, moveSpeed, moveSpeed + delta)
+end
+
+function mech_upgrade_manager:_handleVanillaBonusChange(pawn, slot, config, restore)
+	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
+		self:_adjustVanillaHealthBonus(pawn, config, restore)
+	elseif slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		self:_adjustVanillaMoveBonus(pawn, config, restore)
+	end
+end
+
 function mech_upgrade_manager:_invokeRegisteredCallback(config, field, ...)
 	if not config then
 		return
@@ -22,19 +55,25 @@ function mech_upgrade_manager:_subscribeUpgradeCallbackEvents()
 	-- Use internal priority so others can run first if needed for some reason
 	local priority = hooks.INTERNAL_PRIORITY
 
-	hooks.events.onReactorCoreChanged:subscribe(function(slot, pawnId, pawn, mechType, oldCore, newCore)
+	hooks.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldCore, newCore)
 		local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
-		self:_invokeRegisteredCallback(config, "onCoreChange", pawn, pawnId, slot, oldCore, newCore)
+		self:_invokeRegisteredCallback(config, "onCoreChanged", slot, pawn, pawnId, mechType, oldCore, newCore)
 	end, priority)
 
-	hooks.events.onUpgradePowered:subscribe(function(slot, pawnId, pawn, mechType, newCore)
+	hooks.events.onMechUpgradePowered:subscribe(function(slot, pawn, pawnId, mechType, newCore)
 		local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
-		self:_invokeRegisteredCallback(config, "onApply", pawn, pawnId, newCore)
+		if config then
+			self:_handleVanillaBonusChange(pawn, slot, config, false)
+			self:_invokeRegisteredCallback(config, "onPowered", slot, pawn, pawnId, mechType, newCore)
+		end
 	end, priority)
 
-	hooks.events.onUpgradeUnpowered:subscribe(function(slot, pawnId, pawn, mechType, oldCore)
+	hooks.events.onMechUpgradeUnpowered:subscribe(function(slot, pawn, pawnId, mechType, oldCore)
 		local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
-		self:_invokeRegisteredCallback(config, "onRemove", pawn, pawnId, oldCore)
+		if config then
+			self:_handleVanillaBonusChange(pawn, slot, config, true)
+			self:_invokeRegisteredCallback(config, "onUnpowered", slot, pawn, pawnId, mechType, oldCore)
+		end
 	end, priority)
 
 	logger.logDebug(SUBMODULE, "Subscribed upgrade callback events")

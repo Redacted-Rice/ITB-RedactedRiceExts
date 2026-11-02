@@ -2,7 +2,7 @@
 	Mech upgrade state tracking for MechFORGE
 
 	Tracks hp/move core ints per squad mech (pawn 0-2). Any core change fires
-	reactorCoreChanged. Powered vs unpowered comes from memhack.CORE_TYPE_NONE.
+	mechUpgradeCoreChanged. Powered vs unpowered comes from memhack.CORE_TYPE_NONE.
 ]]
 
 local mech_upgrade_state_tracker = {}
@@ -56,20 +56,20 @@ function mech_upgrade_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, 
 			"core changed pawn %d slot %s core %s->%s powered %s->%s",
 			pawnId, slot, tostring(oldCore), tostring(newCore),
 			tostring(wasPowered), tostring(isPowered))
-	hooks.fireReactorCoreChangedHooks(
-			slot, pawnId, pawn, mechType, oldCore, newCore)
+	hooks.fireMechUpgradeCoreChangedHooks(
+			slot, pawn, pawnId, mechType, oldCore, newCore)
 
 	 -- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
 	if not wasPowered and isPowered then
-		hooks.fireUpgradePoweredHooks(slot, pawnId, pawn, mechType, newCore)
+		hooks.fireMechUpgradePoweredHooks(slot, pawn, pawnId, mechType, newCore)
 	elseif wasPowered and not isPowered then
-		hooks.fireUpgradeUnpoweredHooks(slot, pawnId, pawn, mechType, oldCore)
+		hooks.fireMechUpgradeUnpoweredHooks(slot, pawn, pawnId, mechType, oldCore)
 	end
 end
 
 -------------------- State update orchestration --------------------
 
-function mech_upgrade_state_tracker:_updatePawnUpgradeState(pawnId, pawn)
+function mech_upgrade_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 	if not pawn then
 		return
 	end
@@ -97,7 +97,7 @@ function mech_upgrade_state_tracker:_updateSquadUpgradeStates()
 
 	for pawnId = 0, 2 do
 		local pawn = Game:GetPawn(pawnId)
-		self:_updatePawnUpgradeState(pawnId, pawn)
+		self:_updatePawnUpgradeState(pawn, pawnId)
 	end
 end
 

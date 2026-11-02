@@ -7,14 +7,30 @@ local SUBMODULE = logger.register("MechFORGE", "Hooks", mech_forge.DEBUG.HOOKS a
 
 -- Create hooks object
 local hooks = {
-	-- args: TBD
-	"reactorCoreChanged",
+	-- args:
+	--  slot (string) - the slot that changed (mech_forge.VANILLA_UPGRADES.HEALTH or .MOVE)
+	--  pawn (Pawn) - the pawn
+	--  pawnId (number) - the pawn ID
+	--  mechType (string) - the mech type
+	--  oldCore (number) - the old core value (e.g. memhack.CORE_TYPE_NONE)
+	--  newCore (number) - the new core value (e.g. memhack.CORE_TYPE_NORMAL)
+	"mechUpgradeCoreChanged",
 
-	-- args: TBD
-	"upgradePowered",
+	-- args:
+	--  slot (string) - the slot that changed (mech_forge.VANILLA_UPGRADES.HEALTH or .MOVE)
+	--  pawn (Pawn) - the pawn
+	--  pawnId (number) - the pawn ID
+	--  mechType (string) - the mech type
+	--  newCore (number) - the new core value (e.g. memhack.CORE_TYPE_NORMAL)
+	"mechUpgradePowered",
 
-	-- args: TBD
-	"upgradeUnpowered",
+	-- args:
+	--  slot (string) - the slot that changed (mech_forge.VANILLA_UPGRADES.HEALTH or .MOVE)
+	--  pawn (Pawn) - the pawn
+	--  pawnId (number) - the pawn ID
+	--  mechType (string) - the mech type
+	--  oldCore (number) - the old core value (e.g. memhack.CORE_TYPE_NORMAL)
+	"mechUpgradeUnpowered",
 }
 
 hooks.DEFAULT_PRIORITY = memhack.hooks.DEFAULT_PRIORITY
@@ -37,9 +53,9 @@ function hooks:load()
 end
 
 function hooks:initBroadcastHooks()
-	self["fireReactorCoreChangedHooks"] = self:buildBroadcastFunc("reactorCoreChangedHooks", nil, nil, SUBMODULE)
-	self["fireUpgradePoweredHooks"] = self:buildBroadcastFunc("upgradePoweredHooks", nil, nil, SUBMODULE)
-	self["fireUpgradeUnpoweredHooks"] = self:buildBroadcastFunc("upgradeUnpoweredHooks", nil, nil, SUBMODULE)
+	self["fireMechUpgradeCoreChangedHooks"] = self:buildBroadcastFunc("mechUpgradeCoreChangedHooks", nil, nil, SUBMODULE)
+	self["fireMechUpgradePoweredHooks"] = self:buildBroadcastFunc("mechUpgradePoweredHooks", nil, nil, SUBMODULE)
+	self["fireMechUpgradeUnpoweredHooks"] = self:buildBroadcastFunc("mechUpgradeUnpoweredHooks", nil, nil, SUBMODULE)
 end
 
 return hooks
