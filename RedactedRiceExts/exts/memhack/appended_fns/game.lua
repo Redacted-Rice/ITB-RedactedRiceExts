@@ -182,6 +182,49 @@ local function onGameClassInitialized(GameClass)
 			return nil
 		end
 	end
+
+	-- Mission-time selected pawn (board), not strategy layer GetStrategySelectedPawn
+	GameClass.GetSelectedPawn = function(self)
+		local unknownObj2 = self:GetMemhackObj():getUnknownObj2()
+		if not unknownObj2 then
+			-- Try to fallback to board version
+			return Board and Board._origGetSelectedPawn and Board._origGetSelectedPawn(Board) or nil
+		end
+
+		local memPawn = unknownObj2:_getSelectedPawn()
+		if not memPawn then
+			-- Try to fallback to board version
+			return Board and Board._origGetSelectedPawn and Board._origGetSelectedPawn(Board) or nil
+		end
+
+		-- Convert it to a vanilla pawn for API consistency
+		return memPawn:toVanillaPawn()
+	end
+
+	GameClass.SetSelectedPawn = function(self, pawn)
+		if pawn == nil then
+			logger.logError(SUBMODULE, "SetSelectedPawn requires a pawn, got nil")
+			return
+		end
+
+		local gameMap = self:GetMemhackObj()
+		local unknownObj2 = gameMap:getUnknownObj2()
+		if not unknownObj2 then
+			logger.logError(SUBMODULE, "SetSelectedPawn: UnknownObj2 is not available")
+			return
+		end
+
+		-- If we already have a selected pawn, deselect it
+		local current = unknownObj2:_getSelectedPawn()
+		if current then
+			current:_setSelected(false)
+		end
+
+		-- Set the new selected pawn
+		local newPawn = pawn:GetMemhackObj()
+		newPawn:_setSelected(true)
+		unknownObj2:_setSelectedPawnPtr(newPawn._address)
+	end
 end
 
 modApi.events.onGameClassInitialized:subscribe(onGameClassInitialized)
