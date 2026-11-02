@@ -44,6 +44,9 @@ end
 -- cehck for and fire hooks if the state changed for the pawn
 function mech_upgrade_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
 	if not Game then
+		logger.logWarn(SUBMODULE,
+			"skipped mech upgrade hooks for pawn %d slot %s (Game unavailable)",
+			pawnId, slot)
 		return
 	end
 
@@ -92,6 +95,7 @@ end
 
 function mech_upgrade_state_tracker:_updateSquadUpgradeStates()
 	if not Game then
+		logger.logWarn(SUBMODULE, "skipped squad upgrade state update (Game unavailable)")
 		return
 	end
 

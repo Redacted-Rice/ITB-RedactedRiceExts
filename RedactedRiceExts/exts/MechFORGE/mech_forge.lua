@@ -13,9 +13,7 @@ mech_forge.DEBUG = {
 	HOOKS = false,
 	REGISTRY = false,
 	STATE_TRACKER = false,
-	EFFECTS = false,
-	LABELS = false,
-	UTILS = false,
+	MANAGER = false,
 }
 
 local logger = memhack.logger
