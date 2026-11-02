@@ -34,17 +34,20 @@ mech_forge.VANILLA_BONUSES = {
 mech_forge._subobjects = {}
 mech_forge._subobjects.hooks = require(path.."scripts/hooks")
 mech_forge._subobjects.utils = require(path.."scripts/utils")
-mech_forge._subobjects.mech_upgrade_state_tracker = require(path.."scripts/mech_upgrade_state_tracker")
 mech_forge._subobjects.mech_upgrade_registry = require(path.."scripts/mech_upgrade_registry")
+mech_forge._subobjects.mech_upgrade_manager = require(path.."scripts/mech_upgrade_manager")
+mech_forge._subobjects.mech_upgrade_state_tracker = require(path.."scripts/mech_upgrade_state_tracker")
 
 -- Local references to submodules for convenient access in this file
 local hooks = mech_forge._subobjects.hooks
 local utils = mech_forge._subobjects.utils
-local mech_upgrade_state_tracker = mech_forge._subobjects.mech_upgrade_state_tracker
 local mech_upgrade_registry = mech_forge._subobjects.mech_upgrade_registry
+local mech_upgrade_manager = mech_forge._subobjects.mech_upgrade_manager
+local mech_upgrade_state_tracker = mech_forge._subobjects.mech_upgrade_state_tracker
 
 function mech_forge:initModules()
 	hooks:init()
+	mech_upgrade_manager:init()
 	mech_upgrade_state_tracker:init()
 end
 

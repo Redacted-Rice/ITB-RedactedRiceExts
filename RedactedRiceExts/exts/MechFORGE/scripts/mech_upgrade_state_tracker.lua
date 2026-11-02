@@ -51,17 +51,15 @@ function mech_upgrade_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, 
 	local wasPowered = utils.isCorePowered(oldCore)
 	local isPowered = utils.isCorePowered(newCore)
 
-	-- If it changed, fire the hook
-	if oldCore ~= newCore then
-		logger.logDebug(SUBMODULE,
+	-- Should only be called when its changed
+	logger.logDebug(SUBMODULE,
 			"core changed pawn %d slot %s core %s->%s powered %s->%s",
 			pawnId, slot, tostring(oldCore), tostring(newCore),
 			tostring(wasPowered), tostring(isPowered))
-		hooks.fireReactorCoreChangedHooks(
+	hooks.fireReactorCoreChangedHooks(
 			slot, pawnId, pawn, mechType, oldCore, newCore)
-	end
 
-	-- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
+	 -- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
 	if not wasPowered and isPowered then
 		hooks.fireUpgradePoweredHooks(slot, pawnId, pawn, mechType, newCore)
 	elseif wasPowered and not isPowered then
