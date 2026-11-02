@@ -82,12 +82,12 @@ function mech_upgrade_state_tracker:_updatePawnUpgradeState(pawnId, pawn)
 		self._tracked[pawnId] = tracked
 	end
 
-	for upgradeSlot in pairs(mech_forge.VANILLA_UPGRADES) do
-		local newCore = utils.getMechUpgradeCore(pawn, upgradeSlot)
-		local oldCore = tracked[upgradeSlot]
+	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
+		local newCore = utils.getMechUpgradeCore(pawn, slot)
+		local oldCore = tracked[slot]
 		if oldCore ~= newCore then
-			self:_fireSlotHooks(pawn, pawnId, upgradeSlot, oldCore, newCore)
-			tracked[upgradeSlot] = newCore
+			self:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
+			tracked[slot] = newCore
 		end
 	end
 end
@@ -124,7 +124,7 @@ function mech_upgrade_state_tracker:_getTrackedSquadState()
 		local pawnState = self._tracked[pawnId]
 		if pawnState then
 			result[pawnId] = {}
-			for slot in pairs(mech_forge.VANILLA_UPGRADES) do
+			for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
 				result[pawnId][slot] = pawnState[slot]
 			end
 		end
