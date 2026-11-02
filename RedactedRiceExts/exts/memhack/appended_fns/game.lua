@@ -185,13 +185,13 @@ local function onGameClassInitialized(GameClass)
 
 	-- Mission-time selected pawn (board), not strategy layer GetStrategySelectedPawn
 	GameClass.GetSelectedPawn = function(self)
-		local unknownObj2 = self:GetMemhackObj():getUnknownObj2()
-		if not unknownObj2 then
+		local boardPlayer = self:GetMemhackObj():getBoardPlayer()
+		if not boardPlayer then
 			-- Try to fallback to board version
 			return Board and Board._origGetSelectedPawn and Board._origGetSelectedPawn(Board) or nil
 		end
 
-		local memPawn = unknownObj2:_getSelectedPawn()
+		local memPawn = boardPlayer:_getSelectedPawn()
 		if not memPawn then
 			-- Try to fallback to board version
 			return Board and Board._origGetSelectedPawn and Board._origGetSelectedPawn(Board) or nil
@@ -208,14 +208,14 @@ local function onGameClassInitialized(GameClass)
 		end
 
 		local gameMap = self:GetMemhackObj()
-		local unknownObj2 = gameMap:getUnknownObj2()
-		if not unknownObj2 then
-			logger.logError(SUBMODULE, "SetSelectedPawn: UnknownObj2 is not available")
+		local boardPlayer = gameMap:getBoardPlayer()
+		if not boardPlayer then
+			logger.logError(SUBMODULE, "SetSelectedPawn: BoardPlayer is not available")
 			return
 		end
 
 		-- If we already have a selected pawn, deselect it
-		local current = unknownObj2:_getSelectedPawn()
+		local current = boardPlayer:_getSelectedPawn()
 		if current then
 			current:_setSelected(false)
 		end
@@ -223,7 +223,7 @@ local function onGameClassInitialized(GameClass)
 		-- Set the new selected pawn
 		local newPawn = pawn:GetMemhackObj()
 		newPawn:_setSelected(true)
-		unknownObj2:_setSelectedPawnPtr(newPawn._address)
+		boardPlayer:_setSelectedPawnPtr(newPawn._address)
 	end
 end
 

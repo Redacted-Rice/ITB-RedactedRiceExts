@@ -8,7 +8,7 @@ local MemhackGameMap = memhack.structManager:define("GameMap", {
 	reputation = { offset = 0x848C, type = "int" },
 	unknownObj1 = { offset = 0x90C8, type = "pointer", subType = "UnknownObj1", noSetter = true },
 	gridPower = { offset = 0xC040, type = "int" },
-	unknownObj2 = { offset = 0xC204, type = "pointer", subType = "UnknownObj2", noSetter = true },
+	boardPlayer = { offset = 0xC204, type = "pointer", subType = "BoardPlayer", noSetter = true },
 	victoryScreen = { offset = 0xD650, type = "pointer", subType = "VictoryScreen", noSetter = true },
 })
 
