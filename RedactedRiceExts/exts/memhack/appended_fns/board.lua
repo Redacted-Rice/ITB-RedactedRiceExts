@@ -22,6 +22,24 @@ local function onBoardClassInitialized(BoardClass)
 		end
 		 self:GetMemhackObj():setPodLandingLoc(point)
 	end
+
+	-- Override the modloader version with this which will be more accurate
+	-- Save it in the struct so we can also use it in the Game version as a fallback
+	BoardClass._origGetSelectedPawn = BoardClass.GetSelectedPawn
+	BoardClass.GetSelectedPawn = function(self)
+		if Game then
+			return Game:GetSelectedPawn()
+		end
+		return BoardClass._origGetSelectedPawn(self)
+	end
+
+	-- Also add an alias in Board class for api symmetry
+	BoardClass.SetSelectedPawn = function(self, pawn)
+		if Game then
+			Game:SetSelectedPawn(pawn)
+			return
+		end
+	end
 end
 
 modApi.events.onBoardClassInitialized:subscribe(onBoardClassInitialized)
