@@ -37,7 +37,7 @@ end
 
 -- Adds a custom upgrade to the mech in place of the given slot.
 -- slot must be mech_forge.VANILLA_UPGRADES.HEALTH or .MOVE
--- label required (positional or label field in table) to display for the upgrade
+-- label required, A non-empty string, text id, or function(pawn)
 -- onPowered/onUnpowered optional but both must be set or both omitted
 -- onCoreChanged optional, any core value change on this slot.
 -- onXxxx Functions' args match the respective hooks in hooks.lua
@@ -66,8 +66,16 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 	end
 
 	-- Require a label
-	if type(label) ~= "string" or label == "" then
-		logger.logError(SUBMODULE, "registerMechUpgrade: label must be a non-empty string for %s %s", mechType, slot)
+	local labelType = type(label)
+	if labelType == "string" then
+		if label == "" then
+			logger.logError(SUBMODULE, "registerMechUpgrade: label must be non-empty for %s %s", mechType, slot)
+			return false
+		end
+	elseif labelType ~= "function" then
+		logger.logError(SUBMODULE,
+			"registerMechUpgrade: label must be a non-empty string or function for %s %s",
+			mechType, slot)
 		return false
 	end
 
