@@ -202,8 +202,13 @@ local function onGameClassInitialized(GameClass)
 	end
 
 	GameClass.SetSelectedPawn = function(self, pawn)
-		if type(pawn) ~= "userdata" or getmetatable(pawn) ~= BoardPawn then
-			logger.logError(SUBMODULE, "SetSelectedPawn requires a pawn, got %s", type(pawn))
+		if type(pawn) ~= "userdata" or GetUserdataType(pawn) ~= "Pawn" then
+			logger.logError(
+				SUBMODULE,
+				"SetSelectedPawn: expected board Pawn userdata, got type=%s userdataType=%s",
+				type(pawn),
+				type(pawn) == "userdata" and tostring(GetUserdataType(pawn)) or "n/a"
+			)
 			return
 		end
 
