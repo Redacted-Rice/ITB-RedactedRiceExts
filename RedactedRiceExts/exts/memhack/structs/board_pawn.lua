@@ -52,7 +52,7 @@ function MemhackBoardPawn:setHpCore(value)
 	return writePointedInt(self:getHpCorePtr(), value)
 end
 
--- Convert back to a vanilla pawn class by seraching for the exposed pawn with the
+-- Convert back to a vanilla pawn class by searching for the exposed pawn with the
 -- expected address
 function MemhackBoardPawn:toVanilla()
 	local addr = self:getAddress()

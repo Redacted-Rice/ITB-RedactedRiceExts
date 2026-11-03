@@ -202,8 +202,8 @@ local function onGameClassInitialized(GameClass)
 	end
 
 	GameClass.SetSelectedPawn = function(self, pawn)
-		if pawn == nil then
-			logger.logError(SUBMODULE, "SetSelectedPawn requires a pawn, got nil")
+		if type(pawn) ~= "userdata" or getmetatable(pawn) ~= BoardPawn then
+			logger.logError(SUBMODULE, "SetSelectedPawn requires a pawn, got %s", type(pawn))
 			return
 		end
 
@@ -214,6 +214,13 @@ local function onGameClassInitialized(GameClass)
 			return
 		end
 
+		-- Ensure we can get the new pawn
+		local newPawn = pawn:GetMemhackObj()
+		if not newPawn then
+			logger.logError(SUBMODULE, "SetSelectedPawn: could not get memhack object for pawn")
+			return
+		end
+
 		-- If we already have a selected pawn, deselect it
 		local current = boardPlayer:_getSelectedPawn()
 		if current then
@@ -221,7 +228,6 @@ local function onGameClassInitialized(GameClass)
 		end
 
 		-- Set the new selected pawn
-		local newPawn = pawn:GetMemhackObj()
 		newPawn:_setSelected(true)
 		boardPlayer:_setSelectedPawnPtr(newPawn._address)
 	end

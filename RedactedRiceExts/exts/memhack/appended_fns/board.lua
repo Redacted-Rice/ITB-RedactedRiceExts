@@ -16,7 +16,7 @@ local function onBoardClassInitialized(BoardClass)
 	end
 
 	BoardClass.SetPodLandingPoint = function(self, point)
-		if type(point) ~= "userdata"  and getmetatable(v) == Point then
+		if type(point) ~= "userdata" and getmetatable(point) ~= Point then
 			logger.logError(SUBMODULE, "Point must be... a point. Got type %s", type(point))
 			return
 		end
@@ -24,7 +24,7 @@ local function onBoardClassInitialized(BoardClass)
 	end
 
 	-- Override the modloader version with this which will be more accurate
-	-- Save it in the struct so we can also use it in the Game version as a fallback
+	-- Keep the original on BoardClass so Game:GetSelectedPawn can fall back to it
 	BoardClass._origGetSelectedPawn = BoardClass.GetSelectedPawn
 	BoardClass.GetSelectedPawn = function(self)
 		if Game then
@@ -39,6 +39,7 @@ local function onBoardClassInitialized(BoardClass)
 			Game:SetSelectedPawn(pawn)
 			return
 		end
+		logger.logError(SUBMODULE, "SetSelectedPawn: Game is not available")
 	end
 end
 
