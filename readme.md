@@ -14,12 +14,24 @@ Please enjoy and contact us if you run into any issues.
 
 # Extensions
 
-* memhack - v1.4.1 - Extension to expose additional functionality via direct memory access
+* memhack - v1.5.0 - Extension to expose additional functionality via direct memory access
 * CPLUS+ Ex - v2.0.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+* MechFORGE - v1.0.0 - Extension for custom mech upgrades instead of the +2 HP and +1 Move vanilla ones
 
 # Releases
 
-Latest release: 2.0.0
+Latest release: 2.1.0
+
+## 2.1.0
+
+Released: XX/XX/2026
+
+* memhack - v1.5.0
+* CPLUS+ Ex - v2.0.0
+* MechFORGE - v1.0.0
+
+### Notes
+* TBD
 
 ## 2.0.0
 
