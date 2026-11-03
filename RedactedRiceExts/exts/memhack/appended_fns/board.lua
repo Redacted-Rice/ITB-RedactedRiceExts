@@ -16,8 +16,13 @@ local function onBoardClassInitialized(BoardClass)
 	end
 
 	BoardClass.SetPodLandingPoint = function(self, point)
-		if type(point) ~= "userdata" and getmetatable(point) ~= Point then
-			logger.logError(SUBMODULE, "Point must be... a point. Got type %s", type(point))
+		if type(point) ~= "userdata" or GetUserdataType(point) ~= "Point" then
+			logger.logError(
+				SUBMODULE,
+				"SetPodLandingPoint: expected game Point userdata, got type=%s userdataType=%s",
+				type(point),
+				type(point) == "userdata" and tostring(GetUserdataType(point)) or "n/a"
+			)
 			return
 		end
 		 self:GetMemhackObj():setPodLandingLoc(point)
