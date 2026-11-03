@@ -33,7 +33,7 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 	BoardPawn.SetMoveCore = function(self, value)
 		local moveCore = self:GetMemhackObj():setMoveCore(value)
 		return moveCore
-
+	end
 
 	BoardPawn.GetRawMoveSpeed = function(self)
 		Assert.Equals("userdata", type(self), "Argument #0")

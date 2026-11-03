@@ -52,8 +52,6 @@ end
 function mech_forge:exposeAPI()
 	self.hooks = hooks
 	self.events = hooks.events
-	self.VANILLA_UPGRADES = self.VANILLA_UPGRADES
-	self.VANILLA_BONUSES = self.VANILLA_BONUSES
 
 	-- utils
 	function mech_forge:isMechUpgradePowered(pawn, slot) return utils.isMechUpgradePowered(pawn, slot) end
