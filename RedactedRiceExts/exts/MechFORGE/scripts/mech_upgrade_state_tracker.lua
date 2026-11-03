@@ -86,6 +86,8 @@ function mech_upgrade_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
 		local newCore = utils.getMechUpgradeCore(pawn, slot)
 		local oldCore = tracked[slot]
+		-- Fire on any change INCLUDING the first one so we trigger when we load
+		-- into a game so we can adjust it there too
 		if oldCore ~= newCore then
 			self:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
 			tracked[slot] = newCore

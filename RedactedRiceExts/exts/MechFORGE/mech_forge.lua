@@ -13,7 +13,7 @@ mech_forge.DEBUG = {
 	HOOKS = false,
 	REGISTRY = false,
 	STATE_TRACKER = false,
-	MANAGER = false,
+	MANAGER = true,
 }
 
 local logger = memhack.logger
@@ -99,9 +99,7 @@ function mech_forge:addEvents()
 		mech_upgrade_state_tracker:_resetAllTrackers()
 	end)
 
-	-- TODO later: Probably need a on mission update (if that runs in between missions) to catch changes
-	modApi.events.onSaveGame:subscribe(function()
-		logger.logDebug(TRIGGER_EVENTS, "onSaveGame")
+	modApi.events.onFrameDrawStart:subscribe(function()
 		mech_upgrade_state_tracker:_updateAllStates()
 	end)
 end
