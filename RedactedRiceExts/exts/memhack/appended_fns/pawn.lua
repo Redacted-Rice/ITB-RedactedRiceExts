@@ -34,6 +34,16 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		local moveCore = self:GetMemhackObj():setMoveCore(value)
 		return moveCore
 	end
+
+	BoardPawn.GetPawnTypeStr = function(self)
+		return self:GetMemhackObj():getPawnTypeStr()
+	end
+
+	BoardPawn.SetPawnType = function(self, pawnType)
+		Assert.Equals("userdata", type(self), "Argument #0")
+		Assert.Equals("string", type(pawnType), "Argument #1")
+		self:GetMemhackObj():setPawnType(pawnType)
+	end
 end
 
 modApi.events.onPawnClassInitialized:subscribe(onPawnClassInitialized)
