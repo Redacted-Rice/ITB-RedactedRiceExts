@@ -136,4 +136,5 @@ function mech_upgrade_state_tracker:_getTrackedSquadState()
 	return result
 end
 
+mech_upgrade_state_tracker:_resetAllTrackers()
 return mech_upgrade_state_tracker
