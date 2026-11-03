@@ -8,7 +8,7 @@ local extension = {
 	dependencies = {
 		modApiExt = "1.24",
 		memedit = "1.2.1",
-		redactedrice_memhack = "1.4.1",
+		redactedrice_memhack = "1.5.0",
 	},
 	isExtension = true,
 }
