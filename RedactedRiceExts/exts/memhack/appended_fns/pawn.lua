@@ -35,11 +35,8 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return moveCore
 	end
 
-	BoardPawn.GetPawnTypeStr = function(self)
-		return self:GetMemhackObj():getPawnTypeStr()
-	end
-
-	BoardPawn.SetPawnType = function(self, pawnType)
+	-- Only a setter. Use vanilla GetType if you need the value. This mirrors that API
+	BoardPawn.SetType = function(self, pawnType)
 		Assert.Equals("userdata", type(self), "Argument #0")
 		Assert.Equals("string", type(pawnType), "Argument #1")
 		self:GetMemhackObj():setPawnType(pawnType)
