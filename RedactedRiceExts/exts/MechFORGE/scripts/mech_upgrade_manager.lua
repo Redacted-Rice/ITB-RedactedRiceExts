@@ -31,9 +31,12 @@ end
 
 function mech_upgrade_manager:_adjustVanillaMoveBonus(pawn, config, restore)
 	local bonus = mech_forge.VANILLA_BONUSES.MOVE
+	-- GetMoveSpeed will return 0 if its <= 0 but we need to handle negative values for 0
+	-- base move pawns so we use the raw getters and setters. These are base move speeds
+	-- and do not include the bonus from the upgrade itself
 	local delta = restore and bonus or -bonus
-	local moveSpeed = pawn:GetMoveSpeed()
-	pawn:SetMoveSpeed(moveSpeed + delta)
+	local moveSpeed = pawn:GetRawMoveSpeed()
+	pawn:SetRawMoveSpeed(moveSpeed + delta)
 	logger.logDebug(SUBMODULE,
 		"vanilla move %s %s delta %d move %d->%d",
 		restore and "restore" or "revert", config.label, delta, moveSpeed, moveSpeed + delta)
@@ -69,7 +72,7 @@ function mech_upgrade_manager:_resolveUpgradeLabel(label, pawn)
 	end
 	if resolved == "" then
 		return nil
-	enabled
+	end
 
 	-- call get text which will be overridden to handle custom lables
 	return GetText(resolved)
@@ -106,7 +109,7 @@ function mech_upgrade_manager:_customUpgradeLabelForTextId(id)
 	if not text then
 		return nil
 	end
-	logger.logDebug(SUBMODULE, "GetText %s -> %s (%s %s)", id, text, mechType, slot)
+	--logger.logDebug(SUBMODULE, "GetText %s -> %s (%s %s)", id, text, mechType, slot)
 	return text
 end
 

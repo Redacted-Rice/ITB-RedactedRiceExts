@@ -9,6 +9,10 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	-- Smart "double" pointer to pilot data at 0x980
 	pilot = { offset = 0x980, type = "pointer", subType = "Pilot", noSetter = true },
 
+	-- GetMoveSpeed returns 0 if its <= 0 but I need it to return negative values for mechFORGE
+	-- so I include the direct memory access here as well
+	moveSpeed = { offset = 0x990, type = "int" },
+
 	-- Pointers to mech hp / move core ints for the innate mech upgrades
 	moveCore = { offset = 0xC4C, type = "pointer", noSetter = true },
 	hpCore = { offset = 0xC5C, type = "pointer", noSetter = true },

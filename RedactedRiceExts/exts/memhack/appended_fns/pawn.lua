@@ -33,6 +33,17 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 	BoardPawn.SetMoveCore = function(self, value)
 		local moveCore = self:GetMemhackObj():setMoveCore(value)
 		return moveCore
+
+
+	BoardPawn.GetRawMoveSpeed = function(self)
+		Assert.Equals("userdata", type(self), "Argument #0")
+		return self:GetMemhackObj():getMoveSpeed()
+	end
+
+	BoardPawn.SetRawMoveSpeed = function(self, moveSpeed)
+		Assert.Equals("userdata", type(self), "Argument #0")
+		Assert.Equals("number", type(moveSpeed), "Argument #1")
+		self:GetMemhackObj():setMoveSpeed(moveSpeed)
 	end
 
 	-- Only a set fn and not a get because the get is defined by the game already
