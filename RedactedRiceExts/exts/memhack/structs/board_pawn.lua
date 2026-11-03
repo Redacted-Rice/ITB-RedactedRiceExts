@@ -2,6 +2,8 @@
 -- This wraps the BoardPawn object to provide access to internal memory structures
 
 local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
+	pawnType = { offset = 0x94, type = "struct", subType = "ItBString" },
+
 	-- Smart "double" pointer to pilot data at 0x980
 	pilot = { offset = 0x980, type = "pointer", subType = "Pilot", noSetter = true },
 
@@ -44,3 +46,6 @@ end
 function MemhackBoardPawn:setHpCore(value)
 	return writePointedInt(self:getHpCorePtr(), value)
 end
+
+local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
+genItBStrGetSetWrappers(MemhackBoardPawn, "pawnType")
