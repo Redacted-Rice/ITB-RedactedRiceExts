@@ -18,7 +18,11 @@ function mf_manager:_adjustVanillaHealthBonus(pawn, config, restore)
 	local maxHealth = pawn:GetMaxHealth()
 	pawn:SetMaxBaseHealth(maxBase + delta)
 	pawn:SetMaxHealth(maxHealth + delta)
-	pawn:SetHealth(pawn:GetHealth() + delta)
+	local health = pawn:GetHealth()
+	local newMaxHealth = maxHealth + delta
+	if health > newMaxHealth then
+		pawn:SetHealth(newMaxHealth)
+	end
 	logger.logDebug(SUBMODULE,
 		"vanilla health %s %s delta %d maxBase %d->%d",
 		restore and "restore" or "revert", config.label, delta, maxBase, maxBase + delta)

@@ -124,5 +124,5 @@ Powered state uses `memhack.CORE_TYPE_NONE` for an empty slot. Other `memhack.CO
 If you encounter issues or have questions:
 
 * Visit the [Redacted Rice Discord](https://discord.gg/CNjTVrpN4v)
-- Check the [GitHub Wiki](https://github.com/Redacted-Rice/ITB-RedactedRiceExts/wiki/%5BMechFORGE%5D-Home) for more detailed information
-- Report bugs on the Discord or GitHub
+* Check the [GitHub Wiki](https://github.com/Redacted-Rice/ITB-RedactedRiceExts/wiki/%5BMechFORGE%5D-Home) for more detailed information
+* Report bugs on the Discord or GitHub

@@ -1,5 +1,5 @@
 # **Mech F**ramework for **O**ptional **R**eactor **G**ear **E**dits (MechFORGE)
-RedactedRice's Mech upgrade extension that lets mods replace or customize the vanilla **Health** and **Move** innate mech upgrade with different and unique
+RedactedRice's Mech upgrade extension that lets mods replace or customize the vanilla **Health** and **Move** innate mech upgrades with different labels, tooltips, and powered effects per mech type.
 
 Created by Das Keifer
 
