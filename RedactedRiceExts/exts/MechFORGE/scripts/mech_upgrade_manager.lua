@@ -5,11 +5,6 @@ local mech_upgrade_manager = {}
 local logger = memhack.logger
 local SUBMODULE = logger.register("MechFORGE", "UpgradeManager", mech_forge.DEBUG.MANAGER and mech_forge.DEBUG.ENABLED)
 
-local TEXT_ID_TO_SLOT = {
-	Upgrade_HealthLabel = mech_forge.VANILLA_UPGRADES.HEALTH,
-	Upgrade_MoveLabel = mech_forge.VANILLA_UPGRADES.MOVE,
-}
-
 local hooks = nil
 local mech_upgrade_registry = nil
 local utils = nil
@@ -60,41 +55,6 @@ function mech_upgrade_manager:_invokeRegisteredCallback(config, field, ...)
 	end
 end
 
-function mech_upgrade_manager:_customUpgradeLabelForTextId(id)
-	-- If its not one of the labels we override return
-	local slot = TEXT_ID_TO_SLOT[id]
-	if not slot then
-		return nil
-	end
-
-	-- Get the currently selected pawn in the strategy menu
-	local pawnId = Game:GetStrategySelectedPawn()
-	if pawnId == nil then
-		return nil
-	end
-
-	-- Get the mechtype of the pawn
-	local pawn = Game:GetPawn(pawnId)
-	local mechType = utils.getMechType(pawn)
-	if not mechType then
-		return nil
-	end
-
-	-- See if it has a custom upgrade config for this text
-	local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
-	if not config or not config.label then
-		return nil
-	end
-
-	-- If it does, resolve the text and return it
-	local text = utils.resolveText(config.label, pawn)
-	if not text then
-		return nil
-	end
-	--logger.logDebug(SUBMODULE, "GetText %s -> %s (%s %s)", id, text, mechType, slot)
-	return text
-end
-
 function mech_upgrade_manager:_subscribeUpgradeCallbackEvents()
 	-- Use internal priority so others can run first if needed for some reason
 	local priority = hooks.INTERNAL_PRIORITY
@@ -123,24 +83,10 @@ function mech_upgrade_manager:_subscribeUpgradeCallbackEvents()
 	logger.logDebug(SUBMODULE, "Subscribed upgrade callback events")
 end
 
-function mech_upgrade_manager:_installOverrides()
-	mech_upgrade_manager._origGetText = GetText
-	function GetText(id, r1, r2, r3)
-		if type(id) == "string" then
-			local label = mech_upgrade_manager:_customUpgradeLabelForTextId(id)
-			if label then
-				return label
-			end
-		end
-		return mech_upgrade_manager._origGetText(id, r1, r2, r3)
-	end
-end
-
 function mech_upgrade_manager:init()
 	hooks = mech_forge._subobjects.hooks
 	mech_upgrade_registry = mech_forge._subobjects.mech_upgrade_registry
 	utils = mech_forge._subobjects.utils
-	self:_installOverrides()
 	self:_subscribeUpgradeCallbackEvents()
 	return self
 end
