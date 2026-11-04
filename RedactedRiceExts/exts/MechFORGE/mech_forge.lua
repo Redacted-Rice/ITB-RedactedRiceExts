@@ -6,6 +6,8 @@ mech_forge = mech_forge or {}
 
 local path = GetParentPath(...)
 
+require(mod_loader.mods[modApi:getCurrentMod().parent].resourcePath .. "libs/inGameToolTip")
+
 -- Debugging configuration to enable debugging for modules
 mech_forge.DEBUG = {
 	ENABLED = true,  -- Disable/enable all debug logging
