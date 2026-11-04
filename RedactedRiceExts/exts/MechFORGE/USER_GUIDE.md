@@ -92,7 +92,7 @@ Registration Args:
 
 Note: The callbacks are optional but its expected you will want to use one or the other to apply the effects of your custom upgrade. You could do this a different way though if it makes sense for your use case.
 
-Table and positional argument styles are both supported. See `mech_upgrade_registry.lua` for validation errors logged via memhack.
+Table and positional argument styles are both supported. See `registry.lua` for validation errors logged via memhack.
 
 ### Events
 

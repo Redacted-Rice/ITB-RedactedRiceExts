@@ -1,15 +1,15 @@
 -- Mech Upgrade Registration Module
 -- For registering custom mech upgrades for specific mech types
 
-local mech_upgrade_registry = {}
+local mf_registry = {}
 
 local logger = memhack.logger
 local SUBMODULE = logger.register("MechFORGE", "Registry", mech_forge.DEBUG.REGISTRY and mech_forge.DEBUG.ENABLED)
 local utils = mech_forge._subobjects.utils
 
-mech_upgrade_registry._byMechType = {}
+mf_registry._byMechType = {}
 
-function mech_upgrade_registry:_validateUpgradeCallbacks(mechType, slot, onPowered, onUnpowered, onCoreChanged)
+function mf_registry:_validateUpgradeCallbacks(mechType, slot, onPowered, onUnpowered, onCoreChanged)
 	local hasPowered = onPowered ~= nil
 	local hasUnpowered = onUnpowered ~= nil
 	if hasPowered ~= hasUnpowered then
@@ -42,7 +42,7 @@ end
 -- onCoreChanged optional, any core value change on this slot.
 -- onXxxx Functions' args match the respective hooks in hooks.lua
 -- Config args can optionally be passed as a table instead
-function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable, onPowered, onUnpowered, onCoreChanged)
+function mf_registry:registerMechUpgrade(mechType, slot, labelOrTable, onPowered, onUnpowered, onCoreChanged)
 	if type(mechType) ~= "string" or mechType == "" then
 		logger.logError(SUBMODULE, "registerMechUpgrade: mechType must be a non-empty string")
 		return false
@@ -122,7 +122,7 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 end
 
 -- Returns only the custom upgrade configs or nil if no custom upgrades are registered
-function mech_upgrade_registry:getCustomMechUpgradeConfigs(mechType)
+function mf_registry:getCustomMechUpgradeConfigs(mechType)
 	if type(mechType) ~= "string" then
 		return nil
 	end
@@ -130,7 +130,7 @@ function mech_upgrade_registry:getCustomMechUpgradeConfigs(mechType)
 end
 
 -- Returns nil if slot does not have a custom upgrade
-function mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
+function mf_registry:getCustomMechUpgradeConfig(mechType, slot)
 	if not utils.isValidUpgradeSlot(slot) then
 		return nil
 	end
@@ -141,15 +141,15 @@ function mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
 	return entry[slot]
 end
 
-function mech_upgrade_registry:hasCustomMechUpgrades(mechType)
+function mf_registry:hasCustomMechUpgrades(mechType)
 	return self:getCustomMechUpgradeConfigs(mechType) ~= nil
 end
 
-function mech_upgrade_registry:hasCustomMechUpgrade(mechType, slot)
+function mf_registry:hasCustomMechUpgrade(mechType, slot)
 	return self:getCustomMechUpgradeConfig(mechType, slot) ~= nil
 end
 
-function mech_upgrade_registry:listMechsWithCustomUpgrades()
+function mf_registry:listMechsWithCustomUpgrades()
 	local result = {}
 	for mechType, _ in pairs(self._byMechType) do
 		table.insert(result, mechType)
@@ -157,4 +157,4 @@ function mech_upgrade_registry:listMechsWithCustomUpgrades()
 	return result
 end
 
-return mech_upgrade_registry
+return mf_registry

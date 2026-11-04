@@ -1,52 +1,52 @@
 -- Hover tooltips for innate Health/Move reactor slots on the mech upgrade screen.
 
-local mech_upgrade_tooltips = {}
+local mf_texts = {}
 
-mech_upgrade_tooltips._logger = memhack.logger
-mech_upgrade_tooltips._submodule = mech_upgrade_tooltips._logger.register(
+mf_texts._logger = memhack.logger
+mf_texts._submodule = mf_texts._logger.register(
 	"MechFORGE",
-	"UpgradeTooltips",
-	mech_forge.DEBUG.TOOLTIPS and mech_forge.DEBUG.ENABLED
+	"Texts",
+	mech_forge.DEBUG.TEXTS and mech_forge.DEBUG.ENABLED
 )
 
-mech_upgrade_tooltips.SLOT_TO_TEXT_ID = {
+mf_texts.SLOT_TO_TEXT_ID = {
 	[mech_forge.VANILLA_UPGRADES.HEALTH] = "Upgrade_HealthLabel",
 	[mech_forge.VANILLA_UPGRADES.MOVE] = "Upgrade_MoveLabel",
 }
 
-mech_upgrade_tooltips.TEXT_ID_TO_SLOT = {
+mf_texts.TEXT_ID_TO_SLOT = {
 	Upgrade_HealthLabel = mech_forge.VANILLA_UPGRADES.HEALTH,
 	Upgrade_MoveLabel = mech_forge.VANILLA_UPGRADES.MOVE,
 }
 
-mech_upgrade_tooltips.STATS_BASE_TEXT = {
+mf_texts.STATS_BASE_TEXT = {
 	Stats_Base_Health = mech_forge.VANILLA_UPGRADES.HEALTH,
 	Stats_Base_Move = mech_forge.VANILLA_UPGRADES.MOVE,
 }
 
-mech_upgrade_tooltips.STATS_UPGRADE_TEXT = {
+mf_texts.STATS_UPGRADE_TEXT = {
 	Stats_Health_Upgrade = mech_forge.VANILLA_UPGRADES.HEALTH,
 	Stats_Move_Upgrade = mech_forge.VANILLA_UPGRADES.MOVE,
 }
 
-mech_upgrade_tooltips.SLOT_REACTOR_BOX = {
+mf_texts.SLOT_REACTOR_BOX = {
 	[mech_forge.VANILLA_UPGRADES.HEALTH] = "upgrade_health_button",
 	[mech_forge.VANILLA_UPGRADES.MOVE] = "upgrade_movement_button",
 }
 
-mech_upgrade_tooltips.SLOT_REACTOR_LOC = {
+mf_texts.SLOT_REACTOR_LOC = {
 	[mech_forge.VANILLA_UPGRADES.HEALTH] = "upgrade_health_loc",
 	[mech_forge.VANILLA_UPGRADES.MOVE] = "upgrade_movement_loc",
 }
 
-function mech_upgrade_tooltips:_vanillaBonusForSlot(slot)
+function mf_texts:_vanillaBonusForSlot(slot)
 	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
 		return mech_forge.VANILLA_BONUSES.MOVE
 	end
 	return mech_forge.VANILLA_BONUSES.HEALTH
 end
 
-function mech_upgrade_tooltips:_upgradeCombinedStatForSlot(pawn, slot)
+function mf_texts:_upgradeCombinedStatForSlot(pawn, slot)
 	local value
 	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
 		value = pawn:GetRawMoveSpeed()
@@ -61,7 +61,7 @@ function mech_upgrade_tooltips:_upgradeCombinedStatForSlot(pawn, slot)
 	return value
 end
 
-function mech_upgrade_tooltips:_getSelectedPawn()
+function mf_texts:_getSelectedPawn()
 	if not Game then
 		return nil
 	end
@@ -74,7 +74,7 @@ function mech_upgrade_tooltips:_getSelectedPawn()
 	return Game:GetPawn(pawnId)
 end
 
-function mech_upgrade_tooltips:_getSelectedMechUpgradeInfo(slot)
+function mf_texts:_getSelectedMechUpgradeInfo(slot)
 	-- Get the currently selected pawn in the strategy menu
 	local pawn = self:_getSelectedPawn()
 	if not pawn then
@@ -96,7 +96,7 @@ function mech_upgrade_tooltips:_getSelectedMechUpgradeInfo(slot)
 	return pawn, config
 end
 
-function mech_upgrade_tooltips:_customStatsLabelForTextId(id, r1, r2, r3)
+function mf_texts:_customStatsLabelForTextId(id, r1, r2, r3)
 	-- If its not one of the labels we override return
 	local slot = self.STATS_BASE_TEXT[id] or self.STATS_UPGRADE_TEXT[id]
 	if not slot then
@@ -117,10 +117,10 @@ function mech_upgrade_tooltips:_customStatsLabelForTextId(id, r1, r2, r3)
 
 	-- Its the base text, get the current combine stats and return that
 	local value = self:_upgradeCombinedStatForSlot(pawn, slot)
-	return mech_upgrade_tooltips._origGetText(id, value, r2, r3)
+	return mf_texts._origGetText(id, value, r2, r3)
 end
 
-function mech_upgrade_tooltips:_customUpgradeLabelForTextId(id)
+function mf_texts:_customUpgradeLabelForTextId(id)
 	-- If its not one of the labels we override return
 	local slot = self.TEXT_ID_TO_SLOT[id]
 	if not slot then
@@ -137,27 +137,27 @@ function mech_upgrade_tooltips:_customUpgradeLabelForTextId(id)
 	return self._utils.resolveText(config.label, pawn)
 end
 
-function mech_upgrade_tooltips:_installGetTextOverride()
-	mech_upgrade_tooltips._origGetText = GetText
+function mf_texts:_installGetTextOverride()
+	mf_texts._origGetText = GetText
 	function GetText(id, r1, r2, r3)
 		if type(id) == "string" then
 			-- Check each of our custom override cases. If one matches and returns a label
 			-- use that. Otherwise, it falls through to the original fn
-			local label = mech_upgrade_tooltips:_customStatsLabelForTextId(id, r1, r2, r3)
+			local label = mf_texts:_customStatsLabelForTextId(id, r1, r2, r3)
 			if label ~= nil then
 				return label
 			end
 
-			label = mech_upgrade_tooltips:_customUpgradeLabelForTextId(id)
+			label = mf_texts:_customUpgradeLabelForTextId(id)
 			if label ~= nil then
 				return label
 			end
 		end
-		return mech_upgrade_tooltips._origGetText(id, r1, r2, r3)
+		return mf_texts._origGetText(id, r1, r2, r3)
 	end
 end
 
-function mech_upgrade_tooltips:_registerDefaultText()
+function mf_texts:_registerDefaultText()
 	modApi:setText(
 		"MechFORGE_Tooltip_Health_Vanilla",
 		"When powered, mech gains +2 max health."
@@ -172,7 +172,7 @@ function mech_upgrade_tooltips:_registerDefaultText()
 	)
 end
 
-function mech_upgrade_tooltips:_upgradeLabelTitleForSlot(slot)
+function mf_texts:_upgradeLabelTitleForSlot(slot)
 	local textId = self.SLOT_TO_TEXT_ID[slot]
 	if not textId then
 		return nil
@@ -180,7 +180,7 @@ function mech_upgrade_tooltips:_upgradeLabelTitleForSlot(slot)
 	return GetText(textId)
 end
 
-function mech_upgrade_tooltips:_getUpgradeTooltipForSlot(slot)
+function mf_texts:_getUpgradeTooltipForSlot(slot)
 	if not self._utils.isValidUpgradeSlot(slot) then
 		return nil, nil
 	end
@@ -212,7 +212,7 @@ function mech_upgrade_tooltips:_getUpgradeTooltipForSlot(slot)
 	return title, body
 end
 
-function mech_upgrade_tooltips:_registerReactorBoxDefs()
+function mf_texts:_registerReactorBoxDefs()
 	-- vanilla images.lua has these boxes commented out for some reason
 	-- Add them back in for the tooltips box api
 	local slotSize = Point(122, 32)
@@ -221,13 +221,13 @@ function mech_upgrade_tooltips:_registerReactorBoxDefs()
 	end
 end
 
-function mech_upgrade_tooltips:_registerReactorSlotTooltips()
+function mf_texts:_registerReactorSlotTooltips()
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
 		InGameToolTip.forBox(self.SLOT_REACTOR_BOX[slot], self.SLOT_REACTOR_LOC[slot])
 	end
 end
 
-function mech_upgrade_tooltips:_updateToolTips()
+function mf_texts:_updateToolTips()
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
 		local title, body = self:_getUpgradeTooltipForSlot(slot)
 		InGameToolTip.updateTipContent(self.SLOT_REACTOR_BOX[slot], body, title)
@@ -235,7 +235,7 @@ function mech_upgrade_tooltips:_updateToolTips()
 end
 
 -- TODO later: Make this an event in memhack? I think we do this a few places now
-function mech_upgrade_tooltips:_updateToolTipTextIfPawnChanged()
+function mf_texts:_updateToolTipTextIfPawnChanged()
 	if GetCurrentMission() then
 		self._lastStrategyPawnId = nil
 		return
@@ -253,9 +253,9 @@ function mech_upgrade_tooltips:_updateToolTipTextIfPawnChanged()
 	self:_updateToolTips()
 end
 
-function mech_upgrade_tooltips:init()
+function mf_texts:init()
 	self._logger.logInfo(self._submodule, "init")
-	self._registry = mech_forge._subobjects.mech_upgrade_registry
+	self._registry = mech_forge._subobjects.registry
 	self._utils = mech_forge._subobjects.utils
 
 	self:_registerDefaultText()
@@ -264,8 +264,8 @@ function mech_upgrade_tooltips:init()
 	self:_registerReactorSlotTooltips()
 
 	modApi.events.onFrameDrawStart:subscribe(function()
-		mech_upgrade_tooltips:_updateToolTipTextIfPawnChanged()
+		mf_texts:_updateToolTipTextIfPawnChanged()
 	end)
 end
 
-return mech_upgrade_tooltips
+return mf_texts
