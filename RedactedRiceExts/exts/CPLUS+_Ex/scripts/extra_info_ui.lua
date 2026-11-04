@@ -7,6 +7,8 @@
 
 local extra_info_ui = {}
 
+require(GetParentPath(modApi:getCurrentMod().resourcePath) .. "libs/InGameToolTip")
+
 -- Register with logging system
 local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "ExtraInfoUI", cplus_plus_ex.DEBUG.EXTRA_INFO_UI and cplus_plus_ex.DEBUG.ENABLED)
@@ -235,8 +237,12 @@ function extra_info_ui:buildPanelIcon(iconInfo, container)
 		:addTo(container)
 
 	-- Set tooltip with title and description (both guaranteed to exist by addIcon)
-	local tooltipText = iconInfo.title .. "\n\n" .. iconInfo.description
-	iconUi:settooltip(tooltipText)
+	-- Set it to not be static so it will move with our cursor
+	InGameToolTip.forUiElement(iconUi, {
+		body = iconInfo.description,
+		title = iconInfo.title,
+		static = false,
+	})
 
 	-- Add padding after icon
 	Ui():widthpx(PANEL_ICON_PADDING):heightpx(1):addTo(container)

@@ -50,8 +50,10 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 
 	-- Make input args consistent
 	local label = labelOrTable
+	local tooltip = nil
 	if type(labelOrTable) == "table" then
 		label = labelOrTable.label
+		tooltip = labelOrTable.tooltip
 		onPowered = labelOrTable.onPowered
 		onUnpowered = labelOrTable.onUnpowered
 		onCoreChanged = labelOrTable.onCoreChanged
@@ -92,8 +94,25 @@ function mech_upgrade_registry:registerMechUpgrade(mechType, slot, labelOrTable,
 	if entry[slot] ~= nil then
 		logger.logWarn(SUBMODULE, "registerMechUpgrade: overwriting existing %s upgrade for %s", slot, mechType)
 	end
+	if tooltip ~= nil then
+		local tooltipType = type(tooltip)
+		if tooltipType ~= "string" and tooltipType ~= "function" then
+			logger.logError(SUBMODULE,
+				"registerMechUpgrade: tooltip must be a string, text id, or function for %s %s",
+				mechType, slot)
+			return false
+		end
+		if tooltipType == "string" and tooltip == "" then
+			logger.logError(SUBMODULE,
+				"registerMechUpgrade: tooltip must be non-empty when set for %s %s",
+				mechType, slot)
+			return false
+		end
+	end
+
 	entry[slot] = {
 		label = label,
+		tooltip = tooltip,
 		onPowered = onPowered,
 		onUnpowered = onUnpowered,
 		onCoreChanged = onCoreChanged,
