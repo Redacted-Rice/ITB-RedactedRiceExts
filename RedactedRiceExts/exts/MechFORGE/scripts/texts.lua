@@ -223,7 +223,9 @@ end
 
 function mf_texts:_registerReactorSlotTooltips()
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
-		InGameToolTip.forBox(self.SLOT_REACTOR_BOX[slot], self.SLOT_REACTOR_LOC[slot])
+		InGameToolTip.forBox(self.SLOT_REACTOR_BOX[slot], self.SLOT_REACTOR_LOC[slot], {
+			static = true,
+		})
 	end
 end
 
