@@ -14,6 +14,7 @@ mech_forge.DEBUG = {
 	REGISTRY = false,
 	STATE_TRACKER = false,
 	MANAGER = true,
+	TOOLTIPS = true,
 }
 
 local logger = memhack.logger
@@ -35,6 +36,7 @@ mech_forge._subobjects.utils = require(path.."scripts/utils")
 mech_forge._subobjects.mech_upgrade_registry = require(path.."scripts/mech_upgrade_registry")
 mech_forge._subobjects.mech_upgrade_manager = require(path.."scripts/mech_upgrade_manager")
 mech_forge._subobjects.mech_upgrade_state_tracker = require(path.."scripts/mech_upgrade_state_tracker")
+mech_forge._subobjects.mech_upgrade_tooltips = require(path.."scripts/mech_upgrade_tooltips")
 
 -- Local references to submodules for convenient access in this file
 local hooks = mech_forge._subobjects.hooks
@@ -42,11 +44,13 @@ local utils = mech_forge._subobjects.utils
 local mech_upgrade_registry = mech_forge._subobjects.mech_upgrade_registry
 local mech_upgrade_manager = mech_forge._subobjects.mech_upgrade_manager
 local mech_upgrade_state_tracker = mech_forge._subobjects.mech_upgrade_state_tracker
+local mech_upgrade_tooltips = mech_forge._subobjects.mech_upgrade_tooltips
 
 function mech_forge:initModules()
 	hooks:init()
 	mech_upgrade_manager:init()
 	mech_upgrade_state_tracker:init()
+	mech_upgrade_tooltips:init()
 end
 
 function mech_forge:exposeAPI()

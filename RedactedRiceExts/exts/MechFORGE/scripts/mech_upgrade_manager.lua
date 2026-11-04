@@ -60,24 +60,6 @@ function mech_upgrade_manager:_invokeRegisteredCallback(config, field, ...)
 	end
 end
 
-function mech_upgrade_manager:_resolveUpgradeLabel(label, pawn)
-	if label == nil then
-		return nil
-	end
-
-	-- If we have a function call it and use the result or the passed label if its not fn
-	local resolved = type(label) == "function" and label(pawn) or label
-	if type(resolved) ~= "string" then
-		return resolved ~= nil and tostring(resolved) or nil
-	end
-	if resolved == "" then
-		return nil
-	end
-
-	-- call get text which will be overridden to handle custom lables
-	return GetText(resolved)
-end
-
 function mech_upgrade_manager:_customUpgradeLabelForTextId(id)
 	-- If its not one of the labels we override return
 	local slot = TEXT_ID_TO_SLOT[id]
@@ -105,7 +87,7 @@ function mech_upgrade_manager:_customUpgradeLabelForTextId(id)
 	end
 
 	-- If it does, resolve the text and return it
-	local text = self:_resolveUpgradeLabel(config.label, pawn)
+	local text = utils.resolveText(config.label, pawn)
 	if not text then
 		return nil
 	end
