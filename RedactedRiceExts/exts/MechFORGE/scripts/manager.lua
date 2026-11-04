@@ -1,15 +1,15 @@
 -- Manages and handles the custom mech upgrades
 
-local mech_upgrade_manager = {}
+local mf_manager = {}
 
 local logger = memhack.logger
 local SUBMODULE = logger.register("MechFORGE", "UpgradeManager", mech_forge.DEBUG.MANAGER and mech_forge.DEBUG.ENABLED)
 
 local hooks = nil
-local mech_upgrade_registry = nil
+local mf_registry = nil
 local utils = nil
 
-function mech_upgrade_manager:_adjustVanillaHealthBonus(pawn, config, restore)
+function mf_manager:_adjustVanillaHealthBonus(pawn, config, restore)
 	local bonus = mech_forge.VANILLA_BONUSES.HEALTH
 	local delta = restore and bonus or -bonus
 	-- Max base health affects outside of mission. MaxHealth and Health is inside mission. Set both in case
@@ -24,7 +24,7 @@ function mech_upgrade_manager:_adjustVanillaHealthBonus(pawn, config, restore)
 		restore and "restore" or "revert", config.label, delta, maxBase, maxBase + delta)
 end
 
-function mech_upgrade_manager:_adjustVanillaMoveBonus(pawn, config, restore)
+function mf_manager:_adjustVanillaMoveBonus(pawn, config, restore)
 	local bonus = mech_forge.VANILLA_BONUSES.MOVE
 	-- GetMoveSpeed will return 0 if its <= 0 but we need to handle negative values for 0
 	-- base move pawns so we use the raw getters and setters. These are base move speeds
@@ -37,7 +37,7 @@ function mech_upgrade_manager:_adjustVanillaMoveBonus(pawn, config, restore)
 		restore and "restore" or "revert", config.label, delta, moveSpeed, moveSpeed + delta)
 end
 
-function mech_upgrade_manager:_handleVanillaBonusChange(pawn, slot, config, restore)
+function mf_manager:_handleVanillaBonusChange(pawn, slot, config, restore)
 	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
 		self:_adjustVanillaHealthBonus(pawn, config, restore)
 	elseif slot == mech_forge.VANILLA_UPGRADES.MOVE then
@@ -45,7 +45,7 @@ function mech_upgrade_manager:_handleVanillaBonusChange(pawn, slot, config, rest
 	end
 end
 
-function mech_upgrade_manager:_invokeRegisteredCallback(config, field, ...)
+function mf_manager:_invokeRegisteredCallback(config, field, ...)
 	if not config then
 		return
 	end
@@ -55,17 +55,17 @@ function mech_upgrade_manager:_invokeRegisteredCallback(config, field, ...)
 	end
 end
 
-function mech_upgrade_manager:_subscribeUpgradeCallbackEvents()
+function mf_manager:_subscribeUpgradeCallbackEvents()
 	-- Use internal priority so others can run first if needed for some reason
 	local priority = hooks.INTERNAL_PRIORITY
 
 	hooks.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldCore, newCore)
-		local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
+		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
 		self:_invokeRegisteredCallback(config, "onCoreChanged", slot, pawn, pawnId, mechType, oldCore, newCore)
 	end, priority)
 
 	hooks.events.onMechUpgradePowered:subscribe(function(slot, pawn, pawnId, mechType, newCore)
-		local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
+		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
 		if config then
 			self:_handleVanillaBonusChange(pawn, slot, config, false)
 			self:_invokeRegisteredCallback(config, "onPowered", slot, pawn, pawnId, mechType, newCore)
@@ -73,7 +73,7 @@ function mech_upgrade_manager:_subscribeUpgradeCallbackEvents()
 	end, priority)
 
 	hooks.events.onMechUpgradeUnpowered:subscribe(function(slot, pawn, pawnId, mechType, oldCore)
-		local config = mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot)
+		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
 		if config then
 			self:_handleVanillaBonusChange(pawn, slot, config, true)
 			self:_invokeRegisteredCallback(config, "onUnpowered", slot, pawn, pawnId, mechType, oldCore)
@@ -83,12 +83,12 @@ function mech_upgrade_manager:_subscribeUpgradeCallbackEvents()
 	logger.logDebug(SUBMODULE, "Subscribed upgrade callback events")
 end
 
-function mech_upgrade_manager:init()
+function mf_manager:init()
 	hooks = mech_forge._subobjects.hooks
-	mech_upgrade_registry = mech_forge._subobjects.mech_upgrade_registry
+	mf_registry = mech_forge._subobjects.registry
 	utils = mech_forge._subobjects.utils
 	self:_subscribeUpgradeCallbackEvents()
 	return self
 end
 
-return mech_upgrade_manager
+return mf_manager

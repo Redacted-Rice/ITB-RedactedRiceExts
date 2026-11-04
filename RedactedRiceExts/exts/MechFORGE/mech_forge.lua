@@ -10,13 +10,13 @@ require(mod_loader.mods[modApi:getCurrentMod().parent].resourcePath .. "libs/inG
 
 -- Debugging configuration to enable debugging for modules
 mech_forge.DEBUG = {
-	ENABLED = true,  -- Disable/enable all debug logging
+	ENABLED = false,  -- Disable/enable all debug logging
 	TRIGGER_EVENTS = false,
 	HOOKS = false,
 	REGISTRY = false,
 	STATE_TRACKER = false,
-	MANAGER = true,
-	TOOLTIPS = true,
+	MANAGER = false,
+	TEXTS = false,
 }
 
 local logger = memhack.logger
@@ -35,24 +35,24 @@ mech_forge.VANILLA_BONUSES = {
 mech_forge._subobjects = {}
 mech_forge._subobjects.hooks = require(path.."scripts/hooks")
 mech_forge._subobjects.utils = require(path.."scripts/utils")
-mech_forge._subobjects.mech_upgrade_registry = require(path.."scripts/mech_upgrade_registry")
-mech_forge._subobjects.mech_upgrade_manager = require(path.."scripts/mech_upgrade_manager")
-mech_forge._subobjects.mech_upgrade_state_tracker = require(path.."scripts/mech_upgrade_state_tracker")
-mech_forge._subobjects.mech_upgrade_tooltips = require(path.."scripts/mech_upgrade_tooltips")
+mech_forge._subobjects.registry = require(path.."scripts/registry")
+mech_forge._subobjects.manager = require(path.."scripts/manager")
+mech_forge._subobjects.state_tracker = require(path.."scripts/state_tracker")
+mech_forge._subobjects.texts = require(path.."scripts/texts")
 
 -- Local references to submodules for convenient access in this file
 local hooks = mech_forge._subobjects.hooks
 local utils = mech_forge._subobjects.utils
-local mech_upgrade_registry = mech_forge._subobjects.mech_upgrade_registry
-local mech_upgrade_manager = mech_forge._subobjects.mech_upgrade_manager
-local mech_upgrade_state_tracker = mech_forge._subobjects.mech_upgrade_state_tracker
-local mech_upgrade_tooltips = mech_forge._subobjects.mech_upgrade_tooltips
+local mf_registry = mech_forge._subobjects.registry
+local mf_manager = mech_forge._subobjects.manager
+local mf_state_tracker = mech_forge._subobjects.state_tracker
+local mf_texts = mech_forge._subobjects.texts
 
 function mech_forge:initModules()
 	hooks:init()
-	mech_upgrade_manager:init()
-	mech_upgrade_state_tracker:init()
-	mech_upgrade_tooltips:init()
+	mf_manager:init()
+	mf_state_tracker:init()
+	mf_texts:init()
 end
 
 function mech_forge:exposeAPI()
@@ -64,12 +64,12 @@ function mech_forge:exposeAPI()
 	function mech_forge:getMechType(pawn) return utils.getMechType(pawn) end
 
 	-- registry
-	function mech_forge:registerMechUpgrade(...) return mech_upgrade_registry:registerMechUpgrade(...) end
-	function mech_forge:getCustomMechUpgradeConfigs(mechType) return mech_upgrade_registry:getCustomMechUpgradeConfigs(mechType) end
-	function mech_forge:getCustomMechUpgradeConfig(mechType, slot) return mech_upgrade_registry:getCustomMechUpgradeConfig(mechType, slot) end
-	function mech_forge:hasCustomMechUpgrades(mechType) return mech_upgrade_registry:hasCustomMechUpgrades(mechType) end
-	function mech_forge:hasCustomMechUpgrade(mechType, slot) return mech_upgrade_registry:hasCustomMechUpgrade(mechType, slot) end
-	function mech_forge:listMechsWithCustomUpgrades() return mech_upgrade_registry:listMechsWithCustomUpgrades() end
+	function mech_forge:registerMechUpgrade(...) return mf_registry:registerMechUpgrade(...) end
+	function mech_forge:getCustomMechUpgradeConfigs(mechType) return mf_registry:getCustomMechUpgradeConfigs(mechType) end
+	function mech_forge:getCustomMechUpgradeConfig(mechType, slot) return mf_registry:getCustomMechUpgradeConfig(mechType, slot) end
+	function mech_forge:hasCustomMechUpgrades(mechType) return mf_registry:hasCustomMechUpgrades(mechType) end
+	function mech_forge:hasCustomMechUpgrade(mechType, slot) return mf_registry:hasCustomMechUpgrade(mechType, slot) end
+	function mech_forge:listMechsWithCustomUpgrades() return mf_registry:listMechsWithCustomUpgrades() end
 end
 
 function mech_forge:init()
@@ -88,22 +88,22 @@ function mech_forge:addEvents()
 	modApi.events.onModsLoaded:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded event fired =====")
 
-		mech_upgrade_state_tracker:_resetAllTrackers()
+		mf_state_tracker:_resetAllTrackers()
 
 		logger.logDebug(TRIGGER_EVENTS, "===== onModsLoaded processing complete =====")
 	end)
 
 	modApi.events.onGameExited:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onGameExited")
-		mech_upgrade_state_tracker:_resetAllTrackers()
+		mf_state_tracker:_resetAllTrackers()
 	end)
 
 	modApi.events.onGameVictory:subscribe(function()
 		logger.logDebug(TRIGGER_EVENTS, "onGameVictory")
-		mech_upgrade_state_tracker:_resetAllTrackers()
+		mf_state_tracker:_resetAllTrackers()
 	end)
 
 	modApi.events.onFrameDrawStart:subscribe(function()
-		mech_upgrade_state_tracker:_updateAllStates()
+		mf_state_tracker:_updateAllStates()
 	end)
 end

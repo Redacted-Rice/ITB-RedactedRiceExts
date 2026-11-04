@@ -5,7 +5,7 @@
 	mechUpgradeCoreChanged. Powered vs unpowered comes from memhack.CORE_TYPE_NONE.
 ]]
 
-local mech_upgrade_state_tracker = {}
+local mf_state_tracker = {}
 
 -- Register with logging system
 local logger = memhack.logger
@@ -16,7 +16,7 @@ local hooks = nil
 local utils = nil
 
 -- Creates and empty pawn state with both upgrade slots empty for tracking
-function mech_upgrade_state_tracker:_emptyPawnState()
+function mf_state_tracker:_emptyPawnState()
 	return {
 		[mech_forge.VANILLA_UPGRADES.HEALTH] = nil,
 		[mech_forge.VANILLA_UPGRADES.MOVE] = nil,
@@ -24,7 +24,7 @@ function mech_upgrade_state_tracker:_emptyPawnState()
 end
 
 -- Resets all trackers to empty states
-function mech_upgrade_state_tracker:_resetAllTrackers()
+function mf_state_tracker:_resetAllTrackers()
 	self._tracked = {
 		[0] = self:_emptyPawnState(),
 		[1] = self:_emptyPawnState(),
@@ -32,7 +32,7 @@ function mech_upgrade_state_tracker:_resetAllTrackers()
 	}
 end
 
-function mech_upgrade_state_tracker:init()
+function mf_state_tracker:init()
 	hooks = mech_forge._subobjects.hooks
 	utils = mech_forge._subobjects.utils
 
@@ -42,7 +42,7 @@ end
 -------------------- Hook dispatch --------------------
 
 -- cehck for and fire hooks if the state changed for the pawn
-function mech_upgrade_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
+function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
 	if not Game then
 		logger.logWarn(SUBMODULE,
 			"skipped mech upgrade hooks for pawn %d slot %s (Game unavailable)",
@@ -72,7 +72,7 @@ end
 
 -------------------- State update orchestration --------------------
 
-function mech_upgrade_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
+function mf_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 	if not pawn then
 		return
 	end
@@ -95,7 +95,7 @@ function mech_upgrade_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 	end
 end
 
-function mech_upgrade_state_tracker:_updateSquadUpgradeStates()
+function mf_state_tracker:_updateSquadUpgradeStates()
 	if not Game then
 		--logger.logWarn(SUBMODULE, "skipped squad upgrade state update (Game unavailable)")
 		return
@@ -107,13 +107,13 @@ function mech_upgrade_state_tracker:_updateSquadUpgradeStates()
 	end
 end
 
-function mech_upgrade_state_tracker:_updateAllStates()
+function mf_state_tracker:_updateAllStates()
 	self:_updateSquadUpgradeStates()
 end
 
 -------------------- State Queries --------------------
 
-function mech_upgrade_state_tracker:_getTrackedCore(pawnId, slot)
+function mf_state_tracker:_getTrackedCore(pawnId, slot)
 	local tracked = self._tracked[pawnId]
 	if not tracked then
 		return nil
@@ -122,7 +122,7 @@ function mech_upgrade_state_tracker:_getTrackedCore(pawnId, slot)
 end
 
 -- pawnId -> slot -> core int (tracked, not live)
-function mech_upgrade_state_tracker:_getTrackedSquadState()
+function mf_state_tracker:_getTrackedSquadState()
 	local result = {}
 	for pawnId = 0, 2 do
 		local pawnState = self._tracked[pawnId]
@@ -136,5 +136,5 @@ function mech_upgrade_state_tracker:_getTrackedSquadState()
 	return result
 end
 
-mech_upgrade_state_tracker:_resetAllTrackers()
-return mech_upgrade_state_tracker
+mf_state_tracker:_resetAllTrackers()
+return mf_state_tracker
