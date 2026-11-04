@@ -97,7 +97,7 @@ end
 
 function mech_upgrade_state_tracker:_updateSquadUpgradeStates()
 	if not Game then
-		logger.logWarn(SUBMODULE, "skipped squad upgrade state update (Game unavailable)")
+		--logger.logWarn(SUBMODULE, "skipped squad upgrade state update (Game unavailable)")
 		return
 	end
 

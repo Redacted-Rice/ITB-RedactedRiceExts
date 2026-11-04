@@ -7,8 +7,6 @@
 
 local extra_info_ui = {}
 
-require(GetParentPath(modApi:getCurrentMod().resourcePath) .. "libs/InGameToolTip")
-
 -- Register with logging system
 local logger = memhack.logger
 local SUBMODULE = logger.register("CPLUS+", "ExtraInfoUI", cplus_plus_ex.DEBUG.EXTRA_INFO_UI and cplus_plus_ex.DEBUG.ENABLED)

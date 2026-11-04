@@ -2,8 +2,6 @@
 
 local mech_upgrade_tooltips = {}
 
-require(GetParentPath(modApi:getCurrentMod().resourcePath) .. "libs/InGameToolTip")
-
 mech_upgrade_tooltips._logger = memhack.logger
 mech_upgrade_tooltips._submodule = mech_upgrade_tooltips._logger.register(
 	"MechFORGE",
