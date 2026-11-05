@@ -27,8 +27,8 @@ local hooks = {
 	"pilotLvlUpSkillChanged",
 	-- args:
 	--  pawn (Pawn or nil) - selected mech on the upgrade screen. Nil when selection is cleared
-	--  oldPawn (Pawn or nil) - previous selected mech on the upgrade screen. Nil on first 
-	--		selection/opening of the upgrade menu
+	--  oldPawn (Pawn or nil) - previous selected mech on the upgrade screen. Nil on first
+	--      selection/opening of the upgrade menu
 	"upgradeSelectedPawnChanged",
 	-- args:
 	--  pawn (Pawn|nil) - selected mech userdata

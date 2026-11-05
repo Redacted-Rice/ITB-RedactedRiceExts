@@ -110,6 +110,8 @@ function M.stubMemhack()
 			events = {
 				onPilotChanged = Event(),
 				onPilotLvlUpSkillChanged = Event(),
+				onUpgradeSelectedPawnChanged = Event(),
+				onUpgradeSelectedPilotChanged = Event(),
 			},
 			addTo = function(self, owner, debugId)
 				self.events = self.events or {}
