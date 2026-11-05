@@ -101,14 +101,13 @@ describe("MechFORGE upgrade manager", function()
 			helper.initTexts()
 		end)
 
-		it("returns custom label for strategy-selected mech", function()
+		it("returns custom label for upgrade-selected mech", function()
 			local pawn = helper.createMockPawn({ mechType = "LabelMech" })
 			helper.setupSquadPawns({ [0] = pawn })
-			_G.Game.GetStrategySelectedPawn = function(self)
-				return 0
-			end
 
 			forge:registerMechUpgrade("LabelMech", V.HEALTH, "MyLabelKey")
+
+			memhack.hooks.events.onUpgradeSelectedPawnChanged:dispatch(pawn, nil)
 
 			-- label strings go through GetText once more (text id or passthrough)
 			assert.are.equal("TEXT:MyLabelKey", GetText("Upgrade_HealthLabel"))
