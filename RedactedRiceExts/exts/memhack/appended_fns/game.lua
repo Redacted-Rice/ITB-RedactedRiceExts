@@ -174,8 +174,9 @@ local function onGameClassInitialized(GameClass)
 		return pilot
 	end
 
-	GameClass.GetStrategySelectedPawn = function(self)
-		local selected = self:GetMemhackObj():getStrategySelectedPawn()
+	-- In between mission upgrade menu selected pawn
+	GameClass.GetUpgradeSelectedPawnId = function(self)
+		local selected = self:GetMemhackObj():getUpgradeSelectedPawn()
 		if selected >= 0 and selected <= 2 then
 			return selected
 		else
@@ -183,7 +184,22 @@ local function onGameClassInitialized(GameClass)
 		end
 	end
 
-	-- Mission-time selected pawn (board), not strategy layer GetStrategySelectedPawn
+	-- In between mission upgrade menu selected pawn
+	GameClass.GetUpgradeSelectedPawn = function(self)
+		local pawnId = self:GetUpgradeSelectedPawnId()
+		if pawnId == nil then
+			return nil
+		end
+		return self:GetPawn(pawnId)
+	end
+
+	-- Legacy API - rerouted to GetUpgradeSelectedPawnId
+	-- In between mission upgrade menu selected pawn
+	GameClass.GetStrategySelectedPawn = function(self)
+		return self:GetUpgradeSelectedPawnId()
+	end
+
+	-- In mission selected pawn
 	GameClass.GetSelectedPawn = function(self)
 		local boardPlayer = self:GetMemhackObj():getBoardPlayer()
 		if not boardPlayer then

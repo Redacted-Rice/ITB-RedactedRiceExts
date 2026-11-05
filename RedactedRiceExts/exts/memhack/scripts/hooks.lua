@@ -25,6 +25,16 @@ local hooks = {
 	--  PilotLvlUpSkill
 	--  changes - map of fields and value changes. e.g. {field = {old = oldVal, new = newVal}}
 	"pilotLvlUpSkillChanged",
+	-- args:
+	--  pawn (Pawn or nil) - selected mech on the upgrade screen. Nil when selection is cleared
+	--  oldPawn (Pawn or nil) - previous selected mech on the upgrade screen. Nil on first 
+	--		selection/opening of the upgrade menu
+	"upgradeSelectedPawnChanged",
+	-- args:
+	--  pawn (Pawn|nil) - selected mech userdata
+	--  pilot (Pilot|nil) - pilot on the selected upgrade screen mech
+	--  oldPilot (Pilot|nil) - previous pilot on this selection, if any
+	"upgradeSelectedPilotChanged",
 }
 
 function hooks:init()
@@ -41,6 +51,8 @@ end
 function hooks:initBroadcastHooks()
 	self["firePilotChangedHooks"] = self:buildBroadcastFunc("pilotChangedHooks", nil, nil, SUBMODULE)
 	self["firePilotLvlUpSkillChangedHooks"] = self:buildBroadcastFunc("pilotLvlUpSkillChangedHooks", nil, {"Pilot"}, SUBMODULE)
+	self["fireUpgradeSelectedPawnChangedHooks"] = self:buildBroadcastFunc("upgradeSelectedPawnChangedHooks", nil, nil, SUBMODULE)
+	self["fireUpgradeSelectedPilotChangedHooks"] = self:buildBroadcastFunc("upgradeSelectedPilotChangedHooks", nil, nil, SUBMODULE)
 end
 
 -- Reloads hooks by clearing and re-adding event dispatchers

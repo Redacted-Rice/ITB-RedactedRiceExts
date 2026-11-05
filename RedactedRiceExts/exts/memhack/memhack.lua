@@ -90,11 +90,13 @@ function memhack:init(mockDll)
 	-- Wrap hooks to update state trackers to prevent double firing from state tracking
 	self._subobjects.stateTracker = require(path.."scripts/state_tracker")
 	self._subobjects.skillCoreSync = require(path.."scripts/skill_core_sync")
+	self._subobjects.upgradeMenuTracker = require(path.."scripts/upgrade_menu_tracker")
 	self.stateTracker = self._subobjects.stateTracker
 	self.skillCoreSync = self._subobjects.skillCoreSync
 	stateTracker = self._subobjects.stateTracker
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
 	self._subobjects.skillCoreSync:init()
+	self._subobjects.upgradeMenuTracker:init()
 
 	-- Register events
 	self:addEvents()

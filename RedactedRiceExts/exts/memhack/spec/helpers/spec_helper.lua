@@ -187,6 +187,8 @@ function M.initMemhack()
 	_G.memhack.hooks = {
 		firePilotChangedHooks = function() end,
 		firePilotLvlUpSkillChangedHooks = function() end,
+		fireUpgradeSelectedPawnChangedHooks = function() end,
+		fireUpgradeSelectedPilotChangedHooks = function() end,
 	}
 
 	M.setupGlobals()
