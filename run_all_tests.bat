@@ -28,5 +28,16 @@ if %errorlevel% neq 0 (
 
 echo.
 echo =========================================
+echo Running MechFORGE Extension Tests
+echo =========================================
+cd /d "%SCRIPT_DIR%RedactedRiceExts\exts\MechFORGE"
+call busted
+if %errorlevel% neq 0 (
+    echo MechFORGE tests failed!
+    exit /b 1
+)
+
+echo.
+echo =========================================
 echo All tests completed successfully!
 echo =========================================
