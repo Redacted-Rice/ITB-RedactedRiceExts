@@ -17,7 +17,7 @@ function M.setupGlobals()
 		},
 		mods = {
 			redactedrice_exts = {
-				resourcePath = "../../../../",
+				resourcePath = "../../",
 			},
 			cplus_plus_ex = {
 				resourcePath = "",
@@ -162,9 +162,28 @@ function M.stubMemhack()
 	}
 end
 
+local function stubInGameToolTipModule()
+	package.preload["../../libs/inGameToolTip"] = function()
+		local tooltipStub = {
+			version = "0.0.0-test",
+			_boxUiByName = {},
+			_boxSpecs = {},
+		}
+
+		function tooltipStub.registerBox() end
+		function tooltipStub.forBox() end
+		function tooltipStub.updateTipContent() end
+		function tooltipStub.forUiElement() end
+
+		_G.InGameToolTip = tooltipStub
+		return tooltipStub
+	end
+end
+
 -- Initialize CPLUS+ extension
 M.setupGlobals()
 M.stubMemhack()
+stubInGameToolTipModule()
 
 require("cplus_plus_ex")
 M.plus_manager = cplus_plus_ex
