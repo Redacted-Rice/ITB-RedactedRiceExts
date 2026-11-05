@@ -39,6 +39,41 @@ mf_texts.SLOT_REACTOR_LOC = {
 	[mech_forge.VANILLA_UPGRADES.MOVE] = "upgrade_movement_loc",
 }
 
+-- Cache on pawn selection changes
+mf_texts._selectedPawn = nil
+mf_texts._customConfigBySlot = {}
+mf_texts._gettextOverrideCache = {}
+
+function mf_texts:_rebuildSelectionCache(pawn)
+	self._selectedPawn = nil
+	self._customConfigBySlot = {}
+	self._gettextOverrideCache = {}
+
+	if GetCurrentMission() or not pawn then
+		return
+	end
+
+	local mechType = self._utils.getMechType(pawn)
+	if not mechType then
+		return
+	end
+
+	self._selectedPawn = pawn
+	for slot, textId in pairs(self.SLOT_TO_TEXT_ID) do
+		local config = self._registry:getCustomMechUpgradeConfig(mechType, slot)
+		if config then
+			self._customConfigBySlot[slot] = config
+			self._gettextOverrideCache[textId] = self._utils.resolveText(config.label, pawn)
+		end
+	end
+
+	for id, slot in pairs(self.STATS_UPGRADE_TEXT) do
+		if self._customConfigBySlot[slot] then
+			self._gettextOverrideCache[id] = ""
+		end
+	end
+end
+
 function mf_texts:_vanillaBonusForSlot(slot)
 	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
 		return mech_forge.VANILLA_BONUSES.MOVE
@@ -61,80 +96,34 @@ function mf_texts:_upgradeCombinedStatForSlot(pawn, slot)
 	return value
 end
 
-function mf_texts:_getSelectedPawn()
-	if not Game then
-		return nil
-	end
-
-	local pawnId = Game:GetStrategySelectedPawn()
-	if pawnId == nil then
-		return nil
-	end
-
-	return Game:GetPawn(pawnId)
-end
-
 function mf_texts:_getSelectedMechUpgradeInfo(slot)
-	-- Get the currently selected pawn in the strategy menu
-	local pawn = self:_getSelectedPawn()
-	if not pawn then
-		return nil, nil
-	end
-
-	-- Get the mechtype of the pawn
-	local mechType = self._utils.getMechType(pawn)
-	if not mechType then
-		return nil, nil
-	end
-
-	-- See if it has a custom upgrade config for this text
-	local config = self._registry:getCustomMechUpgradeConfig(mechType, slot)
-	if not config then
-		return nil, nil
-	end
-
-	return pawn, config
+	return self._selectedPawn, self._customConfigBySlot[slot]
 end
 
 function mf_texts:_customStatsLabelForTextId(id, r1, r2, r3)
-	-- If its not one of the labels we override return
-	local slot = self.STATS_BASE_TEXT[id] or self.STATS_UPGRADE_TEXT[id]
+	if self._gettextOverrideCache[id] ~= nil then
+		return self._gettextOverrideCache[id]
+	end
+
+	local slot = self.STATS_BASE_TEXT[id]
 	if not slot then
 		return nil
 	end
 
-	-- Get the mech upgrade info for the selected pawn
 	local pawn, config = self:_getSelectedMechUpgradeInfo(slot)
-	if not config then
+	if not pawn or not config then
 		return nil
 	end
 
-	-- If its the upgrade text, we return empty. We will combine for the
-	-- the base text
-	if self.STATS_UPGRADE_TEXT[id] then
-		return ""
-	end
-
-	-- Its the base text, get the current combine stats and return that
 	local value = self:_upgradeCombinedStatForSlot(pawn, slot)
 	return mf_texts._origGetText(id, value, r2, r3)
 end
 
 function mf_texts:_customUpgradeLabelForTextId(id)
-	-- If its not one of the labels we override return
-	local slot = self.TEXT_ID_TO_SLOT[id]
-	if not slot then
-		return nil
+	if self._gettextOverrideCache[id] ~= nil then
+		return self._gettextOverrideCache[id]
 	end
-
-	-- Get the mech upgrade info for the selected pawn
-	local pawn, config = self:_getSelectedMechUpgradeInfo(slot)
-	if not config then
-		return nil
-	end
-
-	-- Resolve the custom text
-	return self._utils.resolveText(config.label, pawn)
+	return nil
 end
 
 function mf_texts:_installGetTextOverride()
@@ -180,13 +169,8 @@ function mf_texts:_upgradeLabelTitleForSlot(slot)
 	return GetText(textId)
 end
 
-function mf_texts:_getUpgradeTooltipForSlot(slot)
-	if not self._utils.isValidUpgradeSlot(slot) then
-		return nil, nil
-	end
-
-	local pawn = self:_getSelectedPawn()
-	if not pawn then
+function mf_texts:_getUpgradeTooltipForSlot(slot, pawn)
+	if not self._utils.isValidUpgradeSlot(slot) or not pawn then
 		return nil, nil
 	end
 
@@ -229,45 +213,35 @@ function mf_texts:_registerReactorSlotTooltips()
 	end
 end
 
-function mf_texts:_updateToolTips()
+function mf_texts:_updateToolTips(pawn)
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
-		local title, body = self:_getUpgradeTooltipForSlot(slot)
+		local title, body = self:_getUpgradeTooltipForSlot(slot, pawn)
 		InGameToolTip.updateTipContent(self.SLOT_REACTOR_BOX[slot], body, title)
 	end
 end
 
--- TODO later: Make this an event in memhack? I think we do this a few places now
-function mf_texts:_updateToolTipTextIfPawnChanged()
-	if GetCurrentMission() then
-		self._lastStrategyPawnId = nil
-		return
-	end
-	if not Game then
-		return
-	end
+function mf_texts:_onUpgradeSelectedPawnChanged(pawn, oldPawn)
+	self:_rebuildSelectionCache(pawn)
+	self:_updateToolTips(pawn)
+end
 
-	local pawnId = Game:GetStrategySelectedPawn()
-	if pawnId == self._lastStrategyPawnId then
-		return
-	end
-	self._lastStrategyPawnId = pawnId
-
-	self:_updateToolTips()
+function mf_texts:_subscribeUpgradeSelectedPawnChanged()
+	memhack.hooks.events.onUpgradeSelectedPawnChanged:subscribe(function(pawn, oldPawn)
+		mf_texts:_onUpgradeSelectedPawnChanged(pawn, oldPawn)
+	end)
 end
 
 function mf_texts:init()
 	self._logger.logInfo(self._submodule, "init")
 	self._registry = mech_forge._subobjects.registry
 	self._utils = mech_forge._subobjects.utils
+	self:_rebuildSelectionCache(nil)
 
 	self:_registerDefaultText()
 	self:_installGetTextOverride()
 	self:_registerReactorBoxDefs()
 	self:_registerReactorSlotTooltips()
-
-	modApi.events.onFrameDrawStart:subscribe(function()
-		mf_texts:_updateToolTipTextIfPawnChanged()
-	end)
+	self:_subscribeUpgradeSelectedPawnChanged()
 end
 
 return mf_texts
