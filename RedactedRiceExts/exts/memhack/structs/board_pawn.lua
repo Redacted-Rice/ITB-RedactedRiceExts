@@ -6,8 +6,8 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	selected = { offset = 0x4C, type = "bool", hideGetter = true, hideSetter = true },
 	pawnType = { offset = 0x94, type = "struct", subType = "ItBString" },
 
-	-- Smart "double" pointer to pilot data at 0x980
-	pilot = { offset = 0x980, type = "pointer", subType = "Pilot", noSetter = true },
+	-- Pointer to pilot data at 0x980 (use setPilotPtr to repoint, e.g. assembly-line wreck)
+	pilot = { offset = 0x980, type = "pointer", subType = "Pilot" },
 
 	-- GetMoveSpeed returns 0 if its <= 0 but I need it to return negative values for mechFORGE
 	-- so I include the direct memory access here as well
