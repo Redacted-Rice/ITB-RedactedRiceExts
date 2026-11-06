@@ -17,6 +17,8 @@ const int MAX_BYTE_ARRAY_LENGTH = 65536;
 int get_userdata_addr(lua_State* L);
 int alloc_null_term_string(lua_State* L);
 int free_null_term_string(lua_State* L);
+int alloc_byte_array(lua_State* L);
+int free_byte_array(lua_State* L);
 
 // Read functions - return the value at the given address
 int read_byte(lua_State* L);

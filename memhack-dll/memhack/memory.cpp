@@ -57,6 +57,32 @@ int alloc_null_term_string(lua_State* L) {
 	return 1;
 }
 
+int alloc_byte_array(lua_State* L) {
+	size_t size = (size_t)luaL_checkinteger(L, 1);
+	if (size == 0) {
+		luaL_error(L, "alloc_byte_array failed: size must be positive");
+		return 0;
+	}
+	if (size > (size_t)MAX_BYTE_ARRAY_LENGTH) {
+		luaL_error(L, "alloc_byte_array failed: size cannot exceed %d, got %zu", MAX_BYTE_ARRAY_LENGTH, size);
+		return 0;
+	}
+	void* raw = operator new[](size);
+	std::memset(raw, 0, size);
+	lua_pushinteger(L, (lua_Integer)(size_t)raw);
+	return 1;
+}
+
+int free_byte_array(lua_State* L) {
+	void* addr = (void*)(size_t)luaL_checkinteger(L, 1);
+	if (addr == nullptr) {
+		luaL_error(L, "free_byte_array failed: cannot free NULL");
+		return 0;
+	}
+	operator delete[]((char*)addr);
+	return 0;
+}
+
 int free_null_term_string(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	
@@ -376,6 +402,14 @@ void add_memory_functions(lua_State* L) {
 
 	lua_pushstring(L, "freeNullTermString");
 	lua_pushcfunction(L, free_null_term_string);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "allocByteArray");
+	lua_pushcfunction(L, alloc_byte_array);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "freeByteArray");
+	lua_pushcfunction(L, free_byte_array);
 	lua_rawset(L, -3);
 
 	// Read functions
