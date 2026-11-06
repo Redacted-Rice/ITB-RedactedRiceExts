@@ -9,7 +9,8 @@ local mf_state_tracker = {}
 
 -- Register with logging system
 local logger = memhack.logger
-local SUBMODULE = logger.register("MechFORGE", "StateTracker", mech_forge.DEBUG.STATE_TRACKER and mech_forge.DEBUG.ENABLED)
+local SUBMODULE = logger.register("MechFORGE", "StateTracker",
+		mech_forge.DEBUG.STATE_TRACKER and mech_forge.DEBUG.ENABLED)
 
 -- Local references to other submodules (set during init)
 local hooks = nil
@@ -59,10 +60,11 @@ function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
 			"core changed pawn %d slot %s core %s->%s powered %s->%s",
 			pawnId, slot, tostring(oldCore), tostring(newCore),
 			tostring(wasPowered), tostring(isPowered))
+
 	hooks.fireMechUpgradeCoreChangedHooks(
 			slot, pawn, pawnId, mechType, oldCore, newCore)
 
-	 -- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
+	-- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
 	if not wasPowered and isPowered then
 		hooks.fireMechUpgradePoweredHooks(slot, pawn, pawnId, mechType, newCore)
 	elseif wasPowered and not isPowered then
