@@ -62,20 +62,4 @@ function upgradeMenuTracker:_checkForChanges()
 	end
 end
 
-function upgradeMenuTracker:init()
-	modApi.events.onFrameDrawStart:subscribe(function()
-		upgradeMenuTracker:_checkForChanges()
-	end)
-
-	modApi.events.onGameExited:subscribe(function()
-		upgradeMenuTracker:_reset()
-	end)
-
-	modApi.events.onGameVictory:subscribe(function()
-		upgradeMenuTracker:_reset()
-	end)
-
-	logger.logDebug(SUBMODULE, "init")
-end
-
 return upgradeMenuTracker
