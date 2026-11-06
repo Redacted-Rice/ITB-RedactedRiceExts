@@ -3,6 +3,11 @@
 
 #pragma once
 #include "lua.hpp"
+#include <cstdarg>
+
+// Lua 5.1's lua_pushfstring / luaL_error do not support many CRT specifiers (%p, %lu, %zu, etc.).
+// Use this for any formatted error shown to Lua code.
+void luaL_errorf(lua_State* L, const char* fmt, ...);
 
 template <typename type>
 type lua_to(lua_State* L, int index);

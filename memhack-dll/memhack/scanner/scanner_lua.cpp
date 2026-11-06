@@ -777,8 +777,8 @@ int struct_search_add_field(lua_State* L) {
 			size_t size;
 			const char* str = lua_tolstring(L, 4, &size);
 			if (size == 0 || size >= (size_t)MAX_NULL_TERM_STRING_LENGTH) {
-				luaL_error(L, "ITB_STRING length must be 1-%d, got %zu",
-					MAX_NULL_TERM_STRING_LENGTH - 1, size);
+				luaL_errorf(L, "ITB_STRING length must be 1-%d, got %lu",
+					MAX_NULL_TERM_STRING_LENGTH - 1, (unsigned long)size);
 				return 0;
 			}
 			(*structPtr)->addItBStringField(offset, (const uint8_t*)str, size);

@@ -1,6 +1,24 @@
 #include "stdafx.h"
 #include "lua_helpers.h"
 
+#include <cstdarg>
+#include <cstdio>
+
+void luaL_errorf(lua_State* L, const char* fmt, ...)
+{
+	char buf[512];
+	va_list ap;
+	va_start(ap, fmt);
+#if defined(_MSC_VER)
+	vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
+#else
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+#endif
+	va_end(ap);
+	buf[sizeof(buf) - 1] = '\0';
+	luaL_error(L, "%s", buf);
+}
+
 template <typename type>
 type lua_to(lua_State* L, int index) { return lua_tointeger(L, index); }
 
