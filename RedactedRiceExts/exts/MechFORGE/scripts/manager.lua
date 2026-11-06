@@ -17,10 +17,13 @@ function mf_manager:_adjustVanillaHealthBonus(pawn, config, restore)
 	local maxBase = pawn:GetMaxBaseHealth()
 	local maxHealth = pawn:GetMaxHealth()
 	pawn:SetMaxBaseHealth(maxBase + delta)
-	pawn:SetMaxHealth(maxHealth + delta)
-	local health = pawn:GetHealth()
-	local newMaxHealth = maxHealth + delta
-	if health > newMaxHealth then
+
+	-- If we are in a mission, setting max health and set health causes a divide by 0 error...
+	-- However, if we are NOT in a mission, NOT setting them causes a divide by 0 error...
+	-- So here we are
+	if Game:GetUpgradeSelectedPawnId() then
+		pawn:SetMaxHealth(maxHealth + delta)
+		local newMaxHealth = maxHealth + delta
 		pawn:SetHealth(newMaxHealth)
 	end
 	logger.logDebug(SUBMODULE,
