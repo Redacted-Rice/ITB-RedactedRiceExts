@@ -18,17 +18,15 @@ function mf_manager:_adjustVanillaHealthBonus(pawn, config, restore)
 	local maxHealth = pawn:GetMaxHealth()
 	pawn:SetMaxBaseHealth(maxBase + delta)
 
-	-- If we are in a mission, setting max health and set health causes a divide by 0 error...
-	-- However, if we are NOT in a mission, NOT setting them causes a divide by 0 error...
+	-- If we are not in the upgrade menu, setting max health and set health causes a divide by 0 error...
+	-- However, if we are NOT, NOT setting them causes a divide by 0 error...
 	-- So here we are
-	if Game:GetUpgradeSelectedPawnId() then
+	if Game:IsUpgradeMenuOpen() then
 		pawn:SetMaxHealth(maxHealth + delta)
-		local newMaxHealth = maxHealth + delta
-		pawn:SetHealth(newMaxHealth)
+		pawn:SetHealth(maxHealth + delta)
 	end
-	logger.logDebug(SUBMODULE,
-		"vanilla health %s %s delta %d maxBase %d->%d",
-		restore and "restore" or "revert", config.label, delta, maxBase, maxBase + delta)
+	logger.logDebug(SUBMODULE, "vanilla health %s %s delta %d maxBase %d->%d",
+			restore and "restore" or "revert", config.label, delta, maxBase, maxBase + delta)
 end
 
 function mf_manager:_adjustVanillaMoveBonus(pawn, config, restore)
@@ -39,9 +37,8 @@ function mf_manager:_adjustVanillaMoveBonus(pawn, config, restore)
 	local delta = restore and bonus or -bonus
 	local moveSpeed = pawn:GetRawMoveSpeed()
 	pawn:SetRawMoveSpeed(moveSpeed + delta)
-	logger.logDebug(SUBMODULE,
-		"vanilla move %s %s delta %d move %d->%d",
-		restore and "restore" or "revert", config.label, delta, moveSpeed, moveSpeed + delta)
+	logger.logDebug(SUBMODULE, "vanilla move %s %s delta %d move %d->%d",
+			restore and "restore" or "revert", config.label, delta, moveSpeed, moveSpeed + delta)
 end
 
 function mf_manager:_handleVanillaBonusChange(pawn, slot, config, restore)

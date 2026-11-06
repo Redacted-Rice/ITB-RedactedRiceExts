@@ -174,6 +174,11 @@ local function onGameClassInitialized(GameClass)
 		return pilot
 	end
 
+	-- Is the in between mission upgrade menu open
+	GameClass.IsUpgradeMenuOpen = function(self)
+		return self:GetUpgradeSelectedPawnId() ~= nil
+	end
+
 	-- In between mission upgrade menu selected pawn
 	GameClass.GetUpgradeSelectedPawnId = function(self)
 		local selected = self:GetMemhackObj():getUpgradeSelectedPawn()
