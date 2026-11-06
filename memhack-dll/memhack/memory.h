@@ -10,6 +10,7 @@
 */
 
 // Maximum length for C string operations (including null terminator)
+const size_t STRING_BUFFER_SEGMENT_SIZE = 16;
 const int MAX_NULL_TERM_STRING_LENGTH = 2048;
 const int MAX_BYTE_ARRAY_LENGTH = 65536;
 

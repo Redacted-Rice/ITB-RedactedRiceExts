@@ -27,6 +27,7 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "Core", memhack.DEBUG.ENABLED)
 
 local stateTracker = nil
+local upgradeMenuTracker = nil
 
 function memhack:init(mockDll)
 	-- Allow injecting a mock DLL for testing
@@ -93,10 +94,12 @@ function memhack:init(mockDll)
 	self._subobjects.upgradeMenuTracker = require(path.."scripts/upgrade_menu_tracker")
 	self.stateTracker = self._subobjects.stateTracker
 	self.skillCoreSync = self._subobjects.skillCoreSync
+
 	stateTracker = self._subobjects.stateTracker
+	upgradeMenuTracker = self._subobjects.upgradeMenuTracker
+
 	self._subobjects.stateTracker:wrapHooksToUpdateStateTrackers()
 	self._subobjects.skillCoreSync:init()
-	self._subobjects.upgradeMenuTracker:init()
 
 	-- Register events
 	self:addEvents()
@@ -107,26 +110,36 @@ function memhack:load()
 end
 
 function memhack:addEvents()
+	-- Per-frame: upgrade menu pawn/pilot selection (see upgrade_menu_tracker.lua)
+	modApi.events.onFrameDrawStart:subscribe(function()
+		upgradeMenuTracker:_checkForChanges()
+	end)
+
 	-- Save game event for state change detection
 	modApi.events.onSaveGame:subscribe(function()
 		stateTracker:checkForStateChanges()
+		upgradeMenuTracker:_checkForChanges()
 	end)
 
 	-- Console toggle event for state change detection
 	modApi.events.onConsoleToggled:subscribe(function()
 		stateTracker:checkForStateChanges()
+		upgradeMenuTracker:_checkForChanges()
 	end)
 
 	-- Clean up stale trackers when a new game is started or ended
 	modApi.events.onGameEntered:subscribe(function()
 		stateTracker:cleanupStaleTrackers()
+		upgradeMenuTracker:_reset()
 	end)
 
 	modApi.events.onGameExited:subscribe(function()
 		stateTracker:cleanupStaleTrackers()
+		upgradeMenuTracker:_reset()
 	end)
 
 	modApi.events.onGameVictory:subscribe(function()
 		stateTracker:cleanupStaleTrackers()
+		upgradeMenuTracker:_reset()
 	end)
 end

@@ -1,18 +1,18 @@
+-- Turns out these are just normal C++ strings
 local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "ItBString", memhack.DEBUG.ENABLED)
 
--- Constants for union types
-local ITB_STRING_LOCAL = 0x0F
-local ITB_STRING_REMOTE = 0x1F
+-- Max length to be stored locally (not including null term)
+local BUFFER_SEGMENT_SIZE = 16
 
 -- Validation function for ItBString structures
 -- Note this has to be local as we don't have the ItBString table yet. We can access it later
 -- via validate as well
 local function validateItBString(itbStr)
-	-- Check that unionType is valid
-	local unionType = itbStr:getUnionType()
-	if unionType ~= ITB_STRING_LOCAL and unionType ~= ITB_STRING_REMOTE then
-		return false, string.format("Invalid unionType: expected 0x0F or 0x1F, got 0x%X", unionType)
+	-- Check that max length is a value of BUFFER_SEGMENT_SIZE * x - 1
+	local allocMaxLen = itbStr:getAllocMaxLen()
+	if ((allocMaxLen + 1) % BUFFER_SEGMENT_SIZE) ~= 0 then
+		return false, string.format("Invalid allocMaxLen: %d (must be a value of %d * x - 1)", allocMaxLen, BUFFER_SEGMENT_SIZE)
 	end
 
 	-- Check that string length is reasonable
@@ -47,15 +47,14 @@ local ItBString = memhack.structManager:define("ItBString", {
 	-- Length of the strLocal/string pointed to by strRemote. This is set the same regardless
 	-- of which is used
 	strLen = { offset = 0x10, type = "int", hideSetter = true },
-	-- Which one is used. If x0F, it will be treated as strLocal in place. If 0x1F, it will
-	-- be treated as a pointer (strRemote). Not sure if there are any other valid values
-	unionType = { offset = 0x14, type = "int", hideSetter = true },
+	-- Allocates potentially more memory than needed for the string. If using standard
+	-- behavior, this is a value of BUFFER_SEGMENT_SIZE * x - 1
+	allocMaxLen = { offset = 0x14, type = "int", hideSetter = true },
 }, validateItBString)
 
 -- Set constants on ItBString after it's defined
-ItBString.LOCAL = ITB_STRING_LOCAL
-ItBString.REMOTE = ITB_STRING_REMOTE
 ItBString.AutoUndictionary = true
+ItBString.MAX_LOCAL_STRING_LENGTH = BUFFER_SEGMENT_SIZE - 1
 
 local selfGetter = memhack.structManager:makeStdSelfGetterName()
 local selfSetter = memhack.structManager:makeStdSelfSetterName()
@@ -84,16 +83,14 @@ function ItBString.makeItBStringGetSetWrappers(struct, itbStrName)
 end
 
 ItBString[selfGetter] = function(self)
-	local uType = self:getUnionType()
-	if uType == ItBString.LOCAL then
+	local allocMaxLen = self:getAllocMaxLen()
+	if allocMaxLen < BUFFER_SEGMENT_SIZE then
 		local result = self:_getStrLocal()
 		return result
-	elseif uType == ItBString.REMOTE then
+	else
 		local result = self:_getStrRemote()
 		return result
 	end
-	logger.logError(SUBMODULE, "UnionType was unexepected value: %d", uType)
-	return nil
 end
 
 ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
@@ -117,19 +114,21 @@ ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
 	end
 
 	local length = #str
-	if length < 16 then -- < 16 for room for null term
-		-- If its less than 16, we can store it locally
+	-- plus 1 for null term
+	local buffSegments = math.ceil((length + 1.0) / BUFFER_SEGMENT_SIZE)
+	-- minus 1 for null term
+	local allocMaxLen = buffSegments * BUFFER_SEGMENT_SIZE - 1
+	if allocMaxLen < BUFFER_SEGMENT_SIZE then 
 		self:_setStrLocal(str)
-		self:_setUnionType(ItBString.LOCAL)
 	else
 		-- We create the memory and pass it to the Game's struct
 		-- it will then manage its lifecyle (i.e. deleting it)
 		-- Originally I tried to make and maintain the lifecycle
 		-- in Lua but the game thought it was its memory and would
 		-- deallocate it on going to the main menu
-		self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str))
-		self:_setUnionType(ItBString.REMOTE)
+		self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str, allocMaxLen))
 	end
+	self:_setAllocMaxLen(allocMaxLen)
 	self:_setStrLen(length)
 end
 

@@ -124,7 +124,7 @@ public:
         void addItBStringField(int offsetFromBase, const uint8_t* data, size_t size) {
             int offsetFromKey = offsetFromBase - keyOffsetFromBase;
             itbStringFields.emplace_back(offsetFromKey, data, size);
-            // Full ItBString layout through unionType at 0x14
+            // Full ItBString layout through allocMaxLen at 0x14
             adjustSizes(offsetFromKey, 0x18);
         }
 

@@ -2,6 +2,8 @@
 #include "memory.h"
 #include "safememory.h"
 #include "lua_helpers.h"
+#include <cmath>
+#include <cstring>
 
 static bool READ_ONLY = false;
 static bool READ_WRITE = true;
@@ -23,18 +25,33 @@ int get_userdata_addr(lua_State * L) {
 	
 }
 
+// Optional second argument: allocation size in bytes including the null terminator
+// (must be >= len + 1). When omitted, allocates the minimal multiple of 
+// STRING_BUFFER_SEGMENT_SIZE that fits the string.
 int alloc_null_term_string(lua_State* L) {
 	size_t len;
 	const char* src = luaL_checklstring(L, 1, &len);
 
-	if (len + 1 > MAX_NULL_TERM_STRING_LENGTH) {
-		luaL_error(L, "alloc_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, len + 1);
+	size_t allocSize = static_cast<size_t>(
+		std::ceil((len + 1.0) / static_cast<double>(STRING_BUFFER_SEGMENT_SIZE))) * STRING_BUFFER_SEGMENT_SIZE;
+	if (lua_gettop(L) >= 2 && !lua_isnoneornil(L, 2)) {
+		allocSize = (size_t)luaL_checkinteger(L, 2);
+	}
+
+	if (allocSize < len + 1) {
+		luaL_error(L, "alloc_null_term_string failed: alloc size %zu is smaller than string length + null (%zu)", allocSize, len + 1);
 		return 0;
 	}
 
-	char* raw = new char[len + 1];
+	if (allocSize > (size_t)MAX_NULL_TERM_STRING_LENGTH) {
+		luaL_error(L, "alloc_null_term_string failed: alloc size cannot exceed %d (including null terminator), got %zu", MAX_NULL_TERM_STRING_LENGTH, allocSize);
+		return 0;
+	}
+
+	char* raw = new char[allocSize];
 	std::memcpy(raw, src, len);
-	raw[len] = '\0';
+	// Set remaining bytes (including null term) to 0
+	std::memset(raw + len, 0, allocSize - len);
 
 	lua_pushinteger(L, (size_t) raw);
 	return 1;
