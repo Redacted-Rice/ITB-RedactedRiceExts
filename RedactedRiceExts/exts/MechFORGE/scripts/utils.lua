@@ -47,12 +47,6 @@ function utils.resolveText(value, pawn)
 
 	-- If we have a function call it and use the result or the passed label if its not fn
 	local resolved = type(value) == "function" and value(pawn) or value
-	if type(resolved) ~= "string" then
-		return resolved ~= nil and tostring(resolved) or nil
-	end
-	if resolved == "" then
-		return nil
-	end
 
 	-- call get text which will be overridden to handle custom lables
 	return GetText(resolved)
