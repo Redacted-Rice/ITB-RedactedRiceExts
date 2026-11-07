@@ -127,7 +127,7 @@ ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
 		-- in Lua but the game thought it was its memory and would
 		-- deallocate it on going to the main menu
 		-- + 1 for null term
-		self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str, allocMaxLen))
+		self:_setStrRemotePtr(memhack.dll.memory.allocNullTermString(str, allocMaxLen + 1))
 	end
 	self:_setAllocMaxLen(allocMaxLen)
 	self:_setStrLen(length)
