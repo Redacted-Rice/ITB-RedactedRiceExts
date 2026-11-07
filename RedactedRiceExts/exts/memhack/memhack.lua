@@ -21,6 +21,7 @@ end
 
 -- Load logging utilities first and expose at memhack level
 memhack.logger = require(path.."utils/logger")
+memhack.getTextWrappers = require(path.."utils/get_text_wrappers")
 
 -- Local reference for use in this file
 local logger = memhack.logger

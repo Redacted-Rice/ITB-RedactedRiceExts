@@ -88,7 +88,7 @@ if isNewestVersion then
 	-- Sets the text of the tip and whether it is static (non-static follows the cursor)
 	-- static defaults to true
 	function InGameToolTip:_setTipContent(ui, body, title, static)
-		ui:settooltip(body or "", title or "", static ~= false)
+		ui:settooltip(GetText(body or ""), GetText(title or ""), static ~= false)
 	end
 
 	-- Resolves the box name to the UI element or returns the target (presumably the UI element already)
