@@ -390,6 +390,10 @@ void add_memory_functions(lua_State* L) {
 	lua_pushinteger(L, MAX_NULL_TERM_STRING_LENGTH);
 	lua_rawset(L, -3);
 
+	lua_pushstring(L, "STRING_BUFFER_SEGMENT_SIZE");
+	lua_pushinteger(L, (lua_Integer)STRING_BUFFER_SEGMENT_SIZE);
+	lua_rawset(L, -3);
+
 	lua_pushstring(L, "MAX_BYTE_ARRAY_LENGTH");
 	lua_pushinteger(L, MAX_BYTE_ARRAY_LENGTH);
 	lua_rawset(L, -3);

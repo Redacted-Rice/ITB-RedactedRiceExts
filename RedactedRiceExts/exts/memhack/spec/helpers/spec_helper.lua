@@ -12,6 +12,9 @@ local function createMockDll()
 	return {
 		memory = {
 			MAX_CSTRING_LENGTH = 1024,
+			MAX_NULL_TERM_STRING_LENGTH = 2048,
+			MAX_BYTE_ARRAY_LENGTH = 65536,
+			STRING_BUFFER_SEGMENT_SIZE = 16,
 
 			-- Allocate a mock C string and return userdata-like object
 			allocCString = function(str)
