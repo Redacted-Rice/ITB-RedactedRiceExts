@@ -3,40 +3,69 @@ local logger = memhack.logger
 local SUBMODULE = logger.register("Memhack", "ItBString", memhack.DEBUG.ENABLED)
 
 -- Max length to be stored locally (not including null term)
-local BUFFER_SEGMENT_SIZE = 16
+local BUF_SEG_SIZE = memhack.dll.memory.STRING_BUFFER_SEGMENT_SIZE
+local LOCAL_STR_MAX_LEN = BUF_SEG_SIZE - 1
+local MAX_STR_LEN = memhack.dll.memory.MAX_NULL_TERM_STRING_LENGTH - 1
+
 
 -- Validation function for ItBString structures
 -- Note this has to be local as we don't have the ItBString table yet. We can access it later
 -- via validate as well
 local function validateItBString(itbStr)
-	-- Check that max length is a value of BUFFER_SEGMENT_SIZE * x - 1
+	-- Ensure alloc size is at least the max local length and less than the max size
 	local allocMaxLen = itbStr:getAllocMaxLen()
-	if ((allocMaxLen + 1) % BUFFER_SEGMENT_SIZE) ~= 0 then
-		return false, string.format("Invalid allocMaxLen: %d (must be a value of %d * x - 1)", allocMaxLen, BUFFER_SEGMENT_SIZE)
+	if allocMaxLen < LOCAL_STR_MAX_LEN or allocMaxLen > MAX_STR_LEN then
+		return false, string.format("Invalid allocMaxLen: %d (must be %d..%d)",
+				allocMaxLen, LOCAL_STR_MAX_LEN, MAX_STR_LEN)
 	end
 
-	-- Check that string length is reasonable
+	-- Ensure the string size is valid and less than the max alloc
 	local len = itbStr:getStrLen()
-	if len < 0 or len >= memhack.dll.memory.MAX_NULL_TERM_STRING_LENGTH then
-		return false, string.format("Invalid ItB string length: %d (must be 0-%d)", len, memhack.dll.memory.MAX_NULL_TERM_STRING_LENGTH)
+	if len < 0 or len > MAX_STR_LEN then
+		return false, string.format("Invalid ItB string length: %d (must be 0-%d)",
+				len, MAX_STR_LEN)
+	end
+	if len > allocMaxLen then
+		return false, string.format("strLen %d exceeds allocMaxLen %d", len, allocMaxLen)
+	end
+
+	-- Get the location of the ending null byte and make sure its null
+	local dataAddr = itbStr:getAddress()
+	-- If its not local, get the pointer, ensure non-null
+	if allocMaxLen > LOCAL_STR_MAX_LEN then
+		dataAddr = itbStr:_getStrRemotePtr()
+		if not dataAddr or dataAddr == 0 then
+			return false, "heap string pointer is null"
+		end
+	end
+
+	local nullAddr = dataAddr + len
+	-- If its non-local ensure its accessible (local we already know is)
+	if allocMaxLen > LOCAL_STR_MAX_LEN then
+		if not memhack.dll.memory.isAccessAllowed(nullAddr, 1, false) then
+			return false, string.format("cannot read null terminator at 0x%X (strLen %d)",
+					nullAddr, len)
+		end
+	end
+
+	-- Now actually read the byte and make sure its null
+	local nullByte = memhack.dll.memory.readByte(nullAddr)
+	if nullByte ~= 0 then
+		return false, string.format("missing null terminator at index %d (got 0x%02X)",
+				len, nullByte)
 	end
 
 	return true
 end
 
--- This is a union. We hide alot of default getters/setters to
+-- This is a standard 24 byte c++ string structure. We hide alot of default getters/setters to
 -- ensure safe accessing and setting of values
 local ItBString = memhack.structManager:define("ItBString", {
-	-- If present in global text table, the text idx to display. Otherwise displays directly.
-	-- Can only be used if size < 16. Otherwise it has to be stored with strPtr
-	-- May not always be valid - calling getters may be unsafe
-	-- Uses lengthFn to read only the actual string length instead of max buffer size
-	strLocal = { offset = 0x0, type = "string", maxLength = 16,
+	-- Inline string data used if allocated size < 16. Otherwise it has to be stored with strRemote
+	strLocal = { offset = 0x0, type = "string", maxLength = BUF_SEG_SIZE,
 		lengthFn = function(self) return self:getStrLen() end,
 		hideSetter = true, hideGetter = true },
 	-- Same idea as strLocal but a pointer to the value if its too large to fit locally
-	-- May not always be valid - calling getters may be unsafe
-	-- Uses lengthFn to get actual string length instead of max length
 	strRemote = { offset = 0x0, type = "pointer", hideSetter = true, hideGetter = true,
 		subType = {
 			type = "string",
@@ -54,7 +83,7 @@ local ItBString = memhack.structManager:define("ItBString", {
 
 -- Set constants on ItBString after it's defined
 ItBString.AutoUndictionary = true
-ItBString.MAX_LOCAL_STRING_LENGTH = BUFFER_SEGMENT_SIZE - 1
+ItBString.MAX_LOCAL_STRING_LENGTH = LOCAL_STR_MAX_LEN
 
 local selfGetter = memhack.structManager:makeStdSelfGetterName()
 local selfSetter = memhack.structManager:makeStdSelfSetterName()
@@ -84,7 +113,7 @@ end
 
 ItBString[selfGetter] = function(self)
 	local allocMaxLen = self:getAllocMaxLen()
-	if allocMaxLen < BUFFER_SEGMENT_SIZE then
+	if allocMaxLen < BUF_SEG_SIZE then
 		local result = self:_getStrLocal()
 		return result
 	else
@@ -115,10 +144,10 @@ ItBString[selfSetter] = function(self, strOrStruct, skipUndictionary)
 
 	local length = #str
 	-- plus 1 for null term
-	local buffSegments = math.ceil((length + 1.0) / BUFFER_SEGMENT_SIZE)
+	local buffSegments = math.ceil((length + 1.0) / BUF_SEG_SIZE)
 	-- minus 1 for null term
-	local allocMaxLen = buffSegments * BUFFER_SEGMENT_SIZE - 1
-	if allocMaxLen < BUFFER_SEGMENT_SIZE then 
+	local allocMaxLen = buffSegments * BUF_SEG_SIZE - 1
+	if allocMaxLen < BUF_SEG_SIZE then
 		self:_setStrLocal(str)
 	else
 		-- We create the memory and pass it to the Game's struct
