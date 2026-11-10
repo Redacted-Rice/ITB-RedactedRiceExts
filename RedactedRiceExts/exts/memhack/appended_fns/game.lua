@@ -174,7 +174,8 @@ local function onGameClassInitialized(GameClass)
 		return pilot
 	end
 
-	-- Is the in between mission upgrade menu open
+	-- True when the inbetween mission upgrade screen is open
+	-- This is detected by checking if a pawn is selected on it. This seems reliable
 	GameClass.IsUpgradeMenuOpen = function(self)
 		return self:GetUpgradeSelectedPawnId() ~= nil
 	end

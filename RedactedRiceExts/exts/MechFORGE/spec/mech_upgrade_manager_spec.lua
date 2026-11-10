@@ -10,6 +10,7 @@ describe("MechFORGE upgrade manager", function()
 
 	describe("vanilla bonus compensation", function()
 		it("subtracts and restores max health for custom upgrades at full HP", function()
+			helper.setUpgradeMenuOpen(true)
 			local pawn = helper.createMockPawn({
 				maxBaseHealth = 5,
 				maxHealth = 5,
@@ -25,10 +26,24 @@ describe("MechFORGE upgrade manager", function()
 			manager:_adjustVanillaHealthBonus(pawn, config, true)
 			assert.are.equal(5, pawn:GetMaxBaseHealth())
 			assert.are.equal(5, pawn:GetMaxHealth())
-			assert.are.equal(3, pawn:GetHealth())
+			assert.are.equal(5, pawn:GetHealth())
 		end)
 
-		it("only clamps current HP when it exceeds the new max", function()
+		it("only adjusts maxBase health outside the upgrade menu", function()
+			helper.setUpgradeMenuOpen(false)
+			local pawn = helper.createMockPawn({
+				maxBaseHealth = 5,
+				maxHealth = 5,
+				health = 4,
+			})
+			manager:_adjustVanillaHealthBonus(pawn, { label = "Custom HP" }, false)
+			assert.are.equal(3, pawn:GetMaxBaseHealth())
+			assert.are.equal(5, pawn:GetMaxHealth())
+			assert.are.equal(4, pawn:GetHealth())
+		end)
+
+		it("sets mission max and current HP when upgrade menu is open", function()
+			helper.setUpgradeMenuOpen(true)
 			local config = { label = "Custom HP" }
 
 			local damaged = helper.createMockPawn({
@@ -38,7 +53,7 @@ describe("MechFORGE upgrade manager", function()
 			})
 			manager:_adjustVanillaHealthBonus(damaged, config, false)
 			assert.are.equal(3, damaged:GetMaxHealth())
-			assert.are.equal(2, damaged:GetHealth())
+			assert.are.equal(3, damaged:GetHealth())
 
 			local overMax = helper.createMockPawn({
 				maxBaseHealth = 5,
@@ -50,14 +65,16 @@ describe("MechFORGE upgrade manager", function()
 			assert.are.equal(3, overMax:GetHealth())
 		end)
 
-		it("does not heal current HP when restoring max health", function()
+		it("does not change mission HP when restoring max base health outside the upgrade menu", function()
+			helper.setUpgradeMenuOpen(false)
 			local pawn = helper.createMockPawn({
 				maxBaseHealth = 3,
 				maxHealth = 3,
 				health = 2,
 			})
 			manager:_adjustVanillaHealthBonus(pawn, { label = "Custom HP" }, true)
-			assert.are.equal(5, pawn:GetMaxHealth())
+			assert.are.equal(5, pawn:GetMaxBaseHealth())
+			assert.are.equal(3, pawn:GetMaxHealth())
 			assert.are.equal(2, pawn:GetHealth())
 		end)
 
@@ -103,13 +120,11 @@ describe("MechFORGE upgrade manager", function()
 
 		it("returns custom label for upgrade-selected mech", function()
 			local pawn = helper.createMockPawn({ mechType = "LabelMech" })
+			helper.setUpgradeMenuOpen(true)
 			helper.setupSquadPawns({ [0] = pawn })
 
 			forge:registerMechUpgrade("LabelMech", V.HEALTH, "MyLabelKey")
 
-			memhack.hooks.events.onUpgradeSelectedPawnChanged:dispatch(pawn, nil)
-
-			-- label strings go through GetText once more (text id or passthrough)
 			assert.are.equal("TEXT:MyLabelKey", GetText("Upgrade_HealthLabel"))
 		end)
 

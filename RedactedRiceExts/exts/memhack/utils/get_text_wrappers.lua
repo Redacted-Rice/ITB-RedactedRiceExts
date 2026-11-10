@@ -1,5 +1,5 @@
--- Logging utility for Extensions
--- Shared by both CPLUS+ and Memhack extensions
+-- Shared helper function wrappers for getting text dynamically
+-- See mechforge texts.lua for example usages
 
 local get_text = {}
 

@@ -12,28 +12,6 @@ mf_texts._submodule = mf_texts._logger.register(
 	mech_forge.DEBUG.TEXTS and mech_forge.DEBUG.ENABLED
 )
 
-function mf_texts:_vanillaBonusForSlot(slot)
-	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		return mech_forge.VANILLA_BONUSES.MOVE
-	end
-	return mech_forge.VANILLA_BONUSES.HEALTH
-end
-
-function mf_texts:_upgradeCombinedStatForSlot(pawn, slot)
-	local value
-	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		value = pawn:GetRawMoveSpeed()
-	else
-		value = pawn:GetMaxBaseHealth()
-	end
-
-	if self._utils.isMechUpgradePowered(pawn, slot) then
-		value = value + self:_vanillaBonusForSlot(slot)
-	end
-
-	return value
-end
-
 function mf_texts:_getUpgradeLabelForSlot(pawn, slot)
 	if not pawn then return nil end
 	local mechType = utils.getMechType(pawn)
@@ -71,7 +49,7 @@ function mf_texts:_registerTexts()
 
 	modApi:setText(
 		"MechFORGE_Tooltip_Health", memhack.getTextWrappers.basedOnSelectedPawn(function(pawn)
-			return self:_getUpgradeTooltipForSlot(pawn, mech_forge.VANILLA_UPGRADES.MOVE,
+			return self:_getUpgradeTooltipForSlot(pawn, mech_forge.VANILLA_UPGRADES.HEALTH,
 					"When powered, mech gains +2 max health.")
 	end))
 
