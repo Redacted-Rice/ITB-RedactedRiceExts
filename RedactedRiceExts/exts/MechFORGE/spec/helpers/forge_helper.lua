@@ -41,7 +41,10 @@ function M.setupGlobals()
 	_G.modApi.isVersionAbove = _G.modApi.isVersionAbove or function(_, a, b)
 		return a > b
 	end
-	_G.modApi.setText = _G.modApi.setText or function() end
+	_G.modApi.dictionary = _G.modApi.dictionary or {}
+	_G.modApi.setText = function(self, id, text)
+		self.dictionary[id] = text
+	end
 	_G.modApi.events = _G.modApi.events or {}
 	setmetatable(_G.modApi.events, {
 		__index = function(t, k)
@@ -100,6 +103,18 @@ function M.setupGlobals()
 		GetStrategySelectedPawn = function(self)
 			return nil
 		end,
+		GetUpgradeSelectedPawnId = function()
+			return nil
+		end,
+		GetUpgradeSelectedPawn = function()
+			return nil
+		end,
+		GetSelectedPawn = function()
+			return nil
+		end,
+		IsUpgradeMenuOpen = function()
+			return false
+		end,
 	}
 end
 
@@ -130,12 +145,22 @@ function M.initMemhackHooks()
 	end
 	memhack.hooks = hooksMod()
 	memhack.hooks:init()
+
+	local getTextWrappers = dofile("../memhack/utils/get_text_wrappers.lua")
+	memhack.getTextWrappers = getTextWrappers
 end
 
 M.setupGlobals()
 M.initMemhackHooks()
 
-_G.GetText = function(id)
+_G.GetText = function(id, r1, r2, r3)
+	if modApi and modApi.dictionary and modApi.dictionary[id] then
+		local text = modApi.dictionary[id]
+		if type(text) == "function" then
+			return text(r1, r2, r3)
+		end
+		return text
+	end
 	return "TEXT:" .. tostring(id)
 end
 
@@ -192,22 +217,40 @@ mech_forge:exposeAPI()
 mech_forge:load({})
 
 function M.initTexts()
-	if M._textsInitialized then
-		return
+	if not M._textsInitialized then
+		sub.texts:init()
+		M._textsInitialized = true
+	else
+		sub.texts:_registerTexts()
 	end
-	sub.texts:init()
-	M._textsInitialized = true
 end
 
 M.forge = mech_forge
 
 function M.resetState()
+	M._upgradeMenuOpen = false
+	_G.modApi.dictionary = {}
 	_G.Game = {
 		GetPawn = function(self, pawnId)
 			return nil
 		end,
 		GetStrategySelectedPawn = function(self)
 			return nil
+		end,
+		GetUpgradeSelectedPawnId = function()
+			return M._upgradeMenuOpen and 0 or nil
+		end,
+		GetUpgradeSelectedPawn = function()
+			if not M._upgradeMenuOpen then
+				return nil
+			end
+			return Game:GetPawn(0)
+		end,
+		GetSelectedPawn = function()
+			return nil
+		end,
+		IsUpgradeMenuOpen = function()
+			return M._upgradeMenuOpen
 		end,
 	}
 
@@ -227,6 +270,10 @@ function M.setupSquadPawns(pawnById)
 	_G.Game.GetPawn = function(self, pawnId)
 		return pawnById[pawnId]
 	end
+end
+
+function M.setUpgradeMenuOpen(open)
+	M._upgradeMenuOpen = open
 end
 
 M.createMockPawn = mocks.createMockPawn
