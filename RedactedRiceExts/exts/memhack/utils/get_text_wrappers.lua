@@ -5,7 +5,7 @@ local get_text = {}
 
 function get_text.basedOnSelectedPawn(fn)
 	assert(type(fn) == "function", "fn must be... a function")
-	return function(r1, r2, r3)
+	return function(id, r1, r2, r3)
 		local pawn
 		if Game then
 			pawn = Game:GetUpgradeSelectedPawn()

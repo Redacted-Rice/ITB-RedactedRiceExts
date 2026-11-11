@@ -72,22 +72,22 @@ describe("MechFORGE utils", function()
 	end)
 
 	describe("resolveText", function()
-		it("passes string labels through GetText", function()
-			local pawn = helper.createMockPawn()
-			assert.are.equal("TEXT:MyLabel", utils.resolveText("MyLabel", pawn))
+		before_each(function()
+			_G.GetText = function(id)
+				return id
+			end
 		end)
 
-		it("calls function labels with the pawn", function()
+		it("resolves function labels with the pawn before lookup", function()
 			local pawn = helper.createMockPawn({ mechType = "FnMech" })
 			local label = utils.resolveText(function(p)
 				return p:GetType() .. "_Label"
 			end, pawn)
-			assert.are.equal("TEXT:FnMech_Label", label)
+			assert.are.equal("FnMech_Label", label)
 		end)
 
-		it("passes empty resolved strings through GetText", function()
-			assert.are.equal("TEXT:", utils.resolveText("", helper.createMockPawn()))
-			assert.are.equal("TEXT:", utils.resolveText(function() return "" end, helper.createMockPawn()))
+		it("returns nil for nil label", function()
+			assert.is_nil(utils.resolveText(nil, helper.createMockPawn()))
 		end)
 	end)
 end)

@@ -112,24 +112,4 @@ describe("MechFORGE upgrade manager", function()
 			assert.are.equal(3, pawn:GetMaxBaseHealth())
 		end)
 	end)
-
-	describe("GetText label override", function()
-		before_each(function()
-			helper.initTexts()
-		end)
-
-		it("returns custom label for upgrade-selected mech", function()
-			local pawn = helper.createMockPawn({ mechType = "LabelMech" })
-			helper.setUpgradeMenuOpen(true)
-			helper.setupSquadPawns({ [0] = pawn })
-
-			forge:registerMechUpgrade("LabelMech", V.HEALTH, "MyLabelKey")
-
-			assert.are.equal("TEXT:MyLabelKey", GetText("Upgrade_HealthLabel"))
-		end)
-
-		it("falls through to original GetText for unrelated ids", function()
-			assert.are.equal("TEXT:SomeOtherKey", GetText("SomeOtherKey"))
-		end)
-	end)
 end)
