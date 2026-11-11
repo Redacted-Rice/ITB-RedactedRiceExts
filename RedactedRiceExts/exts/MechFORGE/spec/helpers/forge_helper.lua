@@ -41,10 +41,6 @@ function M.setupGlobals()
 	_G.modApi.isVersionAbove = _G.modApi.isVersionAbove or function(_, a, b)
 		return a > b
 	end
-	_G.modApi.dictionary = _G.modApi.dictionary or {}
-	_G.modApi.setText = function(self, id, text)
-		self.dictionary[id] = text
-	end
 	_G.modApi.events = _G.modApi.events or {}
 	setmetatable(_G.modApi.events, {
 		__index = function(t, k)
@@ -153,17 +149,6 @@ end
 M.setupGlobals()
 M.initMemhackHooks()
 
-_G.GetText = function(id, r1, r2, r3)
-	if modApi and modApi.dictionary and modApi.dictionary[id] then
-		local text = modApi.dictionary[id]
-		if type(text) == "function" then
-			return text(r1, r2, r3)
-		end
-		return text
-	end
-	return "TEXT:" .. tostring(id)
-end
-
 -- mech_forge requires parent libs/inGameToolTip (no game UI in busted)
 package.preload["../../libs/inGameToolTip"] = function()
 	local tooltipStub = {
@@ -212,24 +197,13 @@ local sub = mech_forge._subobjects
 sub.hooks:init()
 sub.manager:init()
 sub.state_tracker:init()
--- texts pulls in hangar UI; call M.initTexts() from specs that need GetText overrides
 mech_forge:exposeAPI()
 mech_forge:load({})
-
-function M.initTexts()
-	if not M._textsInitialized then
-		sub.texts:init()
-		M._textsInitialized = true
-	else
-		sub.texts:_registerTexts()
-	end
-end
 
 M.forge = mech_forge
 
 function M.resetState()
 	M._upgradeMenuOpen = false
-	_G.modApi.dictionary = {}
 	_G.Game = {
 		GetPawn = function(self, pawnId)
 			return nil
