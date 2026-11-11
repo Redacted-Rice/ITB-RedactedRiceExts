@@ -16,10 +16,14 @@ function M.setupGlobals()
 			log = function(caller, ...) end
 		},
 		mods = {
+			redactedrice_exts = {
+				resourcePath = "../../",
+			},
 			cplus_plus_ex = {
-				resourcePath = ""
-			}
-		}
+				resourcePath = "",
+				parent = "redactedrice_exts",
+			},
+		},
 	}
 
 	_G.GetParentPath = _G.GetParentPath or function(modPath)
@@ -48,6 +52,12 @@ function M.setupGlobals()
 	-- Mock modApi events
 	_G.modApi = _G.modApi or {}
 	_G.modApi.currentMod = "cplus_plus_ex"
+	_G.modApi.getCurrentMod = _G.modApi.getCurrentMod or function(self)
+		return _G.mod_loader.mods[self.currentMod]
+	end
+	_G.modApi.isVersionAbove = _G.modApi.isVersionAbove or function(_, a, b)
+		return a > b
+	end
 	_G.modApi.appendAsset = function(self, ...) end
 	_G.modApi.events = _G.modApi.events or {}
 	local function stubEvent()
@@ -100,6 +110,8 @@ function M.stubMemhack()
 			events = {
 				onPilotChanged = Event(),
 				onPilotLvlUpSkillChanged = Event(),
+				onUpgradeSelectedPawnChanged = Event(),
+				onUpgradeSelectedPilotChanged = Event(),
 			},
 			addTo = function(self, owner, debugId)
 				self.events = self.events or {}
@@ -152,9 +164,28 @@ function M.stubMemhack()
 	}
 end
 
+local function stubInGameToolTipModule()
+	package.preload["../../libs/inGameToolTip"] = function()
+		local tooltipStub = {
+			version = "0.0.0-test",
+			_boxUiByName = {},
+			_boxSpecs = {},
+		}
+
+		function tooltipStub.registerBox() end
+		function tooltipStub.forBox() end
+		function tooltipStub.updateTipContent() end
+		function tooltipStub.forUiElement() end
+
+		_G.InGameToolTip = tooltipStub
+		return tooltipStub
+	end
+end
+
 -- Initialize CPLUS+ extension
 M.setupGlobals()
 M.stubMemhack()
+stubInGameToolTipModule()
 
 require("cplus_plus_ex")
 M.plus_manager = cplus_plus_ex

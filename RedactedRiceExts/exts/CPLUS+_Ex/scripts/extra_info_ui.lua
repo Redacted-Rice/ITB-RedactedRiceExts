@@ -36,40 +36,12 @@ local panelIconData = {}  -- Array of {icon, title, description}
 -- UI State - Earned skills icons
 local earnedSkillWidgets = {}  -- Array of icon UI elements
 
--- Shared state
-local lastSelectedPawnId = nil
-local lastPilot = nil
-local currentPilot = nil
-local currentPawn = nil
-local lastScreenWidth = nil
-local lastScreenHeight = nil
-
 -- Load the back_1 surface for positioning reference
 local back1Surface = sdlext.getSurface{ path = "img/portraits/pilots/back_1.png" }
 
 -------------------------------------------------------------------------------
 -- Common helpers
 -------------------------------------------------------------------------------
-
--- Get the pilot for the currently selected pawn
-function extra_info_ui:getSelectedPilot()
-	if not Game then
-		return nil
-	end
-
-	local selectedPawnId = Game:GetStrategySelectedPawn()
-	if not selectedPawnId then
-		return nil
-	end
-
-	local pawn = Game:GetPawn(selectedPawnId)
-	if not pawn then
-		return nil
-	end
-
-	local pilot = pawn:GetPilot()
-	return pilot, selectedPawnId, pawn
-end
 
 -- Find the back_1 portrait image position
 -- Returns position if found, or nil, nil if not found
@@ -96,36 +68,16 @@ end
 -- COMMON UI UPDATE LOGIC
 -------------------------------------------------------------------------------
 
--- Clear selected data to force refresh on next update
-function extra_info_ui:clearSelectedData()
-	if lastSelectedPawnId or lastPilot then
-		lastSelectedPawnId = nil
-		lastPilot = nil
-		logger.logDebug(SUBMODULE, "Cleared selection data")
-		return true
-	end
-	return false
-end
-
--- Hide both UIs and clear selected data
 function extra_info_ui:hideAllAndClearData()
-	-- Only clear and log if there was something selected. Otherwise its already hidden
-	if self:clearSelectedData() then
-		self:hideVirtualSkillsPanel()
-		self:hideEarnedSkillsIcons()
-		logger.logDebug(SUBMODULE, "Hid all UIs and cleared data")
-	end
+	self:hideVirtualSkillsPanel()
+	self:hideEarnedSkillsIcons()
+	logger.logDebug(SUBMODULE, "Hid all UIs")
 end
 
--- Check if the selected pawn has changed and update both UIs
-function extra_info_ui:checkAndUpdate()
-	-- Hide if in mission
-	if GetCurrentMission() then
-		self:hideAllAndClearData()
-		return
-	end
-
-	if not Game then
+-- Main function to refresh the UI for the given pawn
+function extra_info_ui:_refreshHangarUiForPawn(pawn)
+	-- Don't show in mission or if there is no pawn
+	if GetCurrentMission() or not pawn then
 		self:hideAllAndClearData()
 		return
 	end
@@ -137,37 +89,43 @@ function extra_info_ui:checkAndUpdate()
 		return
 	end
 
-	local selectedPawnId = Game:GetStrategySelectedPawn()
-	if not selectedPawnId then
+	local pilot = pawn:GetPilot()
+	if not pilot then
 		self:hideAllAndClearData()
 		return
 	end
 
-	local pilot, pawnId, pawn = self:getSelectedPilot()
+	-- Update both UIs with the same back_1 position
+	self:showVirtualSkillsPanel(back1X, back1Y, pilot, pawn)
+	self:showEarnedSkillsIcons(back1X, back1Y, pilot)
+end
 
-	-- Check screen size changes
-	local currentWidth = ScreenSizeX()
-	local currentHeight = ScreenSizeY()
-	local sizeChanged = (lastScreenWidth ~= currentWidth or lastScreenHeight ~= currentHeight)
-	if sizeChanged then
-		lastScreenWidth = currentWidth
-		lastScreenHeight = currentHeight
-		logger.logDebug(SUBMODULE, "Screen size changed to %dx%d", currentWidth, currentHeight)
-		self:clearSelectedData()
+function extra_info_ui:onUpgradeSelectedPilotChanged(pawn, pilot, oldPilot)
+	if not pilot or not pawn then
+		self:hideAllAndClearData()
+		return
 	end
 
-	-- Check if selection changed
-	local selectionChanged = (selectedPawnId ~= lastSelectedPawnId) or (pilot ~= lastPilot)
-	if selectionChanged or sizeChanged then
-		logger.logInfo(SUBMODULE, "Update triggered: selectionChanged=%s, sizeChanged=%s",
-			tostring(selectionChanged), tostring(sizeChanged))
-		lastSelectedPawnId = selectedPawnId
-		lastPilot = pilot
-
-		-- Update both UIs with the same back_1 position
-		self:showVirtualSkillsPanel(back1X, back1Y, pilot)
-		self:showEarnedSkillsIcons(back1X, back1Y, pilot)
+	if oldPilot then
+		logger.logDebug(SUBMODULE, "Upgrade-screen pilot updated for %s", pilot:getUidStr())
+	else
+		logger.logInfo(SUBMODULE, "Upgrade-screen selection updated for %s", pilot:getUidStr())
 	end
+
+	self:_refreshHangarUiForPawn(pawn)
+end
+
+function extra_info_ui:onGameWindowResized(screen, oldSize)
+	if GetCurrentMission() or not Game then
+		return
+	end
+
+	if oldSize then
+		logger.logDebug(SUBMODULE, "Game window resized from %dx%d to %dx%d",
+				oldSize.x, oldSize.y, ScreenSizeX(), ScreenSizeY())
+	end
+
+	self:_refreshHangarUiForPawn(Game:GetUpgradeSelectedPawn())
 end
 
 -------------------------------------------------------------------------------
@@ -235,19 +193,28 @@ function extra_info_ui:buildPanelIcon(iconInfo, container)
 		:addTo(container)
 
 	-- Set tooltip with title and description (both guaranteed to exist by addIcon)
-	local tooltipText = iconInfo.title .. "\n\n" .. iconInfo.description
-	iconUi:settooltip(tooltipText)
+	-- Set it to not be static so it will move with our cursor
+	InGameToolTip.forUiElement(iconUi, {
+		body = iconInfo.description,
+		title = iconInfo.title,
+		static = false,
+	})
 
 	-- Add padding after icon
 	Ui():widthpx(PANEL_ICON_PADDING):heightpx(1):addTo(container)
 end
 
 -- Rebuild the panel content
-function extra_info_ui:rebuildContent()
+function extra_info_ui:rebuildContent(pawn, pilot)
 	logger.logDebug(SUBMODULE, "rebuildContent: starting")
 
 	if not iconRow then
 		logger.logWarn(SUBMODULE, "rebuildContent: iconRow is nil, aborting")
+		return
+	end
+
+	if not pawn or not pilot then
+		logger.logDebug(SUBMODULE, "rebuildContent: no pawn/pilot")
 		return
 	end
 
@@ -259,16 +226,6 @@ function extra_info_ui:rebuildContent()
 
 	-- Reset icon data for this rebuild
 	panelIconData = {}
-
-	local pilot, selectedPawnId, pawn = self:getSelectedPilot()
-	if not pilot then
-		logger.logDebug(SUBMODULE, "rebuildContent: no pilot")
-		return
-	end
-
-	-- Store current pilot and pawn for hook access
-	currentPilot = pilot
-	currentPawn = pawn
 
 	-- Collect virtual skill icons
 	logger.logDebug(SUBMODULE, "rebuildContent: collecting virtual skill icons")
@@ -310,10 +267,6 @@ function extra_info_ui:createPanel()
 		return
 	end
 
-	-- Initialize screen size tracking
-	lastScreenWidth = ScreenSizeX()
-	lastScreenHeight = ScreenSizeY()
-
 	-- Main panel container with fixed width
 	-- Start offscreen until we have a valid position
 	panel = Ui()
@@ -332,10 +285,7 @@ function extra_info_ui:createPanel()
 		:height(1)
 		:addTo(panel)
 
-	-- Build initial content
-	self:rebuildContent()
-
-	-- Start hidden - will be shown when appropriate
+	-- Start hidden - will be shown when upgrade selection changes
 	panel:hide()
 
 	logger.logDebug(SUBMODULE, "Extra info panel created")
@@ -350,16 +300,15 @@ function extra_info_ui:hideVirtualSkillsPanel()
 end
 
 -- Show/update the virtual skills panel with given back_1 position
-function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot)
+function extra_info_ui:showVirtualSkillsPanel(back1X, back1Y, pilot, pawn)
 	if not panel then return end
 
-	if not pilot then
+	if not pilot or not pawn then
 		self:hideVirtualSkillsPanel()
 		return
 	end
 
-	-- Rebuild panel content
-	self:rebuildContent()
+	self:rebuildContent(pawn, pilot)
 
 	-- If no content, hide and return
 	if #panelIconData == 0 then
@@ -485,9 +434,14 @@ function extra_info_ui:init()
 		self:createPanel()
 	end)
 
-	-- Use onFrameDrawStart to check for changes every frame
-	modApi.events.onFrameDrawStart:subscribe(function()
-		self:checkAndUpdate()
+	-- We only need pilot changed hook. Changing a pawn will also trigger this (if either has a pilot
+	-- and if neither do, we don't need to update anyways)
+	memhack.hooks.events.onUpgradeSelectedPilotChanged:subscribe(function(pawn, pilot, oldPilot)
+		self:onUpgradeSelectedPilotChanged(pawn, pilot, oldPilot)
+	end)
+
+	modApi.events.onGameWindowResized:subscribe(function(screen, oldSize)
+		self:onGameWindowResized(screen, oldSize)
 	end)
 
 	logger.logDebug(SUBMODULE, "Extra info UI initialized")

@@ -174,13 +174,89 @@ local function onGameClassInitialized(GameClass)
 		return pilot
 	end
 
-	GameClass.GetStrategySelectedPawn = function(self)
-		local selected = self:GetMemhackObj():getStrategySelectedPawn()
+	-- True when the inbetween mission upgrade screen is open
+	-- This is detected by checking if a pawn is selected on it. This seems reliable
+	GameClass.IsUpgradeMenuOpen = function(self)
+		return self:GetUpgradeSelectedPawnId() ~= nil
+	end
+
+	-- In between mission upgrade menu selected pawn
+	GameClass.GetUpgradeSelectedPawnId = function(self)
+		local selected = self:GetMemhackObj():getUpgradeSelectedPawn()
 		if selected >= 0 and selected <= 2 then
 			return selected
 		else
 			return nil
 		end
+	end
+
+	-- In between mission upgrade menu selected pawn
+	GameClass.GetUpgradeSelectedPawn = function(self)
+		local pawnId = self:GetUpgradeSelectedPawnId()
+		if pawnId == nil then
+			return nil
+		end
+		return self:GetPawn(pawnId)
+	end
+
+	-- Legacy API - rerouted to GetUpgradeSelectedPawnId
+	-- In between mission upgrade menu selected pawn
+	GameClass.GetStrategySelectedPawn = function(self)
+		return self:GetUpgradeSelectedPawnId()
+	end
+
+	-- In mission selected pawn
+	GameClass.GetSelectedPawn = function(self)
+		local boardPlayer = self:GetMemhackObj():getBoardPlayer()
+		if not boardPlayer then
+			-- Try to fallback to board version
+			return Board and Board._origGetSelectedPawn and Board._origGetSelectedPawn(Board) or nil
+		end
+
+		local memPawn = boardPlayer:_getSelectedPawn()
+		if not memPawn then
+			-- Try to fallback to board version
+			return Board and Board._origGetSelectedPawn and Board._origGetSelectedPawn(Board) or nil
+		end
+
+		-- Convert it to a vanilla pawn for API consistency
+		return memPawn:toVanilla()
+	end
+
+	GameClass.SetSelectedPawn = function(self, pawn)
+		if type(pawn) ~= "userdata" or GetUserdataType(pawn) ~= "Pawn" then
+			logger.logError(
+				SUBMODULE,
+				"SetSelectedPawn: expected board Pawn userdata, got type=%s userdataType=%s",
+				type(pawn),
+				type(pawn) == "userdata" and tostring(GetUserdataType(pawn)) or "n/a"
+			)
+			return
+		end
+
+		local gameMap = self:GetMemhackObj()
+		local boardPlayer = gameMap:getBoardPlayer()
+		if not boardPlayer then
+			logger.logError(SUBMODULE, "SetSelectedPawn: BoardPlayer is not available")
+			return
+		end
+
+		-- Ensure we can get the new pawn
+		local newPawn = pawn:GetMemhackObj()
+		if not newPawn then
+			logger.logError(SUBMODULE, "SetSelectedPawn: could not get memhack object for pawn")
+			return
+		end
+
+		-- If we already have a selected pawn, deselect it
+		local current = boardPlayer:_getSelectedPawn()
+		if current then
+			current:_setSelected(false)
+		end
+
+		-- Set the new selected pawn
+		newPawn:_setSelected(true)
+		boardPlayer:_setSelectedPawnPtr(newPawn._address)
 	end
 end
 

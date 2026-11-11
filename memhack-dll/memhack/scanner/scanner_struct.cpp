@@ -48,11 +48,8 @@ bool StructScanner::StructFieldSequence::compare(const uint8_t* keyAddr) const {
 
 namespace {
 	// Keep in sync with RedactedRiceExts/exts/memhack/structs/itb_string.lua
-	const int ITB_STRING_STRLEN_OFFSET = 0x10;
-	const int ITB_STRING_UNIONTYPE_OFFSET = 0x14;
-	const int ITB_STRING_LOCAL = 0x0F;
-	const int ITB_STRING_REMOTE = 0x1F;
-	const size_t ITB_STRING_LOCAL_CAPACITY = 16;
+	const int CPP_STRING_STRLEN_OFFSET = 0x10;
+	const int CPP_STRING_ALLOCMAXLEN_OFFSET = 0x14;
 }
 
 // StructFieldItBString implementation
@@ -69,21 +66,22 @@ bool StructScanner::StructFieldItBString::compare(const uint8_t* keyAddr) const 
 	}
 
 	__try {
-		const int strLen = *(const int*)(itbBase + ITB_STRING_STRLEN_OFFSET);
+		const int strLen = *(const int*)(itbBase + CPP_STRING_STRLEN_OFFSET);
 		if (strLen != (int)expectedLen) {
 			return false;
 		}
 
-		const int unionType = *(const int*)(itbBase + ITB_STRING_UNIONTYPE_OFFSET);
+		const int allocMaxLen = *(const int*)(itbBase + CPP_STRING_ALLOCMAXLEN_OFFSET);
 		const uint8_t* strAddr = nullptr;
 
-		if (unionType == ITB_STRING_LOCAL) {
-			// Inline buffer is 16 bytes; game stores LOCAL only when length < 16
-			if (expectedLen >= ITB_STRING_LOCAL_CAPACITY) {
+		// Locally stored string
+		if (allocMaxLen < STRING_BUFFER_SEGMENT_SIZE) {
+			if (expectedLen >= STRING_BUFFER_SEGMENT_SIZE) {
 				return false;
 			}
 			strAddr = itbBase;
-		} else if (unionType == ITB_STRING_REMOTE) {
+		// Remotely stored string
+		} else {
 			const uintptr_t ptr = *(const uintptr_t*)itbBase;
 			if (ptr == 0) {
 				return false;
@@ -92,8 +90,6 @@ bool StructScanner::StructFieldItBString::compare(const uint8_t* keyAddr) const 
 				return false;
 			}
 			strAddr = (const uint8_t*)ptr;
-		} else {
-			return false;
 		}
 
 		return memcmp(strAddr, val.data(), expectedLen) == 0;

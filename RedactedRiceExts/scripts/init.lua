@@ -2,11 +2,11 @@
 local extension =  {
 	id = "redactedrice_exts",
 	name = "Redacted Rice Extensions",
-	version = "2.0.0",
+	version = "2.1.0",
 	icon = "icon.png",
 	description = "Extensions originally made to support mods by Redacted Rice",
 	submodFolders = {"exts/"},
-	modApiVersion = "2.9.5",
+	modApiVersion = "2.9.7",
 	gameVersion = "1.2.93",
 	requirements = {"easyEdit"}, -- ensures easy edit loads first if its enabled
 	dependencies = {
