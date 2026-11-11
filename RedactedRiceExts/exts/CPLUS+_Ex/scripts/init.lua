@@ -2,13 +2,13 @@ local extension = {
 	id = "redactedrice_cplus_plus",
 	name = "CPLUS+ Ex (Pilot Extension)",
 	icon = "img/icon.png",
-	version = "2.0.0",
-	modApiVersion = "2.9.5",
+	version = "2.1.0",
+	modApiVersion = "2.9.7",
 	gameVersion = "1.2.93",
 	requirements = {"easyEdit"}, -- ensures easy edit loads first if its enabled
 	dependencies = {
         modApiExt = "1.24",
-        redactedrice_memhack = "1.4.1",
+        redactedrice_memhack = "1.5.0",
     },
 	isExtension = true,
 }
