@@ -15,7 +15,7 @@ Please enjoy and contact us if you run into any issues.
 # Extensions
 
 * memhack - v1.5.0 - Extension to expose additional functionality via direct memory access
-* CPLUS+ Ex - v2.0.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
+* CPLUS+ Ex - v2.1.0 - Extension to control assigning, controling, and adding custom Pilot Level Up Skills
 * MechFORGE - v1.0.0 - Extension for custom mech upgrades instead of the +2 HP and +1 Move vanilla ones
 
 # Releases
@@ -27,11 +27,14 @@ Latest release: 2.1.0
 Released: XX/XX/2026
 
 * memhack - v1.5.0
-* CPLUS+ Ex - v2.0.0
+* CPLUS+ Ex - v2.1.0
 * MechFORGE - v1.0.0
 
 ### Notes
-* TBD
+* MechFORGE initial release for custom innate mech upgrades per pawn type
+* memhack upgrade screen related functions and events/hooks
+* CPLUS+ updated to use new events and made tool tip more vanilla like for extra info panel
+* Updates to ItBString to fix its implementation since discovering its a standard 24 byte C++ string
 
 ## 2.0.0
 

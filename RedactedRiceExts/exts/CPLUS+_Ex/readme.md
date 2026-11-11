@@ -11,7 +11,21 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 2.0.0
+Latest release: 2.1.0
+
+## 2.1.0
+Released: XX/XX/2026
+
+compatible with:
+* ItB AE        1.2.93
+* ModLoader     2.9.7
+* ModLoaderExt  1.24
+* memhack       1.5.0
+
+### Notes
+* Hangar extra info UI driven by memhack upgrade screen selection hooks
+* Virtual skill icons tooltips are more vanilla-like
+* Updating for changes in memhack ItB String
 
 ## 2.0.0
 Released: 10/15/2026

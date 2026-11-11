@@ -20,7 +20,7 @@ Released: XX/XX/2026
 
 compatible with:
 * ItB AE        1.2.93
-* ModLoader     2.9.5
+* ModLoader     2.9.7
 * ModLoaderExt  1.24
 * memedit       1.2.1
 * memhack       1.5.0
