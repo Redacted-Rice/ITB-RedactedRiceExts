@@ -16,6 +16,14 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	-- Pointers to mech hp / move core ints for the innate mech upgrades
 	moveCore = { offset = 0xC4C, type = "pointer", noSetter = true },
 	hpCore = { offset = 0xC5C, type = "pointer", noSetter = true },
+
+	-- Pawn core info for assigned and unassigned cores of all types
+	reactorNormalUnassigned = { offset = 0xF68, type = "int" },
+	reactorNormalAssigned = { offset = 0xF6C, type = "int" },
+	reactorSkillBonusUnassigned = { offset = 0xF70, type = "int" },
+	reactorSkillBonusAssigned = { offset = 0xF74, type = "int" },
+	reactorNormalUndoableUnassigned = { offset = 0xF78, type = "int" },
+	reactorNormalUndoableAssigned = { offset = 0xF7C, type = "int" },
 })
 
 local function readPointedInt(ptr)
