@@ -12,8 +12,8 @@ local hooks = {
 	--  pawn (Pawn) - the pawn
 	--  pawnId (number) - the pawn ID
 	--  mechType (string) - the mech type
-	--  oldCore (number) - the old core value (e.g. memhack.CORE_TYPE_NONE)
-	--  newCore (number) - the new core value (e.g. memhack.CORE_TYPE_NORMAL)
+	--  oldList (table) - previous core power list (e.g. { memhack.CORE_TYPE_NONE })
+	--  newList (table) - new core power list (e.g. { memhack.CORE_TYPE_NORMAL })
 	"mechUpgradeCoreChanged",
 
 	-- args:
@@ -21,7 +21,7 @@ local hooks = {
 	--  pawn (Pawn) - the pawn
 	--  pawnId (number) - the pawn ID
 	--  mechType (string) - the mech type
-	--  newCore (number) - the new core value (e.g. memhack.CORE_TYPE_NORMAL)
+	--  newList (table) - core power list now powered (e.g. { memhack.CORE_TYPE_NORMAL })
 	"mechUpgradePowered",
 
 	-- args:
@@ -29,7 +29,7 @@ local hooks = {
 	--  pawn (Pawn) - the pawn
 	--  pawnId (number) - the pawn ID
 	--  mechType (string) - the mech type
-	--  oldCore (number) - the old core value (e.g. memhack.CORE_TYPE_NORMAL)
+	--  oldList (table) - core power list that was powered (e.g. { memhack.CORE_TYPE_NORMAL })
 	"mechUpgradeUnpowered",
 }
 

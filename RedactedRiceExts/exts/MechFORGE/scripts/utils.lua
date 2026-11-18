@@ -9,15 +9,28 @@ function utils.isCorePowered(core)
 	return core ~= nil and core ~= memhack.CORE_TYPE_NONE
 end
 
-function utils.getMechUpgradeCore(pawn, slot)
+-- Single-slot mechs: one powered core in the list means the upgrade is powered.
+function utils.isMechUpgradePowerListPowered(list)
+	if type(list) ~= "table" or #list < 1 then
+		return false
+	end
+	for i = 1, #list do
+		if not utils.isCorePowered(list[i]) then
+			return false
+		end
+	end
+	return true
+end
+
+function utils.getMechUpgradePowerList(pawn, slot)
 	if not pawn then
 		return nil
 	end
-	if slot == mech_forge.VANILLA_UPGRADES.HEALTH and pawn.GetHpCore then
-		return pawn:GetHpCore()
+	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
+		return pawn:GetHpCorePowerList()
 	end
-	if slot == mech_forge.VANILLA_UPGRADES.MOVE and pawn.GetMoveCore then
-		return pawn:GetMoveCore()
+	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		return pawn:GetMoveCorePowerList()
 	end
 	return nil
 end
@@ -26,7 +39,13 @@ function utils.isMechUpgradePowered(pawn, slot)
 	if not utils.isValidUpgradeSlot(slot) then
 		return false
 	end
-	return utils.isCorePowered(utils.getMechUpgradeCore(pawn, slot))
+	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
+		return pawn:IsHpPowered()
+	end
+	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		return pawn:IsMovePowered()
+	end
+	return false
 end
 
 function utils.getMechType(pawn)

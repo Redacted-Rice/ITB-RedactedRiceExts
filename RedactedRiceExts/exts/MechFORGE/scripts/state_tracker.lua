@@ -1,8 +1,8 @@
 --[[
 	Mech upgrade state tracking for MechFORGE
 
-	Tracks hp/move core ints per squad mech (pawn 0-2). Any core change fires
-	mechUpgradeCoreChanged. Powered vs unpowered comes from memhack.CORE_TYPE_NONE.
+	Tracks hp/move core power lists per squad mech (pawn 0-2). Any list change fires
+	mechUpgradeCoreChanged. Lists are vanilla single-slot ({ core }) for now.
 ]]
 
 local mf_state_tracker = {}
@@ -42,8 +42,7 @@ end
 
 -------------------- Hook dispatch --------------------
 
--- cehck for and fire hooks if the state changed for the pawn
-function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
+function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldList, newList)
 	if not Game then
 		logger.logWarn(SUBMODULE,
 			"skipped mech upgrade hooks for pawn %d slot %s (Game unavailable)",
@@ -52,27 +51,46 @@ function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
 	end
 
 	local mechType = utils.getMechType(pawn)
-	local wasPowered = utils.isCorePowered(oldCore)
-	local isPowered = utils.isCorePowered(newCore)
+	local wasPowered = utils.isMechUpgradePowerListPowered(oldList)
+	local isPowered = utils.isMechUpgradePowerListPowered(newList)
 
 	-- Should only be called when its changed
 	logger.logDebug(SUBMODULE,
-			"core changed pawn %d slot %s core %s->%s powered %s->%s",
-			pawnId, slot, tostring(oldCore), tostring(newCore),
-			tostring(wasPowered), tostring(isPowered))
+			"core changed pawn %d slot %s powered %s->%s",
+			pawnId, slot, tostring(wasPowered), tostring(isPowered))
 
 	hooks.fireMechUpgradeCoreChangedHooks(
-			slot, pawn, pawnId, mechType, oldCore, newCore)
+			slot, pawn, pawnId, mechType, oldList, newList)
 
 	-- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
 	if not wasPowered and isPowered then
-		hooks.fireMechUpgradePoweredHooks(slot, pawn, pawnId, mechType, newCore)
+		hooks.fireMechUpgradePoweredHooks(slot, pawn, pawnId, mechType, newList)
 	elseif wasPowered and not isPowered then
-		hooks.fireMechUpgradeUnpoweredHooks(slot, pawn, pawnId, mechType, oldCore)
+		hooks.fireMechUpgradeUnpoweredHooks(slot, pawn, pawnId, mechType, oldList)
 	end
 end
 
 -------------------- State update orchestration --------------------
+
+function mf_state_tracker:_corePowerListMatchesTracked(pawn, slot, trackedList)
+	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
+		return pawn:GetMemhackObj():hpCorePowerListMatches(trackedList)
+	end
+	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		return pawn:GetMemhackObj():moveCorePowerListMatches(trackedList)
+	end
+	return false
+end
+
+function mf_state_tracker:_getCorePowerList(pawn, slot)
+	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
+		return pawn:GetHpCorePowerList()
+	end
+	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		return pawn:GetMoveCorePowerList()
+	end
+	return nil
+end
 
 function mf_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 	if not pawn then
@@ -86,20 +104,19 @@ function mf_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 	end
 
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
-		local newCore = utils.getMechUpgradeCore(pawn, slot)
-		local oldCore = tracked[slot]
+		local trackedList = tracked[slot]
 		-- Fire on any change INCLUDING the first one so we trigger when we load
 		-- into a game so we can adjust it there too
-		if oldCore ~= newCore then
-			self:_fireSlotHooks(pawn, pawnId, slot, oldCore, newCore)
-			tracked[slot] = newCore
+		if not self:_corePowerListMatchesTracked(pawn, slot, trackedList) then
+			local newList = self:_getCorePowerList(pawn, slot)
+			self:_fireSlotHooks(pawn, pawnId, slot, trackedList, newList)
+			tracked[slot] = newList
 		end
 	end
 end
 
 function mf_state_tracker:_updateSquadUpgradeStates()
 	if not Game then
-		--logger.logWarn(SUBMODULE, "skipped squad upgrade state update (Game unavailable)")
 		return
 	end
 
@@ -123,7 +140,7 @@ function mf_state_tracker:_getTrackedCore(pawnId, slot)
 	return tracked[slot]
 end
 
--- pawnId -> slot -> core int (tracked, not live)
+-- pawnId -> slot -> core power list (tracked, not live)
 function mf_state_tracker:_getTrackedSquadState()
 	local result = {}
 	for pawnId = 0, 2 do
