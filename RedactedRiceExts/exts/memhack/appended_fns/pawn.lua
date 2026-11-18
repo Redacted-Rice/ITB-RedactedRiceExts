@@ -11,28 +11,28 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return pilot
 	end
 
-	-- Returns memhack.CORE_TYPE_* values
-	BoardPawn.GetHpCore = function(self)
-		local hpCore = self:GetMemhackObj():getHpCore()
-		return hpCore
+	BoardPawn.GetHpCorePowerList = function(self)
+		return self:GetMemhackObj():getHpCorePowerList()
 	end
 
-	-- value: memhack.CORE_TYPE_* values
-	BoardPawn.SetHpCore = function(self, value)
-		local hpCore = self:GetMemhackObj():setHpCore(value)
-		return hpCore
+	BoardPawn.SetHpCorePowerList = function(self, values)
+		return self:GetMemhackObj():setHpCorePowerList(values)
 	end
 
-	-- Returns memhack.CORE_TYPE_* values
-	BoardPawn.GetMoveCore = function(self)
-		local moveCore = self:GetMemhackObj():getMoveCore()
-		return moveCore
+	BoardPawn.GetMoveCorePowerList = function(self)
+		return self:GetMemhackObj():getMoveCorePowerList()
 	end
 
-	-- value: memhack.CORE_TYPE_* values
-	BoardPawn.SetMoveCore = function(self, value)
-		local moveCore = self:GetMemhackObj():setMoveCore(value)
-		return moveCore
+	BoardPawn.SetMoveCorePowerList = function(self, values)
+		return self:GetMemhackObj():setMoveCorePowerList(values)
+	end
+
+	BoardPawn.IsHpPowered = function(self)
+		return self:GetMemhackObj():isHpPowered()
+	end
+
+	BoardPawn.IsMovePowered = function(self)
+		return self:GetMemhackObj():isMovePowered()
 	end
 
 	BoardPawn.GetRawMoveSpeed = function(self)

@@ -13,9 +13,9 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	-- so I include the direct memory access here as well
 	moveSpeed = { offset = 0x990, type = "int" },
 
-	-- Pointers to mech hp / move core ints for the innate mech upgrades
-	moveCore = { offset = 0xC4C, type = "pointer", noSetter = true },
-	hpCore = { offset = 0xC5C, type = "pointer", noSetter = true },
+	-- Std vectors of ints for the upgrade cores (cost and what its powered with)
+	moveCoreList = { offset = 0xC4C, type = "struct", subType = "Vector", noSetter = true },
+	hpCoreList = { offset = 0xC5C, type = "struct", subType = "Vector", noSetter = true },
 
 	-- Pawn core info for assigned and unassigned cores of all types
 	reactorNormalUnassigned = { offset = 0xF68, type = "int" },
@@ -26,43 +26,70 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	reactorNormalUndoableAssigned = { offset = 0xF7C, type = "int" },
 })
 
-local function readPointedInt(ptr)
-	if not ptr or ptr == 0 then
-		return nil
+MemhackBoardPawn._INNATE_CORE_HP = "hp"
+MemhackBoardPawn._INNATE_CORE_MOVE = "move"
+
+function MemhackBoardPawn:_innateCoreVector(which)
+	if which == MemhackBoardPawn._INNATE_CORE_HP then
+		return self:getHpCoreList()
 	end
-	return memhack.dll.memory.readInt(ptr)
+	return self:getMoveCoreList()
 end
 
-local function writePointedInt(ptr, value)
-	if not ptr or ptr == 0 then
+function MemhackBoardPawn:_isInnateCorePowered(which)
+	local vec = self:_innateCoreVector(which)
+	local list = vec:getIntList()
+	for i = 1, #list do
+		local core = list[i]
+		if core == nil or core == memhack.CORE_TYPE_NONE then
+			return false
+		end
+	end
+	return true
+end
+
+function MemhackBoardPawn:isHpPowered()
+	return self:_isInnateCorePowered(MemhackBoardPawn._INNATE_CORE_HP)
+end
+
+function MemhackBoardPawn:isMovePowered()
+	return self:_isInnateCorePowered(MemhackBoardPawn._INNATE_CORE_MOVE)
+end
+
+function MemhackBoardPawn:getHpCorePowerList()
+	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_HP):getIntList()
+end
+
+function MemhackBoardPawn:getMoveCorePowerList()
+	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_MOVE):getIntList()
+end
+
+function MemhackBoardPawn:hpCorePowerListMatches(values)
+	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_HP):intListMatches(values)
+end
+
+function MemhackBoardPawn:moveCorePowerListMatches(values)
+	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_MOVE):intListMatches(values)
+end
+
+function MemhackBoardPawn:_setInnateCorePowerList(which, values)
+	if type(values) ~= "table" or #values < 1 then
 		return false
 	end
-	memhack.dll.memory.writeInt(ptr, value)
-	return true
+	local vec = self:_innateCoreVector(which)
+	return vec:setIntListResizingIfNeeded(values)
+end
+
+function MemhackBoardPawn:setHpCorePowerList(values)
+	return self:_setInnateCorePowerList(MemhackBoardPawn._INNATE_CORE_HP, values)
+end
+
+function MemhackBoardPawn:setMoveCorePowerList(values)
+	return self:_setInnateCorePowerList(MemhackBoardPawn._INNATE_CORE_MOVE, values)
 end
 
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
 genItBStrGetSetWrappers(MemhackBoardPawn, "pawnType")
-
--- Returns memhack.CORE_TYPE_* values.
-function MemhackBoardPawn:getMoveCore()
-	return readPointedInt(self:getMoveCorePtr())
-end
-
--- value: memhack.CORE_TYPE_NORMAL, CORE_TYPE_SKILL_BONUS, or CORE_TYPE_UNDOABLE.
-function MemhackBoardPawn:setMoveCore(value)
-	return writePointedInt(self:getMoveCorePtr(), value)
-end
-
--- Returns memhack.CORE_TYPE_* values.
-function MemhackBoardPawn:getHpCore()
-	return readPointedInt(self:getHpCorePtr())
-end
-
--- value: memhack.CORE_TYPE_NORMAL, CORE_TYPE_SKILL_BONUS, or CORE_TYPE_UNDOABLE.
-function MemhackBoardPawn:setHpCore(value)
-	return writePointedInt(self:getHpCorePtr(), value)
-end
 
 -- Convert back to a vanilla pawn class by searching for the exposed pawn with the
 -- expected address

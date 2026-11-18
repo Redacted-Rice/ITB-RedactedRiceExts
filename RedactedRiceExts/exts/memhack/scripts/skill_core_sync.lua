@@ -419,25 +419,24 @@ function skillCoreSync.applyWeaponCores(pawn, weaponIndex, wdata)
 	end
 end
 
-function skillCoreSync.applyMechCores(pawn, hpCore, moveCore)
-	pawn:SetHpCore(hpCore)
-	pawn:SetMoveCore(moveCore)
-end
-
 -- Applies mech cores when they differ from live. Info when changing, debug when unchanged.
 function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCore, moveCore)
-	local liveHp = pawn:GetHpCore()
-	local liveMove = pawn:GetMoveCore()
-	if liveHp == hpCore and liveMove == moveCore then
+	local hpCores = { hpCore }
+	local moveCores = { moveCore }
+	if pawn:GetMemhackObj():hpCorePowerListMatches(hpCores)
+			and pawn:GetMemhackObj():moveCorePowerListMatches(moveCores) then
 		logger.logDebug(SUBMODULE, "%s pawn %d mechCores unchanged hpCore=%s moveCore=%s",
-				tag, pawnId, tostring(liveHp), tostring(liveMove))
+				tag, pawnId, tostring(hpCore), tostring(moveCore))
 		return false
 	end
 
+	local liveHp = pawn:GetHpCorePowerList()[1]
+	local liveMove = pawn:GetMoveCorePowerList()[1]
 	logger.logInfo(SUBMODULE, "%s pawn %d mechCores %s/%s -> %s/%s",
 			tag, pawnId, tostring(liveHp), tostring(liveMove),
 			tostring(hpCore), tostring(moveCore))
-	skillCoreSync.applyMechCores(pawn, hpCore, moveCore)
+	pawn:SetHpCorePowerList({ hpCore })
+	pawn:SetMoveCorePowerList({ moveCore })
 	return true
 end
 
@@ -787,8 +786,8 @@ function skillCoreSync.snapshotPawnCores(pawnId)
 		return nil
 	end
 	local snap = {
-		hpCore = pawn:GetHpCore(),
-		moveCore = pawn:GetMoveCore(),
+		hpCore = pawn:GetHpCorePowerList()[1],
+		moveCore = pawn:GetMoveCorePowerList()[1],
 		pilotPower = skillCoreSync.readLivePilotPower(pawn),
 		weapons = skillCoreSync.readLiveWeapons(pawn),
 	}

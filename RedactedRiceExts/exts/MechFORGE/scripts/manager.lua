@@ -63,24 +63,24 @@ function mf_manager:_subscribeUpgradeCallbackEvents()
 	-- Use internal priority so others can run first if needed for some reason
 	local priority = hooks.INTERNAL_PRIORITY
 
-	hooks.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldCore, newCore)
+	hooks.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldList, newList)
 		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
-		self:_invokeRegisteredCallback(config, "onCoreChanged", slot, pawn, pawnId, mechType, oldCore, newCore)
+		self:_invokeRegisteredCallback(config, "onCoreChanged", slot, pawn, pawnId, mechType, oldList, newList)
 	end, priority)
 
-	hooks.events.onMechUpgradePowered:subscribe(function(slot, pawn, pawnId, mechType, newCore)
+	hooks.events.onMechUpgradePowered:subscribe(function(slot, pawn, pawnId, mechType, newList)
 		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
 		if config then
 			self:_handleVanillaBonusChange(pawn, slot, config, false)
-			self:_invokeRegisteredCallback(config, "onPowered", slot, pawn, pawnId, mechType, newCore)
+			self:_invokeRegisteredCallback(config, "onPowered", slot, pawn, pawnId, mechType, newList)
 		end
 	end, priority)
 
-	hooks.events.onMechUpgradeUnpowered:subscribe(function(slot, pawn, pawnId, mechType, oldCore)
+	hooks.events.onMechUpgradeUnpowered:subscribe(function(slot, pawn, pawnId, mechType, oldList)
 		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
 		if config then
 			self:_handleVanillaBonusChange(pawn, slot, config, true)
-			self:_invokeRegisteredCallback(config, "onUnpowered", slot, pawn, pawnId, mechType, oldCore)
+			self:_invokeRegisteredCallback(config, "onUnpowered", slot, pawn, pawnId, mechType, oldList)
 		end
 	end, priority)
 
