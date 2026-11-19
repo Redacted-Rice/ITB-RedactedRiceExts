@@ -4,6 +4,21 @@ local M = {}
 
 M.pawns = {}
 
+local function listMatchesTracked(stored, tracked)
+	if type(tracked) ~= "table" then
+		return #stored == 0
+	end
+	if #tracked ~= #stored then
+		return false
+	end
+	for i = 1, #stored do
+		if tracked[i] ~= stored[i] then
+			return false
+		end
+	end
+	return true
+end
+
 function M.makeMockPawn(initialTypes, opts)
 	opts = opts or {}
 	local pawn = {
@@ -11,8 +26,8 @@ function M.makeMockPawn(initialTypes, opts)
 		_removeLog = {},
 		_addLog = {},
 		_addForceLog = {},
-		_hpCore = opts.hpCore or 0,
-		_moveCore = opts.moveCore or 0,
+		_hpCores = opts.hpCores or { 0 },
+		_moveCores = opts.moveCores or { 0 },
 	}
 
 	for _, typeId in ipairs(initialTypes or {}) do
@@ -43,20 +58,47 @@ function M.makeMockPawn(initialTypes, opts)
 		return pilot
 	end
 
-	function pawn:GetHpCore()
-		return self._hpCore
+	function pawn:GetHpCores()
+		local out = {}
+		for i, v in ipairs(self._hpCores) do
+			out[i] = v
+		end
+		return out
 	end
 
-	function pawn:SetHpCore(value)
-		self._hpCore = value
+	function pawn:SetHpCores(values)
+		self._hpCores = {}
+		for i, v in ipairs(values) do
+			self._hpCores[i] = v
+		end
 	end
 
-	function pawn:GetMoveCore()
-		return self._moveCore
+	function pawn:GetMoveCores()
+		local out = {}
+		for i, v in ipairs(self._moveCores) do
+			out[i] = v
+		end
+		return out
 	end
 
-	function pawn:SetMoveCore(value)
-		self._moveCore = value
+	function pawn:SetMoveCores(values)
+		self._moveCores = {}
+		for i, v in ipairs(values) do
+			self._moveCores[i] = v
+		end
+	end
+
+	pawn._memhackBoardPawn = {
+		hpCoresMatch = function(_, tracked)
+			return listMatchesTracked(pawn._hpCores, tracked)
+		end,
+		moveCoresMatch = function(_, tracked)
+			return listMatchesTracked(pawn._moveCores, tracked)
+		end,
+	}
+
+	function pawn:GetMemhackObj()
+		return self._memhackBoardPawn
 	end
 
 	function pawn:GetWeaponCount()

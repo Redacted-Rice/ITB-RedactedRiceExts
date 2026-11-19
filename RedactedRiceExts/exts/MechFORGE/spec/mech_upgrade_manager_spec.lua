@@ -106,7 +106,8 @@ describe("MechFORGE upgrade manager", function()
 				health = 5,
 			})
 
-			forge.hooks.fireMechUpgradePoweredHooks(V.HEALTH, pawn, 0, "MgrMech", memhack.CORE_TYPE_NORMAL)
+			forge.hooks.fireMechUpgradePoweredHooks(
+					V.HEALTH, pawn, 0, "MgrMech", { memhack.CORE_TYPE_NORMAL })
 
 			assert.are.equal(1, poweredCount)
 			assert.are.equal(3, pawn:GetMaxBaseHealth())

@@ -39,6 +39,9 @@ end
 function MemhackBoardPawn:_isInnateCorePowered(which)
 	local vec = self:_innateCoreVector(which)
 	local list = vec:getIntList()
+	if #list < 1 then
+		return false
+	end
 	for i = 1, #list do
 		local core = list[i]
 		if core == nil or core == memhack.CORE_TYPE_NONE then
@@ -56,36 +59,36 @@ function MemhackBoardPawn:isMovePowered()
 	return self:_isInnateCorePowered(MemhackBoardPawn._INNATE_CORE_MOVE)
 end
 
-function MemhackBoardPawn:getHpCorePowerList()
+function MemhackBoardPawn:getHpCores()
 	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_HP):getIntList()
 end
 
-function MemhackBoardPawn:getMoveCorePowerList()
+function MemhackBoardPawn:getMoveCores()
 	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_MOVE):getIntList()
 end
 
-function MemhackBoardPawn:hpCorePowerListMatches(values)
+function MemhackBoardPawn:hpCoresMatch(values)
 	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_HP):intListMatches(values)
 end
 
-function MemhackBoardPawn:moveCorePowerListMatches(values)
+function MemhackBoardPawn:moveCoresMatch(values)
 	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_MOVE):intListMatches(values)
 end
 
-function MemhackBoardPawn:_setInnateCorePowerList(which, values)
-	if type(values) ~= "table" or #values < 1 then
+function MemhackBoardPawn:_setInnateCores(which, values)
+	if type(values) ~= "table" then
 		return false
 	end
 	local vec = self:_innateCoreVector(which)
 	return vec:setIntListResizingIfNeeded(values)
 end
 
-function MemhackBoardPawn:setHpCorePowerList(values)
-	return self:_setInnateCorePowerList(MemhackBoardPawn._INNATE_CORE_HP, values)
+function MemhackBoardPawn:setHpCores(values)
+	return self:_setInnateCores(MemhackBoardPawn._INNATE_CORE_HP, values)
 end
 
-function MemhackBoardPawn:setMoveCorePowerList(values)
-	return self:_setInnateCorePowerList(MemhackBoardPawn._INNATE_CORE_MOVE, values)
+function MemhackBoardPawn:setMoveCores(values)
+	return self:_setInnateCores(MemhackBoardPawn._INNATE_CORE_MOVE, values)
 end
 
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers
