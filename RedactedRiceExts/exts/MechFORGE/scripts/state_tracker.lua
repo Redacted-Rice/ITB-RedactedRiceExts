@@ -1,8 +1,8 @@
 --[[
 	Mech upgrade state tracking for MechFORGE
 
-	Tracks hp/move core power lists per squad mech (pawn 0-2). Any list change fires
-	mechUpgradeCoreChanged. Lists are vanilla single-slot ({ core }) for now.
+	Tracks hp/move core power lists per squad mech (pawn 0-2). Any list change (values
+	or length) fires mechUpgradeCoreChanged.
 ]]
 
 local mf_state_tracker = {}
@@ -51,8 +51,8 @@ function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldList, newList)
 	end
 
 	local mechType = utils.getMechType(pawn)
-	local wasPowered = utils.isMechUpgradePowerListPowered(oldList)
-	local isPowered = utils.isMechUpgradePowerListPowered(newList)
+	local wasPowered = utils.isMechUpgradeCoresPowered(oldList)
+	local isPowered = utils.isMechUpgradeCoresPowered(newList)
 
 	-- Should only be called when its changed
 	logger.logDebug(SUBMODULE,
@@ -72,22 +72,22 @@ end
 
 -------------------- State update orchestration --------------------
 
-function mf_state_tracker:_corePowerListMatchesTracked(pawn, slot, trackedList)
+function mf_state_tracker:_coresMatchTracked(pawn, slot, trackedList)
 	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
-		return pawn:GetMemhackObj():hpCorePowerListMatches(trackedList)
+		return pawn:GetMemhackObj():hpCoresMatch(trackedList)
 	end
 	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		return pawn:GetMemhackObj():moveCorePowerListMatches(trackedList)
+		return pawn:GetMemhackObj():moveCoresMatch(trackedList)
 	end
 	return false
 end
 
-function mf_state_tracker:_getCorePowerList(pawn, slot)
+function mf_state_tracker:_getCores(pawn, slot)
 	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
-		return pawn:GetHpCorePowerList()
+		return pawn:GetHpCores()
 	end
 	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		return pawn:GetMoveCorePowerList()
+		return pawn:GetMoveCores()
 	end
 	return nil
 end
@@ -107,8 +107,8 @@ function mf_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 		local trackedList = tracked[slot]
 		-- Fire on any change INCLUDING the first one so we trigger when we load
 		-- into a game so we can adjust it there too
-		if not self:_corePowerListMatchesTracked(pawn, slot, trackedList) then
-			local newList = self:_getCorePowerList(pawn, slot)
+		if not self:_coresMatchTracked(pawn, slot, trackedList) then
+			local newList = self:_getCores(pawn, slot)
 			self:_fireSlotHooks(pawn, pawnId, slot, trackedList, newList)
 			tracked[slot] = newList
 		end
@@ -132,7 +132,7 @@ end
 
 -------------------- State Queries --------------------
 
-function mf_state_tracker:_getTrackedCore(pawnId, slot)
+function mf_state_tracker:_getTrackedCores(pawnId, slot)
 	local tracked = self._tracked[pawnId]
 	if not tracked then
 		return nil

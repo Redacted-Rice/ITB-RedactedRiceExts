@@ -177,8 +177,8 @@ describe("Skill Core Sync", function()
 
 		it("countPawnCoreType sums hp, move, pilot, and weapon bonus cores", function()
 			local snap = {
-				hpCore = bonus,
-				moveCore = 1,
+				hpCores = { bonus },
+				moveCores = { 1 },
 				pilotPower = { bonus, 1 },
 				weapons = {
 					[1] = sampleCores({ bonus }, { 0 }, { 0 }),
@@ -188,10 +188,20 @@ describe("Skill Core Sync", function()
 			assert.are.equal(3, skillCoreSync.countPawnCoreType(snap, bonus))
 		end)
 
+		it("countPawnCoreType counts every mech innate core slot", function()
+			local snap = {
+				hpCores = { bonus, bonus },
+				moveCores = { 1 },
+				pilotPower = {},
+				weapons = {},
+			}
+			assert.are.equal(2, skillCoreSync.countPawnCoreType(snap, bonus))
+		end)
+
 		it("needsSkillCoreSync is false when there are no bonus cores", function()
 			assert.is_false(skillCoreSync.needsSkillCoreSync({
-				hpCore = 1,
-				moveCore = 1,
+				hpCores = { 1 },
+				moveCores = { 1 },
 				pilotPower = { 1 },
 				weapons = { [1] = sampleCores({ 1 }, { 0 }, { 0 }) },
 			}))
@@ -199,14 +209,14 @@ describe("Skill Core Sync", function()
 
 		it("needsSkillCoreSync is true when there is any bonus core", function()
 			assert.is_true(skillCoreSync.needsSkillCoreSync({
-				hpCore = bonus,
-				moveCore = 1,
+				hpCores = { bonus },
+				moveCores = { 1 },
 				pilotPower = { 1 },
 				weapons = {},
 			}))
 			assert.is_true(skillCoreSync.needsSkillCoreSync({
-				hpCore = 1,
-				moveCore = 1,
+				hpCores = { 1 },
+				moveCores = { 1 },
 				pilotPower = { 1 },
 				weapons = { [1] = sampleCores({ bonus }, { 0 }, { 0 }) },
 			}))
@@ -335,7 +345,7 @@ describe("Skill Core Sync", function()
 			saveGlobal("GAME")
 			_G.GAME = nil
 			assert.is_nil(skillCoreSync.getMissionSnapshot())
-			local snap = { [0] = { hpCore = 1 } }
+			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
 			assert.are.same(snap, skillCoreSync.getMissionSnapshot())
 			assert.is_true(skillCoreSync.isMissionSaveLoaded())
@@ -396,7 +406,7 @@ describe("Skill Core Sync", function()
 				bySource = { [squadSource] = { [1] = ptable } },
 			})
 
-			gameMocks.pawns[1] = makeMockPawn({ prefix .. "_A" }, { hpCore = 5, moveCore = 6, pilotPower = { 1 } })
+			gameMocks.pawns[1] = makeMockPawn({ prefix .. "_A" }, { hpCores = { 5 }, moveCores = { 6 }, pilotPower = { 1 } })
 
 			saveFn(skillCoreSync, "readLiveWeaponCores")
 			skillCoreSync.readLiveWeaponCores = function()
@@ -494,7 +504,7 @@ describe("Skill Core Sync", function()
 			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
 			local pawn = makeMockPawn({ prefix .. "_A", prefix .. "_B" })
 			gameMocks.pawns[1] = pawn
-			skillCoreSync.setMissionSnapshot({ [1] = { hpCore = 2, moveCore = 2, pilotPower = { 2 } } })
+			skillCoreSync.setMissionSnapshot({ [1] = { hpCores = { 2 }, moveCores = { 2 }, pilotPower = { 2 } } })
 
 			skillCoreSync.stripSuffixedWeaponsForPawn(1)
 
@@ -544,7 +554,8 @@ describe("Skill Core Sync", function()
 			ptable.healthPower = { bonus }
 			ptable.movePower = { bonus }
 			ptable.primary.power = { bonus }
-			installModApiExt({ bySource = { [squadSource] = { [1] = ptable } } })
+			squadSource[1] = ptable
+			installModApiExt({ bySource = { [squadSource] = squadSource } })
 			_G.SquadData = squadSource
 			gameMocks.pawns[1] = makeMockPawn({ prefix })
 			skillCoreSync.syncPawnFromSave(1)
@@ -586,14 +597,34 @@ describe("Skill Core Sync", function()
 				return sampleCores({ bonus }, { 0 }, { 0 })
 			end
 
-			local pawn = makeMockPawn({ prefix }, { hpCore = bonus, moveCore = bonus, pilotPower = { bonus } })
+			local pawn = makeMockPawn({ prefix }, { hpCores = { bonus }, moveCores = { bonus }, pilotPower = { bonus } })
 			gameMocks.pawns[1] = pawn
 
 			local snap = skillCoreSync.snapshotPawnCores(1)
-			assert.are.equal(bonus, snap.hpCore)
-			assert.are.equal(bonus, snap.moveCore)
+			assert.are.same({ bonus }, snap.hpCores)
+			assert.are.same({ bonus }, snap.moveCores)
 			assert.are.same({ bonus }, snap.pilotPower)
 			assert.are.same({ bonus }, snap.weapons[1].power)
+		end)
+
+		it("snapshotPawnCores keeps full hp and move power lists", function()
+			restoreFns()
+			local bonus = memhack.CORE_TYPE_SKILL_BONUS
+			saveFn(skillCoreSync, "readLiveWeaponCores")
+			skillCoreSync.readLiveWeaponCores = function()
+				return sampleCores({ 1 }, { 0 }, { 0 })
+			end
+
+			local pawn = makeMockPawn({}, {
+				hpCores = { bonus, bonus },
+				moveCores = { 1, bonus },
+				pilotPower = { 1 },
+			})
+			gameMocks.pawns[2] = pawn
+
+			local snap = skillCoreSync.snapshotPawnCores(2)
+			assert.are.same({ bonus, bonus }, snap.hpCores)
+			assert.are.same({ 1, bonus }, snap.moveCores)
 		end)
 
 		it("snapshotPawnCores returns nil when there are no bonus cores", function()
@@ -603,7 +634,7 @@ describe("Skill Core Sync", function()
 				return sampleCores({ 1 }, { 0 }, { 0 })
 			end
 
-			gameMocks.pawns[1] = makeMockPawn({ prefix }, { hpCore = 1, moveCore = 1, pilotPower = { 1 } })
+			gameMocks.pawns[1] = makeMockPawn({ prefix }, { hpCores = { 1 }, moveCores = { 1 }, pilotPower = { 1 } })
 			assert.is_nil(skillCoreSync.snapshotPawnCores(1))
 		end)
 
@@ -618,18 +649,18 @@ describe("Skill Core Sync", function()
 
 			local bonus = memhack.CORE_TYPE_SKILL_BONUS
 			local weapon = sampleCores({ bonus }, { 0 }, { 0 })
-			local pawn = makeMockPawn({ prefix }, { hpCore = 1, moveCore = 2, pilotPower = { 3 } })
+			local pawn = makeMockPawn({ prefix }, { hpCores = { 1 }, moveCores = { 2 }, pilotPower = { 3 } })
 			gameMocks.pawns[1] = pawn
 
 			skillCoreSync.applyPawnSnapshot(1, {
-				hpCore = bonus,
-				moveCore = 10,
+				hpCores = { bonus },
+				moveCores = { 10 },
 				pilotPower = { 4, 5 },
 				weapons = { [1] = weapon },
 			})
 
-			assert.are.equal(bonus, pawn:GetHpCore())
-			assert.are.equal(10, pawn:GetMoveCore())
+			assert.are.same({ bonus }, pawn:GetHpCores())
+			assert.are.same({ 10 }, pawn:GetMoveCores())
 			assert.are.same({ 4, 5 }, pawn:GetPilot():getPowerList())
 			assert.are.equal(1, #applied)
 			assert.are.same(weapon, applied[1].cores)
@@ -637,7 +668,7 @@ describe("Skill Core Sync", function()
 
 		it("onMissionStart stores snapshot from all pawns", function()
 			saveFn(skillCoreSync, "snapshotAllPawnCores")
-			local expected = { [0] = { hpCore = 1 } }
+			local expected = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.snapshotAllPawnCores = function()
 				return expected
 			end
@@ -658,7 +689,7 @@ describe("Skill Core Sync", function()
 		end)
 
 		it("onMissionEnd clears snapshot after strip and restore", function()
-			local snap = { [0] = { hpCore = 1 } }
+			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
 			local order = {}
 
@@ -677,7 +708,7 @@ describe("Skill Core Sync", function()
 		end)
 
 		it("onMissionEnd clears snapshot when mission is nil", function()
-			local snap = { [0] = { hpCore = 1 } }
+			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
 			local order = {}
 
@@ -696,7 +727,7 @@ describe("Skill Core Sync", function()
 		end)
 
 		it("onMissionEnd skips strip and restore when NextPhase is set", function()
-			local snap = { [0] = { hpCore = 1 } }
+			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
 
 			saveFn(skillCoreSync, "stripAllSuffixedWeapons")
@@ -797,10 +828,10 @@ describe("Skill Core Sync", function()
 
 	describe("apply pawn cores", function()
 		it("skips mech cores when unchanged", function()
-			local pawn = makeMockPawn({}, { hpCore = 3, moveCore = 4 })
-			local changed = skillCoreSync.applyPawnMechCores("tag", 0, pawn, 3, 4)
+			local pawn = makeMockPawn({}, { hpCores = { 3 }, moveCores = { 4 } })
+			local changed = skillCoreSync.applyPawnMechCores("tag", 0, pawn, { 3 }, { 4 })
 			assert.is_false(changed)
-			assert.are.equal(3, pawn:GetHpCore())
+			assert.are.same({ 3 }, pawn:GetHpCores())
 		end)
 
 		it("skips pilot cores when unchanged", function()
@@ -809,21 +840,49 @@ describe("Skill Core Sync", function()
 			assert.is_false(changed)
 		end)
 
+		it("applyPawnMechCores resizes and writes every innate slot", function()
+			local pawn = makeMockPawn({}, { hpCores = { 1 }, moveCores = { 2 } })
+			local changed = skillCoreSync.applyPawnMechCores("tag", 0, pawn, { 3, 4 }, { 5, 6 })
+			assert.is_true(changed)
+			assert.are.same({ 3, 4 }, pawn:GetHpCores())
+			assert.are.same({ 5, 6 }, pawn:GetMoveCores())
+		end)
+
+		it("applyPawnMechCoresFromSnapshot applies multi-slot mech lists", function()
+			installGameGetPawn()
+			local pawn = makeMockPawn({}, {
+				hpCores = { 1, 2 },
+				moveCores = { 3 },
+			})
+			gameMocks.pawns[0] = pawn
+			local snap = {
+				[0] = {
+					hpCores = { 9, 10 },
+					moveCores = { 11, 12 },
+					pilotPower = { 3 },
+				},
+			}
+
+			skillCoreSync.applyPawnMechCoresFromSnapshot(0, snap)
+			assert.are.same({ 9, 10 }, pawn:GetHpCores())
+			assert.are.same({ 11, 12 }, pawn:GetMoveCores())
+		end)
+
 		it("applyPawnMechCoresFromSnapshot applies in mission mech and pilot cores", function()
 			installGameGetPawn()
-			local pawn = makeMockPawn({}, { hpCore = 1, moveCore = 2, pilotPower = { 3 } })
+			local pawn = makeMockPawn({}, { hpCores = { 1 }, moveCores = { 2 }, pilotPower = { 3 } })
 			gameMocks.pawns[1] = pawn
 			local snap = {
 				[1] = {
-					hpCore = 7,
-					moveCore = 8,
+					hpCores = { 7 },
+					moveCores = { 8 },
 					pilotPower = { 9 },
 				},
 			}
 
 			skillCoreSync.applyPawnMechCoresFromSnapshot(1, snap)
-			assert.are.equal(7, pawn:GetHpCore())
-			assert.are.equal(8, pawn:GetMoveCore())
+			assert.are.same({ 7 }, pawn:GetHpCores())
+			assert.are.same({ 8 }, pawn:GetMoveCores())
 			assert.are.same({ 9 }, pawn:GetPilot():getPowerList())
 		end)
 	end)
@@ -850,7 +909,7 @@ describe("Skill Core Sync", function()
 			})
 			_G.SquadData = {}
 			installModApiExt({ byPawnId = { [0] = ptable } })
-			skillCoreSync.setMissionSnapshot({ [0] = { hpCore = 2, moveCore = 2, pilotPower = { 2 } } })
+			skillCoreSync.setMissionSnapshot({ [0] = { hpCores = { 2 }, moveCores = { 2 }, pilotPower = { 2 } } })
 
 			skillCoreSync.addAllWeaponSuffixesInGFromSave()
 

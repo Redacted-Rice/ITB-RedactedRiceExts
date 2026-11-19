@@ -203,6 +203,7 @@ function MemhackVector:setIntListResizingIfNeeded(values)
 	local capacity = self:getIntCapacity()
 
 	-- Allow a non-allocated vector if newSize is 0
+	-- Otherwise it will fall through and get set to 0 below
 	if newSize == 0 and not head then
 		return true
 	end

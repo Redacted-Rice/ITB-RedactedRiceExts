@@ -11,20 +11,20 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return pilot
 	end
 
-	BoardPawn.GetHpCorePowerList = function(self)
-		return self:GetMemhackObj():getHpCorePowerList()
+	BoardPawn.GetHpCores = function(self)
+		return self:GetMemhackObj():getHpCores()
 	end
 
-	BoardPawn.SetHpCorePowerList = function(self, values)
-		return self:GetMemhackObj():setHpCorePowerList(values)
+	BoardPawn.SetHpCores = function(self, values)
+		return self:GetMemhackObj():setHpCores(values)
 	end
 
-	BoardPawn.GetMoveCorePowerList = function(self)
-		return self:GetMemhackObj():getMoveCorePowerList()
+	BoardPawn.GetMoveCores = function(self)
+		return self:GetMemhackObj():getMoveCores()
 	end
 
-	BoardPawn.SetMoveCorePowerList = function(self, values)
-		return self:GetMemhackObj():setMoveCorePowerList(values)
+	BoardPawn.SetMoveCores = function(self, values)
+		return self:GetMemhackObj():setMoveCores(values)
 	end
 
 	BoardPawn.IsHpPowered = function(self)
