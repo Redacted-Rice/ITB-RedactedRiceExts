@@ -18,34 +18,34 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	hpCores = { offset = 0xC5C, type = "struct", subType = "CoreList", noSetter = true },
 
 	-- Pawn core info for assigned and unassigned cores of all types
-	reactorNormalUnassigned = { offset = 0xF68, type = "int" },
-	reactorNormalAssigned = { offset = 0xF6C, type = "int" },
-	reactorSkillBonusUnassigned = { offset = 0xF70, type = "int" },
-	reactorSkillBonusAssigned = { offset = 0xF74, type = "int" },
-	reactorNormalUndoableUnassigned = { offset = 0xF78, type = "int" },
-	reactorNormalUndoableAssigned = { offset = 0xF7C, type = "int" },
+	coresNormalUnassigned = { offset = 0xF68, type = "int" },
+	coresNormalAssigned = { offset = 0xF6C, type = "int" },
+	coresSkillBonusUnassigned = { offset = 0xF70, type = "int" },
+	coresSkillBonusAssigned = { offset = 0xF74, type = "int" },
+	coresNormalUndoableUnassigned = { offset = 0xF78, type = "int" },
+	coresNormalUndoableAssigned = { offset = 0xF7C, type = "int" },
 })
 
-function MemhackBoardPawn:_getReactorCount(coreType, poolType)
+function MemhackBoardPawn:_getCoresCount(coreType, poolType)
 	if coreType == nil or coreType == memhack.CORE_TYPE_NONE then
 		return 0
 	end
-	local getterName = "getReactor" .. memhack.CORE_TYPE_NAMES[coreType] .. poolType
+	local getterName = "getCores" .. memhack.CORE_TYPE_NAMES[coreType] .. poolType
 	return self[getterName](self)
 end
 
-function MemhackBoardPawn:_setReactorCount(coreType, poolType, value)
+function MemhackBoardPawn:_setCoresCount(coreType, poolType, count)
 	if coreType == nil or coreType == memhack.CORE_TYPE_NONE then
 		return false
 	end
-	local setterName = "setReactor" .. memhack.CORE_TYPE_NAMES[coreType] .. poolType
-	self[setterName](self, value)
+	local setterName = "setCores" .. memhack.CORE_TYPE_NAMES[coreType] .. poolType
+	self[setterName](self, count)
 	return true
 end
 
-function MemhackBoardPawn:_pickReactorCoreType(poolType)
+function MemhackBoardPawn:_pickCoreTypeFromPools(poolType)
 	for _, coreType in ipairs(memhack.CORE_PULL_ORDER) do
-		if self:_getReactorCount(coreType, poolType) > 0 then
+		if self:_getCoresCount(coreType, poolType) > 0 then
 			return coreType
 		end
 	end
@@ -55,30 +55,31 @@ end
 -- Internal helper for moving one core between two pools.
 function MemhackBoardPawn:_moveCoreBetweenPools(coreType, fromPoolType, toPoolType)
 	if coreType == nil then
-		coreType = self:_pickReactorCoreType(fromPoolType)
+		coreType = self:_pickCoreTypeFromPools(fromPoolType)
 	end
 	if coreType == memhack.CORE_TYPE_NONE then
 		return memhack.CORE_TYPE_NONE
 	end
-	local count = self:_getReactorCount(coreType, fromPoolType)
+	local count = self:_getCoresCount(coreType, fromPoolType)
 	if count < 1 then
 		return memhack.CORE_TYPE_NONE
 	end
-	self:_setReactorCount(coreType, fromPoolType, count - 1)
-	self:_setReactorCount(coreType, toPoolType, self:_getReactorCount(coreType, toPoolType) + 1)
+	self:_setCoresCount(coreType, fromPoolType, count - 1)
+	self:_setCoresCount(coreType, toPoolType,
+			self:_getCoresCount(coreType, toPoolType) + 1)
 	return coreType
 end
 
 -- Tries to move one core from the pawn unassigned to assigned pool.
 -- coreType optional. When omitted, picks by CORE_PULL_ORDER.
-function MemhackBoardPawn:assignMechReactorCore(coreType)
+function MemhackBoardPawn:assignMechCore(coreType)
 	return self:_moveCoreBetweenPools(coreType, memhack.CORE_POOL_UNASSIGNED, memhack.CORE_POOL_ASSIGNED)
 end
 
 -- Tries to move one core from the pawn assigned to unassigned pool.
 -- coreType optional. When omitted, picks by CORE_PULL_ORDER.
-function MemhackBoardPawn:unassignMechReactorCore(coreType)
-	return self:_moveCoreBetweenPools(nil, memhack.CORE_POOL_ASSIGNED, memhack.CORE_POOL_UNASSIGNED)
+function MemhackBoardPawn:unassignMechCore(coreType)
+	return self:_moveCoreBetweenPools(coreType, memhack.CORE_POOL_ASSIGNED, memhack.CORE_POOL_UNASSIGNED)
 end
 
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers

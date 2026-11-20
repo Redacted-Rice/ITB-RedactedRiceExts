@@ -93,7 +93,7 @@ describe("MechFORGE upgrade manager", function()
 		it("runs registered onPowered via event wiring when core hook fires", function()
 			local poweredCount = 0
 			forge:registerMechUpgrade("MgrMech", V.HEALTH, {
-				label = "Reactor",
+				label = "Core upgrade",
 				onPowered = function()
 					poweredCount = poweredCount + 1
 				end,
@@ -126,8 +126,6 @@ describe("MechFORGE upgrade manager", function()
 				hpCores = { memhack.CORE_TYPE_NORMAL },
 			})
 
-			manager:ensureCoreListSize(pawn, V.HEALTH)
-
 			assert.are.equal(1, utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntSize())
 			assert.are.same({ memhack.CORE_TYPE_NORMAL },
 					utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntList())
@@ -147,8 +145,6 @@ describe("MechFORGE upgrade manager", function()
 				},
 			})
 
-			manager:ensureCoreListSize(pawn, V.HEALTH)
-
 			assert.are.same({
 				memhack.CORE_TYPE_NORMAL,
 				memhack.CORE_TYPE_NONE,
@@ -156,7 +152,7 @@ describe("MechFORGE upgrade manager", function()
 			}, utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntList())
 		end)
 
-		it("fills partial multi-core layouts when the reactor pool has cores", function()
+		it("fills partial multi-core layouts when the core pool has spare cores", function()
 			forge:registerMechUpgrade("FillMech", V.HEALTH, {
 				label = "Heavy Plating",
 				coreSlots = 3,
@@ -192,10 +188,10 @@ describe("MechFORGE upgrade manager", function()
 					memhack.CORE_TYPE_NONE,
 					memhack.CORE_TYPE_NONE,
 				},
-				assignMechReactorCore = function()
+				assignMechCore = function()
 					return memhack.CORE_TYPE_NONE
 				end,
-				unassignMechReactorCore = function(_, coreType)
+				unassignMechCore = function(_, coreType)
 					table.insert(unassigned, coreType)
 					return coreType
 				end,
@@ -209,6 +205,27 @@ describe("MechFORGE upgrade manager", function()
 				memhack.CORE_TYPE_NONE,
 			}, utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntList())
 			assert.are.same({ memhack.CORE_TYPE_NORMAL }, unassigned)
+		end)
+
+		it("reconcilePartialMultiCoreUpgrade uses registered coreSlots", function()
+			forge:registerMechUpgrade("WrapMech", V.HEALTH, {
+				label = "Heavy Plating",
+				coreSlots = 2,
+			})
+			local pawn = helper.createMockPawn({
+				mechType = "WrapMech",
+				hpCores = {
+					memhack.CORE_TYPE_NORMAL,
+					memhack.CORE_TYPE_NONE,
+				},
+			})
+
+			manager:reconcilePartialMultiCoreUpgrade(pawn, V.HEALTH)
+
+			assert.are.same({
+				memhack.CORE_TYPE_NORMAL,
+				memhack.CORE_TYPE_NORMAL,
+			}, utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntList())
 		end)
 	end)
 end)

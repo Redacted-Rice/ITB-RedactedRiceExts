@@ -60,12 +60,12 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		self:GetMemhackObj():setPawnType(pawnType)
 	end
 
-	BoardPawn.UnassignMechReactorCore = function(self, coreType)
-		return self:GetMemhackObj():unassignMechReactorCore(coreType)
+	BoardPawn.UnassignMechCore = function(self, coreType)
+		return self:GetMemhackObj():unassignMechCore(coreType)
 	end
 
-	BoardPawn.AssignMechReactorCore = function(self, coreType)
-		return self:GetMemhackObj():assignMechReactorCore(coreType)
+	BoardPawn.AssignMechCore = function(self, coreType)
+		return self:GetMemhackObj():assignMechCore(coreType)
 	end
 end
 

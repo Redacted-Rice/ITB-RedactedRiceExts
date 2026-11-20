@@ -193,6 +193,29 @@ describe("MechFORGE state tracker", function()
 	end)
 
 	-- documents current behavior: reset clears history so the next poll looks like a fresh load
+	it("runs reconcile before hooks when a registered multi-core layout is partial", function()
+		forge:registerMechUpgrade("TrackMulti", V.HEALTH, {
+			label = "Heavy Plating",
+			coreSlots = 2,
+		})
+		local pawn = helper.createMockPawn({
+			mechType = "TrackMulti",
+			hpCores = {
+				memhack.CORE_TYPE_NORMAL,
+				memhack.CORE_TYPE_NONE,
+			},
+			moveCores = { memhack.CORE_TYPE_NONE },
+		})
+		helper.setupSquadPawns({ [0] = pawn })
+
+		stateTracker:_updateAllStates()
+
+		assert.are.same({
+			memhack.CORE_TYPE_NORMAL,
+			memhack.CORE_TYPE_NORMAL,
+		}, stateTracker:_getTrackedCores(0, V.HEALTH))
+	end)
+
 	it("refires powered hooks after tracker reset while cores stay powered", function()
 		local poweredCount = 0
 		forge:addMechUpgradePoweredHook(function()

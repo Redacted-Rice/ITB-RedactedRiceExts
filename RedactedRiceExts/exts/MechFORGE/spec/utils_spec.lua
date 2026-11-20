@@ -24,6 +24,10 @@ describe("MechFORGE utils", function()
 			assert.is_false(utils.isMechUpgradeCoresPowered(nil))
 		end)
 
+		it("returns false for non-table values", function()
+			assert.is_false(utils.isMechUpgradeCoresPowered(1))
+		end)
+
 		it("treats an empty table as powered", function()
 			assert.is_true(utils.isMechUpgradeCoresPowered({}))
 		end)

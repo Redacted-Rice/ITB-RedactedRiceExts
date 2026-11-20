@@ -34,7 +34,7 @@ With MechFORGE enabled but no mods using it, the game behaves as usual. The exte
 
 Depending on the mod, you may see:
 
-* Different names on a mech's Health or Move reactor line in the hangar (for example a "Armored" upgrade instead of "+2 Health").
+* Different names on a mech's Health or Move upgrade button in the hangar (for example a "Armored" upgrade instead of "+2 Health").
 * Different stats or effects when you power those slots, as defined by that mod.
 
 ## For mod authors
@@ -86,7 +86,7 @@ mech_forge:registerMechUpgrade("MyCustomMech", mech_forge.VANILLA_UPGRADES.HEALT
 Registration Args:
 
 * `label` is a required non-empty string, text id, or `function(pawn)` returning a string.
-* `tooltip` is optional. Same types as `label`. Shown when the player hovers the reactor slot in the hangar. If omitted, MechFORGE shows a generic custom-upgrade message.
+* `tooltip` is optional. Same types as `label`. Shown when the player hovers the core slot in the hangar. If omitted, MechFORGE shows a generic custom-upgrade message.
 * `coreSlots` is optional. Defaults to `1`. The number of cores required to power this upgrade.
 * `onPowered` and `onUnpowered` are optional but are a pair. Either both are set or both omitted.
 * `onCoreChanged` is optional if you want to vary behavior based on what type of core is installed.
