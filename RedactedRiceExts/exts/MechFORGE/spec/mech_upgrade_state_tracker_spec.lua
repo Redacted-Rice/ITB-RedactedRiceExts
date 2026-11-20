@@ -15,7 +15,7 @@ describe("MechFORGE state tracker", function()
 		assert.is_not_nil(stateTracker._tracked[2])
 	end)
 
-	it("fires core and powered hooks on first observed core value", function()
+	it("snapshots cores on first observation without firing hooks", function()
 		local coreChanges = 0
 		local poweredChanges = 0
 
@@ -35,10 +35,35 @@ describe("MechFORGE state tracker", function()
 
 		stateTracker:_updateAllStates()
 
-		-- health and move slots both transition from nil on first poll
-		assert.are.equal(2, coreChanges)
-		assert.are.equal(1, poweredChanges)
+		assert.are.equal(0, coreChanges)
+		assert.are.equal(0, poweredChanges)
 		assert.are.same({ memhack.CORE_TYPE_NORMAL }, stateTracker:_getTrackedCores(0, V.HEALTH))
+	end)
+
+	it("fires core and powered hooks when cores change after baseline snapshot", function()
+		local coreChanges = 0
+		local poweredChanges = 0
+
+		forge:addMechUpgradeCoreChangedHook(function()
+			coreChanges = coreChanges + 1
+		end)
+		forge:addMechUpgradePoweredHook(function()
+			poweredChanges = poweredChanges + 1
+		end)
+
+		local pawn = helper.createMockPawn({
+			mechType = "TrackMech",
+			hpCores = { memhack.CORE_TYPE_NONE },
+			moveCores = { memhack.CORE_TYPE_NONE },
+		})
+		helper.setupSquadPawns({ [0] = pawn })
+
+		stateTracker:_updateAllStates()
+		pawn:SetHpCores({ memhack.CORE_TYPE_NORMAL })
+		stateTracker:_updateAllStates()
+
+		assert.are.equal(1, coreChanges)
+		assert.are.equal(1, poweredChanges)
 	end)
 
 	it("does not refire hooks when cores are unchanged", function()
@@ -56,7 +81,7 @@ describe("MechFORGE state tracker", function()
 		stateTracker:_updateAllStates()
 		stateTracker:_updateAllStates()
 
-		assert.are.equal(2, coreChanges)
+		assert.are.equal(0, coreChanges)
 	end)
 
 	it("does not treat a still-powered core swap as unpowered", function()
@@ -192,8 +217,7 @@ describe("MechFORGE state tracker", function()
 		assert.are.equal(1, unpoweredCount)
 	end)
 
-	-- documents current behavior: reset clears history so the next poll looks like a fresh load
-	it("runs reconcile before hooks when a registered multi-core layout is partial", function()
+	it("leaves partial multi-core layout on first snapshot without reconcile", function()
 		forge:registerMechUpgrade("TrackMulti", V.HEALTH, {
 			label = "Heavy Plating",
 			coreSlots = 2,
@@ -212,11 +236,39 @@ describe("MechFORGE state tracker", function()
 
 		assert.are.same({
 			memhack.CORE_TYPE_NORMAL,
+			memhack.CORE_TYPE_NONE,
+		}, stateTracker:_getTrackedCores(0, V.HEALTH))
+	end)
+
+	it("reconciles partial multi-core after baseline when cores change", function()
+		forge:registerMechUpgrade("TrackMultiChange", V.HEALTH, {
+			label = "Heavy Plating",
+			coreSlots = 2,
+		})
+		local pawn = helper.createMockPawn({
+			mechType = "TrackMultiChange",
+			hpCores = {
+				memhack.CORE_TYPE_NORMAL,
+				memhack.CORE_TYPE_NORMAL,
+			},
+			moveCores = { memhack.CORE_TYPE_NONE },
+		})
+		helper.setupSquadPawns({ [0] = pawn })
+
+		stateTracker:_updateAllStates()
+		pawn:SetHpCores({
+			memhack.CORE_TYPE_NORMAL,
+			memhack.CORE_TYPE_NONE,
+		})
+		stateTracker:_updateAllStates()
+
+		assert.are.same({
+			memhack.CORE_TYPE_NORMAL,
 			memhack.CORE_TYPE_NORMAL,
 		}, stateTracker:_getTrackedCores(0, V.HEALTH))
 	end)
 
-	it("refires powered hooks after tracker reset while cores stay powered", function()
+	it("does not refire powered hooks after tracker reset when cores are unchanged", function()
 		local poweredCount = 0
 		forge:addMechUpgradePoweredHook(function()
 			poweredCount = poweredCount + 1
@@ -232,6 +284,6 @@ describe("MechFORGE state tracker", function()
 		stateTracker:_resetAllTrackers()
 		stateTracker:_updateAllStates()
 
-		assert.are.equal(2, poweredCount)
+		assert.are.equal(0, poweredCount)
 	end)
 end)

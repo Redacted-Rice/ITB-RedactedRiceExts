@@ -418,22 +418,21 @@ end
 
 -- Applies mech cores when they differ from live. Info when changing, debug when unchanged.
 function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCores, moveCores)
-	if pawn:GetMemhackObj():getHpCores():intListMatches(hpCores)
-			and pawn:GetMemhackObj():getMoveCores():intListMatches(moveCores) then
+	local liveHp = pawn:GetMemhackObj():getHpCores()
+	local liveMove = pawn:GetMemhackObj():getMoveCores()
+	if liveHp:intListMatches(hpCores) and liveMove:intListMatches(moveCores) then
 		logger.logDebug(SUBMODULE, "%s pawn %d mechCores unchanged hpCores=%s moveCores=%s",
 				tag, pawnId, skillCoreSync.listToString(hpCores),
 				skillCoreSync.listToString(moveCores))
 		return false
 	end
 
-	local liveHp = pawn:GetHpCores()
-	local liveMove = pawn:GetMoveCores()
 	logger.logInfo(SUBMODULE, "%s pawn %d mechCores hpCores %s->%s moveCores %s->%s",
 			tag, pawnId,
-			skillCoreSync.listToString(liveHp), skillCoreSync.listToString(hpCores),
-			skillCoreSync.listToString(liveMove), skillCoreSync.listToString(moveCores))
-	pawn:SetHpCores(hpCores)
-	pawn:SetMoveCores(moveCores)
+			skillCoreSync.listToString(liveHp:getIntList()), skillCoreSync.listToString(hpCores),
+			skillCoreSync.listToString(liveMove:getIntList()), skillCoreSync.listToString(moveCores))
+	liveHp:setIntList(hpCores)
+	liveMove:setIntList(moveCores)
 	return true
 end
 

@@ -21,8 +21,24 @@ end
 
 local function makeCoreListMock(storageRef)
 	local mock = {}
+	function mock:getIntList()
+		local out = {}
+		for i, v in ipairs(storageRef) do
+			out[i] = v
+		end
+		return out
+	end
 	function mock:intListMatches(tracked)
 		return listMatchesTracked(storageRef, tracked)
+	end
+	function mock:setIntList(values)
+		if type(values) ~= "table" or #values ~= #storageRef then
+			return false
+		end
+		for i, v in ipairs(values) do
+			storageRef[i] = v
+		end
+		return true
 	end
 	return mock
 end
