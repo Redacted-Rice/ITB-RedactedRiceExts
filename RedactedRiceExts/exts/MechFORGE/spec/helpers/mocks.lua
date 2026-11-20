@@ -91,29 +91,6 @@ local function makeCoreListMock(storageRef)
 	function mock:_uncheckedGetIntAt(idx)
 		return storageRef[idx]
 	end
-	function mock:isFullyPoweredForSlotCount(requiredSlotCount)
-		if requiredSlotCount < 1 then
-			return false
-		end
-		for i = 1, requiredSlotCount do
-			if not mock:isCorePoweredAt(i) then
-				return false
-			end
-		end
-		return true
-	end
-	function mock:isPartiallyPoweredForSlotCount(requiredSlotCount)
-		if requiredSlotCount <= 1 then
-			return false
-		end
-		local powered = 0
-		for i = 1, requiredSlotCount do
-			if mock:isCorePoweredAt(i) then
-				powered = powered + 1
-			end
-		end
-		return powered > 0 and powered < requiredSlotCount
-	end
 	return mock
 end
 
@@ -144,15 +121,15 @@ function M.createMockPawn(params)
 		getMoveCores = function()
 			return pawn._moveCoreList
 		end,
-		assignMechReactorCore = function()
-			if params.assignMechReactorCore then
-				return params.assignMechReactorCore(pawn)
+		assignMechCore = function()
+			if params.assignMechCore then
+				return params.assignMechCore(pawn)
 			end
 			return memhack.CORE_TYPE_NORMAL
 		end,
-		unassignMechReactorCore = function(_, coreType)
-			if params.unassignMechReactorCore then
-				return params.unassignMechReactorCore(pawn, coreType)
+		unassignMechCore = function(_, coreType)
+			if params.unassignMechCore then
+				return params.unassignMechCore(pawn, coreType)
 			end
 			return coreType or memhack.CORE_TYPE_NORMAL
 		end,
