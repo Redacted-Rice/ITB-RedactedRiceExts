@@ -353,6 +353,7 @@ describe("Skill Core Sync", function()
 			assert.is_nil(skillCoreSync.getMissionSnapshot())
 			assert.is_false(skillCoreSync.isMissionSaveLoaded())
 		end)
+
 	end)
 
 	describe("addWeaponSuffixInG", function()
@@ -840,19 +841,19 @@ describe("Skill Core Sync", function()
 			assert.is_false(changed)
 		end)
 
-		it("applyPawnMechCores resizes and writes every innate slot", function()
-			local pawn = makeMockPawn({}, { hpCores = { 1 }, moveCores = { 2 } })
-			local changed = skillCoreSync.applyPawnMechCores("tag", 0, pawn, { 3, 4 }, { 5, 6 })
+		it("applyPawnMechCores writes every innate slot when lengths match", function()
+			local pawn = makeMockPawn({}, { hpCores = { 1, 2 }, moveCores = { 3, 4 } })
+			local changed = skillCoreSync.applyPawnMechCores("tag", 0, pawn, { 5, 6 }, { 7, 8 })
 			assert.is_true(changed)
-			assert.are.same({ 3, 4 }, pawn:GetHpCores())
-			assert.are.same({ 5, 6 }, pawn:GetMoveCores())
+			assert.are.same({ 5, 6 }, pawn:GetHpCores())
+			assert.are.same({ 7, 8 }, pawn:GetMoveCores())
 		end)
 
 		it("applyPawnMechCoresFromSnapshot applies multi-slot mech lists", function()
 			installGameGetPawn()
 			local pawn = makeMockPawn({}, {
 				hpCores = { 1, 2 },
-				moveCores = { 3 },
+				moveCores = { 3, 4 },
 			})
 			gameMocks.pawns[0] = pawn
 			local snap = {
