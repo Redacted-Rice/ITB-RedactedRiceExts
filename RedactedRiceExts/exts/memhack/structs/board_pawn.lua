@@ -14,8 +14,8 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	moveSpeed = { offset = 0x990, type = "int" },
 
 	-- Std vectors of ints for the upgrade cores (cost and what its powered with)
-	moveCoreList = { offset = 0xC4C, type = "struct", subType = "Vector", noSetter = true },
-	hpCoreList = { offset = 0xC5C, type = "struct", subType = "Vector", noSetter = true },
+	moveCores = { offset = 0xC4C, type = "struct", subType = "CoreList", noSetter = true },
+	hpCores = { offset = 0xC5C, type = "struct", subType = "CoreList", noSetter = true },
 
 	-- Pawn core info for assigned and unassigned cores of all types
 	reactorNormalUnassigned = { offset = 0xF68, type = "int" },
@@ -26,69 +26,59 @@ local MemhackBoardPawn = memhack.structManager:define("BoardPawn", {
 	reactorNormalUndoableAssigned = { offset = 0xF7C, type = "int" },
 })
 
-MemhackBoardPawn._INNATE_CORE_HP = "hp"
-MemhackBoardPawn._INNATE_CORE_MOVE = "move"
-
-function MemhackBoardPawn:_innateCoreVector(which)
-	if which == MemhackBoardPawn._INNATE_CORE_HP then
-		return self:getHpCoreList()
+function MemhackBoardPawn:_getReactorCount(coreType, poolType)
+	if coreType == nil or coreType == memhack.CORE_TYPE_NONE then
+		return 0
 	end
-	return self:getMoveCoreList()
+	local getterName = "getReactor" .. memhack.CORE_TYPE_NAMES[coreType] .. poolType
+	return self[getterName](self)
 end
 
-function MemhackBoardPawn:_isInnateCorePowered(which)
-	local vec = self:_innateCoreVector(which)
-	local list = vec:getIntList()
-	if #list < 1 then
+function MemhackBoardPawn:_setReactorCount(coreType, poolType, value)
+	if coreType == nil or coreType == memhack.CORE_TYPE_NONE then
 		return false
 	end
-	for i = 1, #list do
-		local core = list[i]
-		if core == nil or core == memhack.CORE_TYPE_NONE then
-			return false
-		end
-	end
+	local setterName = "setReactor" .. memhack.CORE_TYPE_NAMES[coreType] .. poolType
+	self[setterName](self, value)
 	return true
 end
 
-function MemhackBoardPawn:isHpPowered()
-	return self:_isInnateCorePowered(MemhackBoardPawn._INNATE_CORE_HP)
-end
-
-function MemhackBoardPawn:isMovePowered()
-	return self:_isInnateCorePowered(MemhackBoardPawn._INNATE_CORE_MOVE)
-end
-
-function MemhackBoardPawn:getHpCores()
-	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_HP):getIntList()
-end
-
-function MemhackBoardPawn:getMoveCores()
-	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_MOVE):getIntList()
-end
-
-function MemhackBoardPawn:hpCoresMatch(values)
-	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_HP):intListMatches(values)
-end
-
-function MemhackBoardPawn:moveCoresMatch(values)
-	return self:_innateCoreVector(MemhackBoardPawn._INNATE_CORE_MOVE):intListMatches(values)
-end
-
-function MemhackBoardPawn:_setInnateCores(which, values)
-	if type(values) ~= "table" then
-		return false
+function MemhackBoardPawn:_pickReactorCoreType(poolType)
+	for _, coreType in ipairs(memhack.CORE_PULL_ORDER) do
+		if self:_getReactorCount(coreType, poolType) > 0 then
+			return coreType
+		end
 	end
-	local vec = self:_innateCoreVector(which)
-	return vec:setIntListResizingIfNeeded(values)
+	return memhack.CORE_TYPE_NONE
 end
 
-function MemhackBoardPawn:setHpCores(values)
-	return self:_setInnateCores(MemhackBoardPawn._INNATE_CORE_HP, values)
+-- Internal helper for moving one core between two pools.
+function MemhackBoardPawn:_moveCoreBetweenPools(coreType, fromPoolType, toPoolType)
+	if coreType == nil then
+		coreType = self:_pickReactorCoreType(fromPoolType)
+	end
+	if coreType == memhack.CORE_TYPE_NONE then
+		return memhack.CORE_TYPE_NONE
+	end
+	local count = self:_getReactorCount(coreType, fromPoolType)
+	if count < 1 then
+		return memhack.CORE_TYPE_NONE
+	end
+	self:_setReactorCount(coreType, fromPoolType, count - 1)
+	self:_setReactorCount(coreType, toPoolType, self:_getReactorCount(coreType, toPoolType) + 1)
+	return coreType
 end
 
-function MemhackBoardPawn:setMoveCores(values)
-	return self:_setInnateCores(MemhackBoardPawn._INNATE_CORE_MOVE, values)
+-- Tries to move one core from the pawn unassigned to assigned pool.
+-- coreType optional. When omitted, picks by CORE_PULL_ORDER.
+function MemhackBoardPawn:assignMechReactorCore(coreType)
+	return self:_moveCoreBetweenPools(coreType, memhack.CORE_POOL_UNASSIGNED, memhack.CORE_POOL_ASSIGNED)
+end
+
+-- Tries to move one core from the pawn assigned to unassigned pool.
+-- coreType optional. When omitted, picks by CORE_PULL_ORDER.
+function MemhackBoardPawn:unassignMechReactorCore(coreType)
+	return self:_moveCoreBetweenPools(nil, memhack.CORE_POOL_ASSIGNED, memhack.CORE_POOL_UNASSIGNED)
 end
 
 local genItBStrGetSetWrappers = memhack.structs.ItBString.makeItBStringGetSetWrappers

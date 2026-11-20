@@ -66,6 +66,7 @@ function memhack:init(mockDll)
 	-- Load all the structs
 	require(path.."structs/itb_string")
 	require(path.."structs/vector")
+	require(path.."structs/core_list")
 	require(path.."structs/point")
 
 	-- Pilot-related structs (order matters - dependencies must be loaded first)

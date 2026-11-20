@@ -102,6 +102,10 @@ function MemhackVector:getIntAt(idx)
 	return memhack.dll.memory.readInt(self:getHeadPtr() + (idx - 1) * self.INT_SIZE)
 end
 
+function MemhackVector:_uncheckedGetIntAt(idx)
+	return memhack.dll.memory.readInt(self:getHeadPtr() + (idx - 1) * self.INT_SIZE)
+end
+
 -- 1 indexed. Does not grow the vector.
 function MemhackVector:setIntAt(idx, value)
 	local size = self:getIntSize()
@@ -122,7 +126,7 @@ function MemhackVector:intListMatches(values)
 		return false
 	end
 	for i = 1, size do
-		if self:getIntAt(i) ~= values[i] then
+		if self:_uncheckedGetIntAt(i) ~= values[i] then
 			return false
 		end
 	end
@@ -132,7 +136,7 @@ end
 function MemhackVector:getIntList()
 	local values = {}
 	for i = 1, self:getIntSize() do
-		values[i] = self:getIntAt(i)
+		values[i] = self:_uncheckedGetIntAt(i)
 	end
 	return values
 end

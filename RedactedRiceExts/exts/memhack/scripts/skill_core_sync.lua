@@ -418,8 +418,8 @@ end
 
 -- Applies mech cores when they differ from live. Info when changing, debug when unchanged.
 function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCores, moveCores)
-	if pawn:GetMemhackObj():hpCoresMatch(hpCores)
-			and pawn:GetMemhackObj():moveCoresMatch(moveCores) then
+	if pawn:GetMemhackObj():getHpCores():intListMatches(hpCores)
+			and pawn:GetMemhackObj():getMoveCores():intListMatches(moveCores) then
 		logger.logDebug(SUBMODULE, "%s pawn %d mechCores unchanged hpCores=%s moveCores=%s",
 				tag, pawnId, skillCoreSync.listToString(hpCores),
 				skillCoreSync.listToString(moveCores))

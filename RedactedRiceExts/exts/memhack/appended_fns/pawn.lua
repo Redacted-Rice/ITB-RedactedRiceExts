@@ -12,27 +12,27 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 	end
 
 	BoardPawn.GetHpCores = function(self)
-		return self:GetMemhackObj():getHpCores()
+		return self:GetMemhackObj():getHpCores():getIntList()
 	end
 
 	BoardPawn.SetHpCores = function(self, values)
-		return self:GetMemhackObj():setHpCores(values)
+		return self:GetMemhackObj():getHpCores():setIntListResizingIfNeeded(values)
 	end
 
 	BoardPawn.GetMoveCores = function(self)
-		return self:GetMemhackObj():getMoveCores()
+		return self:GetMemhackObj():getMoveCores():getIntList()
 	end
 
 	BoardPawn.SetMoveCores = function(self, values)
-		return self:GetMemhackObj():setMoveCores(values)
+		return self:GetMemhackObj():getMoveCores():setIntListResizingIfNeeded(values)
 	end
 
 	BoardPawn.IsHpPowered = function(self)
-		return self:GetMemhackObj():isHpPowered()
+		return self:GetMemhackObj():getHpCores():isFullyPowered()
 	end
 
 	BoardPawn.IsMovePowered = function(self)
-		return self:GetMemhackObj():isMovePowered()
+		return self:GetMemhackObj():getMoveCores():isFullyPowered()
 	end
 
 	BoardPawn.GetRawMoveSpeed = function(self)
@@ -58,6 +58,14 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		Assert.Equals("userdata", type(self), "Argument #0")
 		Assert.Equals("string", type(pawnType), "Argument #1")
 		self:GetMemhackObj():setPawnType(pawnType)
+	end
+
+	BoardPawn.UnassignMechReactorCore = function(self, coreType)
+		return self:GetMemhackObj():unassignMechReactorCore(coreType)
+	end
+
+	BoardPawn.AssignMechReactorCore = function(self, coreType)
+		return self:GetMemhackObj():assignMechReactorCore(coreType)
 	end
 end
 

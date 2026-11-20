@@ -51,12 +51,16 @@ function mf_registry:registerMechUpgrade(mechType, slot, labelOrTable, onPowered
 	-- Make input args consistent
 	local label = labelOrTable
 	local tooltip = nil
+	local coreSlots = 1
 	if type(labelOrTable) == "table" then
 		label = labelOrTable.label
 		tooltip = labelOrTable.tooltip
 		onPowered = labelOrTable.onPowered
 		onUnpowered = labelOrTable.onUnpowered
 		onCoreChanged = labelOrTable.onCoreChanged
+		if labelOrTable.coreSlots ~= nil then
+			coreSlots = labelOrTable.coreSlots
+		end
 	end
 
 	-- Ensure its a valid slot
@@ -82,6 +86,14 @@ function mf_registry:registerMechUpgrade(mechType, slot, labelOrTable, onPowered
 	end
 
 	if not self:_validateUpgradeCallbacks(mechType, slot, onPowered, onUnpowered, onCoreChanged) then
+		return false
+	end
+
+	-- Ensure its a valid int
+	if type(coreSlots) ~= "number" or coreSlots < 0 then
+		logger.logError(SUBMODULE,
+			"registerMechUpgrade: coreSlots must be a non-negative integer for %s %s",
+			mechType, slot)
 		return false
 	end
 
@@ -113,6 +125,7 @@ function mf_registry:registerMechUpgrade(mechType, slot, labelOrTable, onPowered
 	entry[slot] = {
 		label = label,
 		tooltip = tooltip,
+		coreSlots = coreSlots,
 		onPowered = onPowered,
 		onUnpowered = onUnpowered,
 		onCoreChanged = onCoreChanged,

@@ -23,13 +23,107 @@ local function listMatchesTracked(stored, tracked)
 	return true
 end
 
+local function isCorePowered(core)
+	return core ~= nil and core ~= memhack.CORE_TYPE_NONE
+end
+
+local function makeCoreListMock(storageRef)
+	local mock = {}
+	function mock:getIntSize()
+		return #storageRef
+	end
+	function mock:getIntList()
+		return copyList(storageRef)
+	end
+	function mock:getIntAt(idx)
+		return storageRef[idx]
+	end
+	function mock:intListMatches(tracked)
+		return listMatchesTracked(storageRef, tracked)
+	end
+	function mock:setIntList(values)
+		if type(values) ~= "table" or #values ~= #storageRef then
+			return false
+		end
+		for i, v in ipairs(values) do
+			storageRef[i] = v
+		end
+		return true
+	end
+	function mock:setIntListResizingIfNeeded(values)
+		if type(values) ~= "table" then
+			return false
+		end
+		for i = #storageRef, 1, -1 do
+			storageRef[i] = nil
+		end
+		for i, v in ipairs(values) do
+			storageRef[i] = v
+		end
+		return true
+	end
+	function mock:isCorePoweredAt(idx)
+		return isCorePowered(storageRef[idx])
+	end
+	function mock:isPartiallyPowered()
+		local foundPowered = false
+		local foundUnpowered = false
+		for i = 1, #storageRef do
+			if isCorePowered(storageRef[i]) then
+				foundPowered = true
+			else
+				foundUnpowered = true
+			end
+		end
+		return foundPowered and foundUnpowered
+	end
+	function mock:isFullyPowered()
+		if #storageRef < 1 then
+			return true
+		end
+		for i = 1, #storageRef do
+			if not isCorePowered(storageRef[i]) then
+				return false
+			end
+		end
+		return true
+	end
+	function mock:_uncheckedGetIntAt(idx)
+		return storageRef[idx]
+	end
+	function mock:isFullyPoweredForSlotCount(requiredSlotCount)
+		if requiredSlotCount < 1 then
+			return false
+		end
+		for i = 1, requiredSlotCount do
+			if not mock:isCorePoweredAt(i) then
+				return false
+			end
+		end
+		return true
+	end
+	function mock:isPartiallyPoweredForSlotCount(requiredSlotCount)
+		if requiredSlotCount <= 1 then
+			return false
+		end
+		local powered = 0
+		for i = 1, requiredSlotCount do
+			if mock:isCorePoweredAt(i) then
+				powered = powered + 1
+			end
+		end
+		return powered > 0 and powered < requiredSlotCount
+	end
+	return mock
+end
+
 function M.createMockPawn(params)
 	params = params or {}
 
 	local pawn = {
 		_type = params.mechType or "TestMech",
-		_hpCores = params.hpCores or { memhack.CORE_TYPE_NONE },
-		_moveCores = params.moveCores or { memhack.CORE_TYPE_NONE },
+		_hpCores = copyList(params.hpCores or { memhack.CORE_TYPE_NONE }),
+		_moveCores = copyList(params.moveCores or { memhack.CORE_TYPE_NONE }),
 		_maxBaseHealth = params.maxBaseHealth or 3,
 		_maxHealth = params.maxHealth or 3,
 		_health = params.health or 3,
@@ -40,32 +134,27 @@ function M.createMockPawn(params)
 		return self._type
 	end
 
+	pawn._hpCoreList = makeCoreListMock(pawn._hpCores)
+	pawn._moveCoreList = makeCoreListMock(pawn._moveCores)
+
 	pawn._memhackBoardPawn = {
 		getHpCores = function()
-			return copyList(pawn._hpCores)
+			return pawn._hpCoreList
 		end,
 		getMoveCores = function()
-			return copyList(pawn._moveCores)
+			return pawn._moveCoreList
 		end,
-		hpCoresMatch = function(_, tracked)
-			return listMatchesTracked(pawn._hpCores, tracked)
+		assignMechReactorCore = function()
+			if params.assignMechReactorCore then
+				return params.assignMechReactorCore(pawn)
+			end
+			return memhack.CORE_TYPE_NORMAL
 		end,
-		moveCoresMatch = function(_, tracked)
-			return listMatchesTracked(pawn._moveCores, tracked)
-		end,
-		setHpCores = function(_, values)
-			pawn._hpCores = copyList(values)
-			return true
-		end,
-		setMoveCores = function(_, values)
-			pawn._moveCores = copyList(values)
-			return true
-		end,
-		isHpPowered = function()
-			return pawn:IsHpPowered()
-		end,
-		isMovePowered = function()
-			return pawn:IsMovePowered()
+		unassignMechReactorCore = function(_, coreType)
+			if params.unassignMechReactorCore then
+				return params.unassignMechReactorCore(pawn, coreType)
+			end
+			return coreType or memhack.CORE_TYPE_NORMAL
 		end,
 	}
 
@@ -74,43 +163,27 @@ function M.createMockPawn(params)
 	end
 
 	pawn.GetHpCores = function(self)
-		return self:GetMemhackObj():getHpCores()
+		return self:GetMemhackObj():getHpCores():getIntList()
 	end
 
 	pawn.SetHpCores = function(self, values)
-		return self:GetMemhackObj():setHpCores(values)
+		return self:GetMemhackObj():getHpCores():setIntListResizingIfNeeded(values)
 	end
 
 	pawn.IsHpPowered = function(self)
-		if #self._hpCores < 1 then
-			return false
-		end
-		for i = 1, #self._hpCores do
-			if self._hpCores[i] == nil or self._hpCores[i] == memhack.CORE_TYPE_NONE then
-				return false
-			end
-		end
-		return true
+		return self:GetMemhackObj():getHpCores():isFullyPowered()
 	end
 
 	pawn.GetMoveCores = function(self)
-		return self:GetMemhackObj():getMoveCores()
+		return self:GetMemhackObj():getMoveCores():getIntList()
 	end
 
 	pawn.SetMoveCores = function(self, values)
-		return self:GetMemhackObj():setMoveCores(values)
+		return self:GetMemhackObj():getMoveCores():setIntListResizingIfNeeded(values)
 	end
 
 	pawn.IsMovePowered = function(self)
-		if #self._moveCores < 1 then
-			return false
-		end
-		for i = 1, #self._moveCores do
-			if self._moveCores[i] == nil or self._moveCores[i] == memhack.CORE_TYPE_NONE then
-				return false
-			end
-		end
-		return true
+		return self:GetMemhackObj():getMoveCores():isFullyPowered()
 	end
 
 	pawn.GetMaxBaseHealth = function(self)

@@ -19,6 +19,27 @@ describe("MechFORGE utils", function()
 		end)
 	end)
 
+	describe("isMechUpgradeCoresPowered", function()
+		it("returns false for nil lists", function()
+			assert.is_false(utils.isMechUpgradeCoresPowered(nil))
+		end)
+
+		it("treats an empty table as powered", function()
+			assert.is_true(utils.isMechUpgradeCoresPowered({}))
+		end)
+
+		it("requires every list entry to be powered", function()
+			assert.is_false(utils.isMechUpgradeCoresPowered({
+				memhack.CORE_TYPE_NORMAL,
+				memhack.CORE_TYPE_NONE,
+			}))
+			assert.is_true(utils.isMechUpgradeCoresPowered({
+				memhack.CORE_TYPE_NORMAL,
+				memhack.CORE_TYPE_SKILL_BONUS,
+			}))
+		end)
+	end)
+
 	describe("isCorePowered", function()
 		it("treats CORE_TYPE_NONE and nil as unpowered", function()
 			assert.is_false(utils.isCorePowered(nil))
@@ -31,15 +52,17 @@ describe("MechFORGE utils", function()
 		end)
 	end)
 
-	describe("getMechUpgradeCores", function()
+	describe("getMechUpgradeMemhackCores", function()
 		it("reads hp and move core lists from pawn", function()
 			local pawn = helper.createMockPawn({
 				hpCores = { memhack.CORE_TYPE_NORMAL },
 				moveCores = { memhack.CORE_TYPE_NONE },
 			})
 
-			assert.are.same({ memhack.CORE_TYPE_NORMAL }, utils.getMechUpgradeCores(pawn, V.HEALTH))
-			assert.are.same({ memhack.CORE_TYPE_NONE }, utils.getMechUpgradeCores(pawn, V.MOVE))
+			assert.are.same({ memhack.CORE_TYPE_NORMAL },
+					utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntList())
+			assert.are.same({ memhack.CORE_TYPE_NONE },
+					utils.getMechUpgradeMemhackCores(pawn, V.MOVE):getIntList())
 		end)
 
 		it("reads multi-slot innate lists at full length", function()
@@ -54,29 +77,14 @@ describe("MechFORGE utils", function()
 				},
 			})
 
-			assert.are.equal(2, #utils.getMechUpgradeCores(pawn, V.HEALTH))
+			assert.are.equal(2, utils.getMechUpgradeMemhackCores(pawn, V.HEALTH):getIntSize())
 			assert.is_false(utils.isMechUpgradePowered(pawn, V.MOVE))
 			assert.is_true(utils.isMechUpgradePowered(pawn, V.HEALTH))
 		end)
 
 		it("returns nil for missing pawn or unsupported slot", function()
-			assert.is_nil(utils.getMechUpgradeCores(nil, V.HEALTH))
-			assert.is_nil(utils.getMechUpgradeCores(helper.createMockPawn(), "bad"))
-		end)
-	end)
-
-	describe("isMechUpgradeCoresPowered", function()
-		it("requires every list slot to be powered", function()
-			assert.is_false(utils.isMechUpgradeCoresPowered({ memhack.CORE_TYPE_NONE }))
-			assert.is_true(utils.isMechUpgradeCoresPowered({ memhack.CORE_TYPE_NORMAL }))
-			assert.is_false(utils.isMechUpgradeCoresPowered({
-				memhack.CORE_TYPE_NORMAL,
-				memhack.CORE_TYPE_NONE,
-			}))
-			assert.is_true(utils.isMechUpgradeCoresPowered({
-				memhack.CORE_TYPE_NORMAL,
-				memhack.CORE_TYPE_SKILL_BONUS,
-			}))
+			assert.is_nil(utils.getMechUpgradeMemhackCores(nil, V.HEALTH))
+			assert.is_nil(utils.getMechUpgradeMemhackCores(helper.createMockPawn(), "bad"))
 		end)
 	end)
 
