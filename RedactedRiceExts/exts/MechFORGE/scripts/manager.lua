@@ -59,13 +59,96 @@ function mf_manager:_invokeRegisteredCallback(config, field, ...)
 	end
 end
 
+-- Fills empty sockets from the pawn core pool or clears the upgrade if not enough cores.
+function mf_manager:_reconcilePartialMultiCoreUpgrade(pawn, slot, requiredSlotCount)
+	local cores = utils.getMechUpgradeMemhackCores(pawn, slot)
+	-- If its not partially powered, we don't need to do anything
+	if not cores or not cores:isPartiallyPoweredForSlotCount(requiredSlotCount) then
+		return false
+	end
+
+	-- If it is partially powered, we need to fill empty slots or unpower the upgrade
+	local newCores = {}
+	local fullyPowered = true
+	for i = 1, requiredSlotCount do
+		newCores[i] = cores:getIntAt(i)
+		if not utils.isCorePowered(newCores[i]) then
+			local coreType = pawn:GetMemhackObj():assignMechReactorCore()
+			if coreType ~= memhack.CORE_TYPE_NONE then
+				newCores[i] = coreType
+			else
+				fullyPowered = false
+				break
+			end
+		end
+	end
+
+	-- If it is not fully powered, we need to unpower the upgrade (inlcuding
+	-- any we've assigned so far)
+	if not fullyPowered then
+		for i = 1, requiredSlotCount do
+			if utils.isCorePowered(newCores[i]) then
+				pawn:GetMemhackObj():unassignMechReactorCore(newCores[i])
+			end
+			newCores[i] = memhack.CORE_TYPE_NONE
+		end
+	end
+	cores:setIntListResizingIfNeeded(newCores)
+	return true
+end
+
+-- Reconcile partial multicore upgrades by either powering them fully
+-- or unpowering them
+function mf_manager:reconcilePartialMultiCoreUpgrade(pawn, slot)
+	local mechType = utils.getMechType(pawn)
+	if not mechType then
+		return
+	end
+	local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
+	if not config then
+		return
+	end
+	self:_reconcilePartialMultiCoreUpgrade(pawn, slot, config.coreSlots)
+end
+
+-- Ensures the upgrade cores list is the correct size
+function mf_manager:ensureCoreListSize(pawn, slot)
+	local mechType = utils.getMechType(pawn)
+	if not mechType then
+		return
+	end
+	local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
+	if not config then
+		return
+	end
+
+	local targetSize = config.coreSlots or 1
+	local cores = utils.getMechUpgradeMemhackCores(pawn, slot)
+	if not cores or cores:getIntSize() ~= targetSize then
+		return
+	end
+
+	local values = {}
+	for i = 1, targetSize do
+		if i <= cores:getIntSize() then
+			values[i] = cores:_uncheckedGetIntAt(i)
+		else
+			values[i] = memhack.CORE_TYPE_NONE
+		end
+	end
+	cores:setIntListResizingIfNeeded(values)
+	logger.logDebug(SUBMODULE, "grew %s cores to %d slots", slot, targetSize)
+end
+
 function mf_manager:_subscribeUpgradeCallbackEvents()
 	-- Use internal priority so others can run first if needed for some reason
 	local priority = hooks.INTERNAL_PRIORITY
 
 	hooks.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldList, newList)
 		local config = mf_registry:getCustomMechUpgradeConfig(mechType, slot)
-		self:_invokeRegisteredCallback(config, "onCoreChanged", slot, pawn, pawnId, mechType, oldList, newList)
+		if config then
+			self:_invokeRegisteredCallback(config, "onCoreChanged", slot, pawn, pawnId, mechType, oldList, newList)
+		end
 	end, priority)
 
 	hooks.events.onMechUpgradePowered:subscribe(function(slot, pawn, pawnId, mechType, newList)

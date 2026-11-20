@@ -15,6 +15,7 @@ local SUBMODULE = logger.register("MechFORGE", "StateTracker",
 -- Local references to other submodules (set during init)
 local hooks = nil
 local utils = nil
+local manager = nil
 
 -- Creates and empty pawn state with both upgrade slots empty for tracking
 function mf_state_tracker:_emptyPawnState()
@@ -36,6 +37,7 @@ end
 function mf_state_tracker:init()
 	hooks = mech_forge._subobjects.hooks
 	utils = mech_forge._subobjects.utils
+	manager = mech_forge._subobjects.manager
 
 	return self
 end
@@ -59,9 +61,8 @@ function mf_state_tracker:_fireSlotHooks(pawn, pawnId, slot, oldList, newList)
 			"core changed pawn %d slot %s powered %s->%s",
 			pawnId, slot, tostring(wasPowered), tostring(isPowered))
 
-	hooks.fireMechUpgradeCoreChangedHooks(
-			slot, pawn, pawnId, mechType, oldList, newList)
 
+	hooks.fireMechUpgradeCoreChangedHooks(slot, pawn, pawnId, mechType, oldList, newList)
 	-- If it transitioned from powered to unpowered or vice versa, fire the appropriate hook
 	if not wasPowered and isPowered then
 		hooks.fireMechUpgradePoweredHooks(slot, pawn, pawnId, mechType, newList)
@@ -74,22 +75,19 @@ end
 
 function mf_state_tracker:_coresMatchTracked(pawn, slot, trackedList)
 	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
-		return pawn:GetMemhackObj():hpCoresMatch(trackedList)
-	end
-	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		return pawn:GetMemhackObj():moveCoresMatch(trackedList)
+		return pawn:GetMemhackObj():getHpCores():intListMatches(trackedList)
+	elseif slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		return pawn:GetMemhackObj():getMoveCores():intListMatches(trackedList)
 	end
 	return false
 end
 
 function mf_state_tracker:_getCores(pawn, slot)
-	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
-		return pawn:GetHpCores()
+	local cores = utils.getMechUpgradeMemhackCores(pawn, slot)
+	if not cores then
+		return nil
 	end
-	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		return pawn:GetMoveCores()
-	end
-	return nil
+	return cores:getIntList()
 end
 
 function mf_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
@@ -105,9 +103,13 @@ function mf_state_tracker:_updatePawnUpgradeState(pawn, pawnId)
 
 	for _, slot in pairs(mech_forge.VANILLA_UPGRADES) do
 		local trackedList = tracked[slot]
+		-- Always ensure we have the correct core slot layout per our mechFORGE configs
+		-- so we can detect when there is not enough cores
+		manager:ensureCoreListSize(pawn, slot)
 		-- Fire on any change INCLUDING the first one so we trigger when we load
 		-- into a game so we can adjust it there too
 		if not self:_coresMatchTracked(pawn, slot, trackedList) then
+			manager:reconcilePartialMultiCoreUpgrade(pawn, slot)
 			local newList = self:_getCores(pawn, slot)
 			self:_fireSlotHooks(pawn, pawnId, slot, trackedList, newList)
 			tracked[slot] = newList

@@ -47,7 +47,7 @@ end
 -- Helper: Calculate size for a single field
 function structureCreation._calculateFieldSize(field)
 	local handler = TYPE_HANDLERS[field.type]
-	
+
 	if handler.size then
 		return handler.size
 	elseif field.length then
@@ -104,8 +104,8 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 			return self._address
 		end
 
-		-- If a source table is provided, copy its entries
-		if StructType then
+		-- Copy methods onto the instance for base types. Derived types inherit via __index.
+		if StructType and not StructType._derivedFrom then
 			for k, v in pairs(StructType) do
 				instance[k] = v
 			end
@@ -216,11 +216,11 @@ function structureCreation.addStaticMethods(StructType, name, layout, vtableAddr
 		end
 
 		local totalSize = maxOffset + maxSize
-		
+
 		-- Cache the result and clear in-progress flag
 		_structSizeCache[name] = totalSize
 		_structSizeInProgress[name] = nil
-		
+
 		return totalSize
 	end
 
@@ -288,6 +288,35 @@ end
 -- Register structure to structs table
 function structureCreation.registerStructure(name, StructType)
 	StructManager._structures[name] = StructType
+end
+
+-- Same memory layout as. Generates accessors for this name fields, other methods fall through to parent.
+function structureCreation.registerDerivedStructure(name, parentName)
+	local parent = StructManager._structures[parentName]
+	if not parent then
+		logger.logError(SUBMODULE, "Cannot derive unknown structure: %s", parentName)
+		return nil
+	end
+
+	local layout = parent._layout
+	local StructType = structureCreation.createStructureType(name, layout)
+	StructType._derivedFrom = parentName
+
+	StructManager._methodGeneration.buildStructureMethods(StructType, layout)
+	structureCreation.addInstanceMethods(StructType, layout)
+	structureCreation.addStaticMethods(StructType, name, layout, parent._vtableAddr, parent._validateFn)
+
+	-- Child overrides parent for instance dispatch
+	StructType.__index = function(_, key)
+		local own = rawget(StructType, key)
+		if own ~= nil then
+			return own
+		end
+		return parent[key]
+	end
+
+	structureCreation.registerStructure(name, StructType)
+	return StructType
 end
 
 -- Clear the struct size cache (useful if struct definitions change at runtime)

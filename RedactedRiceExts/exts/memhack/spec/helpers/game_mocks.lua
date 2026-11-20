@@ -19,6 +19,14 @@ local function listMatchesTracked(stored, tracked)
 	return true
 end
 
+local function makeCoreListMock(storageRef)
+	local mock = {}
+	function mock:intListMatches(tracked)
+		return listMatchesTracked(storageRef, tracked)
+	end
+	return mock
+end
+
 function M.makeMockPawn(initialTypes, opts)
 	opts = opts or {}
 	local pawn = {
@@ -89,11 +97,11 @@ function M.makeMockPawn(initialTypes, opts)
 	end
 
 	pawn._memhackBoardPawn = {
-		hpCoresMatch = function(_, tracked)
-			return listMatchesTracked(pawn._hpCores, tracked)
+		getHpCores = function()
+			return makeCoreListMock(pawn._hpCores)
 		end,
-		moveCoresMatch = function(_, tracked)
-			return listMatchesTracked(pawn._moveCores, tracked)
+		getMoveCores = function()
+			return makeCoreListMock(pawn._moveCores)
 		end,
 	}
 

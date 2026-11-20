@@ -217,43 +217,45 @@ describe("Structure Verification", function()
 
 		it("reads every slot from a multi-entry hp vector", function()
 			local pawn = BoardPawn.new(0x20000000, false)
-			wireIntVector(pawn:getHpCoreList(), { CORE_NORMAL, CORE_BONUS })
+			wireIntVector(pawn:getHpCores(), { CORE_NORMAL, CORE_BONUS })
 
-			assert.are.same({ CORE_NORMAL, CORE_BONUS }, pawn:getHpCores())
-			assert.is_true(pawn:hpCoresMatch({ CORE_NORMAL, CORE_BONUS }))
-			assert.is_false(pawn:hpCoresMatch({ CORE_NORMAL }))
+			assert.are.same({ CORE_NORMAL, CORE_BONUS }, pawn:getHpCores():getIntList())
+			assert.is_true(pawn:getHpCores():intListMatches({ CORE_NORMAL, CORE_BONUS }))
+			assert.is_false(pawn:getHpCores():intListMatches({ CORE_NORMAL }))
 		end)
 
-		it("grows and shrinks hp cores via setHpCores", function()
+		it("grows and shrinks hp cores via setIntListResizingIfNeeded", function()
 			local pawn = BoardPawn.new(0x21000000, false)
-			wireIntVector(pawn:getHpCoreList(), { CORE_NONE })
+			wireIntVector(pawn:getHpCores(), { CORE_NONE })
+			local hpCores = pawn:getHpCores()
 
-			assert.is_true(pawn:setHpCores({ CORE_NORMAL, CORE_BONUS, CORE_NONE }))
+			assert.is_true(hpCores:setIntListResizingIfNeeded({ CORE_NORMAL, CORE_BONUS, CORE_NONE }))
 			assert.are.same({
 				CORE_NORMAL,
 				CORE_BONUS,
 				CORE_NONE,
-			}, pawn:getHpCores())
+			}, hpCores:getIntList())
 
-			assert.is_true(pawn:setHpCores({ CORE_NORMAL }))
-			assert.are.same({ CORE_NORMAL }, pawn:getHpCores())
+			assert.is_true(hpCores:setIntListResizingIfNeeded({ CORE_NORMAL }))
+			assert.are.same({ CORE_NORMAL }, hpCores:getIntList())
 		end)
 
 		it("treats partial multi-slot power as unpowered", function()
 			local pawn = BoardPawn.new(0x22000000, false)
-			wireIntVector(pawn:getHpCoreList(), { CORE_NORMAL, CORE_NONE })
-			wireIntVector(pawn:getMoveCoreList(), { CORE_NORMAL, CORE_NORMAL })
+			wireIntVector(pawn:getHpCores(), { CORE_NORMAL, CORE_NONE })
+			wireIntVector(pawn:getMoveCores(), { CORE_NORMAL, CORE_NORMAL })
 
-			assert.is_false(pawn:isHpPowered())
-			assert.is_true(pawn:isMovePowered())
+			assert.is_false(pawn:getHpCores():isFullyPowered())
+			assert.is_true(pawn:getMoveCores():isFullyPowered())
 		end)
 
 		it("matches move lists with different lengths as unequal", function()
 			local pawn = BoardPawn.new(0x23000000, false)
-			wireIntVector(pawn:getMoveCoreList(), { CORE_NORMAL, CORE_NORMAL })
+			wireIntVector(pawn:getMoveCores(), { CORE_NORMAL, CORE_NORMAL })
+			local moveCores = pawn:getMoveCores()
 
-			assert.is_false(pawn:moveCoresMatch({ CORE_NORMAL }))
-			assert.is_true(pawn:moveCoresMatch({ CORE_NORMAL, CORE_NORMAL }))
+			assert.is_false(moveCores:intListMatches({ CORE_NORMAL }))
+			assert.is_true(moveCores:intListMatches({ CORE_NORMAL, CORE_NORMAL }))
 		end)
 	end)
 end)

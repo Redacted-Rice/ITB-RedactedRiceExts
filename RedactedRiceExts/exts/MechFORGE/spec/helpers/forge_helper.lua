@@ -144,6 +144,15 @@ function M.initMemhackHooks()
 
 	local getTextWrappers = dofile("../memhack/utils/get_text_wrappers.lua")
 	memhack.getTextWrappers = getTextWrappers
+
+	-- MechFORGE utils delegates isCorePowered to CoreList (no full structManager in busted).
+	memhack.structs = memhack.structs or {}
+	memhack.structs.CoreList = memhack.structs.CoreList or {}
+	if not memhack.structs.CoreList.isCorePowered then
+		memhack.structs.CoreList.isCorePowered = function(core)
+			return core ~= nil and core ~= memhack.CORE_TYPE_NONE
+		end
+	end
 end
 
 M.setupGlobals()

@@ -6,31 +6,34 @@ function utils.isValidUpgradeSlot(slot)
 end
 
 function utils.isCorePowered(core)
-	return core ~= nil and core ~= memhack.CORE_TYPE_NONE
+	return memhack.structs.CoreList.isCorePowered(core)
 end
 
--- Upgrade is powered when every core slot in the list is a powered core type.
-function utils.isMechUpgradeCoresPowered(list)
-	if type(list) ~= "table" or #list < 1 then
+-- Upgrade is powered when every core in the first slotCount entries is powered.
+function utils.isMechUpgradeCoresPowered(cores)
+	if not type(cores) ~= "table" then
 		return false
 	end
-	for i = 1, #list do
-		if not utils.isCorePowered(list[i]) then
+	for i = 1, #cores do
+		if not utils.isCorePowered(cores[i]) then
 			return false
 		end
 	end
 	return true
 end
 
-function utils.getMechUpgradeCores(pawn, slot)
+-- Get memhack hp/move CoreList on the vanilla pawn
+function utils.getMechUpgradeMemhackCores(pawn, slot)
 	if not pawn then
 		return nil
 	end
+	-- We use the direct ones that return memhack CoreLists
+	-- instead of the ones on pawn that return lua tables
 	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
-		return pawn:GetHpCores()
+		return pawn:GetMemhackObj():getHpCores()
 	end
 	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
-		return pawn:GetMoveCores()
+		return pawn:GetMemhackObj():getMoveCores()
 	end
 	return nil
 end
@@ -39,6 +42,8 @@ function utils.isMechUpgradePowered(pawn, slot)
 	if not utils.isValidUpgradeSlot(slot) then
 		return false
 	end
+	-- This is just a bool so we can call the ones direclty
+	-- on pawn
 	if slot == mech_forge.VANILLA_UPGRADES.HEALTH then
 		return pawn:IsHpPowered()
 	end

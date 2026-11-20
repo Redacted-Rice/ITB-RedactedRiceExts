@@ -87,6 +87,7 @@ Registration Args:
 
 * `label` is a required non-empty string, text id, or `function(pawn)` returning a string.
 * `tooltip` is optional. Same types as `label`. Shown when the player hovers the reactor slot in the hangar. If omitted, MechFORGE shows a generic custom-upgrade message.
+* `coreSlots` is optional. Defaults to `1`. The number of cores required to power this upgrade.
 * `onPowered` and `onUnpowered` are optional but are a pair. Either both are set or both omitted.
 * `onCoreChanged` is optional if you want to vary behavior based on what type of core is installed.
 
