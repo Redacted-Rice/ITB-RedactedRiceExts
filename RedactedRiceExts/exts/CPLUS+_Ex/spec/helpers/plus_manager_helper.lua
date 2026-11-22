@@ -175,6 +175,9 @@ local function stubInGameToolTipModule()
 		function tooltipStub.registerBox() end
 		function tooltipStub.forBox() end
 		function tooltipStub.updateTipContent() end
+		function tooltipStub.getUiBox(boxName)
+			return tooltipStub._boxUiByName[boxName]
+		end
 		function tooltipStub.forUiElement() end
 
 		_G.InGameToolTip = tooltipStub

@@ -45,12 +45,16 @@ function mf_texts:_getUpgradeTooltipForSlot(pawn, slot, default)
 end
 
 function mf_texts:_trackInnateSlotFromTooltip(boxName, slot)
-	local hitbox = InGameToolTip._boxUiByName and InGameToolTip._boxUiByName[boxName]
+	local hitbox = InGameToolTip.getUiBox(boxName)
 	if hitbox and hitbox.hovered then
 		self._trackedInnateSlot[slot] = true
 	else
 		self._trackedInnateSlot[slot] = nil
 	end
+end
+
+function mf_texts._isUpgradeMenuOpen()
+	return Game and Game:IsUpgradeMenuOpen()
 end
 
 function mf_texts:_getNoPowerTextForTrackedInnateSlot(pawn, r1)
@@ -107,6 +111,7 @@ end
 function mf_texts:_registerReactorSlotTooltips()
 	InGameToolTip.forBox("upgrade_health_button", "upgrade_health_loc", {
 		static = true,
+		isActive = self._isUpgradeMenuOpen,
 		getContent = function()
 			self:_trackInnateSlotFromTooltip("upgrade_health_button", mech_forge.VANILLA_UPGRADES.HEALTH)
 			return "Upgrade_HealthLabel", "MechFORGE_Tooltip_Health"
@@ -114,6 +119,7 @@ function mf_texts:_registerReactorSlotTooltips()
 	})
 	InGameToolTip.forBox("upgrade_movement_button", "upgrade_movement_loc", {
 		static = true,
+		isActive = self._isUpgradeMenuOpen,
 		getContent = function()
 			self:_trackInnateSlotFromTooltip("upgrade_movement_button", mech_forge.VANILLA_UPGRADES.MOVE)
 			return "Upgrade_MoveLabel", "MechFORGE_Tooltip_Move"
