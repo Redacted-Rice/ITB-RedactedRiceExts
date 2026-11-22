@@ -431,8 +431,8 @@ function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCores, moveCores)
 			tag, pawnId,
 			skillCoreSync.listToString(liveHp:getIntList()), skillCoreSync.listToString(hpCores),
 			skillCoreSync.listToString(liveMove:getIntList()), skillCoreSync.listToString(moveCores))
-	liveHp:setIntList(hpCores)
-	liveMove:setIntList(moveCores)
+	liveHp:setIntListResizingIfNeeded(hpCores)
+	liveMove:setIntListResizingIfNeeded(moveCores)
 	return true
 end
 
