@@ -11,17 +11,55 @@ mf_texts._submodule = mf_texts._logger.register(
 	"Texts",
 	mech_forge.DEBUG.TEXTS and mech_forge.DEBUG.ENABLED
 )
-mf_texts._notEnoughPowerText = "Requires %s power!"
 mf_texts._notEnoughPowerDefaultText = "Requires $1 power!"
+
+mf_texts.STATS_BASE_TEXT = {
+	Stats_Base_Health = mech_forge.VANILLA_UPGRADES.HEALTH,
+	Stats_Base_Move = mech_forge.VANILLA_UPGRADES.MOVE,
+}
+
+mf_texts.STATS_UPGRADE_TEXT = {
+	Stats_Health_Upgrade = mech_forge.VANILLA_UPGRADES.HEALTH,
+	Stats_Move_Upgrade = mech_forge.VANILLA_UPGRADES.MOVE,
+}
 
 -- Tracks last hovered upgrade slot so we can tell which it was clicked on for the
 -- not enough power text
 mf_texts._trackedInnateSlot = {}
 
+function mf_texts:_vanillaBonusForSlot(slot)
+	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		return mech_forge.VANILLA_BONUSES.MOVE
+	end
+	return mech_forge.VANILLA_BONUSES.HEALTH
+end
+
+-- Shown when hovering over stat upgrade to hide the hacking we do under
+-- the hood to remove the vanilla bonus
+function mf_texts:_upgradeCombinedStatForSlot(pawn, slot)
+	local value
+	if slot == mech_forge.VANILLA_UPGRADES.MOVE then
+		value = pawn:GetRawMoveSpeed()
+	else
+		value = pawn:GetMaxBaseHealth()
+	end
+
+	if utils.isMechUpgradePowered(pawn, slot) then
+		value = value + self:_vanillaBonusForSlot(slot)
+	end
+	return value
+end
+
+function mf_texts:_getCustomUpgradeConfig(pawn, slot)
+	if not pawn then
+		return nil
+	end
+	return registry:getCustomMechUpgradeConfig(utils.getMechType(pawn), slot)
+end
+
 function mf_texts:_getUpgradeLabelForSlot(pawn, slot)
 	if not pawn then return nil end
-	local mechType = utils.getMechType(pawn)
-	local config = registry:getCustomMechUpgradeConfig(mechType, slot)
+	local config = self:_getCustomUpgradeConfig(pawn, slot)
 	if config then
 		return utils.resolveText(config.label, pawn)
 	end
@@ -31,8 +69,7 @@ end
 local DEFAULT_CUSTOM_TOOLTIP = "Custom upgrade without a description. Usual bonus for this upgrade do not apply."
 function mf_texts:_getUpgradeTooltipForSlot(pawn, slot, default)
 	if not pawn then return default end
-	local mechType = utils.getMechType(pawn)
-	local config = registry:getCustomMechUpgradeConfig(mechType, slot)
+	local config = self:_getCustomUpgradeConfig(pawn, slot)
 
 	if config then
 		if config.tooltip then
@@ -59,17 +96,34 @@ end
 
 function mf_texts:_getNoPowerTextForTrackedInnateSlot(pawn, r1)
 	if not pawn then
-		return self._notEnoughPowerDefaultText, r1
+		return GetVanillaText(self._notEnoughPowerDefaultText, r1)
 	end
 
 	local mechType = utils.getMechType(pawn)
 	for slot, _ in pairs(self._trackedInnateSlot) do
 		local config = registry:getCustomMechUpgradeConfig(mechType, slot)
 		if config then
-			return self._notEnoughPowerDefaultText, tostring(config.coreSlots)
+			return GetVanillaText(self._notEnoughPowerDefaultText, tostring(config.coreSlots))
 		end
 	end
-	return self._notEnoughPowerDefaultText, r1
+	return GetVanillaText(self._notEnoughPowerDefaultText, r1)
+end
+
+function mf_texts:_blankStatUpgradeText(pawn, slot, text, r1, r2, r3)
+	-- If we aren't overrriding this slot, return original text
+	if not pawn or not self:_getCustomUpgradeConfig(pawn, slot) then
+		return GetVanillaText(text, r1, r2, r3)
+	end
+	return ""
+end
+
+function mf_texts:_getCombinedStatText(pawn, slot, text, r1, r2, r3)
+	if not self:_getCustomUpgradeConfig(pawn, slot) then
+		return GetVanillaText(text, r1, r2, r3)
+	end
+	local value = self:_upgradeCombinedStatForSlot(pawn, slot)
+	-- Use vanilla version to avoid infinite recursion
+	return GetVanillaText(text, value)
 end
 
 function mf_texts:_registerTexts()
@@ -95,9 +149,21 @@ function mf_texts:_registerTexts()
 
 	-- There are two versions but this is the one called for the mech upgrades. I think
 	-- the other one might not be used?
-	modApi:setText("Upgrade_NoPower", memhack.getTextWrappers.basedOnSelectedPawn(function(pawn, r1)
+	modApi:setText("Upgrade_NoPower", memhack.getTextWrappers.basedOnSelectedPawn(function(pawn, id, r1)
 		return self:_getNoPowerTextForTrackedInnateSlot(pawn, r1)
 	end))
+
+	for textId, slot in pairs(self.STATS_UPGRADE_TEXT) do
+		modApi:setText(textId, memhack.getTextWrappers.basedOnSelectedPawn(function(pawn, id, r1, r2, r3)
+			return self:_blankStatUpgradeText(pawn, slot, id, r1, r2, r3)
+		end))
+	end
+
+	for textId, slot in pairs(self.STATS_BASE_TEXT) do
+		modApi:setText(textId, memhack.getTextWrappers.basedOnSelectedPawn(function(pawn, id, r1, r2, r3)
+			return self:_getCombinedStatText(pawn, slot, id, r1, r2, r3)
+		end))
+	end
 end
 
 function mf_texts:_registerReactorBoxDefs()
