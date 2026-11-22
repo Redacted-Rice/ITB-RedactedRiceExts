@@ -15,7 +15,7 @@ describe("MechFORGE state tracker", function()
 		assert.is_not_nil(stateTracker._tracked[2])
 	end)
 
-	it("snapshots cores on first observation without firing hooks", function()
+	it("snapshots cores on first observation and runs initial sync hooks", function()
 		local coreChanges = 0
 		local poweredChanges = 0
 
@@ -35,8 +35,8 @@ describe("MechFORGE state tracker", function()
 
 		stateTracker:_updateAllStates()
 
-		assert.are.equal(0, coreChanges)
-		assert.are.equal(0, poweredChanges)
+		assert.are.equal(2, coreChanges)
+		assert.are.equal(1, poweredChanges)
 		assert.are.same({ memhack.CORE_TYPE_NORMAL }, stateTracker:_getTrackedCores(0, V.HEALTH))
 	end)
 
@@ -59,6 +59,8 @@ describe("MechFORGE state tracker", function()
 		helper.setupSquadPawns({ [0] = pawn })
 
 		stateTracker:_updateAllStates()
+		coreChanges = 0
+		poweredChanges = 0
 		pawn:SetHpCores({ memhack.CORE_TYPE_NORMAL })
 		stateTracker:_updateAllStates()
 
@@ -79,6 +81,7 @@ describe("MechFORGE state tracker", function()
 		helper.setupSquadPawns({ [0] = pawn })
 
 		stateTracker:_updateAllStates()
+		coreChanges = 0
 		stateTracker:_updateAllStates()
 
 		assert.are.equal(0, coreChanges)
@@ -217,7 +220,7 @@ describe("MechFORGE state tracker", function()
 		assert.are.equal(1, unpoweredCount)
 	end)
 
-	it("leaves partial multi-core layout on first snapshot without reconcile", function()
+	it("reconciles partial multi-core layout on first snapshot", function()
 		forge:registerMechUpgrade("TrackMulti", V.HEALTH, {
 			label = "Heavy Plating",
 			coreSlots = 2,
@@ -236,7 +239,7 @@ describe("MechFORGE state tracker", function()
 
 		assert.are.same({
 			memhack.CORE_TYPE_NORMAL,
-			memhack.CORE_TYPE_NONE,
+			memhack.CORE_TYPE_NORMAL,
 		}, stateTracker:_getTrackedCores(0, V.HEALTH))
 	end)
 
@@ -282,8 +285,10 @@ describe("MechFORGE state tracker", function()
 
 		stateTracker:_updateAllStates()
 		stateTracker:_resetAllTrackers()
+		poweredCount = 0
 		stateTracker:_updateAllStates()
-
-		assert.are.equal(0, poweredCount)
+		assert.are.equal(1, poweredCount)
+		stateTracker:_updateAllStates()
+		assert.are.equal(1, poweredCount)
 	end)
 end)
