@@ -13,7 +13,7 @@ function get_text.basedOnSelectedPawn(fn)
 				pawn = Game:GetSelectedPawn()
 			end
 		end
-		return fn(pawn, r1, r2, r3)
+		return fn(pawn, id, r1, r2, r3)
 	end
 end
 
