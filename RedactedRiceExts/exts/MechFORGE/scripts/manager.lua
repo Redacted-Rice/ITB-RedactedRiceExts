@@ -68,8 +68,6 @@ function mf_manager:_reconcilePartialMultiCoreUpgrade(vPawn, slot, requiredSlotC
 			(count == requiredSlotCount and not mhCores:isPartiallyPowered()) then
 		return false
 	end
-	
-	LOG("reconcilePartialMultiCoreUpgrade".. tostring(requiredSlotCount) .. " " .. tostring(mhCores:getIntSize()))
 
 	-- If it is partially powered, we need to fill empty slots or unpower the upgrade
 	local vNewCores = {}

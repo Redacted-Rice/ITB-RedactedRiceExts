@@ -71,13 +71,13 @@ Full example with callbacks:
 ```lua
 mech_forge:registerMechUpgrade("MyCustomMech", mech_forge.VANILLA_UPGRADES.HEALTH, {
   label = "Cool Effect",
-  onPowered = function(slot, pawn, pawnId, mechType, newCore)
-    -- core just became powered
+  onPowered = function(slot, pawn, pawnId, mechType, newList)
+    -- slot just became fully powered (every entry in newList is a powered core type)
   end,
-  onUnpowered = function(slot, pawn, pawnId, mechType, oldCore)
-    -- core just became unpowered
+  onUnpowered = function(slot, pawn, pawnId, mechType, oldList)
+    -- slot just became unpowered
   end,
-  onCoreChanged = function(slot, pawn, pawnId, mechType, oldCore, newCore)
+  onCoreChanged = function(slot, pawn, pawnId, mechType, oldList, newList)
     -- any change on this slot, including first sync when entering a run
   end,
 })
@@ -89,7 +89,9 @@ Registration Args:
 * `tooltip` is optional. Same types as `label`. Shown when the player hovers the core slot in the hangar. If omitted, MechFORGE shows a generic custom-upgrade message.
 * `coreSlots` is optional. Defaults to `1`. The number of cores required to power this upgrade.
 * `onPowered` and `onUnpowered` are optional but are a pair. Either both are set or both omitted.
-* `onCoreChanged` is optional if you want to vary behavior based on what type of core is installed.
+* `onCoreChanged` is optional if you want to react to per-slot core type changes.
+
+`oldList` and `newList` are Lua tables of `memhack.CORE_TYPE_*` values (one per reactor slot). With `coreSlots` greater than 1, every slot must be powered for `onPowered` to run. A partially filled layout is treated as unpowered until reconcile fills it or clears it.
 
 Note: The callbacks are optional but its expected you will want to use one or the other to apply the effects of your custom upgrade. You could do this a different way though if it makes sense for your use case.
 
@@ -103,11 +105,11 @@ MechFORGE events/hooks support priority. The code to revert vanilla upgrade effe
 
 Examples:
 ```lua
-mech_forge:addMechUpgradePoweredHook(function(slot, pawn, pawnId, mechType, newCore)
+mech_forge:addMechUpgradePoweredHook(function(slot, pawn, pawnId, mechType, newList)
   -- ...
 end)
 
-mech_forge.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldCore, newCore)
+mech_forge.events.onMechUpgradeCoreChanged:subscribe(function(slot, pawn, pawnId, mechType, oldList, newList)
   -- ...
 end)
 ```
@@ -118,7 +120,7 @@ Events:
 * `onMechUpgradePowered` - transition from unpowered to powered
 * `onMechUpgradeUnpowered` - powered to unpowered
 
-Powered state uses `memhack.CORE_TYPE_NONE` for an empty slot. Other `memhack.CORE_TYPE_*` values count as powered.
+Powered state: each slot uses `memhack.CORE_TYPE_NONE` for empty. Every slot must be a non-`NONE` core type for the upgrade to count as powered (see `pawn:IsHpPowered()` / `IsMovePowered()`).
 
 ## Getting help
 

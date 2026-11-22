@@ -40,6 +40,18 @@ local function makeCoreListMock(storageRef)
 		end
 		return true
 	end
+	function mock:setIntListResizingIfNeeded(values)
+		if type(values) ~= "table" then
+			return false
+		end
+		for i = #storageRef, 1, -1 do
+			storageRef[i] = nil
+		end
+		for i, v in ipairs(values) do
+			storageRef[i] = v
+		end
+		return true
+	end
 	return mock
 end
 
