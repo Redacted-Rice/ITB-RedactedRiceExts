@@ -189,6 +189,10 @@ package.preload["../../libs/inGameToolTip"] = function()
 		return true
 	end
 
+	function tooltipStub.getUiBox(boxName)
+		return tooltipStub._boxUiByName[boxName]
+	end
+
 	function tooltipStub.forUiElement() end
 
 	_G.InGameToolTip = tooltipStub
