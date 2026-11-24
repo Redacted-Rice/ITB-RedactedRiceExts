@@ -294,7 +294,7 @@ describe("Skill Core Sync", function()
 			local pawn = makeMockPawn({ "OldPrimary", "OldSecondary" })
 			local applied = {}
 			saveFn(skillCoreSync, "applyWeaponCores")
-			skillCoreSync.applyWeaponCores = function(_, weaponIndex, cores)
+			skillCoreSync.applyWeaponCores = function(_, _, weaponIndex, cores)
 				applied[#applied + 1] = { weaponIndex = weaponIndex, cores = cores }
 			end
 
@@ -644,7 +644,7 @@ describe("Skill Core Sync", function()
 
 			local applied = {}
 			saveFn(skillCoreSync, "applyWeaponCores")
-			skillCoreSync.applyWeaponCores = function(_, weaponIndex, cores)
+			skillCoreSync.applyWeaponCores = function(_, _, weaponIndex, cores)
 				applied[#applied + 1] = { weaponIndex = weaponIndex, cores = cores }
 			end
 

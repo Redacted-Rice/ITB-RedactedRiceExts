@@ -386,7 +386,7 @@ end
 
 -- Applies a core list to the weapon checking the current data to ensure
 -- no memory overflows
-function skillCoreSync.applyCoreList(pawn, weaponIndex, spec, sourceList)
+function skillCoreSync.applyCoreList(tag, pawn, weaponIndex, spec, sourceList)
 	if type(sourceList) ~= "table" then
 		return
 	end
@@ -397,6 +397,15 @@ function skillCoreSync.applyCoreList(pawn, weaponIndex, spec, sourceList)
 	end
 	local maxSlots = #live
 
+	if skillCoreSync.listsEqual(live, sourceList) then
+		logger.logDebug(SUBMODULE, "%s pawn %d weapon %d cores for %s unchanged - power=%s",
+				tag, pawn:GetId(), weaponIndex, spec.key, skillCoreSync.listToString(live))
+		return false
+	end
+
+	logger.logInfo(SUBMODULE, "%s pawn %d weapon %d cores for %s %s -> %s",
+			tag, pawn:GetId(), weaponIndex, spec.key, skillCoreSync.listToString(live),
+			skillCoreSync.listToString(sourceList))
 	for slotIndex, sourceVal in ipairs(sourceList) do
 		if slotIndex > maxSlots then
 			break
@@ -410,9 +419,9 @@ end
 -- set for the base core cost and the upgrades safely ensuring no
 -- memory overflows but the expectation is that the weapon type has
 -- already be validated and should match the wdata
-function skillCoreSync.applyWeaponCores(pawn, weaponIndex, wdata)
+function skillCoreSync.applyWeaponCores(tag, pawn, weaponIndex, wdata)
 	for _, spec in ipairs(skillCoreSync.LIST_SPECS) do
-		skillCoreSync.applyCoreList(pawn, weaponIndex, spec, wdata[spec.key])
+		skillCoreSync.applyCoreList(tag, pawn, weaponIndex, spec, wdata[spec.key])
 	end
 end
 
@@ -421,7 +430,7 @@ function skillCoreSync.applyPawnMechCores(tag, pawnId, pawn, hpCores, moveCores)
 	local liveHp = pawn:GetMemhackObj():getHpCores()
 	local liveMove = pawn:GetMemhackObj():getMoveCores()
 	if liveHp:intListMatches(hpCores) and liveMove:intListMatches(moveCores) then
-		logger.logDebug(SUBMODULE, "%s pawn %d mechCores unchanged hpCores=%s moveCores=%s",
+		logger.logDebug(SUBMODULE, "%s pawn %d mechCores unchanged - hpCores=%s moveCores=%s",
 				tag, pawnId, skillCoreSync.listToString(hpCores),
 				skillCoreSync.listToString(moveCores))
 		return false
@@ -473,7 +482,7 @@ function skillCoreSync.applyPawnPilotCores(tag, pawnId, pawn, powerList)
 		return false
 	end
 	if skillCoreSync.listsEqual(live, powerList) then
-		logger.logDebug(SUBMODULE, "%s pawn %d pilotCores unchanged power=%s",
+		logger.logDebug(SUBMODULE, "%s pawn %d pilotCores unchanged - power=%s",
 				tag, pawnId, skillCoreSync.listToString(live))
 		return false
 	end
@@ -484,10 +493,10 @@ function skillCoreSync.applyPawnPilotCores(tag, pawnId, pawn, powerList)
 	return true
 end
 
-function skillCoreSync.applyPawnWeaponCores(pawn, weapons)
+function skillCoreSync.applyPawnWeaponCores(tag, pawn, weapons)
 	for weaponIndex, wdata in pairs(weapons) do
 		if weaponIndex <= pawn:GetWeaponCount() then
-			skillCoreSync.applyWeaponCores(pawn, weaponIndex, wdata)
+			skillCoreSync.applyWeaponCores(tag, pawn, weaponIndex, wdata)
 		end
 	end
 end
@@ -577,7 +586,7 @@ function skillCoreSync.replaceAllWeapons(pawn, entries, forceEnable)
 			pawn:AddWeapon(entry.typeId, forceEnable)
 			local newIndex = pawn:GetWeaponCount()
 			if entry.cores then
-				skillCoreSync.applyWeaponCores(pawn, newIndex, entry.cores)
+				skillCoreSync.applyWeaponCores("replaceAll", pawn, newIndex, entry.cores)
 			end
 			entry._removedType = removedTypes[i]
 			entry._newIndex = newIndex
@@ -765,7 +774,7 @@ function skillCoreSync.syncPawnFromSave(pawnId)
 	skillCoreSync.logCores("load", pawnId, saveSnap.hpCores, saveSnap.moveCores, weapons)
 	skillCoreSync.applyPawnMechCores("load", pawnId, pawn, saveSnap.hpCores, saveSnap.moveCores)
 	skillCoreSync.applyPawnPilotCores("load", pawnId, pawn, saveSnap.pilotPower)
-	skillCoreSync.applyPawnWeaponCores(pawn, weapons)
+	skillCoreSync.applyPawnWeaponCores("load", pawn, weapons)
 end
 
 function skillCoreSync.syncAllFromSave()
@@ -814,7 +823,7 @@ function skillCoreSync.applyPawnSnapshot(pawnId, snap)
 	skillCoreSync.logCores("missionEnd", pawnId, snap.hpCores, snap.moveCores, snap.weapons)
 	skillCoreSync.applyPawnMechCores("missionEnd", pawnId, pawn, snap.hpCores, snap.moveCores)
 	skillCoreSync.applyPawnPilotCores("missionEnd", pawnId, pawn, snap.pilotPower)
-	skillCoreSync.applyPawnWeaponCores(pawn, snap.weapons)
+	skillCoreSync.applyPawnWeaponCores("missionEnd", pawn, snap.weapons)
 end
 
 function skillCoreSync.applyAllFromSnapshot(snap)
@@ -855,7 +864,7 @@ function skillCoreSync.onMissionStart()
 end
 
 function skillCoreSync.onMissionEnd(mission)
-	if mission and mission.NextPhase then
+	if mission and mission.NextPhase and mission.NextPhase ~= "" then
 		logger.logDebug(SUBMODULE, "onMissionEnd: next phase, skipping")
 		return
 	end
