@@ -12,6 +12,9 @@ local function createMockDll()
 	return {
 		memory = {
 			MAX_CSTRING_LENGTH = 1024,
+			MAX_NULL_TERM_STRING_LENGTH = 2048,
+			MAX_BYTE_ARRAY_LENGTH = 65536,
+			STRING_BUFFER_SEGMENT_SIZE = 16,
 
 			-- Allocate a mock C string and return userdata-like object
 			allocCString = function(str)
@@ -130,6 +133,7 @@ function M.setupGlobals()
 	_G.modApi.events.onPostLoadGame = { subscribe = function() end }
 	_G.modApi.events.onMissionStart = { subscribe = function() end }
 	_G.modApi.events.onMissionEnd = { subscribe = function() end }
+	_G.modApi.events.onFrameDrawStart = { subscribe = function() end }
 	_G.modApi.runLater = _G.modApi.runLater or function(_, fn) fn() end
 	-- onModsFirstLoaded fires immediately to initialize structs
 	_G.modApi.events.onModsFirstLoaded = { subscribe = function(self, fn) if fn then fn() end end }
@@ -187,6 +191,8 @@ function M.initMemhack()
 	_G.memhack.hooks = {
 		firePilotChangedHooks = function() end,
 		firePilotLvlUpSkillChangedHooks = function() end,
+		fireUpgradeSelectedPawnChangedHooks = function() end,
+		fireUpgradeSelectedPilotChangedHooks = function() end,
 	}
 
 	M.setupGlobals()

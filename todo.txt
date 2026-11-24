@@ -4,7 +4,6 @@ None
 
 Future Release:
 1. Try reverse engineering more things and add to memhack if possible
-	a. mech innate upgrades
 	b. Deploy zone (probably point list pointer in mission)
 
 Other potential stuff one day:
@@ -19,5 +18,5 @@ None
 
 
 -------------------
-Mech Upgrades Ex?
-Not alot of interest ATM in this so not going to make it a framework but just what I need for my plan
+Mech FORGE:
+None

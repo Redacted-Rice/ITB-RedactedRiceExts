@@ -6,6 +6,8 @@ cplus_plus_ex = cplus_plus_ex or {}
 
 local path = GetParentPath(...)
 
+require(mod_loader.mods[modApi:getCurrentMod().parent].resourcePath .. "libs/inGameToolTip")
+
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
 	ENABLED = false,  -- Disable/enable all debug logging

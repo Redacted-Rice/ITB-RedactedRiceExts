@@ -20,5 +20,12 @@ busted
 
 echo ""
 echo "========================================="
+echo "Running MechFORGE Extension Tests"
+echo "========================================="
+cd "$SCRIPT_DIR/RedactedRiceExts/exts/MechFORGE"
+busted
+
+echo ""
+echo "========================================="
 echo "All tests completed successfully!"
 echo "========================================="

@@ -17,8 +17,8 @@ MemhackPoint[selfSetter] = function(self, objOrStructOrPoint)
 			x = objOrStructOrPoint:getX(),
 			y = objOrStructOrPoint:getY(),
 		}
-	elseif type(v) == "userdata" and getmetatable(v) == Point then
-		vals = {		
+	elseif type(objOrStructOrPoint) == "userdata" and GetUserdataType(objOrStructOrPoint) == "Point" then
+		vals = {
 			x = objOrStructOrPoint:x(),
 			y = objOrStructOrPoint:y(),
 		}

@@ -777,14 +777,14 @@ function skill_state_tracker:_createVirtualSkillObject(pilot, skillId)
 		Pilot = pilot,
 	}
 
-	-- Pre-initialize ItBString unionType fields to LOCAL using hidden setter
+	-- Pre-initialize ItBString allocMaxLen fields to max local length using hidden setter
 	-- This makes the ItBString structs valid so _noFire setters won't fail validation
 	local layout = memhack.structs.PilotLvlUpSkill._layout
 	for _, fieldName in ipairs({"id", "shortName", "fullName", "description"}) do
 		local fieldDef = layout[fieldName]
 		if fieldDef then
 			local itbStr = memhack.structs.ItBString.new(addr + fieldDef.offset, false)
-			itbStr:_setUnionType(memhack.structs.ItBString.LOCAL)
+			itbStr:_setAllocMaxLen(memhack.structs.ItBString.MAX_LOCAL_STRING_LENGTH)
 		end
 	end
 

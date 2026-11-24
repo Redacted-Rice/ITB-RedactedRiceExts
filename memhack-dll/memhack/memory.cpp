@@ -2,6 +2,8 @@
 #include "memory.h"
 #include "safememory.h"
 #include "lua_helpers.h"
+#include <cmath>
+#include <cstring>
 
 static bool READ_ONLY = false;
 static bool READ_WRITE = true;
@@ -23,21 +25,64 @@ int get_userdata_addr(lua_State * L) {
 	
 }
 
+// Optional second argument: allocation size in bytes including the null terminator
+// (must be >= len + 1). When omitted, allocates the minimal multiple of 
+// STRING_BUFFER_SEGMENT_SIZE that fits the string.
 int alloc_null_term_string(lua_State* L) {
 	size_t len;
 	const char* src = luaL_checklstring(L, 1, &len);
 
-	if (len + 1 > MAX_NULL_TERM_STRING_LENGTH) {
-		luaL_error(L, "alloc_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, len + 1);
+	size_t allocSize = static_cast<size_t>(
+		std::ceil((len + 1.0) / static_cast<double>(STRING_BUFFER_SEGMENT_SIZE))) * STRING_BUFFER_SEGMENT_SIZE;
+	if (lua_gettop(L) >= 2 && !lua_isnoneornil(L, 2)) {
+		allocSize = (size_t)luaL_checkinteger(L, 2);
+	}
+
+	if (allocSize < len + 1) {
+		luaL_errorf(L, "alloc_null_term_string failed: alloc size %lu is smaller than string length + null (%lu)",
+			(unsigned long)allocSize, (unsigned long)(len + 1));
 		return 0;
 	}
 
-	char* raw = new char[len + 1];
+	if (allocSize > (size_t)MAX_NULL_TERM_STRING_LENGTH) {
+		luaL_errorf(L, "alloc_null_term_string failed: alloc size cannot exceed %d (including null terminator), got %lu",
+			MAX_NULL_TERM_STRING_LENGTH, (unsigned long)allocSize);
+		return 0;
+	}
+
+	char* raw = new char[allocSize];
 	std::memcpy(raw, src, len);
-	raw[len] = '\0';
+	// Set remaining bytes (including null term) to 0
+	std::memset(raw + len, 0, allocSize - len);
 
 	lua_pushinteger(L, (size_t) raw);
 	return 1;
+}
+
+int alloc_byte_array(lua_State* L) {
+	size_t size = (size_t)luaL_checkinteger(L, 1);
+	if (size == 0) {
+		luaL_error(L, "alloc_byte_array failed: size must be positive");
+		return 0;
+	}
+	if (size > (size_t)MAX_BYTE_ARRAY_LENGTH) {
+		luaL_errorf(L, "alloc_byte_array failed: size cannot exceed %d, got %lu", MAX_BYTE_ARRAY_LENGTH, (unsigned long)size);
+		return 0;
+	}
+	void* raw = operator new[](size);
+	std::memset(raw, 0, size);
+	lua_pushinteger(L, (lua_Integer)(size_t)raw);
+	return 1;
+}
+
+int free_byte_array(lua_State* L) {
+	void* addr = (void*)(size_t)luaL_checkinteger(L, 1);
+	if (addr == nullptr) {
+		luaL_error(L, "free_byte_array failed: cannot free NULL");
+		return 0;
+	}
+	operator delete[]((char*)addr);
+	return 0;
 }
 
 int free_null_term_string(lua_State* L) {
@@ -60,7 +105,7 @@ int free_null_term_string(lua_State* L) {
 int read_byte(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(unsigned char), READ_ONLY)) {
-		luaL_error(L, "read_byte failed: read from address 0x%p not allowed", addr);
+		luaL_errorf(L, "read_byte failed: read from address 0x%p not allowed", addr);
 		return 0;
 	}
 	lua_pushinteger(L, *(unsigned char*)addr);
@@ -70,7 +115,7 @@ int read_byte(lua_State* L) {
 int read_int(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(int), READ_ONLY)) {
-		luaL_error(L, "read_int (or pointer) failed: read from address 0x%p not allowed", addr);
+		luaL_errorf(L, "read_int (or pointer) failed: read from address 0x%p not allowed", addr);
 		return 0;
 	}
 	lua_pushinteger(L, *(int*)addr);
@@ -80,7 +125,7 @@ int read_int(lua_State* L) {
 int read_bool(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(bool), READ_ONLY)) {
-		luaL_error(L, "read_bool failed: read from address 0x%p not allowed", addr);
+		luaL_errorf(L, "read_bool failed: read from address 0x%p not allowed", addr);
 		return 0;
 	}
 	lua_pushboolean(L, *(bool*)addr);
@@ -90,7 +135,7 @@ int read_bool(lua_State* L) {
 int read_double(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(double), READ_ONLY)) {
-		luaL_error(L, "read_double failed: read from address 0x%p not allowed", addr);
+		luaL_errorf(L, "read_double failed: read from address 0x%p not allowed", addr);
 		return 0;
 	}
 	lua_pushnumber(L, *(double*)addr);
@@ -100,7 +145,7 @@ int read_double(lua_State* L) {
 int read_float(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(float), READ_ONLY)) {
-		luaL_error(L, "read_float failed: read from address 0x%p not allowed", addr);
+		luaL_errorf(L, "read_float failed: read from address 0x%p not allowed", addr);
 		return 0;
 	}
 	lua_pushnumber(L, *(float*)addr);
@@ -118,14 +163,14 @@ int read_null_term_string(lua_State* L) {
 		luaL_error(L, "read_null_term_string failed: max_length must be positive");
 		return 0;
 	} else if (max_length > MAX_NULL_TERM_STRING_LENGTH) {
-		luaL_error(L, "read_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, max_length);
+		luaL_errorf(L, "read_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, max_length);
 		return 0;
 	}
 
 	// Get the number of bytes we can actually read up to max length
 	size_t accessible_size = SafeMemory::get_accessible_size(addr, max_length, READ_ONLY);
 	if (accessible_size == 0) {
-		luaL_error(L, "read_null_term_string failed: read from address 0x%p not allowed", addr);
+		luaL_errorf(L, "read_null_term_string failed: read from address 0x%p not allowed", addr);
 		return 0;
 	}
 
@@ -135,8 +180,8 @@ int read_null_term_string(lua_State* L) {
 
 	// If we didn't find a null terminator within accessible memory we failed to read it
 	if (str_len == accessible_size && accessible_size < (size_t)max_length) {
-		luaL_error(L, "read_null_term_string failed: no null terminator found in accessible memory (0x%p, accessible: %zu, requested: %d)",
-			addr, accessible_size, max_length);
+		luaL_errorf(L, "read_null_term_string failed: no null terminator found in accessible memory (0x%p, accessible: %lu, requested: %d)",
+			addr, (unsigned long)accessible_size, max_length);
 		return 0;
 	}
 
@@ -157,12 +202,12 @@ int read_byte_array(lua_State* L) {
 		luaL_error(L, "read_byte_array failed: length must be non-negative");
 		return 0;
 	} else if (length > MAX_BYTE_ARRAY_LENGTH) {
-		luaL_error(L, "read_byte_array failed: length cannot exceed %d (including null terminator), got %d", MAX_BYTE_ARRAY_LENGTH, length);
+		luaL_errorf(L, "read_byte_array failed: length cannot exceed %d (including null terminator), got %d", MAX_BYTE_ARRAY_LENGTH, length);
 		return 0;
 	}
 
 	if (!SafeMemory::is_access_allowed(addr, length, READ_ONLY)) {
-		luaL_error(L, "read_byte_array failed: read from address 0x%p (len %d) not allowed", addr, length);
+		luaL_errorf(L, "read_byte_array failed: read from address 0x%p (len %d) not allowed", addr, length);
 		return 0;
 	}
 
@@ -181,9 +226,9 @@ int write_byte(lua_State* L) {
 
 	// Ensure the value is good and access is allowed
 	if (value < 0 || value > 255) {
-		luaL_error(L, "write_byte failed: passed value is not in range 0 - 255", value);
+		luaL_errorf(L, "write_byte failed: passed value is not in range 0 - 255, got %d", value);
 	} else if (!SafeMemory::is_access_allowed(addr, sizeof(unsigned char), READ_WRITE)) {
-		luaL_error(L, "write_byte failed: write to address 0x%p not allowed", addr);
+		luaL_errorf(L, "write_byte failed: write to address 0x%p not allowed", addr);
 		return -1;
 	}
 
@@ -194,7 +239,7 @@ int write_byte(lua_State* L) {
 int write_int(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(int), READ_WRITE)) {
-		luaL_error(L, "write_int (or pointer) failed: write to address 0x%p not allowed", addr);
+		luaL_errorf(L, "write_int (or pointer) failed: write to address 0x%p not allowed", addr);
 		return -1;
 	}
 	int value = luaL_checkinteger(L, 2);
@@ -205,7 +250,7 @@ int write_int(lua_State* L) {
 int write_bool(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(bool), READ_WRITE)) {
-		luaL_error(L, "write_bool failed: write to address 0x%p not allowed", addr);
+		luaL_errorf(L, "write_bool failed: write to address 0x%p not allowed", addr);
 		return -1;
 	}
 	bool value = lua_toboolean(L, 2);
@@ -216,7 +261,7 @@ int write_bool(lua_State* L) {
 int write_double(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(double), READ_WRITE)) {
-		luaL_error(L, "write_double failed: write to address 0x%p not allowed", addr);
+		luaL_errorf(L, "write_double failed: write to address 0x%p not allowed", addr);
 		return -1;
 	}
 	double value = luaL_checknumber(L, 2);
@@ -228,7 +273,7 @@ int write_float(lua_State* L) {
 	void* addr = (void*)luaL_checkinteger(L, 1);
 	float value = (float)luaL_checknumber(L, 2);
 	if (!SafeMemory::is_access_allowed(addr, sizeof(float), READ_WRITE)) {
-		luaL_error(L, "write_float failed: write to address 0x%p not allowed", addr);
+		luaL_errorf(L, "write_float failed: write to address 0x%p not allowed", addr);
 		return -1;
 	}
 	*(float*)addr = value;
@@ -245,20 +290,20 @@ int write_null_term_string(lua_State* L) {
 		luaL_error(L, "write_null_term_string failed: max_length must be positive");
 		return -1;
 	} else if (max_length > MAX_NULL_TERM_STRING_LENGTH) {
-		luaL_error(L, "write_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, max_length);
+		luaL_errorf(L, "write_null_term_string failed: max_length cannot exceed %d (including null terminator), got %d", MAX_NULL_TERM_STRING_LENGTH, max_length);
 		return -1;
 	}
 
 	// Get the actual length of the string (including null terminator) and ensure it's within the allowed value
 	size_t length = strlen(value) + 1;
 	if (length > (size_t)max_length) {
-		luaL_error(L, "write_null_term_string failed: string length %zu exceeds max_length %d", length, max_length);
+		luaL_errorf(L, "write_null_term_string failed: string length %lu exceeds max_length %d", (unsigned long)length, max_length);
 		return -1;
 	}
 
 	// Validate memory access
 	if (!SafeMemory::is_access_allowed(addr, length, READ_WRITE)) {
-		luaL_error(L, "write_null_term_string failed: write to address 0x%p (len %zu) not allowed", addr, length);
+		luaL_errorf(L, "write_null_term_string failed: write to address 0x%p (len %lu) not allowed", addr, (unsigned long)length);
 		return -1;
 	}
 
@@ -289,12 +334,12 @@ int write_byte_array(lua_State* L) {
 		luaL_error(L, "write_byte_array failed: length must be non-negative");
 		return -1;
 	} else if (length > MAX_BYTE_ARRAY_LENGTH) {
-		luaL_error(L, "write_byte_array failed: length cannot exceed %d (including null terminator), got %d", MAX_BYTE_ARRAY_LENGTH, length);
+		luaL_errorf(L, "write_byte_array failed: length cannot exceed %d (including null terminator), got %d", MAX_BYTE_ARRAY_LENGTH, length);
 		return 0;
 	}
 
 	if (!SafeMemory::is_access_allowed(addr, (int)length, READ_WRITE)) {
-		luaL_error(L, "write_byte_array failed: write to address 0x%p (len %zu) not allowed", addr, length);
+		luaL_errorf(L, "write_byte_array failed: write to address 0x%p (len %lu) not allowed", addr, (unsigned long)length);
 		return -1;
 	}
 
@@ -345,6 +390,10 @@ void add_memory_functions(lua_State* L) {
 	lua_pushinteger(L, MAX_NULL_TERM_STRING_LENGTH);
 	lua_rawset(L, -3);
 
+	lua_pushstring(L, "STRING_BUFFER_SEGMENT_SIZE");
+	lua_pushinteger(L, (lua_Integer)STRING_BUFFER_SEGMENT_SIZE);
+	lua_rawset(L, -3);
+
 	lua_pushstring(L, "MAX_BYTE_ARRAY_LENGTH");
 	lua_pushinteger(L, MAX_BYTE_ARRAY_LENGTH);
 	lua_rawset(L, -3);
@@ -359,6 +408,14 @@ void add_memory_functions(lua_State* L) {
 
 	lua_pushstring(L, "freeNullTermString");
 	lua_pushcfunction(L, free_null_term_string);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "allocByteArray");
+	lua_pushcfunction(L, alloc_byte_array);
+	lua_rawset(L, -3);
+
+	lua_pushstring(L, "freeByteArray");
+	lua_pushcfunction(L, free_byte_array);
 	lua_rawset(L, -3);
 
 	// Read functions

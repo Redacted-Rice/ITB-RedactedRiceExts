@@ -42,7 +42,7 @@ local pilot_uid = nil
 
 -- Build a struct scan definition for locating a pilot in memory.
 -- Anchors on ItBString strLen (same offset for local and remote id storage).
--- Id text is verified via itb_string, which reads unionType and compares inline or through the heap pointer.
+-- Id text is verified via itb_string
 local function buildPilotScanStruct(id, data)
 	local PilotLayout = memhack.structs.Pilot._layout
 	local ItBStringLayout = memhack.structs.ItBString._layout

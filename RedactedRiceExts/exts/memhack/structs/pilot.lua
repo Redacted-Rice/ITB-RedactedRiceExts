@@ -48,6 +48,7 @@ local function validatePilot(pilot)
 	return true
 end
 
+-- TODO: consider adding a max length for name - 14 for this
 local Pilot = memhack.structManager:define("Pilot", {
 	name = { offset = 0x14, type = "struct", subType = "ItBString" },
 	xp = { offset = 0x30, type = "int", hideSetter = true},

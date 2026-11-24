@@ -11,28 +11,61 @@ local function onPawnClassInitialized(BoardPawn, pawn)
 		return pilot
 	end
 
-	-- Returns memhack.CORE_TYPE_* values
-	BoardPawn.GetHpCore = function(self)
-		local hpCore = self:GetMemhackObj():getHpCore()
-		return hpCore
+	BoardPawn.GetHpCores = function(self)
+		return self:GetMemhackObj():getHpCores():getIntList()
 	end
 
-	-- value: memhack.CORE_TYPE_* values
-	BoardPawn.SetHpCore = function(self, value)
-		local hpCore = self:GetMemhackObj():setHpCore(value)
-		return hpCore
+	BoardPawn.SetHpCores = function(self, values)
+		return self:GetMemhackObj():getHpCores():setIntListResizingIfNeeded(values)
 	end
 
-	-- Returns memhack.CORE_TYPE_* values
-	BoardPawn.GetMoveCore = function(self)
-		local moveCore = self:GetMemhackObj():getMoveCore()
-		return moveCore
+	BoardPawn.GetMoveCores = function(self)
+		return self:GetMemhackObj():getMoveCores():getIntList()
 	end
 
-	-- value: memhack.CORE_TYPE_* values
-	BoardPawn.SetMoveCore = function(self, value)
-		local moveCore = self:GetMemhackObj():setMoveCore(value)
-		return moveCore
+	BoardPawn.SetMoveCores = function(self, values)
+		return self:GetMemhackObj():getMoveCores():setIntListResizingIfNeeded(values)
+	end
+
+	BoardPawn.IsHpPowered = function(self)
+		return self:GetMemhackObj():getHpCores():isFullyPowered()
+	end
+
+	BoardPawn.IsMovePowered = function(self)
+		return self:GetMemhackObj():getMoveCores():isFullyPowered()
+	end
+
+	BoardPawn.GetRawMoveSpeed = function(self)
+		Assert.Equals("userdata", type(self), "Argument #0")
+		return self:GetMemhackObj():getMoveSpeed()
+	end
+
+	BoardPawn.SetRawMoveSpeed = function(self, moveSpeed)
+		Assert.Equals("userdata", type(self), "Argument #0")
+		Assert.Equals("number", type(moveSpeed), "Argument #1")
+		self:GetMemhackObj():setMoveSpeed(moveSpeed)
+	end
+
+	-- Only a set fn and not a get because the get is defined by the game already
+	-- This function seems to only work if the pawn doesn't have movement available. Not sure why but
+	-- its good enough for my needs ATM so not investigating further
+	BoardPawn.SetArmedWeaponId = function(self, value)
+		self:GetMemhackObj():setArmedWeaponId(value)
+	end
+
+	-- Only a setter. Use vanilla GetType if you need the value. This mirrors that API
+	BoardPawn.SetType = function(self, pawnType)
+		Assert.Equals("userdata", type(self), "Argument #0")
+		Assert.Equals("string", type(pawnType), "Argument #1")
+		self:GetMemhackObj():setPawnType(pawnType)
+	end
+
+	BoardPawn.UnassignMechCore = function(self, coreType)
+		return self:GetMemhackObj():unassignMechCore(coreType)
+	end
+
+	BoardPawn.AssignMechCore = function(self, coreType)
+		return self:GetMemhackObj():assignMechCore(coreType)
 	end
 end
 

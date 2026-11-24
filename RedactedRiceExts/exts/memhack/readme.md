@@ -11,7 +11,21 @@ Please enjoy and contact us if you run into any issues.
 * Email: RedactedRice@gmail.com
 
 # Releases
-Latest release: 1.4.1
+Latest release: 1.5.0
+
+## 1.5.0
+Released: XX/XX/2026
+
+compatible with:
+* ItB AE       1.2.93
+* ModLoader    2.9.7
+* ModLoaderExt 1.24
+
+### Notes
+* Added way to allocate and free byte arrays
+* Added several functions related to the upgrade screen in between missions
+* Fixed ItB String class which is just a standard 24 byte C++ string
+* Fixed error formatting from DLL
 
 ## 1.4.1
 Released: 10/15/2026

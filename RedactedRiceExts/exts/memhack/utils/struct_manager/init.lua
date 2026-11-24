@@ -10,6 +10,9 @@
 
 	Structures are automatically registered to memhack.structs[name] table.
 
+	Register a derived subtype (same layout as parent, inherits extra methods). Load parent first:
+	- registerDerivedStructure(name, parentName)  (derive is an alias)
+
 	Generated Methods:
 	- Basic types (int, bool, double, float, byte, string, bytearray):
 	  - getXxx() / setXxx() - read/write the value
@@ -169,6 +172,15 @@ function StructManager:define(name, layout, validateArg)
 	self._structureCreation.registerStructure(name, StructType)
 
 	return StructType
+end
+
+function StructManager:derive(name, parentName)
+	if not self._dll then
+		logger.logError(SUBMODULE, "Structure system not initialized. Call StructManager.init() first (should be done by memhack.init())")
+		return nil
+	end
+
+	return self._structureCreation.registerDerivedStructure(name, parentName)
 end
 
 -- Extend an existing structure with additional fields

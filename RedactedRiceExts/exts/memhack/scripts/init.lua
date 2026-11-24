@@ -2,8 +2,8 @@ local extension = {
 	id = "redactedrice_memhack",
 	name = "Mem Hack",
 	icon = "img/icon.png",
-	version = "1.4.1",
-	modApiVersion = "2.9.5",
+	version = "1.5.0",
+	modApiVersion = "2.9.7",
 	gameVersion = "1.2.93",
 	isExtension = true,
 }

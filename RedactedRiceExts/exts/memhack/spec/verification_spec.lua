@@ -179,4 +179,83 @@ describe("Structure Verification", function()
 			assert.is_nil(result)
 		end)
 	end)
+
+	describe("BoardPawn innate cores", function()
+		local BoardPawn
+		local CORE_NONE
+		local CORE_NORMAL
+		local CORE_BONUS
+		local nextChunk = 0x50000000
+
+		local function installByteArrayAlloc()
+			memhack.dll.memory.allocByteArray = function(byteLen)
+				local addr = nextChunk
+				nextChunk = nextChunk + byteLen + 64
+				return addr
+			end
+			memhack.dll.memory.freeByteArray = function() end
+		end
+
+		local function wireIntVector(vec, values)
+			local capBytes = math.max(16, #values * 4 * 2)
+			local head = memhack.dll.memory.allocByteArray(capBytes)
+			for i, v in ipairs(values) do
+				memhack.dll.memory.writeInt(head + (i - 1) * 4, v)
+			end
+			vec:_setHeadPtr(head)
+			vec:_setNextPtr(head + #values * 4)
+			vec:_setCapacityPtr(head + capBytes)
+		end
+
+		setup(function()
+			installByteArrayAlloc()
+			BoardPawn = memhack.structs.BoardPawn
+			CORE_NONE = memhack.CORE_TYPE_NONE
+			CORE_NORMAL = memhack.CORE_TYPE_NORMAL
+			CORE_BONUS = memhack.CORE_TYPE_SKILL_BONUS
+		end)
+
+		it("reads every slot from a multi-entry hp vector", function()
+			local pawn = BoardPawn.new(0x20000000, false)
+			wireIntVector(pawn:getHpCores(), { CORE_NORMAL, CORE_BONUS })
+
+			assert.are.same({ CORE_NORMAL, CORE_BONUS }, pawn:getHpCores():getIntList())
+			assert.is_true(pawn:getHpCores():intListMatches({ CORE_NORMAL, CORE_BONUS }))
+			assert.is_false(pawn:getHpCores():intListMatches({ CORE_NORMAL }))
+		end)
+
+		it("grows and shrinks hp cores via setIntListResizingIfNeeded", function()
+			local pawn = BoardPawn.new(0x21000000, false)
+			wireIntVector(pawn:getHpCores(), { CORE_NONE })
+			local hpCores = pawn:getHpCores()
+
+			assert.is_true(hpCores:setIntListResizingIfNeeded({ CORE_NORMAL, CORE_BONUS, CORE_NONE }))
+			assert.are.same({
+				CORE_NORMAL,
+				CORE_BONUS,
+				CORE_NONE,
+			}, hpCores:getIntList())
+
+			assert.is_true(hpCores:setIntListResizingIfNeeded({ CORE_NORMAL }))
+			assert.are.same({ CORE_NORMAL }, hpCores:getIntList())
+		end)
+
+		it("treats partial multi-slot power as unpowered", function()
+			local pawn = BoardPawn.new(0x22000000, false)
+			wireIntVector(pawn:getHpCores(), { CORE_NORMAL, CORE_NONE })
+			wireIntVector(pawn:getMoveCores(), { CORE_NORMAL, CORE_NORMAL })
+
+			assert.is_false(pawn:getHpCores():isFullyPowered())
+			assert.is_true(pawn:getMoveCores():isFullyPowered())
+		end)
+
+		it("matches move lists with different lengths as unequal", function()
+			local pawn = BoardPawn.new(0x23000000, false)
+			wireIntVector(pawn:getMoveCores(), { CORE_NORMAL, CORE_NORMAL })
+			local moveCores = pawn:getMoveCores()
+
+			assert.is_false(moveCores:intListMatches({ CORE_NORMAL }))
+			assert.is_true(moveCores:intListMatches({ CORE_NORMAL, CORE_NORMAL }))
+		end)
+	end)
 end)
