@@ -37,12 +37,18 @@ local function sampleCores(power, upgrade1, upgrade2)
 		upgrade2 = upgrade2,
 	}
 end
+
+local function resetMissionState()
+	skillCoreSync.setMissionSnapshot(nil)
+	skillCoreSync.setIsInMission(false)
+end
+
 describe("Skill Core Sync", function()
 	after_each(function()
 		restoreFns()
 		restoreGlobals()
 		gameMocks.pawns = {}
-		skillCoreSync.clearMissionSnapshot()
+		resetMissionState()
 	end)
 
 	describe("list helpers", function()
@@ -341,17 +347,20 @@ describe("Skill Core Sync", function()
 	end)
 
 	describe("mission snapshot helpers", function()
-		it("initializes GAME.memhack and stores snapshot", function()
+		it("initializes GAME.memhack and tracks in_mission separately from snapshot", function()
 			saveGlobal("GAME")
 			_G.GAME = nil
 			assert.is_nil(skillCoreSync.getMissionSnapshot())
 			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
 			assert.are.same(snap, skillCoreSync.getMissionSnapshot())
+			assert.is_falsy(skillCoreSync.isMissionSaveLoaded())
+			skillCoreSync.setIsInMission(true)
 			assert.is_true(skillCoreSync.isMissionSaveLoaded())
-			skillCoreSync.clearMissionSnapshot()
-			assert.is_nil(skillCoreSync.getMissionSnapshot())
+			skillCoreSync.setIsInMission(false)
 			assert.is_false(skillCoreSync.isMissionSaveLoaded())
+			skillCoreSync.setMissionSnapshot(nil)
+			assert.is_nil(skillCoreSync.getMissionSnapshot())
 		end)
 
 	end)
@@ -676,6 +685,7 @@ describe("Skill Core Sync", function()
 
 			skillCoreSync.onMissionStart()
 			assert.are.same(expected, skillCoreSync.getMissionSnapshot())
+			assert.is_true(skillCoreSync.isMissionSaveLoaded())
 		end)
 
 		it("onMissionStart keeps empty snapshot so mid-mission load is detected", function()
@@ -689,9 +699,10 @@ describe("Skill Core Sync", function()
 			assert.is_true(skillCoreSync.isMissionSaveLoaded())
 		end)
 
-		it("onMissionEnd clears snapshot after strip and restore", function()
+		it("onMissionEnd clears in_mission after strip and restore", function()
 			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
+			skillCoreSync.setIsInMission(true)
 			local order = {}
 
 			saveFn(skillCoreSync, "stripAllSuffixedWeapons")
@@ -705,12 +716,14 @@ describe("Skill Core Sync", function()
 
 			skillCoreSync.onMissionEnd({})
 			assert.are.same({ "strip", "apply" }, order)
-			assert.is_nil(skillCoreSync.getMissionSnapshot())
+			assert.are.same(snap, skillCoreSync.getMissionSnapshot())
+			assert.is_false(skillCoreSync.isMissionSaveLoaded())
 		end)
 
-		it("onMissionEnd clears snapshot when mission is nil", function()
+		it("onMissionEnd clears in_mission when mission is nil", function()
 			local snap = { [0] = { hpCores = { 1 } } }
 			skillCoreSync.setMissionSnapshot(snap)
+			skillCoreSync.setIsInMission(true)
 			local order = {}
 
 			saveFn(skillCoreSync, "stripAllSuffixedWeapons")
@@ -724,7 +737,8 @@ describe("Skill Core Sync", function()
 
 			skillCoreSync.onMissionEnd()
 			assert.are.same({ "strip", "apply" }, order)
-			assert.is_nil(skillCoreSync.getMissionSnapshot())
+			assert.are.same(snap, skillCoreSync.getMissionSnapshot())
+			assert.is_false(skillCoreSync.isMissionSaveLoaded())
 		end)
 
 		it("onMissionEnd skips strip and restore when NextPhase is set", function()
@@ -757,7 +771,8 @@ describe("Skill Core Sync", function()
 			assert.are.equal(1, syncCalls)
 		end)
 
-		it("onPostLoadGame rebuilds in mission when snapshot exists", function()
+		it("onPostLoadGame rebuilds in mission when in_mission is set", function()
+			skillCoreSync.setIsInMission(true)
 			skillCoreSync.setMissionSnapshot({ [0] = {} })
 			local suffixCalls = 0
 			local rebuildCallsLocal = 0
