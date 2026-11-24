@@ -54,15 +54,16 @@ function skillCoreSync.setMissionSnapshot(snap)
 	GAME.memhack.mission_core_snapshot = snap
 end
 
-function skillCoreSync.clearMissionSnapshot()
+function skillCoreSync.setIsInMission(inMission)
 	skillCoreSync.initGameSaveData()
-	GAME.memhack.mission_core_snapshot = nil
+	GAME.memhack.in_mission = inMission
 end
 
 -- Board is not set until the frame after PostLoadGame when continuing a game
 -- (see mod_loader altered/misc.lua) for the snapshot
 function skillCoreSync.isMissionSaveLoaded()
-	return skillCoreSync.getMissionSnapshot() ~= nil
+	skillCoreSync.initGameSaveData()
+	return GAME.memhack.in_mission
 end
 
 function skillCoreSync.listToString(list)
@@ -695,7 +696,7 @@ function skillCoreSync.stripSuffixedWeaponsForPawn(pawnId)
 		return
 	end
 
-	local pawn = Game:GetPawn(pawnId)
+	local pawn = Game:GetPawn(pawnId) or Board and Board:GetPawn(pawnId)
 	local ptable = skillCoreSync.getSavePawnTable(pawnId)
 	if not pawn then
 		return
@@ -757,6 +758,7 @@ function skillCoreSync.syncPawnFromSave(pawnId)
 	local pawn = Game:GetPawn(pawnId)
 	local ptable = skillCoreSync.getSavePawnTable(pawnId)
 	if not pawn or not ptable then
+		logger.logDebug(SUBMODULE, "syncPawnFromSave pawn %d not found?", pawnId)
 		return
 	end
 
@@ -815,7 +817,10 @@ function skillCoreSync.snapshotAllPawnCores()
 end
 
 function skillCoreSync.applyPawnSnapshot(pawnId, snap)
-	local pawn = Game:GetPawn(pawnId)
+	-- Interestingly I found a case where Game:GetPawn(pawnId) returns nil
+	-- but Board:GetPawn() returns a pawn: If continuing on the mission complete
+	-- screen this can happen
+	local pawn = Game:GetPawn(pawnId) or Board and Board:GetPawn(pawnId)
 	if not pawn or not snap then
 		return
 	end
@@ -858,6 +863,7 @@ function skillCoreSync.onMissionStart()
 	-- Always store a table even if empty so mid mission will see it and load
 	-- as expected
 	skillCoreSync.setMissionSnapshot(snap)
+	skillCoreSync.setIsInMission(true)
 	if next(snap) == nil then
 		logger.logDebug(SUBMODULE, "onMissionStart: no pawns need skill core sync")
 	end
@@ -879,7 +885,7 @@ function skillCoreSync.onMissionEnd(mission)
 	skillCoreSync.stripAllSuffixedWeapons()
 	logger.logDebug(SUBMODULE, "onMissionEnd part 2 applySnapshot")
 	skillCoreSync.applyAllFromSnapshot(snap)
-	skillCoreSync.clearMissionSnapshot()
+	skillCoreSync.setIsInMission(false)
 end
 
 function skillCoreSync.init()
