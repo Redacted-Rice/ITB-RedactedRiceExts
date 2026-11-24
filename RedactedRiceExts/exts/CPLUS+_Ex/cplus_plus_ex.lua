@@ -5,8 +5,9 @@
 cplus_plus_ex = cplus_plus_ex or {}
 
 local path = GetParentPath(...)
+local parentResourcePath = mod_loader.mods[modApi:getCurrentMod().parent].resourcePath
 
-require(mod_loader.mods[modApi:getCurrentMod().parent].resourcePath .. "libs/inGameToolTip")
+require(parentResourcePath .. "libs/inGameToolTip")
 
 -- Debugging configuration to enable debugging for modules
 cplus_plus_ex.DEBUG = {
@@ -91,7 +92,7 @@ cplus_plus_ex.NON_VIRTUAL_SKILLS = {
 }
 
 cplus_plus_ex._subobjects = {}
-cplus_plus_ex._subobjects.damageModifierLib = require(path.."scripts/libs/damageModifierLib")
+cplus_plus_ex._subobjects.damageModifierLib = require(parentResourcePath .. "libs/damageModifierLib")
 cplus_plus_ex._subobjects.utils = require(path.."scripts/utils")
 cplus_plus_ex._subobjects.skill_registry = require(path.."scripts/skill_registry")
 cplus_plus_ex._subobjects.skill_config = require(path.."scripts/skill_config")
