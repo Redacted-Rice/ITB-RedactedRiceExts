@@ -164,7 +164,15 @@ function M.stubMemhack()
 	}
 end
 
-local function stubInGameToolTipModule()
+local function stubParentExtensionLibs()
+	package.preload["../../libs/damageModifierLib"] = function()
+		local chunk, err = loadfile("../../libs/damageModifierLib.lua")
+		if not chunk then
+			error("Failed to load damageModifierLib: " .. tostring(err))
+		end
+		return chunk()
+	end
+
 	package.preload["../../libs/inGameToolTip"] = function()
 		local tooltipStub = {
 			version = "0.0.0-test",
@@ -188,7 +196,7 @@ end
 -- Initialize CPLUS+ extension
 M.setupGlobals()
 M.stubMemhack()
-stubInGameToolTipModule()
+stubParentExtensionLibs()
 
 require("cplus_plus_ex")
 M.plus_manager = cplus_plus_ex
