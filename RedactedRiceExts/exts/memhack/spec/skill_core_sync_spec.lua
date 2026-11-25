@@ -329,6 +329,56 @@ describe("Skill Core Sync", function()
 			}, false)
 			assert.are.same({ false }, unforced._addForceLog)
 		end)
+
+		it("preserves limited remaining when replacing a limited weapon", function()
+			local pawn = makeMockPawn({ "Limited_A" }, {
+				weaponLimitedUses = { 2 },
+				weaponLimitedRemaining = { 0 },
+				addWeaponLimitedUses = { Limited = 2, Limited_A = 2, Limited_B = 2, Limited_AB = 2 },
+			})
+			skillCoreSync.replaceAllWeapons(pawn, {
+				{ typeId = "Limited_B", replace = true },
+			}, true)
+			assert.are.equal(0, pawn:GetWeaponLimitedRemaining(1))
+		end)
+
+		it("does not restore limited remaining when the weapon is not limited", function()
+			local pawn = makeMockPawn({ "Primary_A" }, {
+				weaponLimitedUses = { 2 },
+				weaponLimitedRemaining = { 1 },
+			})
+			skillCoreSync.replaceAllWeapons(pawn, {
+				{ typeId = "Primary", replace = true },
+			}, true)
+			assert.are.equal(0, pawn:GetWeaponLimitedUses(1))
+			assert.are.equal(0, pawn:GetWeaponLimitedRemaining(1))
+		end)
+	end)
+
+	describe("restoreWeaponLimitedRemaining", function()
+		it("sets remaining on limited weapons", function()
+			local pawn = makeMockPawn({ "Limited" }, {
+				weaponLimitedUses = { 2 },
+				weaponLimitedRemaining = { 1 },
+				addWeaponLimitedUses = { Limited = 2 },
+			})
+			assert.is_true(skillCoreSync.restoreWeaponLimitedRemaining(pawn, 1, 0))
+			assert.are.equal(0, pawn:GetWeaponLimitedRemaining(1))
+		end)
+
+		it("skips when the slot is not limited", function()
+			local pawn = makeMockPawn({ "Primary" })
+			assert.is_false(skillCoreSync.restoreWeaponLimitedRemaining(pawn, 1, 1))
+		end)
+
+		it("skips when remaining is nil", function()
+			local pawn = makeMockPawn({ "Limited" }, {
+				weaponLimitedUses = { 1 },
+				weaponLimitedRemaining = { 1 },
+				addWeaponLimitedUses = { Limited = 1 },
+			})
+			assert.is_false(skillCoreSync.restoreWeaponLimitedRemaining(pawn, 1, nil))
+		end)
 	end)
 
 	describe("sanitizeSaveWeaponId", function()

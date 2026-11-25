@@ -380,8 +380,8 @@ end
 function skillCoreSync.needsSkillCoreSync(pawnSnap, tag, pawnId)
 	local count = skillCoreSync.countPawnCoreType(pawnSnap, memhack.CORE_TYPE_SKILL_BONUS)
 	local needed = count > 0
-	logger.logDebug(SUBMODULE, "%s needsSkillCoreSync pawn %s bonusCount=%d needed=%s",
-			tag or "check", tostring(pawnId), count, tostring(needed))
+	logger.logDebug(SUBMODULE, "%s needsSkillCoreSync pawn %d bonusCount=%d needed=%s",
+			tag or "check", pawnId, count, tostring(needed))
 	return needed
 end
 
@@ -557,6 +557,26 @@ function skillCoreSync.sanitizeSaveWeaponId(ptable, field, baseId)
 	end
 end
 
+function skillCoreSync.restoreWeaponLimitedRemaining(pawn, weaponIndex, remaining)
+	local pawnId = pawn:GetId()
+	if remaining == nil then
+		return false
+	end
+	local weaponType = pawn:GetWeaponType(weaponIndex)
+	local maxUses = pawn:GetWeaponLimitedUses(weaponIndex)
+	if not maxUses or maxUses <= 0 then
+		logger.logDebug(SUBMODULE,
+				"restore skipped pawn %d weapon %d type=%s (not limited) savedRemaining=%s",
+				pawnId, weaponIndex, tostring(weaponType), tostring(remaining))
+		return false
+	end
+	pawn:SetWeaponLimitedRemaining(weaponIndex, remaining)
+	logger.logDebug(SUBMODULE,
+			"restore limited pawn %d weapon %d type=%s remaining %s (max %s)",
+			pawnId, weaponIndex, tostring(weaponType), tostring(remaining), tostring(maxUses))
+	return true
+end
+
 -- Remove and re-add weapons from the first entry marked replace onward.
 -- Earlier slots are left untouched and later slots are always re-added 
 -- (even if unchanged) to preserve order when a prior slot changed. No op 
@@ -576,8 +596,16 @@ function skillCoreSync.replaceAllWeapons(pawn, entries, forceEnable)
 	end
 
 	local removedTypes = {}
+	local removedLimitedRemaining = {}
 	for i = pawn:GetWeaponCount(), firstReplaceIdx, -1 do
 		removedTypes[i] = pawn:GetWeaponType(i)
+		removedLimitedRemaining[i] = pawn:GetWeaponLimitedRemaining(i)
+		if removedLimitedRemaining[i] ~= nil then
+			logger.logDebug(SUBMODULE,
+					"replaceAll capture pawn %d slot %d removedType=%s remaining=%s",
+					pawn:GetId(), i, tostring(removedTypes[i]),
+					tostring(removedLimitedRemaining[i]))
+		end
 		pawn:RemoveWeapon(i)
 	end
 
@@ -589,6 +617,7 @@ function skillCoreSync.replaceAllWeapons(pawn, entries, forceEnable)
 			if entry.cores then
 				skillCoreSync.applyWeaponCores("replaceAll", pawn, newIndex, entry.cores)
 			end
+			skillCoreSync.restoreWeaponLimitedRemaining(pawn, newIndex, removedLimitedRemaining[i])
 			entry._removedType = removedTypes[i]
 			entry._newIndex = newIndex
 		end

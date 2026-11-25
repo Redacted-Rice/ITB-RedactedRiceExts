@@ -64,6 +64,8 @@ function M.makeMockPawn(initialTypes, opts)
 		_addForceLog = {},
 		_hpCores = opts.hpCores or { 0 },
 		_moveCores = opts.moveCores or { 0 },
+		_weaponLimitedUses = opts.weaponLimitedUses or {},
+		_weaponLimitedRemaining = opts.weaponLimitedRemaining or {},
 	}
 
 	for _, typeId in ipairs(initialTypes or {}) do
@@ -137,6 +139,10 @@ function M.makeMockPawn(initialTypes, opts)
 		return self._memhackBoardPawn
 	end
 
+	function pawn:GetId()
+		return opts.id or 0
+	end
+
 	function pawn:GetWeaponCount()
 		return #self._weapons
 	end
@@ -148,12 +154,34 @@ function M.makeMockPawn(initialTypes, opts)
 	function pawn:RemoveWeapon(index)
 		table.insert(self._removeLog, index)
 		table.remove(self._weapons, index)
+		table.remove(self._weaponLimitedUses, index)
+		table.remove(self._weaponLimitedRemaining, index)
+	end
+
+	function pawn:GetWeaponLimitedUses(index)
+		return self._weaponLimitedUses[index]
+	end
+
+	function pawn:GetWeaponLimitedRemaining(index)
+		return self._weaponLimitedRemaining[index]
+	end
+
+	function pawn:SetWeaponLimitedRemaining(index, remaining)
+		self._weaponLimitedRemaining[index] = remaining
 	end
 
 	function pawn:AddWeapon(typeId, forceEnable)
 		table.insert(self._addLog, typeId)
 		table.insert(self._addForceLog, forceEnable)
 		table.insert(self._weapons, typeId)
+		local uses = (opts.addWeaponLimitedUses or {})[typeId]
+		if uses and uses > 0 then
+			table.insert(self._weaponLimitedUses, uses)
+			table.insert(self._weaponLimitedRemaining, uses)
+		else
+			table.insert(self._weaponLimitedUses, 0)
+			table.insert(self._weaponLimitedRemaining, 0)
+		end
 	end
 
 	return pawn

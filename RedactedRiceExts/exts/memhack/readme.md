@@ -24,6 +24,7 @@ compatible with:
 ### Notes
 * Added way to allocate and free byte arrays
 * Added several functions related to the upgrade screen in between missions
+* Fixed issues with core sync on turn reset and with limited used weapons
 * Fixed ItB String class which is just a standard 24 byte C++ string
 * Fixed error formatting from DLL
 
